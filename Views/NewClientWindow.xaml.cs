@@ -18,8 +18,9 @@ namespace Proofer
     {
         public NewClientWindow(NewClientViewModel vm)
         {
+            DataContext = vm;
             InitializeComponent();
-            DataContext=vm;
+
         }
 
 

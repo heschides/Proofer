@@ -5,50 +5,129 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Proofer.Views"
         mc:Ignorable="d"
-        Title="NewUserWindow" Height="170" Width="320">
-    <Grid Margin="5">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="10" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="20" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <TextBlock Text="Username"
-                   Grid.Row="0"
-                   Grid.Column="0" />
-        <TextBox Grid.Row="0"
-                 Grid.Column="2" Margin="0,0,12,4" Text="{Binding Username}"/>
-        <TextBlock Text="Display Name"
-                   Grid.Row="1"
-                   Grid.Column="0" />
-        <TextBox Grid.Row="1"
-                 Grid.Column="2"
-                 Margin="0,0,12,4" Text="{Binding DisplayName}"/>
-        <Separator Grid.ColumnSpan="3"
-                   Grid.Column="0"
-                   Grid.Row="2" />
-        <TextBlock Text="Create Password"
-                   Grid.Column="0"
-                   Grid.Row="3" />
-        <PasswordBox Grid.Row="3"
-                     Grid.Column="2"
-                     Margin="0,0,12,4"
-                     Name="PasswordInit" PasswordChanged="PasswordInit_PasswordChanged"/>
-        <TextBlock Text="Confirm Password"
-                   Grid.Column="0"
-                   Grid.Row="4" />
-        <PasswordBox Grid.Row="4" Grid.Column="2" Margin="0,0,12,4" Name="PasswordConfirm" PasswordChanged="PasswordConfirm_PasswordChanged"/>
-        <Button Grid.Row="5"
-                Grid.Column="2" 
-                Content="Submit"
-                Margin="0,4,12,0"
-                Command="{Binding CreateUserCommand}"/>
-    </Grid>
+        Title="Create Account"
+        Height="520"
+        Width="360"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#FDF6EC">
+
+    <Window.Resources>
+        <Style x:Key="LabelStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Foreground"
+                    Value="#9C7A5C" />
+            <Setter Property="Margin"
+                    Value="0,0,0,5" />
+        </Style>
+
+        <Style x:Key="InputStyle"
+               TargetType="Control">
+            <Setter Property="Height"
+                    Value="36" />
+            <Setter Property="Padding"
+                    Value="10,0" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Background"
+                    Value="White" />
+            <Setter Property="BorderBrush"
+                    Value="#D4A882" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,16" />
+        </Style>
+
+        <Style x:Key="PrimaryButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="40" />
+            <Setter Property="Background"
+                    Value="#C87941" />
+            <Setter Property="Foreground"
+                    Value="White" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#A85E28" />
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#8A4D20" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="40">
+        <StackPanel VerticalAlignment="Center">
+
+            <TextBlock Text="Create Account"
+                       FontSize="26"
+                       FontWeight="Bold"
+                       Foreground="#3D2B1F"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Proofer Case Management"
+                       FontSize="12"
+                       Foreground="#9C7A5C"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,32" />
+
+            <TextBlock Text="USERNAME"
+                       Style="{StaticResource LabelStyle}" />
+            <TextBox Style="{StaticResource InputStyle}"
+                     Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Text="DISPLAY NAME"
+                       Style="{StaticResource LabelStyle}" />
+            <TextBox Style="{StaticResource InputStyle}"
+                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Text="PASSWORD"
+                       Style="{StaticResource LabelStyle}" />
+            <PasswordBox x:Name="PasswordInit"
+                         Style="{StaticResource InputStyle}"
+                         PasswordChanged="PasswordInit_PasswordChanged" />
+
+            <TextBlock Text="CONFIRM PASSWORD"
+                       Style="{StaticResource LabelStyle}" />
+            <PasswordBox x:Name="PasswordConfirm"
+                         Style="{StaticResource InputStyle}"
+                         PasswordChanged="PasswordConfirm_PasswordChanged" />
+
+            <Button Content="Create Account"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding CreateUserCommand}" />
+
+        </StackPanel>
+    </Border>
 </Window>

@@ -21,14 +21,6 @@ namespace Proofer
         {
             InitializeComponent();
             DataContext = vm;
-            Activated += MainPage_Activated;
-        }
-        private async void MainPage_Activated(object? sender, EventArgs e)
-        {
-            if (DataContext is MainWindowViewModel vm)
-            {
-                await vm.LoadPeopleAsync();
-            }
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)

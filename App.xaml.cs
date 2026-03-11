@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Proofer.Data;
 using Proofer.ViewModels;
 using Microsoft.Identity.Client;
+using Windows.Media.ClosedCaptioning;
 
 namespace Proofer
 {
@@ -26,11 +27,11 @@ namespace Proofer
                 .ConfigureServices((context, services) =>
                 {
                     //registrations
-                    services.AddScoped<IPersonService, PersonService>();
-                    services.AddScoped<INoteService, NoteService>();
-                    services.AddScoped<IAuthService, AuthService>();
-                    services.AddScoped<IUserService, UserService>();
-                    services.AddScoped<IPasswordHasher, PasswordHasher>();
+                    services.AddTransient<IPersonService, PersonService>();
+                    services.AddTransient<INoteService, NoteService>();
+                    services.AddTransient<IAuthService, AuthService>();
+                    services.AddTransient<IUserService, UserService>();
+                    services.AddTransient<IPasswordHasher, PasswordHasher>();
 
                     services.AddSingleton<MainWindowViewModel>();
                     services.AddSingleton<MainWindow>();
@@ -45,19 +46,22 @@ namespace Proofer
                     services.AddTransient<NewUserViewModel>();
 
                     //EF Core
-                    services.AddDbContext<ProoferContext>(options => options.UseSqlServer(context.Configuration.GetConnectionString("ProoferDb")));
+                    services.AddDbContext<ProoferContext>(options => options.UseSqlServer(context.Configuration.GetConnectionString("ProoferDb")), ServiceLifetime.Transient);
                 })
                 .Build();
 
             _host.Start();
 
 
+
+
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var mainVm = _host.Services.GetRequiredService<MainWindowViewModel>();
-            mainWindow.Show();
-
             var loginWindow = _host.Services.GetRequiredService<LoginWindow>();
+            var loginVM = _host.Services.GetRequiredService<LoginWindowViewModel>();
             bool? result = loginWindow.ShowDialog();
+
+        
 
             if (result == true)
             {

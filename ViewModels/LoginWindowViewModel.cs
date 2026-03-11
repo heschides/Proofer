@@ -7,6 +7,8 @@ using Proofer.Views;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.Eventing.Reader;
+using System.Drawing.Text;
 using System.Security;
 using System.Security.RightsManagement;
 using System.Text;
@@ -21,44 +23,60 @@ namespace Proofer.ViewModels
         private readonly IAuthService _authService;
         private readonly IServiceProvider _service;
 
-        public User? LoggedInUser { get; set; }
-        public string? Username { get; set; }
+        public User? SelectedUser { get; set; }
         public SecureString? SecurePassword { get; set; }
 
-        public ObservableCollection<User> Users { get; } = new ObservableCollection<User>();
+        public ObservableCollection<User> Users { get; set; } = new ObservableCollection<User>();
 
         //constructor
         public LoginWindowViewModel(IAuthService authService, IServiceProvider service)
         {
             _service = service;
             _authService = authService;
+            InitializeUsers();
             Users.Add(User.Create(0, "Default", "Default", "hashish", "12354"));
+
         }
 
-        public event EventHandler<bool>? OpenNewUserReq8ested;
+        public event EventHandler<bool>? OpenNewUserRequested;
         public event EventHandler<bool>? LoginSucceeded;
 
         [RelayCommand]
         public async Task LoginAsync()
         {
-            var userName = Username;
+            var selectedUser = SelectedUser;
             var password = SecurePassword;
-            if (string.IsNullOrWhiteSpace(userName) || password == null)
+            if (selectedUser == null ||string.IsNullOrWhiteSpace(selectedUser.Username) || password == null)
             {
                 return;
             }
-            var user = await _authService.AuthenticateAsync(userName, password);
+            var user = await _authService.AuthenticateAsync(selectedUser.Username, password);
             if (user == null)
                 return;
 
-            LoggedInUser = user;
+            SelectedUser = user;
             LoginSucceeded?.Invoke(this, true);
         }
 
         [RelayCommand]
         public void OpenNewUserWindow()
         {
-            OpenNewUserReq8ested?.Invoke(this, true);
+            OpenNewUserRequested?.Invoke(this, true);
+        }
+
+
+        private async void InitializeUsers()
+        {
+
+            var _userService = _service.GetService<IUserService>();
+
+            if (_userService == null)
+                return;
+            var users = await _userService.GetAllAsync();
+            foreach (var user in users)
+            {
+                Users.Add(user);
+            }
         }
     }
 }

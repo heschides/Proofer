@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 
 
 namespace Proofer.Views
@@ -20,7 +21,7 @@ namespace Proofer.Views
 
             InitializeComponent();
 
-            vm.OpenNewUserReq8ested += (s, success) =>
+            vm.OpenNewUserRequested += (s, success) =>
             {
                 var services = ((App)Application.Current).Services;
                 var win = new NewUserWindow(services.GetRequiredService<NewUserViewModel>()
@@ -30,11 +31,25 @@ namespace Proofer.Views
                 if(result == true && win.CreatedUser is User newUser)
                 {
                     vm.Users.Add(newUser);
-                    vm.LoggedInUser = newUser;
+                    vm.SelectedUser = newUser;
                 }
+            };
+
+            vm.LoginSucceeded += (s, success) =>
+            {
+                DialogResult = success;
+                Close();
             };
         }
         public User? LoggedInUser =>
-            (DataContext as LoginWindowViewModel)?.LoggedInUser;
+            (DataContext as LoginWindowViewModel)?.SelectedUser;
+
+        private void PasswordInput_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is LoginWindowViewModel vm && sender is PasswordBox box)
+            {
+                vm.SecurePassword = box.SecurePassword;
+            }
+        }
     }
 }

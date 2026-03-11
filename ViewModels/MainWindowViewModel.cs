@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows.Data;
@@ -53,7 +54,7 @@ namespace Proofer
         private string? searchText;
 
         [ObservableProperty]
-        private User? selectedUser;
+        private User? loggedInUser;
 
         partial void OnSearchTextChanged(string? value)
         {
@@ -161,15 +162,23 @@ namespace Proofer
 
         public async Task LoadPeopleAsync()
         {
-            People.Clear();
-            var people = await _personService.GetAllPeopleAsync();
-            foreach (var person in people)
-                People.Add(person);
-        }
+            try
+            {
+                People.Clear();
+                var people = await _personService.GetAllPeopleAsync();
+                foreach (var person in people)
+                    People.Add(person);
+            }
+            catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to load people: {ex.Message}");
+                }
+            }     
 
         public void Initialize(User user)
         {
-            throw new NotImplementedException();
+            LoggedInUser = user;
+            _ = LoadPeopleAsync();
         }
 
         public void EnterEditMode()

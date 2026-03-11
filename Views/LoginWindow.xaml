@@ -5,53 +5,173 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Proofer.Views"
         mc:Ignorable="d"
-        Title="Log In"
-        Height="150"
-        Width="300">
-    <Grid Margin="12,12,12,12">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <TextBlock Text="Select User"
-                   Grid.Row="0"
-                   Grid.Column="0"
-                   Margin="0,0,0,4" />
-        <ComboBox Grid.Row="0"
-                  Grid.Column="3"
-                  Margin="0,0,0,4" 
-                  ItemsSource="{Binding Users, Mode=OneWay}"
-                  DisplayMemberPath="DisplayName"  />
-        <TextBlock Grid.Row="1"
-                   Grid.Column="0"
-                   Text="Password" />
-        <PasswordBox Grid.Row="1"
-                 Grid.Column="3" Margin="0,0,0,4"/>
-        <Button Content="Enter"
-                Grid.Row="2"
-                Grid.Column="3"
-                Margin="2,0,2,0"
-                Command="{Binding LoginCommand}"/>
-        <TextBlock Grid.Row="3"
-                   Grid.Column="3"
-                   Text="Create New User"
-                   FontSize="8"
-                   Foreground="Blue"
-                   Cursor="Hand"
-                   HorizontalAlignment="Center"
-                   Margin="0,12,0,0">
-            <TextBlock.InputBindings>
-                <MouseBinding Gesture="LeftClick"
-                              Command="{Binding OpenNewUserWindowCommand}" />
-            </TextBlock.InputBindings>
-        </TextBlock>
+        Title="Proofer"
+        Height="520"
+        Width="360"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#FDF6EC">
 
-    </Grid>
+    <Window.Resources>
+        <Style x:Key="LabelStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Foreground"
+                    Value="#9C7A5C" />
+            <Setter Property="Margin"
+                    Value="0,0,0,5" />
+            
+        </Style>
+
+        <Style x:Key="InputStyle"
+               TargetType="Control">
+            <Setter Property="Height"
+                    Value="36" />
+            <Setter Property="Padding"
+                    Value="10,0" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Background"
+                    Value="White" />
+            <Setter Property="BorderBrush"
+                    Value="#D4A882" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,16" />
+        </Style>
+
+        <Style x:Key="PrimaryButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="40" />
+            <Setter Property="Background"
+                    Value="#C87941" />
+            <Setter Property="Foreground"
+                    Value="White" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Margin"
+                    Value="0,0,0,16" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#A85E28" />
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#8A4D20" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LinkButton"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Foreground"
+                    Value="#C87941" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   TextDecorations="Underline" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Foreground"
+                                        Value="#A85E28" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="40">
+        <StackPanel VerticalAlignment="Center">
+
+            <!-- Title -->
+            <TextBlock Text="Proofer"
+                       FontSize="30"
+                       FontWeight="Bold"
+                       Foreground="#3D2B1F"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Case Management"
+                       FontSize="12"
+                       Foreground="#9C7A5C"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,32" />
+
+            <!-- User selector -->
+            <TextBlock Text="SELECT USER"
+                       Style="{StaticResource LabelStyle}" />
+            <ComboBox Style="{StaticResource InputStyle}"
+                      ItemsSource="{Binding Users, Mode=OneWay}"
+                      SelectedItem="{Binding SelectedUser, Mode=TwoWay}"
+                      DisplayMemberPath="DisplayName" />
+
+            <!-- Password -->
+            <TextBlock Text="PASSWORD"
+                       Style="{StaticResource LabelStyle}" />
+            <PasswordBox x:Name="PasswordInput"
+                         Style="{StaticResource InputStyle}"
+                         PasswordChanged="PasswordInput_PasswordChanged" />
+
+            <!-- Sign In -->
+            <Button Content="Sign In"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding LoginCommand}" />
+
+            <!-- Divider -->
+            <Separator Background="#E8D0B8"
+                       Margin="0,4,0,16" />
+
+            <!-- Create account -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center">
+                <TextBlock Text="New to Proofer?   "
+                           FontSize="13"
+                           Foreground="#9C7A5C"
+                           VerticalAlignment="Center" />
+                <Button Content="Create an account"
+                        Style="{StaticResource LinkButton}"
+                        Command="{Binding OpenNewUserWindowCommand}" />
+            </StackPanel>
+
+        </StackPanel>
+    </Border>
 </Window>

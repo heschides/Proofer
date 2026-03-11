@@ -30,6 +30,7 @@ namespace Proofer.ViewModels
 
         //events
         public event EventHandler<bool>? CloseRequested;
+        public event EventHandler<bool>? CloseWindowRequested;
 
         //properies
 
@@ -47,8 +48,8 @@ namespace Proofer.ViewModels
 
         public User? CreatedUser { get; private set; }
 
-        //events
-        public event EventHandler<bool>?CloseWindowRequested;
+
+        
 
        //commands
         
@@ -92,7 +93,7 @@ namespace Proofer.ViewModels
             PasswordInit = null;
             PasswordConfirm = null;
 
-            CloseWindowRequested.Invoke(this, true);
+            CloseWindowRequested?.Invoke(this, true);
         }
 
         //methods
