@@ -1,10 +1,5 @@
-﻿using Proofer.Data;
-using Proofer.Models;
+﻿using Proofer.Models;
 using Proofer.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -14,18 +9,18 @@ namespace Proofer.Views
 
     public partial class LoginWindow : Window
     {
-        public LoginWindow(LoginWindowViewModel vm)
-        {
-            var services = ((App)Application.Current).Services;
-            DataContext = vm;
 
+        private readonly Func<NewUserWindow> _newUserWindowFactory;
+
+        public LoginWindow(LoginWindowViewModel vm, Func<NewUserWindow> newUserWindowFactory)
+        {
+             DataContext = vm;
+             _newUserWindowFactory = newUserWindowFactory;
             InitializeComponent();
 
             vm.OpenNewUserRequested += (s, success) =>
             {
-                var services = ((App)Application.Current).Services;
-                var win = new NewUserWindow(services.GetRequiredService<NewUserViewModel>()
-                    );
+                var win = _newUserWindowFactory();
                 var result = win.ShowDialog();
                 
                 if(result == true && win.CreatedUser is User newUser)

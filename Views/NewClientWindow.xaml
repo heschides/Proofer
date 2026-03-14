@@ -5,65 +5,245 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Proofer"
         mc:Ignorable="d"
-    Title="Client List" Height="650" Width="800">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        Title="Client List"
+        Height="650"
+        Width="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#FDF6EC">
+
+    <Window.Resources>
+        <Style x:Key="LabelStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Foreground"
+                    Value="#9C7A5C" />
+            <Setter Property="Margin"
+                    Value="0,0,0,5" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding"
+                    Value="8,4" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="Background"
+                    Value="White" />
+            <Setter Property="BorderBrush"
+                    Value="#D4A882" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,10" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding"
+                    Value="6,4" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="Background"
+                    Value="White" />
+            <Setter Property="BorderBrush"
+                    Value="#D4A882" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,10" />
+        </Style>
+
+        <Style TargetType="DatePicker">
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="Background"
+                    Value="White" />
+            <Setter Property="BorderBrush"
+                    Value="#D4A882" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,10" />
+        </Style>
+
+        <Style x:Key="PrimaryButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="36" />
+            <Setter Property="Background"
+                    Value="#C87941" />
+            <Setter Property="Foreground"
+                    Value="White" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Margin"
+                    Value="0,0,0,10" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#A85E28" />
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#8A4D20" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DangerButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="36" />
+            <Setter Property="Background"
+                    Value="#E8D0B8" />
+            <Setter Property="Foreground"
+                    Value="#8A4D20" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#D4A882" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" />
-            <ColumnDefinition Width="12px" />
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="16" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        <StackPanel Grid.Row="0"
-                    Grid.Column="0">
-            <TextBlock Text="First Name"
-                       Margin="0,0,0,4" />
-            <TextBox Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,0,0,12" />
-            <TextBlock Text="Last Name"
-                       Margin="0,0,0,4" />
-            <TextBox Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,0,0,12" />
-            <TextBlock Text="Birthday"
-                       Margin="0,0,0,4" />
-            <DatePicker SelectedDate="{Binding BirthDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        Margin="0,0,0,12"/>
-            <TextBlock Text="Waiver"
-                       Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding Waivers}" SelectedItem="{Binding Waiver, Mode=TwoWay}" 
-                      Margin="0,0,0,12" />
-            <TextBlock Text="Effective Date"
-                       Margin="0,0,0,4" />
-            <DatePicker SelectedDate="{Binding EffectiveDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        Margin="0,0,0,12" />
-            <TextBlock Text="Bio"
-                       Margin="0,0,0,4" />
-            <TextBox   Text="{Binding Bio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                       AcceptsReturn="True"
-                       TextWrapping="Wrap"
-                       VerticalScrollBarVisibility="Auto"
-                       Height="100"
-                       Margin="2,0,2,12" />
 
-            <Button Content="Add Name"
-                    Command="{Binding SubmitCommand}" 
-                    Margin="0,0,0,12"/>
-            
-            <Button Content="Remove Name"
-                    Command="{Binding RemoveSelectedPersonCommand}" />
-        </StackPanel>
-        <StackPanel Grid.Column="2"
-                    Grid.Row="0">
-            <TextBlock Text="People Who Are Awesome"
-                       Margin="12px" />
-            <DataGrid
-                  ItemsSource="{Binding People}"
-                  SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
-                  AutoGenerateColumns="True"
-                  IsReadOnly="True">
-        </DataGrid>
+        <!-- ═══ ENTRY FORM (left) ═══ -->
+        <Border Grid.Column="0"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16">
+            <StackPanel>
+                <TextBlock Text="ADD CLIENT"
+                           FontSize="13"
+                           FontWeight="Bold"
+                           Foreground="#3D2B1F"
+                           Margin="0,0,0,16" />
+
+                <TextBlock Text="FIRST NAME"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="LAST NAME"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="BIRTHDAY"
+                           Style="{StaticResource LabelStyle}" />
+                <DatePicker SelectedDate="{Binding BirthDate, Mode=TwoWay}" />
+
+                <TextBlock Text="WAIVER"
+                           Style="{StaticResource LabelStyle}" />
+                <ComboBox ItemsSource="{Binding Waivers}"
+                          SelectedItem="{Binding Waiver, Mode=TwoWay}" />
+
+                <TextBlock Text="EFFECTIVE DATE"
+                           Style="{StaticResource LabelStyle}" />
+                <DatePicker SelectedDate="{Binding EffectiveDate, Mode=TwoWay}" />
+
+                <TextBlock Text="BIO"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding Bio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Height="100" />
+
+                <Button Content="Add Client"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SubmitCommand}" />
+
+                <Button Content="Remove Selected"
+                        Style="{StaticResource DangerButton}"
+                        Command="{Binding RemoveSelectedPersonCommand}" />
             </StackPanel>
+        </Border>
+
+        <!-- ═══ CLIENT LIST (right) ═══ -->
+        <Border Grid.Column="2"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="CLIENTS"
+                           FontSize="13"
+                           FontWeight="Bold"
+                           Foreground="#3D2B1F"
+                           Margin="16,16,16,8" />
+
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding People}"
+                          SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
+                          AutoGenerateColumns="True"
+                          IsReadOnly="True"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="White"
+                          AlternatingRowBackground="#FDF6EC"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#F0E0D0"
+                          Margin="0" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

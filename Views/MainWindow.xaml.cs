@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Proofer.Models;
+using Proofer.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace Proofer
 {
@@ -17,10 +11,19 @@ namespace Proofer
     /// </summary>
     public partial class MainWindow : Window
     {
-        public MainWindow(MainWindowViewModel vm)
+        private readonly Func<NewClientWindow> _newClientWindowFactory;
+
+        public MainWindow(MainWindowViewModel vm, Func<NewClientWindow> newClientWindowFactory)
         {
             InitializeComponent();
             DataContext = vm;
+            _newClientWindowFactory = newClientWindowFactory;
+
+            vm.OpenClientsWindowRequested += (s, success) =>
+            {
+                var win = _newClientWindowFactory();
+                var result = win.ShowDialog();
+            };
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)

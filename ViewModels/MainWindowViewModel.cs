@@ -17,9 +17,15 @@ namespace Proofer
 {
     public partial class MainWindowViewModel : ObservableObject
     {
-        private readonly IServiceProvider _services;
+        
+        //FIELDS
         private readonly IPersonService _personService;
         private readonly INoteService _noteService;
+
+        //EVENTS
+        public event EventHandler<bool>? OpenClientsWindowRequested;
+
+        //PROPERTIES
         public ICollectionView NotesView { get; }
 
         [ObservableProperty]
@@ -56,12 +62,6 @@ namespace Proofer
         [ObservableProperty]
         private User? loggedInUser;
 
-        partial void OnSearchTextChanged(string? value)
-        {
-            NotesView.Refresh();
-        }
-
-
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
 
 
@@ -73,7 +73,6 @@ namespace Proofer
         //Constructor
         public MainWindowViewModel(IServiceProvider services, IPersonService personService, INoteService noteService)
         {
-            _services = services;
             _personService = personService;
             _noteService = noteService;
             NotesView = CollectionViewSource.GetDefaultView(Notes);
@@ -84,8 +83,7 @@ namespace Proofer
         [RelayCommand]
         public void OpenClientList()
         {
-            var window = _services.GetRequiredService<NewClientWindow>();
-            window.ShowDialog();
+            OpenClientsWindowRequested?.Invoke(this, true);
         }
 
         [RelayCommand]
@@ -133,6 +131,10 @@ namespace Proofer
             }
         }
         //Methods
+        partial void OnSearchTextChanged(string? value)
+        {
+            NotesView.Refresh();
+        }
 
         private async void LoadNotesForPersonAsync(Person? person)
         {

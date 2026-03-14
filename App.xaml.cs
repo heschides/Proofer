@@ -45,8 +45,14 @@ namespace Proofer
                     services.AddTransient<NewUserWindow>();
                     services.AddTransient<NewUserViewModel>();
 
+                    services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
+                    services.AddTransient<Func<NewClientWindow>>(sp => () => sp.GetRequiredService<NewClientWindow>());
+
                     //EF Core
                     services.AddDbContext<ProoferContext>(options => options.UseSqlServer(context.Configuration.GetConnectionString("ProoferDb")), ServiceLifetime.Transient);
+
+
+
                 })
                 .Build();
 

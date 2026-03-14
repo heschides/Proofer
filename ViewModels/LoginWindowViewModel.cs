@@ -20,27 +20,29 @@ namespace Proofer.ViewModels
     public partial class LoginWindowViewModel : ObservableObject
     {
 
+        //FIELDS
         private readonly IAuthService _authService;
         private readonly IServiceProvider _service;
 
+        //EVENTS
+        public event EventHandler<bool>? OpenNewUserRequested;
+        public event EventHandler<bool>? LoginSucceeded;
+
+        //PROPERTIES
         public User? SelectedUser { get; set; }
         public SecureString? SecurePassword { get; set; }
-
         public ObservableCollection<User> Users { get; set; } = new ObservableCollection<User>();
 
-        //constructor
+        //CONSTRUCTOR
         public LoginWindowViewModel(IAuthService authService, IServiceProvider service)
         {
             _service = service;
             _authService = authService;
             InitializeUsers();
             Users.Add(User.Create(0, "Default", "Default", "hashish", "12354"));
-
         }
 
-        public event EventHandler<bool>? OpenNewUserRequested;
-        public event EventHandler<bool>? LoginSucceeded;
-
+        //COMMANDS
         [RelayCommand]
         public async Task LoginAsync()
         {
@@ -64,7 +66,7 @@ namespace Proofer.ViewModels
             OpenNewUserRequested?.Invoke(this, true);
         }
 
-
+        //METHODS
         private async void InitializeUsers()
         {
 

@@ -78,12 +78,12 @@ namespace Proofer
         }
 
         [RelayCommand]
-        private void RemoveSelectedPerson()
+        private async Task RemoveSelectedPerson()
         {
             if (SelectedPerson is null)
                 return;
+            await _personService.DeletePersonAsync(SelectedPerson);
             People.Remove(SelectedPerson);
-            _personService.DeletePersonAsync(SelectedPerson);
             SelectedPerson = null;
         }
 
