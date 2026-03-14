@@ -1,32 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Proofer.Models;
+﻿
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using static Proofer.Enums;
-using System.Threading.Tasks;
-using System.Drawing.Text;
+using System.ComponentModel.DataAnnotations;
 using Proofer.Data;
 
 
 namespace Proofer
 {
-    public partial class NewClientViewModel : ObservableObject
+
+    public partial class NewClientViewModel : ObservableValidator
     {
 
         [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [Required(ErrorMessage = "First name is required.")]
         private string? firstName;
 
         [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [Required(ErrorMessage = "Last name is required.")]
         private string? lastName;
 
-        [ObservableProperty]
-        private Person? selectedPerson;
 
         [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [Required(ErrorMessage = "Birthdate is required.")]
         private DateTime birthDate;
+
+        [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [Required(ErrorMessage = "A short biographical description is required.")]
+        private string? bio;
 
         [ObservableProperty]
         private DateTime effectiveDate;
@@ -35,7 +41,7 @@ namespace Proofer
         private WaiverType waiver;
 
         [ObservableProperty]
-        private string? bio;
+        private Person? selectedPerson;
 
         public ObservableCollection<Person> People { get; } = [];
 
@@ -55,15 +61,11 @@ namespace Proofer
         [RelayCommand]
         private async Task Submit()
         {
-            if (string.IsNullOrWhiteSpace(FirstName) ||
-             string.IsNullOrWhiteSpace(LastName) ||
-             string.IsNullOrWhiteSpace(Bio))
-
-            {
+            ValidateAllProperties();
+            if (HasErrors)
                 return;
-            }
-
-            var person = Person.CreatePerson(FirstName, LastName, Bio, BirthDate, EffectiveDate, Waiver);
+            //Validation above guarantees these are non-null at this point.  ! operator used to suppress IDE warning.
+            var person = Person.CreatePerson(FirstName!, LastName!, Bio!, BirthDate, EffectiveDate, Waiver);
           
             var savedPerson = await _personService.AddPersonAsync(person);
 

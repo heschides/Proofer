@@ -32,7 +32,12 @@ namespace Proofer.Data
 
         public async Task<List<Person>> GetAllPeopleAsync()
         {
-            return await _context.People.ToListAsync();
+            return await _context.People
+                .Include(p => p.Notes)
+                .Include(p => p.Forms)
+                .ToListAsync();
+            ;
+
         }
     }
 }

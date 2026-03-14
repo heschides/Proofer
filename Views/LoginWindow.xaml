@@ -124,10 +124,11 @@
         <StackPanel VerticalAlignment="Center">
 
             <!-- Title -->
-            <TextBlock Text="Proofer"
+            <TextBlock Text="Sati"
                        FontSize="30"
                        FontWeight="Bold"
                        Foreground="#3D2B1F"
+                       FontFamily="Palatino Linotype"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,4" />
             <TextBlock Text="Case Management"
