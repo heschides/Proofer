@@ -12,17 +12,17 @@ namespace Proofer
 
         //simple properties
         public int Id { get; private set; }
-        public string? FirstName { get;  private set; }
-        public string? LastName { get; private set; } 
-        public DateTime Birthdate { get;  private set; }
-        public DateTime EffectiveDate { get;  private set; }
-        public string? Bio { get;  private set; }
-        public WaiverType Waiver { get;  private set; } = WaiverType.None;
+        public string? FirstName { get;  set; }
+        public string? LastName { get; set; } 
+        public DateTime BirthDate { get;  set; }
+        public DateTime EffectiveDate { get;  set; }
+        public string? Bio { get;  set; }
+        public WaiverType Waiver { get;  set; } = WaiverType.None;
         public string FullName => $"{FirstName} {LastName}".Trim();
 
         //collections
-        public List<Form> Forms { get; private set; } = new List<Form>();
-        public List<Note> Notes { get; private set; } = new List<Note>();
+        public List<Form> Forms { get; set; } = new List<Form>();
+        public List<Note> Notes { get; set; } = new List<Note>();
 
         //constructor
         protected Person() { }
@@ -35,7 +35,7 @@ namespace Proofer
                 FirstName = firstName.Trim(),
                 LastName = lastName.Trim(),
                 Bio = Bio.Trim(),
-                Birthdate = birthdate,
+                BirthDate = birthdate,
                 EffectiveDate = effective,
                 Waiver = waiver
             };

@@ -23,6 +23,13 @@ namespace Proofer
 
         }
 
-
+        private void DataGrid_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            if (DataContext is NewClientViewModel vm && vm.SelectedPerson is Person person)
+            {
+                vm.LoadPersonForEdit(person);
+                vm.IsEditMode = true;
+            }
+        }
     }
 }

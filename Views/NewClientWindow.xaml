@@ -203,7 +203,7 @@
                          VerticalScrollBarVisibility="Auto"
                          Height="100" />
 
-                <Button Content="Add Client"
+                <Button Content="{Binding SubmitButtonLabel}"
                         Style="{StaticResource PrimaryButton}"
                         Command="{Binding SubmitCommand}" />
 
@@ -234,8 +234,8 @@
                 <DataGrid Grid.Row="1"
                           ItemsSource="{Binding People}"
                           SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
+                          MouseDoubleClick="DataGrid_MouseDoubleClick"
                           AutoGenerateColumns="True"
-                          IsReadOnly="True"
                           Background="Transparent"
                           BorderThickness="0"
                           RowBackground="White"

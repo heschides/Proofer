@@ -9,5 +9,6 @@ namespace Proofer.Data
         Task<Person> AddPersonAsync(Person person);
         Task DeletePersonAsync(Person person);
         Task<List<Person>> GetAllPeopleAsync();
+        Task<Person> EditPersonAsync(Person person);
     }
 }

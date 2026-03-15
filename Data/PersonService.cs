@@ -30,6 +30,13 @@ namespace Proofer.Data
             await _context.SaveChangesAsync();
         }
 
+        public async Task<Person> EditPersonAsync(Person person)
+        {
+            _context.People.Update(person);
+            await _context.SaveChangesAsync();
+            return person;
+        }
+
         public async Task<List<Person>> GetAllPeopleAsync()
         {
             return await _context.People

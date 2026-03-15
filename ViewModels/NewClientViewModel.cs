@@ -13,6 +13,11 @@ namespace Proofer
     public partial class NewClientViewModel : ObservableValidator
     {
 
+        //FIELDS
+
+        //EVENTS
+
+        //PROPERTIES
         [ObservableProperty]
         [NotifyDataErrorInfo]
         [Required(ErrorMessage = "First name is required.")]
@@ -43,6 +48,11 @@ namespace Proofer
         [ObservableProperty]
         private Person? selectedPerson;
 
+        [ObservableProperty]
+        private bool isEditMode;
+        public string SubmitButtonLabel => IsEditMode ? "Save Changes" : "Add Client";
+
+
         public ObservableCollection<Person> People { get; } = [];
 
         public Array Waivers => Enum.GetValues(typeof(WaiverType));
@@ -56,27 +66,39 @@ namespace Proofer
             _personService = personService;
             _ = LoadPeopleAsync();
         }
-        
-        
+
+
         [RelayCommand]
         private async Task Submit()
         {
             ValidateAllProperties();
             if (HasErrors)
                 return;
-            //Validation above guarantees these are non-null at this point.  ! operator used to suppress IDE warning.
-            var person = Person.CreatePerson(FirstName!, LastName!, Bio!, BirthDate, EffectiveDate, Waiver);
-          
-            var savedPerson = await _personService.AddPersonAsync(person);
 
-            People.Add(savedPerson);
+            if (IsEditMode && SelectedPerson is Person existing)
+            {
+                existing.FirstName = FirstName!;
+                existing.LastName = LastName!;
+                existing.BirthDate = BirthDate;
+                existing.EffectiveDate = EffectiveDate;
+                existing.Waiver = Waiver;
+                existing.Bio = Bio!;
+                await _personService.EditPersonAsync(existing);
                 
-            FirstName = string.Empty;
-            LastName = string.Empty;
-            Bio = string.Empty;
-            BirthDate = DateTime.MinValue; 
-            EffectiveDate = DateTime.MinValue;
-            Waiver = WaiverType.None;
+                var index = People.IndexOf(existing);
+                if (index >= 0)
+                    People[index] = existing;  
+                IsEditMode = false;
+                SelectedPerson = null;
+                ClearFields();
+                OnPropertyChanged(nameof(SubmitButtonLabel));
+            }
+            else
+            {
+                var person = Person.CreatePerson(FirstName!, LastName!, Bio!, BirthDate, EffectiveDate, Waiver);
+                await _personService.AddPersonAsync(person);
+                People.Add(person);
+            } 
         }
 
         [RelayCommand]
@@ -88,6 +110,8 @@ namespace Proofer
             People.Remove(SelectedPerson);
             SelectedPerson = null;
         }
+        
+        
 
         private async Task LoadPeopleAsync()
         {
@@ -95,5 +119,28 @@ namespace Proofer
             foreach (var person in people)
                 People.Add(person);
         }
+
+        public void LoadPersonForEdit(Person person)
+        {
+            IsEditMode = true;
+            OnPropertyChanged(nameof(SubmitButtonLabel));
+            FirstName = person.FirstName; 
+            LastName = person.LastName;
+            Bio = person.Bio;
+            BirthDate = person.BirthDate;
+            EffectiveDate= person.EffectiveDate;
+            Waiver = person.Waiver;
+        }
+
+        private void ClearFields()
+        {
+            FirstName = string.Empty;
+            LastName = string.Empty;
+            BirthDate = default;
+            EffectiveDate = default;
+            Waiver = default;
+            Bio = string.Empty;
+        }
+
     }
 }
