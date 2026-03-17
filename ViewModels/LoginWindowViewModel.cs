@@ -22,7 +22,7 @@ namespace Sati.ViewModels
 
         //FIELDS
         private readonly IAuthService _authService;
-        private readonly IServiceProvider _service;
+        private readonly IUserService _userService;
 
         //EVENTS
         public event EventHandler<bool>? OpenNewUserRequested;
@@ -34,12 +34,12 @@ namespace Sati.ViewModels
         public ObservableCollection<User> Users { get; set; } = new ObservableCollection<User>();
 
         //CONSTRUCTOR
-        public LoginWindowViewModel(IAuthService authService, IServiceProvider service)
+        public LoginWindowViewModel(IAuthService authService, IUserService userService)
         {
-            _service = service;
+            _userService = userService;
             _authService = authService;
             InitializeUsers();
-            Users.Add(User.Create(0, "Default", "Default", "hashish", "12354"));
+            
         }
 
         //COMMANDS
@@ -69,9 +69,6 @@ namespace Sati.ViewModels
         //METHODS
         private async void InitializeUsers()
         {
-
-            var _userService = _service.GetService<IUserService>();
-
             if (_userService == null)
                 return;
             var users = await _userService.GetAllAsync();

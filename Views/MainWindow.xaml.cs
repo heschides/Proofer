@@ -16,6 +16,12 @@ namespace Sati
         public MainWindow(MainWindowViewModel vm, Func<NewClientWindow> newClientWindowFactory)
         {
             InitializeComponent();
+            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            var screenWidth = SystemParameters.PrimaryScreenWidth;
+
+            Height = Math.Min(900, screenHeight * 0.9);
+            Width = Math.Min(1100, screenWidth * 0.9);
+
             DataContext = vm;
             _newClientWindowFactory = newClientWindowFactory;
 
@@ -23,13 +29,10 @@ namespace Sati
             {
                 var win = _newClientWindowFactory();
                 var result = win.ShowDialog();
+
+                _= vm.LoadPeopleAsync();
             };
         }
-
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-        }
-
 
         private void DataGrid_MouseDoubleClick(object? sender, MouseEventArgs e)
         {

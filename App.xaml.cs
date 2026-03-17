@@ -63,8 +63,6 @@ namespace Sati
             _host.Start();
 
 
-
-
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var mainVm = _host.Services.GetRequiredService<MainWindowViewModel>();
             var loginWindow = _host.Services.GetRequiredService<LoginWindow>();

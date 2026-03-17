@@ -6,9 +6,7 @@
         xmlns:local="clr-namespace:Sati"
         mc:Ignorable="d"
         Title="Sati"
-        Background="#FDF6EC"
-        Height="800"
-        Width="1100">
+        Background="#FDF6EC">
 
     <Window.Resources>
 
@@ -186,9 +184,10 @@
             <ColumnDefinition Width="180" />
         </Grid.ColumnDefinitions>
 
-        <!-- ═══ NOTE ENTRY FORM (left, row 1) ═══ -->
+        <!-- ═══ NOTE ENTRY FORM (left, row 0,1) ═══ -->
         <Border Grid.Column="0"
                 Grid.Row="1"
+                Grid.RowSpan="2"
                 Background="White"
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
@@ -230,8 +229,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="UNITS"
@@ -250,7 +249,6 @@
                                Grid.Row="4"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox Grid.Row="5"
-                             MinHeight="80"
                              TextWrapping="Wrap"
                              AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto"
@@ -266,13 +264,39 @@
         </Border>
 
         <!-- ═══ SEARCH + NOTES GRID (center, rows 0-1) ═══ -->
-        <StackPanel Grid.Row="0"
-                    Grid.Column="2"
-                    Margin="0,0,0,8">
-            <TextBlock Text="SEARCH NOTES"
+        <Grid Grid.Row="0"
+              Grid.Column="2"
+              Margin="0,0,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="160" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Grid.Column="0"
+                       Text="FILTER NOTES"
                        Style="{StaticResource LabelStyle}" />
-            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-        </StackPanel>
+            <TextBlock Grid.Row="0"
+                       Grid.Column="2"
+                       Text="FILTER STATUS"
+                       Style="{StaticResource LabelStyle}" />
+
+            <TextBox x:Name="SearchTextBox"
+                     Grid.Row="1"
+                     Grid.Column="0"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+            <ComboBox Grid.Row="1"
+                      Grid.Column="2"
+                      Height="{Binding ActualHeight, ElementName=SearchTextBox}"
+                      ItemsSource="{Binding NoteStatusOptions}"
+                      SelectedItem="{Binding FilterStatus}" />
+        </Grid>
 
         <Border Grid.Column="2"
                 Grid.Row="1"
@@ -293,11 +317,18 @@
                       GridLinesVisibility="Horizontal"
                       HorizontalGridLinesBrush="#F0E0D0"
                       HeadersVisibility="Column"
-                      Margin="0" />
+                      Margin="0">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Delete Note"
+                                  Command="{Binding DeleteNoteCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
         </Border>
 
-        <!-- ═══ UPCOMING TASKS (left, row 2) ═══ -->
-        <Border Grid.Column="0"
+        <!-- ═══ UPCOMING TASKS (right, row 2) ═══ -->
+        <Border Grid.Column="4"
                 Grid.Row="2"
                 Background="White"
                 BorderBrush="#E8D0B8"
@@ -467,9 +498,9 @@
         </Border>
 
         <!-- ═══ CLIENT LIST BUTTON (bottom right) ═══ -->
-        <StackPanel Grid.Column="4"
-                    Grid.Row="2"
-                    VerticalAlignment="Top">
+        <StackPanel Grid.Column="0"
+                    Grid.Row="0"
+                    VerticalAlignment="Center">
             <Button Content="Client List"
                     Style="{StaticResource SmallButton}"
                     Command="{Binding OpenClientListCommand}" />

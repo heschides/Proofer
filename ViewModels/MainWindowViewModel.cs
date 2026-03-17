@@ -60,6 +60,10 @@ namespace Sati
         private string? searchText;
 
         [ObservableProperty]
+        private NoteStatus? filterStatus;
+        partial  void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
+
+        [ObservableProperty]
         private User? loggedInUser;
 
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
@@ -100,8 +104,9 @@ namespace Sati
                 var note = Note.Create(Narrative, EventDate, Status, Units, SelectedPerson.Id);
                 var savedNote = await _noteService.AddNoteAsync(note);
                 Notes.Insert(0, savedNote);
+                NotesView.Refresh();
 
-                SelectedPerson = null;
+                //SelectedPerson = null;
                 Status = null;
                 Narrative = string.Empty;
                 EventDate = null;
@@ -111,7 +116,6 @@ namespace Sati
             else
             {
                 if (SelectedNote == null)
-
                     return;
 
                 var note = SelectedNote!;
@@ -120,9 +124,10 @@ namespace Sati
                 note.Units = Units ?? 0;
                 note.Status = Status;
                 await _noteService.UpdateNoteAsync(note);
+                NotesView.Refresh();
+
 
                 IsEditing = false;
-                SelectedPerson = null;
                 Status = null;
                 Narrative = string.Empty;
                 EventDate = null;
@@ -130,6 +135,18 @@ namespace Sati
                 Duration = null;
             }
         }
+
+        [RelayCommand]
+        private async Task DeleteNote()
+        {
+            if (SelectedNote != null)
+            {
+                await _noteService.DeleteNoteAsync(SelectedNote);
+                Notes.Remove(SelectedNote);
+                SelectedNote = null;
+            }
+        }
+
         //Methods
         partial void OnSearchTextChanged(string? value)
         {
@@ -156,10 +173,12 @@ namespace Sati
             if (obj is not Note note)
                 return false;
 
-            if (string.IsNullOrWhiteSpace(SearchText))
-                return true;
+            var matchesText = string.IsNullOrWhiteSpace(SearchText) ||
+                              note.Narrative.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
 
-            return note.Narrative.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+            var matchesStatus = FilterStatus == null || note.Status == FilterStatus;
+
+            return matchesText && matchesStatus;
         }
 
         public async Task LoadPeopleAsync()

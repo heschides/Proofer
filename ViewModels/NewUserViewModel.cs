@@ -18,13 +18,13 @@ namespace Sati.ViewModels
         //services
         
         private readonly IPasswordHasher _hasher;
-        private readonly IServiceProvider _service;
+        private readonly IUserService _userService;
 
         //constructor
         
-        public NewUserViewModel(IPasswordHasher hasher, IServiceProvider service)
+        public NewUserViewModel(IPasswordHasher hasher, IUserService userService)
         {
-            _service = service;
+            _userService = userService;
             _hasher = hasher;
         }
 
@@ -69,12 +69,8 @@ namespace Sati.ViewModels
             if (PasswordInit.Length != PasswordConfirm.Length)
                 throw new InvalidOperationException("Passwords do not match.");
 
-            // resolve the user service from the provided service provider
-            var userService = _service.GetService(typeof(IUserService)) as IUserService
-                              ?? _service.GetRequiredService<IUserService>();
-
             // check for duplicate username
-            var all = await userService.GetAllAsync();
+            var all = await _userService.GetAllAsync();
             if (all.Any(u => string.Equals(u.Username, Username, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("A user with that username already exists.");
 
@@ -85,7 +81,7 @@ namespace Sati.ViewModels
             var user = Models.User.Create(0, Username!, DisplayName ?? string.Empty, hash, salt);
 
             // persist
-            CreatedUser = await userService.CreateAsync(user);
+            CreatedUser = await _userService.CreateAsync(user);
 
             // clear sensitive data
             PasswordInit.Dispose();
