@@ -169,22 +169,56 @@
 
     </Window.Resources>
 
+    <!--
+        MAIN LAYOUT: 5 columns (3 content + 2 spacers), 3 rows
+        ┌─────────────┬───┬─────────────┬───┬─────────────┐
+        │ Col 0       │   │ Col 2       │   │ Col 4       │
+        ├─────────────┤   ├─────────────┤   ├─────────────┤
+        │ Row 0       │   │ Row 0       │   │ Rows 0-1    │
+        │ Client List │   │ Filter bar  │   │ Productivity│
+        │ button      │   │             │   │ + Today's   │
+        ├─────────────┤   ├─────────────┤   │ Work        │
+        │ Rows 1-2    │   │ Row 1       │   ├─────────────┤
+        │ Note entry  │   │ Notes       │   │ Row 2       │
+        │ form        │   │ DataGrid    │   │ Upcoming    │
+        │             │   ├─────────────┤   │ Tasks       │
+        │             │   │ Row 2       │   │             │
+        │             │   │ Forms       │   │             │
+        │             │   │ checklist   │   │             │
+        └─────────────┴───┴─────────────┴───┴─────────────┘
+    -->
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <!-- Row 0: buttons and filter bar -->
             <RowDefinition Height="*" />
+            <!-- Row 1: main content -->
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <!-- Row 2: secondary content -->
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" />
-            <ColumnDefinition Width="16" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="16" />
-            <ColumnDefinition Width="180" />
+            <!-- Col 0: note entry form -->
+            <ColumnDefinition Width="10" />
+            <!-- Col 1: spacer -->
+            <ColumnDefinition Width="2*" />
+            <!-- Col 2: notes grid + forms -->
+            <ColumnDefinition Width="10" />
+            <!-- Col 3: spacer -->
+            <ColumnDefinition Width="*" />
+            <!-- Col 4: productivity + tasks -->
         </Grid.ColumnDefinitions>
 
-        <!-- ═══ NOTE ENTRY FORM (left, row 0,1) ═══ -->
+        <!-- ═══ COL 0 ROW 0: CLIENT LIST BUTTON ═══ -->
+        <Button Grid.Column="0"
+                Grid.Row="0"
+                Content="Client List"
+                Style="{StaticResource SmallButton}"
+                Command="{Binding OpenClientListCommand}"
+                HorizontalAlignment="Stretch"
+                Margin="0,0,0,2" />
+
+        <!-- ═══ COL 0 ROWS 1-2: NOTE ENTRY FORM ═══ -->
         <Border Grid.Column="0"
                 Grid.Row="1"
                 Grid.RowSpan="2"
@@ -223,6 +257,7 @@
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}" />
 
+                <!-- Units, Date, Narrative -->
                 <Grid Grid.Row="5">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -263,7 +298,7 @@
             </Grid>
         </Border>
 
-        <!-- ═══ SEARCH + NOTES GRID (center, rows 0-1) ═══ -->
+        <!-- ═══ COL 2 ROW 0: FILTER BAR ═══ -->
         <Grid Grid.Row="0"
               Grid.Column="2"
               Margin="0,0,0,8">
@@ -298,6 +333,7 @@
                       SelectedItem="{Binding FilterStatus}" />
         </Grid>
 
+        <!-- ═══ COL 2 ROW 1: NOTES DATAGRID ═══ -->
         <Border Grid.Column="2"
                 Grid.Row="1"
                 Background="White"
@@ -327,57 +363,7 @@
             </DataGrid>
         </Border>
 
-        <!-- ═══ UPCOMING TASKS (right, row 2) ═══ -->
-        <Border Grid.Column="4"
-                Grid.Row="2"
-                Background="White"
-                BorderBrush="#E8D0B8"
-                BorderThickness="1"
-                CornerRadius="6"
-                Padding="14"
-                Margin="0,0,0,12">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,0,0,4">
-                    <TextBlock Text="UPCOMING TASKS"
-                               Style="{StaticResource SectionHeader}"
-                               Margin="0,0,12,0" />
-                    <RadioButton GroupName="SortEventsBy"
-                                 Content="By Date"
-                                 Foreground="#9C7A5C"
-                                 FontSize="11"
-                                 Margin="0,0,12,0"
-                                 VerticalAlignment="Center" />
-                    <RadioButton GroupName="SortEventsBy"
-                                 Content="By Type"
-                                 Foreground="#9C7A5C"
-                                 FontSize="11"
-                                 VerticalAlignment="Center" />
-                </StackPanel>
-                <Separator />
-                <ItemsControl ItemsSource="{Binding UpcomingEvents}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal"
-                                        Margin="0,2">
-                                <TextBlock Text="{Binding Title}"
-                                           FontWeight="SemiBold"
-                                           Foreground="#3D2B1F"
-                                           FontSize="12" />
-                                <TextBlock Text=" — "
-                                           Foreground="#9C7A5C"
-                                           FontSize="12" />
-                                <TextBlock Text="{Binding DueDate, StringFormat={}{0:MMM d}}"
-                                           Foreground="#9C7A5C"
-                                           FontSize="12" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Border>
-
-        <!-- ═══ FORMS CHECKLIST (center, row 2) ═══ -->
+        <!-- ═══ COL 2 ROW 2: FORMS CHECKLIST ═══ -->
         <Border Grid.Column="2"
                 Grid.Row="2"
                 Background="White"
@@ -469,42 +455,123 @@
             </Grid>
         </Border>
 
-        <!-- ═══ TODAY'S WORK (right, rows 0-1) ═══ -->
+        <!-- ═══ COL 4 ROWS 0-1: PRODUCTIVITY + TODAY'S WORK ═══ -->
+        <Grid Grid.Column="4"
+              Grid.Row="0"
+              Grid.RowSpan="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="2*" />
+                <!-- Productivity panel (2/5 height) -->
+                <RowDefinition Height="8" />
+                <!-- Spacer -->
+                <RowDefinition Height="3*" />
+                <!-- Today's Work panel (3/5 height) -->
+            </Grid.RowDefinitions>
+
+            <!-- Monthly Productivity Summary -->
+            <Border Grid.Row="0"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14">
+                
+                <StackPanel>
+                    <TextBlock Text="MONTHLY PRODUCTIVITY"
+                               Style="{StaticResource SectionHeader}" />
+                    <Separator />
+                    <TextBlock Text="PENDING"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBlock Text="{Binding PendingUnits}" />
+                    <TextBlock Text="LOGGED"
+                               Style="{StaticResource LabelStyle}"
+                               Margin="0,6,0,4" />
+                    <TextBlock Text="{Binding LoggedUnits}" />
+                    <TextBlock Text="ABANDONED"
+                               Style="{StaticResource LabelStyle}"
+                               Margin="0,6,0,4" />
+                    <TextBlock Text="{Binding AbandonedUnits}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Today's Work scratchpad -->
+            <Border Grid.Row="2"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14"
+                    Margin="0,0,0,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="TODAY'S WORK"
+                               Style="{StaticResource SectionHeader}" />
+                    <TextBox x:Name="TodaysWorkBox"
+                             Grid.Row="1"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             VerticalAlignment="Stretch"
+                             Text="/{Today's Work Binding}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Margin="0" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══ COL 4 ROW 2: UPCOMING TASKS ═══ -->
         <Border Grid.Column="4"
-                Grid.Row="0"
-                Grid.RowSpan="2"
+                Grid.Row="2"
                 Background="White"
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="14"
                 Margin="0,0,0,12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TextBlock Text="TODAY'S WORK"
-                           Style="{StaticResource SectionHeader}" />
-                <TextBox Grid.Row="1"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         VerticalAlignment="Stretch"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         Margin="0" />
-            </Grid>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,4">
+                    <TextBlock Text="UPCOMING TASKS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,0,12,0" />
+                    <RadioButton GroupName="SortEventsBy"
+                                 Content="By Date"
+                                 Foreground="#9C7A5C"
+                                 FontSize="11"
+                                 Margin="0,0,12,0"
+                                 VerticalAlignment="Center" />
+                    <RadioButton GroupName="SortEventsBy"
+                                 Content="By Type"
+                                 Foreground="#9C7A5C"
+                                 FontSize="11"
+                                 VerticalAlignment="Center" />
+                </StackPanel>
+                <Separator />
+                <ItemsControl ItemsSource="{Binding UpcomingEvents}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,2">
+                                <TextBlock Text="{Binding Title}"
+                                           FontWeight="SemiBold"
+                                           Foreground="#3D2B1F"
+                                           FontSize="12" />
+                                <TextBlock Text=" — "
+                                           Foreground="#9C7A5C"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding DueDate, StringFormat={}{0:MMM d}}"
+                                           Foreground="#9C7A5C"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </Border>
-
-        <!-- ═══ CLIENT LIST BUTTON (bottom right) ═══ -->
-        <StackPanel Grid.Column="0"
-                    Grid.Row="0"
-                    VerticalAlignment="Center">
-            <Button Content="Client List"
-                    Style="{StaticResource SmallButton}"
-                    Command="{Binding OpenClientListCommand}" />
-        </StackPanel>
 
     </Grid>
 </Window>
