@@ -73,4 +73,4 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 | Date | Phase | What was done |
 |------|-------|---------------|
-|      |       |               |
+| 3/19 | Ph5 | Settings model, migration, ISettingsService/SettingsService, SettingsViewModel, wired into MainWindowViewModel — settings now load on startup, AbandonedAfterDays no longer hardcoded |
