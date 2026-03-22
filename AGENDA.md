@@ -74,3 +74,5 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 | Date | Phase | What was done |
 |------|-------|---------------|
 | 3/19 | Ph5 | Settings model, migration, ISettingsService/SettingsService, SettingsViewModel, wired into MainWindowViewModel — settings now load on startup, AbandonedAfterDays no longer hardcoded |
+| 3/20 | Ph5 | Scratchpad model/service/migration, auto-save timer, shutdown save, NoteType enum, template insertion on type selection |
+| 3/21 | Ph5 | NoteType radio buttons, EnumToBoolConverter, Incentive model/service/migration, productivity dashboard with progress bar, Settings weekday/holiday exclusion flags |
