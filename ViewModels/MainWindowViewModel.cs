@@ -26,6 +26,8 @@ namespace Sati
         private Settings? _settings;
         private readonly IScratchpadService _scratchpadService;
         private Scratchpad? _scratchpad;
+        private readonly IIncentiveService _incentiveService;
+        private Incentive? _incentive;
 
         //EVENTS
         public event EventHandler<bool>? OpenClientsWindowRequested;
@@ -34,8 +36,7 @@ namespace Sati
         //PROPERTIES
         public ICollectionView NotesView { get; }
 
-        [ObservableProperty]
-        private Person? selectedPerson;
+        [ObservableProperty] private Person? selectedPerson;
         partial void OnSelectedPersonChanged(Person? value)
         {
             LoadNotesForPersonAsync(value);
@@ -52,23 +53,27 @@ namespace Sati
         [ObservableProperty] private NoteStatus? filterStatus;
         [ObservableProperty] private User? loggedInUser;
         [ObservableProperty] private string scratchpadContent = string.Empty;
-        [ObservableProperty] private NoteType? selectedNoteType;
+        [ObservableProperty] private NoteType? selectedNoteType; 
+        [ObservableProperty] private int daysScheduled;
         partial  void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
         public ObservableCollection<Note> Notes { get; } = [];
         public ObservableCollection<Person> People { get; set; } = [];
         public ObservableCollection<Event> UpcomingEvents { get; set; } = [];
+        public int SafeThreshold => Threshold > 0 ? Threshold : 1;
 
 
         //Constructor
-        public MainWindowViewModel(IServiceProvider services, IPersonService personService, INoteService noteService, ISettingsService settingsService, IScratchpadService scratchpadService)
+        public MainWindowViewModel(IServiceProvider services, IPersonService personService, INoteService noteService, ISettingsService settingsService, IScratchpadService scratchpadService, IIncentiveService incentiveService)
         {
             _personService = personService;
             _noteService = noteService;
             _settingsService = settingsService;
             _scratchpadService = scratchpadService;
+            _incentiveService = incentiveService;
             NotesView = CollectionViewSource.GetDefaultView(Notes);
             NotesView.Filter = FilterNotes;
+
         }
 
         //Commands
@@ -157,9 +162,7 @@ namespace Sati
                 Notes.Clear();
                 return;
             }
-
             var notes = await _noteService.GetAllByPersonAsync(person.Id);
-
             Notes.Clear();
             foreach (var note in notes)
                 Notes.Add(note);
@@ -209,6 +212,13 @@ namespace Sati
 
             _scratchpad = await _scratchpadService.LoadTodayAsync(LoggedInUser!.Id);
             ScratchpadContent = _scratchpad!.Content;
+
+            _incentive = await _incentiveService.GetOrCreateAsync(
+                LoggedInUser!.Id,
+                DateTime.Now.Month,
+                DateTime.Now.Year);
+
+            DaysScheduled = _incentive.DaysScheduled;
 
             StartAbandonmentTimer();
             StartScratchpadTimer();
@@ -291,12 +301,18 @@ namespace Sati
             .Where(n => n.Status == NoteStatus.Abandoned)
             .Sum(n => n.Units);
 
+        public decimal EstimatedIncentive => _incentive?.Calculate(LoggedUnits ?? 0) ?? 0;
+        public int Threshold => _incentive?.Threshold ?? 0;
+
         private async Task LoadMonthlyNotesAsync()
         {
             _monthlyNotes = await _noteService.GetMonthlyNotesAsync();
             OnPropertyChanged(nameof(PendingUnits));
             OnPropertyChanged(nameof(LoggedUnits));
             OnPropertyChanged(nameof(AbandonedUnits));
+            OnPropertyChanged(nameof(EstimatedIncentive));
+            OnPropertyChanged(nameof(Threshold));
+            OnPropertyChanged(nameof(SafeThreshold));
         }
     }
 }

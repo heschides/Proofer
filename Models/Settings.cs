@@ -20,5 +20,25 @@ namespace Sati.Models
         public string VisitTemplate { get; set; } = string.Empty;
         public string ContactTemplate { get; set; } = string.Empty;
         public string DocumentationTemplate { get; set; } = string.Empty;
+
+        // Weekday exclusions
+        public bool ExcludeMonday { get; set; } = false;
+        public bool ExcludeTuesday { get; set; } = false;
+        public bool ExcludeWednesday { get; set; } = false;
+        public bool ExcludeThursday { get; set; } = false;
+        public bool ExcludeFriday { get; set; } = false;
+
+        // Federal holidays
+        public bool ExcludeNewYearsDay { get; set; } = true;
+        public bool ExcludeMLKDay { get; set; } = false;
+        public bool ExcludePresidentsDay { get; set; } = false;
+        public bool ExcludeMemorialDay { get; set; } = true;
+        public bool ExcludeJuneteenth { get; set; } = false;
+        public bool ExcludeIndependenceDay { get; set; } = true;
+        public bool ExcludeLaborDay { get; set; } = true;
+        public bool ExcludeIndigenousPeoplesDay { get; set; } = false;
+        public bool ExcludeVeteransDay { get; set; } = false;
+        public bool ExcludeThanksgiving { get; set; } = true;
+        public bool ExcludeChristmas { get; set; } = true;
     }
 }

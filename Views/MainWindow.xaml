@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:Sati"
         mc:Ignorable="d"
         Title="Sati"
+        xmlns:converters="clr-namespace:Sati.Converters"
         Background="#FDF6EC">
 
     <Window.Resources>
@@ -166,6 +167,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
 
     </Window.Resources>
 
@@ -196,7 +198,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="10" />
-            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="*" />
             <ColumnDefinition Width="10" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -249,11 +251,14 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock Text="NEW NOTE"
+                           Grid.Row="0"
                            Style="{StaticResource SectionHeader}" />
 
                 <TextBlock Text="CLIENT"
@@ -271,8 +276,43 @@
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}" />
 
+                <TextBlock Text="NOTE TYPE"
+                           Grid.Row="5"
+                           Style="{StaticResource LabelStyle}" />
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,10"
+                            Grid.Row="6">
+                    <RadioButton Content="Visit"
+                                 GroupName="NoteType"
+                                 Foreground="#3D2B1F"
+                                 Margin="0,0,12,0"
+                                 IsChecked="{Binding SelectedNoteType, 
+                     Converter={StaticResource EnumToBoolConverter},
+                     ConverterParameter=Visit}" />
+                    <RadioButton Content="Contact"
+                                 GroupName="NoteType"
+                                 Foreground="#3D2B1F"
+                                 Margin="0,0,12,0"
+                                 IsChecked="{Binding SelectedNoteType,
+                     Converter={StaticResource EnumToBoolConverter},
+                     ConverterParameter=Contact}" />
+                    <RadioButton Content="Documentation"
+                                 GroupName="NoteType"
+                                 Foreground="#3D2B1F"
+                                 Margin="0,0,12,0"
+                                 IsChecked="{Binding SelectedNoteType,
+                     Converter={StaticResource EnumToBoolConverter},
+                     ConverterParameter=Documentation}" />
+                    <RadioButton Content="Other"
+                                 GroupName="NoteType"
+                                 Foreground="#3D2B1F"
+                                 Margin="0,0,12,0"
+                                 IsChecked="{Binding SelectedNoteType,
+Converter={StaticResource EnumToBoolConverter}}" />
+                </StackPanel>
+
                 <!-- Units, Date, Narrative -->
-                <Grid Grid.Row="5">
+                <Grid Grid.Row="7">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -304,7 +344,7 @@
                              Text="{Binding Narrative}" />
                 </Grid>
 
-                <Button Grid.Row="6"
+                <Button Grid.Row="8"
                         Content="Submit Note"
                         Style="{StaticResource PrimaryButton}"
                         Command="{Binding SubmitNoteCommand}"
@@ -477,7 +517,7 @@
                 <!-- Monthly Productivity -->
                 <TextBlock Text="MONTHLY PRODUCTIVITY"
                            Style="{StaticResource SectionHeader}" />
-                <Grid>
+                <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -508,6 +548,29 @@
                                    Foreground="#3D2B1F" />
                     </StackPanel>
                 </Grid>
+
+                <!-- Progress toward threshold -->
+                <TextBlock Style="{StaticResource LabelStyle}">
+    <Run Text="{Binding LoggedUnits, Mode=OneWay}" />
+    <Run Text=" / " />
+    <Run Text="{Binding Threshold, Mode=OneWay}" />
+    <Run Text=" units" />
+                </TextBlock>
+                <ProgressBar Minimum="0"
+                             Maximum="{Binding SafeThreshold, TargetNullValue=1, FallbackValue=1}"                             
+                             Value="{Binding LoggedUnits, Mode=OneWay}"
+                             Height="10"
+                             Margin="0,4,0,8"
+                             Foreground="#C87941"
+                             Background="#E8D0B8"
+                             BorderThickness="0" />
+
+                <!-- Estimated incentive -->
+                <TextBlock Text="ESTIMATED INCENTIVE"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBlock Text="{Binding EstimatedIncentive, StringFormat=C}"
+                           FontSize="20"
+                           Foreground="#3D2B1F" />
 
             </StackPanel>
         </Border>

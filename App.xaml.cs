@@ -37,6 +37,7 @@ namespace Sati
                     services.AddTransient<IUserService, UserService>();
                     services.AddTransient<IScratchpadService, ScratchpadService>();
                     services.AddTransient<IPasswordHasher, PasswordHasher>();
+                    services.AddTransient<IIncentiveService, IncentiveService>();
 
                     services.AddSingleton<MainWindowViewModel>();
                     services.AddSingleton<MainWindow>();

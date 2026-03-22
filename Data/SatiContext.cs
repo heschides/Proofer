@@ -18,7 +18,7 @@ namespace Sati.Data
         public DbSet<Note> Notes { get; set; }
         public DbSet<Settings> Settings { get; set;  }
         public DbSet<Scratchpad> Scratchpad {  get; set; }
-
+        public DbSet<Incentive> Incentives { get; set; }
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
         { 
@@ -76,6 +76,18 @@ namespace Sati.Data
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.BaseIncentive).HasColumnType("decimal(18,2)");
                 entity.Property(s => s.PerUnitIncentive).HasColumnType("decimal(18,2)");
+            });
+
+            modelBuilder.Entity<Incentive>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.BaseIncentive).HasColumnType("decimal(18,2)");
+                entity.Property(i => i.PerUnitIncentive).HasColumnType("decimal(18,2)");
+                entity.HasIndex(i => new { i.UserId, i.Month, i.Year }).IsUnique();
+                entity.HasOne(i => i.User)
+                      .WithMany()
+                      .HasForeignKey(i => i.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<Scratchpad>(entity =>
