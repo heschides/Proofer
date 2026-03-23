@@ -77,3 +77,4 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 | 3/20 | Ph5 | Scratchpad model/service/migration, auto-save timer, shutdown save, NoteType enum, template insertion on type selection |
 | 3/21 | Ph5 | NoteType radio buttons, EnumToBoolConverter, Incentive model/service/migration, productivity dashboard with progress bar, Settings weekday/holiday exclusion flags |
 | 3/22 | Ph5 | SchedulerViewModel, WorkdayTile, Incentive ExcludedDates, ISessionService singleton, scheduler popup XAML — popup not yet displaying, debug tomorrow |
+| 3/23 | Ph5 | Scheduler popup fully working — tile toggling, month navigation, DaysScheduled persistence, popup open/close behavior fixed |
