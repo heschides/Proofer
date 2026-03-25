@@ -7,7 +7,7 @@ namespace Sati.Data
 {
     public interface IIncentiveService
     {
-        Task<Incentive> GetOrCreateAsync(int userId, int month, int year);
+        Task<(Incentive incentive, bool wasCreated)> GetOrCreateAsync(int userId, int month, int year);
         Task SaveAsync(Incentive incentive);
     }
 }

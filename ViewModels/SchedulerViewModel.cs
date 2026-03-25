@@ -99,8 +99,9 @@ namespace Sati.ViewModels
             {
                 var userId = _sessionService.CurrentUser!.Id;
                 _settings = await _settingsService.LoadAsync();
-                _incentive = await _incentiveService.GetOrCreateAsync(userId, CurrentMonth, CurrentYear);
+                var (incentive, _) = await _incentiveService.GetOrCreateAsync(userId, CurrentMonth, CurrentYear);
                 MonthLabel = new DateTime(CurrentYear, CurrentMonth, 1).ToString("MMMM yyyy");
+                _incentive = incentive;
                 BuildTiles();
             }
             catch (Exception ex)

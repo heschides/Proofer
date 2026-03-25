@@ -38,7 +38,8 @@ namespace Sati.Models
         public bool ExcludeLaborDay { get; set; } = true;
         public bool ExcludeIndigenousPeoplesDay { get; set; } = false;
         public bool ExcludeVeteransDay { get; set; } = false;
-        public bool ExcludeThanksgiving { get; set; } = true;
+        public bool ExcludeThanksgiving { get; set; } = true; 
+        public bool ExcludeDayAfterThanksgiving { get; set; } = true;
         public bool ExcludeChristmas { get; set; } = true;
     }
 }

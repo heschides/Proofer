@@ -207,6 +207,10 @@
                               IsChecked="{Binding ExcludeThanksgiving}"
                               Margin="0,0,16,8"
                               Foreground="#3D2B1F" />
+                    <CheckBox Content="Day After Thanksgiving"
+                              IsChecked="{Binding ExcludeDayAfterThanksgiving}"
+                              Margin="0,0,16,8"
+                              Foreground="#3D2B1F" />
                     <CheckBox Content="Christmas"
                               IsChecked="{Binding ExcludeChristmas}"
                               Margin="0,0,16,8"

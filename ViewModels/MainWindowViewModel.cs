@@ -34,6 +34,7 @@ namespace Sati
         //EVENTS
         public event EventHandler<bool>? OpenClientsWindowRequested;
         public event EventHandler<bool>? OpenSettingsWindowRequested;
+        public event EventHandler<bool>? PromptSchedulerRequested;
 
         //PROPERTIES
         public ICollectionView NotesView { get; }
@@ -200,23 +201,31 @@ namespace Sati
         }
         private async Task LoadAsync()
         {
-            _settings = await _settingsService.LoadAsync();
-            await LoadPeopleAsync();
-            await _noteService.UpdateAbandonedNotesAsync(_settings.AbandonedAfterDays);
-            await LoadMonthlyNotesAsync();
+            try
+            {
+                _settings = await _settingsService.LoadAsync();
+                await LoadPeopleAsync();
+                await _noteService.UpdateAbandonedNotesAsync(_settings.AbandonedAfterDays);
+                await LoadMonthlyNotesAsync();
 
-            _scratchpad = await _scratchpadService.LoadTodayAsync(LoggedInUser!.Id);
-            ScratchpadContent = _scratchpad!.Content;
+                var (incentive, wasCreated) = await _incentiveService.GetOrCreateAsync(
+                    LoggedInUser!.Id, DateTime.Now.Month, DateTime.Now.Year);
+                _incentive = incentive;
 
-            _incentive = await _incentiveService.GetOrCreateAsync(
-                LoggedInUser!.Id,
-                DateTime.Now.Month,
-                DateTime.Now.Year);
+                if (true)
+                    PromptSchedulerRequested?.Invoke(this, true);
 
-            DaysScheduled = _incentive.DaysScheduled;
+                _scratchpad = await _scratchpadService.LoadTodayAsync(LoggedInUser!.Id);
+                ScratchpadContent = _scratchpad!.Content;
 
-            StartAbandonmentTimer();
-            StartScratchpadTimer();
+                StartAbandonmentTimer();
+                StartScratchpadTimer();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"LoadAsync failed: {ex.Message}");
+                Debug.WriteLine(ex.StackTrace);
+            }
         }
         private void StartScratchpadTimer()
         {

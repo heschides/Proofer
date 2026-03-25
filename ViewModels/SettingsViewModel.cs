@@ -43,6 +43,7 @@ namespace Sati.ViewModels
         [ObservableProperty] private bool excludeIndigenousPeoplesDay;
         [ObservableProperty] private bool excludeVeteransDay;
         [ObservableProperty] private bool excludeThanksgiving;
+        [ObservableProperty] private bool excludeDayAfterThanksgiving;
         [ObservableProperty] private bool excludeChristmas;
 
         private async Task LoadAsync()
@@ -73,6 +74,7 @@ namespace Sati.ViewModels
             ExcludeIndigenousPeoplesDay = _settings.ExcludeIndigenousPeoplesDay;
             ExcludeVeteransDay = _settings.ExcludeVeteransDay;
             ExcludeThanksgiving = _settings.ExcludeThanksgiving;
+            ExcludeDayAfterThanksgiving = _settings.ExcludeDayAfterThanksgiving;
             ExcludeChristmas = _settings.ExcludeChristmas;
         }
 
@@ -106,6 +108,8 @@ namespace Sati.ViewModels
             _settings.ExcludeIndigenousPeoplesDay = ExcludeIndigenousPeoplesDay;
             _settings.ExcludeVeteransDay = ExcludeVeteransDay;
             _settings.ExcludeThanksgiving = ExcludeThanksgiving;
+            _settings.ExcludeDayAfterThanksgiving = ExcludeDayAfterThanksgiving;
+
             _settings.ExcludeChristmas = ExcludeChristmas;
 
             await _settingsService.SaveAsync(_settings);

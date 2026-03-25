@@ -37,6 +37,15 @@ namespace Sati
                 _ = vm.LoadPeopleAsync();
             };
 
+            vm.PromptSchedulerRequested += (s, e) =>
+            {
+                var prompt = new PromptWindow(vm.LoggedInUser?.DisplayName ?? "there");
+                var result = prompt.ShowDialog();
+                if (result == true)
+                    vm.IsSchedulerOpen = true;
+            };
+
+
             _newSettingsWindow = newSettingsWindowFactory;
             vm.OpenSettingsWindowRequested += (s, success) =>
             {
@@ -62,7 +71,6 @@ namespace Sati
                 if (DataContext is MainWindowViewModel vm)
                     vm.IsSchedulerOpen = false;
             });
-
         }
 
 

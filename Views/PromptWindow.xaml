@@ -1,0 +1,97 @@
+﻿<Window x:Class="Sati.Views.PromptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+
+    <Border Background="#FDF6EC"
+            BorderBrush="#E8D0B8"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="32">
+        <StackPanel Width="340">
+
+            <TextBlock Text="{Binding GreetingText}"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="#C87941"
+                       Margin="0,0,0,12" 
+                       HorizontalAlignment="Left"/>
+
+            <TextBlock Text="It's a new month. Would you like to review your scheduled work days?"
+                       FontSize="13"
+                       Foreground="#9C7A5C"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,24" />
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+
+                <Button x:Name="NoButton"
+                        Content="Not Now"
+                        Height="36"
+                        Padding="16,0"
+                        Margin="0,0,8,0"
+                        Background="#E8D0B8"
+                        Foreground="#3D2B1F"
+                        FontSize="13"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        >
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="16,0"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="#D4A882" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Button x:Name="YesButton"
+                        Content="Open Scheduler"
+                        Height="36"
+                        Padding="16,0"
+                        Background="#C87941"
+                        Foreground="White"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="16,0"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="#A85E28" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

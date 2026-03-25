@@ -14,7 +14,7 @@ namespace Sati.Data
             _settingsService = settingsService;
         }
 
-        public async Task<Incentive> GetOrCreateAsync(int userId, int month, int year)
+        public async Task<(Incentive incentive, bool wasCreated)> GetOrCreateAsync(int userId, int month, int year)
         {
             var incentive = await _context.Incentives
                 .FirstOrDefaultAsync(i => i.UserId == userId &&
@@ -38,9 +38,11 @@ namespace Sati.Data
 
                 _context.Incentives.Add(incentive);
                 await _context.SaveChangesAsync();
+                return (incentive, false);
+            
             }
 
-            return incentive;
+            return (incentive, false);
         }
 
         public async Task SaveAsync(Incentive incentive)
