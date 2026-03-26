@@ -81,3 +81,4 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 | 3/22 | Ph5 | SchedulerViewModel, WorkdayTile, Incentive ExcludedDates, ISessionService singleton, scheduler popup XAML — popup not yet displaying, debug tomorrow |
 | 3/23 | Ph5 | Scheduler popup fully working — tile toggling, month navigation, DaysScheduled persistence, popup open/close behavior fixed |
 | 3/23 | Ph5 | SettingsWindow fully wired — billing, templates, weekday/holiday flags, auto-save on close |
+| 3/25 | Ph6 | Added SafetyPlan + PrivacyPractices to FormType enum and GenerateFormList. Added 18 form deadline offset properties to Settings model, service, and ViewModel. Added Form Deadline Windows section to SettingsWindow XAML. Created UpcomingEvent record and UpcomingEventService with full computation logic for annual forms, 90-day reviews, and scheduled notes. |
