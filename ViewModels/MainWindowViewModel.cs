@@ -29,6 +29,8 @@ namespace Sati
         private readonly IIncentiveService _incentiveService;
         private Incentive? _incentive;
         private readonly ISessionService _sessionService;
+        private readonly IUpcomingEventService _upcomingEventService;
+
 
 
         //EVENTS
@@ -63,12 +65,12 @@ namespace Sati
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
         public ObservableCollection<Note> Notes { get; } = [];
         public ObservableCollection<Person> People { get; set; } = [];
-        public ObservableCollection<Event> UpcomingEvents { get; set; } = [];
+        public ObservableCollection<UpcomingEvent> UpcomingEvents { get; set; } = [];
         public int SafeThreshold => Threshold > 0 ? Threshold : 1;
 
 
         //Constructor
-        public MainWindowViewModel(IServiceProvider services, IPersonService personService, INoteService noteService, ISettingsService settingsService, IScratchpadService scratchpadService, IIncentiveService incentiveService, ISessionService sessionService)
+        public MainWindowViewModel(IServiceProvider services, IPersonService personService, INoteService noteService, ISettingsService settingsService, IScratchpadService scratchpadService, IIncentiveService incentiveService, ISessionService sessionService, IUpcomingEventService upcomingEventService)
         {
             _personService = personService;
             _noteService = noteService;
@@ -78,6 +80,7 @@ namespace Sati
             NotesView = CollectionViewSource.GetDefaultView(Notes);
             NotesView.Filter = FilterNotes;
             _sessionService = sessionService;
+            _upcomingEventService = upcomingEventService;
         }
 
         //Commands
@@ -185,7 +188,7 @@ namespace Sati
             try
             {
                 People.Clear();
-                var people = await _personService.GetAllPeopleAsync();
+                var people = await _personService.GetAllPeopleAsync(LoggedInUser!.Id);
                 foreach (var person in people)
                     People.Add(person);
             }
@@ -203,6 +206,8 @@ namespace Sati
         {
             try
             {
+                if (LoggedInUser is null)
+                    return;
                 _settings = await _settingsService.LoadAsync();
                 await LoadPeopleAsync();
                 await _noteService.UpdateAbandonedNotesAsync(_settings.AbandonedAfterDays);
@@ -316,6 +321,19 @@ namespace Sati
             OnPropertyChanged(nameof(EstimatedIncentive));
             OnPropertyChanged(nameof(Threshold));
             OnPropertyChanged(nameof(SafeThreshold));
+        }
+
+        private async Task LoadUpcomingEventsAsync()
+        {
+            if (LoggedInUser is null)
+                return;
+            var settings = await _settingsService.LoadAsync();
+            var people = await _personService.GetAllPeopleAsync(LoggedInUser.Id);
+            var events = _upcomingEventService.GenerateEvents(people, settings);
+
+            UpcomingEvents.Clear();
+            foreach (var e in events)
+                UpcomingEvents.Add(e);
         }
     }
 }

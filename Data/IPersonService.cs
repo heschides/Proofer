@@ -8,7 +8,7 @@ namespace Sati.Data
     {
         Task<Person> AddPersonAsync(Person person);
         Task DeletePersonAsync(Person person);
-        Task<List<Person>> GetAllPeopleAsync();
+        Task<List<Person>> GetAllPeopleAsync(int userId);
         Task<Person> EditPersonAsync(Person person);
     }
 }

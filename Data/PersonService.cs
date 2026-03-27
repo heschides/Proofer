@@ -37,9 +37,10 @@ namespace Sati.Data
             return person;
         }
 
-        public async Task<List<Person>> GetAllPeopleAsync()
+        public async Task<List<Person>> GetAllPeopleAsync(int userId)
         {
             return await _context.People
+                .Where(p => p.UserId == userId)
                 .Include(p => p.Notes)
                 .Include(p => p.Forms)
                 .ToListAsync();

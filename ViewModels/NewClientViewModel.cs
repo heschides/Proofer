@@ -14,7 +14,7 @@ namespace Sati
     {
 
         //FIELDS
-
+        private readonly ISessionService _sessionService;
         //EVENTS
 
         //PROPERTIES
@@ -61,9 +61,10 @@ namespace Sati
         
 
         //constructor
-        public NewClientViewModel(IPersonService personService)
+        public NewClientViewModel(IPersonService personService, ISessionService session)
         {
             _personService = personService;
+            _sessionService = session;
             _ = LoadPeopleAsync();
         }
 
@@ -95,7 +96,7 @@ namespace Sati
             }
             else
             {
-                var person = Person.CreatePerson(FirstName!, LastName!, Bio!, BirthDate, EffectiveDate, Waiver);
+                var person = Person.CreatePerson(_sessionService.CurrentUser!.Id, FirstName!, LastName!, Bio!, BirthDate, EffectiveDate, Waiver);
                 await _personService.AddPersonAsync(person);
                 People.Add(person);
             } 
@@ -115,7 +116,9 @@ namespace Sati
 
         private async Task LoadPeopleAsync()
         {
-            var people = await _personService.GetAllPeopleAsync();
+            if (_sessionService.CurrentUser is null)
+                return;
+            var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser.Id);
             foreach (var person in people)
                 People.Add(person);
         }

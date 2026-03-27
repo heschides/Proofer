@@ -47,6 +47,10 @@ namespace Sati.Data
                 entity.Property(p => p.LastName)
                       .IsRequired()
                       .HasMaxLength(50);
+                entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Note>(entity =>

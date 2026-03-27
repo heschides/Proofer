@@ -12,6 +12,7 @@ namespace Sati
 
         //simple properties
         public int Id { get; private set; }
+        public int UserId { get; private set;  }
         public string? FirstName { get;  set; }
         public string? LastName { get; set; } 
         public DateTime BirthDate { get;  set; }
@@ -28,10 +29,11 @@ namespace Sati
         protected Person() { }
 
         //methods
-        public static Person CreatePerson(string firstName, string lastName, string Bio, DateTime birthdate, DateTime effective, WaiverType waiver) 
+        public static Person CreatePerson(int userId, string firstName, string lastName, string Bio, DateTime birthdate, DateTime effective, WaiverType waiver) 
         {
             var person = new Person
             {
+                UserId = userId,
                 FirstName = firstName.Trim(),
                 LastName = lastName.Trim(),
                 Bio = Bio.Trim(),

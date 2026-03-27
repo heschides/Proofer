@@ -41,6 +41,7 @@ namespace Sati
                     services.AddTransient<IIncentiveService, IncentiveService>();
                     services.AddSingleton<ISessionService, SessionService>();
                     services.AddTransient<ISettingsService, SettingsService>();
+                    services.AddTransient<IUpcomingEventService, UpcomingEventService>();
 
 
                     //windows and viewmodels
