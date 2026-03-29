@@ -14,11 +14,13 @@ namespace Sati.Models
         public int? Units {  get; set; }
         public int PersonId { get; set; }
         public Person Person { get; set; } = null!;
-        public FormType? FormType { get; set; } 
+        public FormType? FormType { get; set; }
+        public NoteType? NoteType { get; set; }
+
 
         private protected Note() { }
 
-        public static Note Create( string narrative, DateTime? eventDate, NoteStatus? status, int? unitCount, int personId, FormType? formType=null)
+        public static Note Create( string narrative, DateTime? eventDate, NoteStatus? status, int? unitCount, int personId, FormType? formType=null, NoteType? noteType = null)
         {
             var _note = new Note()
             {
@@ -27,7 +29,8 @@ namespace Sati.Models
                 Status = status,
                 Units = unitCount,
                 PersonId = personId,
-                FormType = formType
+                FormType = formType,
+                NoteType = noteType
             };
             return _note;
         }

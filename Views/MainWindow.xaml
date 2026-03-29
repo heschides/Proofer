@@ -597,7 +597,7 @@
             <DataGrid ItemsSource="{Binding NotesView}"
                       SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
                       MouseDoubleClick="DataGrid_MouseDoubleClick"
-                      AutoGenerateColumns="True"
+                      AutoGenerateColumns="False"
                       IsReadOnly="True"
                       Background="Transparent"
                       BorderThickness="0"
@@ -607,6 +607,20 @@
                       HorizontalGridLinesBrush="#F0E0D0"
                       HeadersVisibility="Column"
                       Margin="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date"
+                                        Binding="{Binding EventDate, StringFormat={}{0:MM/dd}}"
+                                        Width="60" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="90" />
+                    <DataGridTextColumn Header="Units"
+                                        Binding="{Binding Units}"
+                                        Width="50" />
+                    <DataGridTextColumn Header="Type"
+                   Binding="{Binding NoteType}"
+                   Width="80" />
+                </DataGrid.Columns>
                 <DataGrid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Delete Note"
@@ -904,6 +918,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="10" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
@@ -946,6 +962,27 @@
                                    Style="{StaticResource LabelStyle}"
                                    Margin="0,0,0,6" />
                         <ItemsControl ItemsSource="{Binding VisitEvents}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,3">
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#3D2B1F"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Date, StringFormat={}{0:MMM d}}"
+                                                   Foreground="#9C7A5C"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="CONTACTS"
+                                   Style="{StaticResource LabelStyle}"
+                                   Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding ContactEvents}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="0,3">

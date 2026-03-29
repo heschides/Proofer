@@ -62,6 +62,13 @@ namespace Sati
         {
             LoadNotesForPersonAsync(value);
             RefreshComplianceFlags();
+            IsEditing = false;
+            Status = null;
+            Narrative = string.Empty;
+            EventDate = null;
+            Units = null;
+            SelectedNoteType = null;
+            SelectedFormType = null;
         }
 
         [ObservableProperty] private int? units;
@@ -110,6 +117,7 @@ namespace Sati
         {
             OnPropertyChanged(nameof(FormEvents));
             OnPropertyChanged(nameof(VisitEvents));
+            OnPropertyChanged(nameof(ContactEvents));
         }
 
         public ICollectionView NotesView { get; }
@@ -120,7 +128,10 @@ namespace Sati
         public IEnumerable<UpcomingEvent> VisitEvents => UpcomingEvents
             .Where(e => e.Kind == UpcomingEventKind.ScheduledVisit)
             .OrderBy(e => e.Date);
-        partial  void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
+        public IEnumerable<UpcomingEvent> ContactEvents => UpcomingEvents
+            .Where(e => e.Kind == UpcomingEventKind.ScheduledContact)
+            .OrderBy(e => e.Date);
+        partial void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
         public ObservableCollection<Note> Notes { get; } = [];
         public ObservableCollection<Person> People { get; set; } = [];
@@ -164,10 +175,12 @@ namespace Sati
 
             if (!IsEditing)
             {
-                var note = Note.Create(Narrative, EventDate, Status, Units, SelectedPerson.Id, SelectedFormType);
+                var note = Note.Create(Narrative, EventDate, Status, Units, SelectedPerson.Id, SelectedFormType, SelectedNoteType);
                 var savedNote = await _noteService.AddNoteAsync(note);
+
                 Notes.Insert(0, savedNote);
-                _= LoadMonthlyNotesAsync();
+                SelectedPerson?.Notes.Add(savedNote);
+                _ = LoadMonthlyNotesAsync();
                 NotesView.Refresh();
                 var formType = SelectedFormType;
                 if (formType.HasValue && (Status == NoteStatus.Pending || Status == NoteStatus.Logged))
@@ -180,7 +193,8 @@ namespace Sati
                 Duration = null;
                 SelectedFormType = null;
                 SelectedNoteType = null;
-
+                _ = LoadMonthlyNotesAsync();
+                await LoadUpcomingEventsAsync();
 
             }
             else
@@ -208,7 +222,8 @@ namespace Sati
                 Duration = null;
                 SelectedFormType = null;
                 SelectedNoteType = null;
-
+                _ = LoadMonthlyNotesAsync();
+                await LoadUpcomingEventsAsync();
 
             }
         }
@@ -218,7 +233,9 @@ namespace Sati
             {
                 await _noteService.DeleteNoteAsync(SelectedNote);
                 Notes.Remove(SelectedNote);
-                _= LoadMonthlyNotesAsync();
+                SelectedPerson?.Notes.Remove(SelectedNote);
+                _ = LoadMonthlyNotesAsync();
+                await LoadUpcomingEventsAsync();
                 SelectedNote = null;
             }
         }
@@ -411,18 +428,15 @@ namespace Sati
 
         private async Task LoadUpcomingEventsAsync()
         {
-            if (LoggedInUser is null)
-                return;
+            if (LoggedInUser is null) return;
             var settings = await _settingsService.LoadAsync();
-            var people = await _personService.GetAllPeopleAsync(LoggedInUser.Id);
-            var events = _upcomingEventService.GenerateEvents(people, settings);
-            OnPropertyChanged(nameof(FormEvents));
-
+            var events = _upcomingEventService.GenerateEvents(People, settings);
             UpcomingEvents.Clear();
             foreach (var e in events)
                 UpcomingEvents.Add(e);
             OnPropertyChanged(nameof(FormEvents));
             OnPropertyChanged(nameof(VisitEvents));
+            OnPropertyChanged(nameof(ContactEvents));
         }
 
         public async Task MarkFormCompleteAsync(FormType formType)

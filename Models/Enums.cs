@@ -24,7 +24,8 @@ namespace Sati
     {
         OpenReview,
         LateReview,
-        ScheduledVisit
+        ScheduledVisit,
+        ScheduledContact
     }
 
     public enum WaiverType

@@ -64,10 +64,34 @@ namespace Sati.Data
             // 90-day reviews
             GenerateReviewEvents(person, prevAnniversary, anniversary, today, lookahead, settings, events);
         }
-        
+
         private static void GenerateScheduledNoteEvents(Person person, DateTime today, DateTime lookahead, List<UpcomingEvent> events)
         {
-            // coming next
+            var scheduledNotes = person.Notes
+                .Where(n => n.Status == NoteStatus.Scheduled &&
+                            n.EventDate.HasValue &&
+                            n.EventDate.Value >= today &&
+                            n.EventDate.Value <= lookahead)
+                .OrderBy(n => n.EventDate);
+
+            foreach (var note in scheduledNotes)
+            {
+                var kind = note.NoteType == NoteType.Contact
+                    ? UpcomingEventKind.ScheduledContact
+                    : UpcomingEventKind.ScheduledVisit;
+
+                var label = note.NoteType == NoteType.Contact
+                    ? $"Contact — {person.FullName}"
+                    : $"Visit — {person.FullName}";
+
+                events.Add(new UpcomingEvent
+                {
+                    ClientName = person.FullName,
+                    Title = label,
+                    Date = note.EventDate!.Value,
+                    Kind = kind
+                });
+            }
         }
 
         private static void AddAnnualFormEvent(Person person, FormType type, DateTime dueDate, int openBefore, int daysAfter, string label, DateTime prevAnniversary, DateTime anniversary, DateTime today, DateTime lookahead, List<UpcomingEvent> events)
