@@ -4,14 +4,25 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Sati"
+        xmlns:converters="clr-namespace:Sati.Converters"
         mc:Ignorable="d"
         Title="Client List"
-        Height="650"
-        Width="800"
+        Height="900"
+        MinHeight="700"
+        Width="1100"
+        MinWidth="900"
         WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
         Background="#FDF6EC">
 
     <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter" />
+        <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" />
+        <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
+                                         TrueWidth="16"
+                                         FalseWidth="0" />
+
         <Style x:Key="LabelStyle"
                TargetType="TextBlock">
             <Setter Property="FontSize"
@@ -22,6 +33,18 @@
                     Value="#9C7A5C" />
             <Setter Property="Margin"
                     Value="0,0,0,5" />
+        </Style>
+
+        <Style x:Key="SectionHeader"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="Bold" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,8" />
         </Style>
 
         <Style TargetType="TextBox">
@@ -71,6 +94,13 @@
                     Value="#3D2B1F" />
             <Setter Property="Margin"
                     Value="0,0,0,10" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,6" />
         </Style>
 
         <Style x:Key="PrimaryButton"
@@ -151,12 +181,44 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="IconButton"
+               TargetType="Button">
+            <Setter Property="Width"
+                    Value="32" />
+            <Setter Property="Height"
+                    Value="32" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#E8D0B8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="240" />
-            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="{Binding IsEntryPanelOpen, Converter={StaticResource BoolToWidthConverter}}" />
+            <ColumnDefinition Width="{Binding IsEntryPanelOpen, Converter={StaticResource SpacerWidthConverter}}" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -166,7 +228,9 @@
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
                 CornerRadius="6"
-                Padding="16">
+                Padding="16"
+                Visibility="{Binding IsEntryPanelOpen, 
+            Converter={StaticResource BoolToVisibilityConverter}}">
             <StackPanel>
                 <TextBlock Text="ADD CLIENT"
                            FontSize="13"
@@ -190,6 +254,7 @@
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox ItemsSource="{Binding Waivers}"
                           SelectedItem="{Binding Waiver, Mode=TwoWay}" />
+
                 <TextBlock Text="EFFECTIVE DATE"
                            Style="{StaticResource LabelStyle}" />
                 <Grid Margin="0,0,0,10"
@@ -234,37 +299,329 @@
             </StackPanel>
         </Border>
 
-        <!-- ═══ CLIENT LIST (right) ═══ -->
-        <Border Grid.Column="2"
-                Background="White"
-                BorderBrush="#E8D0B8"
-                BorderThickness="1"
-                CornerRadius="6">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+        <!-- ═══ RIGHT PANEL ═══ -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="260" />
+                <RowDefinition Height="12" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                <TextBlock Text="CLIENTS"
-                           FontSize="13"
-                           FontWeight="Bold"
-                           Foreground="#3D2B1F"
-                           Margin="16,16,16,8" />
+            <!-- ═══ CLIENT ROSTER ═══ -->
+            <Border Grid.Row="0"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                <DataGrid Grid.Row="1"
-                          ItemsSource="{Binding People}"
-                          SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
-                          MouseDoubleClick="DataGrid_MouseDoubleClick"
-                          AutoGenerateColumns="True"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          RowBackground="White"
-                          AlternatingRowBackground="#FDF6EC"
-                          GridLinesVisibility="Horizontal"
-                          HorizontalGridLinesBrush="#F0E0D0"
-                          Margin="0" />
-            </Grid>
-        </Border>
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
+                                Margin="16,12,16,8">
+                        <TextBlock Text="CLIENTS"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="#3D2B1F"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0" />
+                        <Button Style="{StaticResource IconButton}"
+                                Command="{Binding OpenEntryPanelCommand}"
+                                ToolTip="Add new client">
+                            <TextBlock Text="&#xE710;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="14"
+                                       Foreground="#9C7A5C" />
+                        </Button>
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding People}"
+                              SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
+                              MouseDoubleClick="DataGrid_MouseDoubleClick"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              RowBackground="White"
+                              AlternatingRowBackground="#FDF6EC"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="#F0E0D0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="First Name"
+                                                Binding="{Binding FirstName}"
+                                                Width="*" />
+                            <DataGridTextColumn Header="Last Name"
+                                                Binding="{Binding LastName}"
+                                                Width="*" />
+                            <DataGridTextColumn Header="Waiver"
+                                                Binding="{Binding Waiver}"
+                                                Width="*" />
+                            <DataGridTextColumn Header="Effective Date"
+                                                Binding="{Binding EffectiveDate, StringFormat={}{0:MM/dd/yyyy}}"
+                                                Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- ═══ CLIENT DETAIL PANEL ═══ -->
+            <Border Grid.Row="2"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="16"
+                    Visibility="{Binding HasSelectedPerson,
+                        Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- CLIENT INFO -->
+                    <StackPanel Grid.Column="0" Grid.Row="0" Grid.RowSpan="3">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,12">
+                            <TextBlock Text="{Binding SelectedPerson.FullName}"
+                                       FontSize="15"
+                                       FontWeight="Bold"
+                                       Foreground="#3D2B1F" />
+                        </StackPanel>
+
+                        <TextBlock Text="WAIVER"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBlock Text="{Binding SelectedPerson.Waiver}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   Margin="0,0,0,10" />
+
+                        <TextBlock Text="EFFECTIVE DATE"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBlock Text="{Binding SelectedPerson.EffectiveDate, StringFormat={}{0:MM/dd/yyyy}}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   Margin="0,0,0,10" />
+
+                        <TextBlock Text="DATE OF BIRTH"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBlock Text="{Binding SelectedPerson.BirthDate, StringFormat={}{0:MM/dd/yyyy}}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   Margin="0,0,0,10" />
+
+                        <TextBlock Text="BIO"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBlock Text="{Binding SelectedPerson.Bio}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- FORMS COMPLIANCE -->
+                    <Grid Grid.Column="2" Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0"
+                                    Orientation="Horizontal"
+                                    Margin="0,0,0,8">
+                            <TextBlock Text="FORMS"
+                                       Style="{StaticResource SectionHeader}"
+                                       Margin="0,0,12,0"
+                                       VerticalAlignment="Center" />
+                            <Button Style="{StaticResource IconButton}"
+                                    Command="{Binding ToggleComplianceOverrideCommand}"
+                                    ToolTip="Toggle compliance editing">
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Foreground="#9C7A5C">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text"
+                                                    Value="&#xE72E;" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AllowComplianceOverride}"
+                                                             Value="True">
+                                                    <Setter Property="Text"
+                                                            Value="&#xE785;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button>
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="1"
+                                      VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="0"
+                                           Text="90-Day Reviews"
+                                           Style="{StaticResource SectionHeader}" />
+                                <CheckBox Grid.Row="1"
+                                          Grid.Column="0"
+                                          Content="Quarter 1"
+                                          IsChecked="{Binding Q1RCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Q1R}" />
+                                <CheckBox Grid.Row="2"
+                                          Grid.Column="0"
+                                          Content="Quarter 2"
+                                          IsChecked="{Binding Q2RCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Q2R}" />
+                                <CheckBox Grid.Row="3"
+                                          Grid.Column="0"
+                                          Content="Quarter 3"
+                                          IsChecked="{Binding Q3RCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Q3R}" />
+                                <CheckBox Grid.Row="4"
+                                          Grid.Column="0"
+                                          Content="Quarter 4"
+                                          IsChecked="{Binding Q4RCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Q4R}" />
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="2"
+                                           Text="Annual Forms"
+                                           Style="{StaticResource SectionHeader}" />
+                                <CheckBox Grid.Row="1"
+                                          Grid.Column="2"
+                                          Content="PCP"
+                                          IsChecked="{Binding PcpCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.PCP}" />
+                                <CheckBox Grid.Row="2"
+                                          Grid.Column="2"
+                                          Content="Comp Assessment"
+                                          IsChecked="{Binding CompAssessmentCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.ComprehensiveAssessment}" />
+                                <CheckBox Grid.Row="3"
+                                          Grid.Column="2"
+                                          Content="Reclassification"
+                                          IsChecked="{Binding ReclassificationCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Reclassification}" />
+                                <CheckBox Grid.Row="4"
+                                          Grid.Column="2"
+                                          Content="Safety Plan"
+                                          IsChecked="{Binding SafetyPlanCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.SafetyPlan}" />
+                                <CheckBox Grid.Row="5"
+                                          Grid.Column="2"
+                                          Content="Privacy Practices"
+                                          IsChecked="{Binding PrivacyPracticesCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.PrivacyPractices}" />
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="4"
+                                           Text="Releases"
+                                           Style="{StaticResource SectionHeader}" />
+                                <CheckBox Grid.Row="1"
+                                          Grid.Column="4"
+                                          Content="DHHS"
+                                          IsChecked="{Binding ReleaseDhhsCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Release_DHHS}" />
+                                <CheckBox Grid.Row="2"
+                                          Grid.Column="4"
+                                          Content="Agency"
+                                          IsChecked="{Binding ReleaseAgencyCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Release_Agency}" />
+                                <CheckBox Grid.Row="3"
+                                          Grid.Column="4"
+                                          Content="Medical"
+                                          IsChecked="{Binding ReleaseMedicalCompliant, Mode=OneWay}"
+                                          IsEnabled="{Binding AllowComplianceOverride}"
+                                          Command="{Binding ToggleFormCommand}"
+                                          CommandParameter="{x:Static local:FormType.Release_Medical}" />
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- NOTES HISTORY -->
+                    <Grid Grid.Column="2" Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="NOTES"
+                                   Style="{StaticResource SectionHeader}" />
+
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding SelectedPersonNotes}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  RowBackground="White"
+                                  AlternatingRowBackground="#FDF6EC"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="#F0E0D0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Date"
+                                                    Binding="{Binding EventDate, StringFormat={}{0:MM/dd}}"
+                                                    Width="60" />
+                                <DataGridTextColumn Header="Status"
+                                                    Binding="{Binding Status}"
+                                                    Width="80" />
+                                <DataGridTextColumn Header="Narrative"
+                                                    Binding="{Binding Narrative}"
+                                                    Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

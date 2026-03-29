@@ -18,6 +18,8 @@ namespace Sati
     /// </summary>
     public partial class NewClientWindow : Window
     {
+
+
         public NewClientWindow(NewClientViewModel vm)
         {
             DataContext = vm;
