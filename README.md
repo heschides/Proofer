@@ -59,7 +59,7 @@ factory delegate pattern throughout.
 
 ## Screenshots
 
-![Main window](Images/screenshots/mainwindow.png)
+[Main window](Images/screenshots/mainwindow.png)
 
 *[Scratchpad history window]*
 
