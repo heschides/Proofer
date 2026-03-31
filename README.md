@@ -59,13 +59,10 @@ factory delegate pattern throughout.
 
 ## Screenshots
 
-[Main window](Images/screenshots/mainwindow.png)
+![Main window](Images/screenshots/mainwindow.png)
 
-*[Scratchpad history window]*
+![Client List](Images/screenshots/client_list.png)
 
-*[Scheduler popup]*
-
-*[Settings window]*
 
 ---
 
