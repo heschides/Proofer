@@ -16,16 +16,15 @@ namespace Sati
         private readonly Func<NewClientWindow> _newClientWindow;
         private readonly Func<SettingsWindow> _newSettingsWindow;
         private SchedulerViewModel _schedulerVm;
+        private readonly Func<ScratchpadHistoryWindow> _scratchpadHistoryWindowFactory = null!;
+        private bool _isSavingOnClose = false;
 
-        public MainWindow(MainWindowViewModel vm, Func<NewClientWindow> newClientWindowFactory, Func<SettingsWindow> newSettingsWindowFactory, SchedulerViewModel schedulerVm)
+
+        public MainWindow(MainWindowViewModel vm, Func<NewClientWindow> newClientWindowFactory, Func<SettingsWindow> newSettingsWindowFactory, SchedulerViewModel schedulerVm, Func<ScratchpadHistoryWindow> scratchpadHistoryWindowFactory)
         {
             InitializeComponent();
             var screenHeight = SystemParameters.PrimaryScreenHeight;
             var screenWidth = SystemParameters.PrimaryScreenWidth;
-
-            Height = Math.Min(900, screenHeight * 0.9);
-            Width = Math.Min(1100, screenWidth * 0.9);
-            MinWidth = 900;
 
             DataContext = vm;
 
@@ -59,7 +58,7 @@ namespace Sati
                     vm.IsSchedulerOpen = true;
             };
 
-
+            _scratchpadHistoryWindowFactory = scratchpadHistoryWindowFactory;
             _newSettingsWindow = newSettingsWindowFactory;
             vm.OpenSettingsWindowRequested += (s, success) =>
             {
@@ -69,9 +68,19 @@ namespace Sati
 
             Closing += async (s, e) =>
             {
+                if (_isSavingOnClose) return;
+                e.Cancel = true;
+                _isSavingOnClose = true;
+
                 if (DataContext is MainWindowViewModel vm)
-                    await vm.SaveScratchpadAsync();
+                {
+                    var content = vm.ScratchpadContent;
+                    await vm.SaveScratchpadAsync(content);
+                }
+
+                Close();
             };
+
             _schedulerVm = schedulerVm;
             SchedulerPopup.DataContext = schedulerVm;
             SchedulerPopup.Opened += (s, e) =>
@@ -80,11 +89,21 @@ namespace Sati
                 _schedulerVm.Initialize();
             };
 
+            vm.OpenScratchpadHistoryRequested += (s, e) =>
+            {
+                var win = _scratchpadHistoryWindowFactory!();
+                win.Owner = this;
+                win.ShowDialog();
+            };
+
             Mouse.AddPreviewMouseDownOutsideCapturedElementHandler(SchedulerPopup, (s, e) =>
             {
                 if (DataContext is MainWindowViewModel vm)
                     vm.IsSchedulerOpen = false;
             });
+
+            Closed += (s, e) => Application.Current.Shutdown();
+
         }
 
 

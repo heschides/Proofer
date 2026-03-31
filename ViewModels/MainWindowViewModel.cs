@@ -10,6 +10,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
 using Windows.Devices.I2c.Provider;
@@ -54,6 +55,7 @@ namespace Sati
         public event EventHandler<bool>? OpenSettingsWindowRequested;
         public event EventHandler<bool>? PromptSchedulerRequested;
         public event EventHandler<FormType>? MarkFormCompleteRequested;
+        public event EventHandler? OpenScratchpadHistoryRequested;
 
         //PROPERTIES
 
@@ -167,66 +169,87 @@ namespace Sati
         }
         [RelayCommand] public async Task SubmitNote()
         {
-            if (string.IsNullOrWhiteSpace(Narrative) ||
-                    SelectedPerson == null)
+            try
             {
-                return;
-            }
-
-            if (!IsEditing)
-            {
-                var note = Note.Create(Narrative, EventDate, Status, Units, SelectedPerson.Id, SelectedFormType, SelectedNoteType);
-                var savedNote = await _noteService.AddNoteAsync(note);
-
-                Notes.Insert(0, savedNote);
-                SelectedPerson?.Notes.Add(savedNote);
-                _ = LoadMonthlyNotesAsync();
-                NotesView.Refresh();
-                var formType = SelectedFormType;
-                if (formType.HasValue && (Status == NoteStatus.Pending || Status == NoteStatus.Logged))
-                    MarkFormCompleteRequested?.Invoke(this, formType.Value);
-                //SelectedPerson = null;
-                Status = null;
-                Narrative = string.Empty;
-                EventDate = null;
-                Units = null;
-                Duration = null;
-                SelectedFormType = null;
-                SelectedNoteType = null;
-                _ = LoadMonthlyNotesAsync();
-                await LoadUpcomingEventsAsync();
-
-            }
-            else
-            {
-                if (SelectedNote == null)
+                if (string.IsNullOrWhiteSpace(Narrative) || SelectedPerson == null)
                     return;
 
-                var note = SelectedNote!;
-                note.Narrative = Narrative;
-                note.EventDate = EventDate;
-                note.Units = Units ?? 0;
-                note.Status = Status;
-                await _noteService.UpdateNoteAsync(note);
-                _ = LoadMonthlyNotesAsync();
-                NotesView.Refresh();
 
-                var formType = SelectedNote.FormType;
-                if (formType.HasValue && (Status == NoteStatus.Pending || Status == NoteStatus.Logged))
-                    MarkFormCompleteRequested?.Invoke(this, formType.Value);
-                IsEditing = false;
-                Status = null;
-                Narrative = string.Empty;
-                EventDate = null;
-                Units = null;
-                Duration = null;
-                SelectedFormType = null;
-                SelectedNoteType = null;
-                _ = LoadMonthlyNotesAsync();
-                await LoadUpcomingEventsAsync();
+                if (!IsEditing)
+                {
+                    var note = Note.Create(Narrative, EventDate, Status, Units, SelectedPerson.Id, SelectedFormType, SelectedNoteType);
+                    var savedNote = await _noteService.AddNoteAsync(note);
 
+                    Notes.Insert(0, savedNote);
+                    SelectedPerson?.Notes.Add(savedNote);
+                    await LoadMonthlyNotesAsync();
+                    if (EventDate.HasValue &&
+        (EventDate.Value.Month != DateTime.Now.Month ||
+         EventDate.Value.Year != DateTime.Now.Year))
+                    {
+                        MessageBox.Show(
+                            $"This note's date ({EventDate.Value:MMM d, yyyy}) is outside the current month and will not appear in this month's productivity totals.",
+                            "Note Outside Current Month",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    NotesView.Refresh();
+                    var formType = SelectedFormType;
+                    if (formType.HasValue && (Status == NoteStatus.Pending || Status == NoteStatus.Logged))
+                        MarkFormCompleteRequested?.Invoke(this, formType.Value);
+                    //SelectedPerson = null;
+                    Status = null;
+                    Narrative = string.Empty;
+                    EventDate = null;
+                    Units = null;
+                    Duration = null;
+                    SelectedFormType = null;
+                    SelectedNoteType = null;
+                    await LoadUpcomingEventsAsync();
+
+                }
+                else
+                {
+                    if (SelectedNote == null)
+                        return;
+
+                    var note = SelectedNote!;
+                    note.Narrative = Narrative;
+                    note.EventDate = EventDate;
+                    note.Units = Units ?? 0;
+                    note.Status = Status;
+                    await _noteService.UpdateNoteAsync(note);
+                    await LoadMonthlyNotesAsync();
+                    NotesView.Refresh();
+
+                    var formType = SelectedNote.FormType;
+                    if (formType.HasValue && (Status == NoteStatus.Pending || Status == NoteStatus.Logged))
+                        MarkFormCompleteRequested?.Invoke(this, formType.Value);
+                    IsEditing = false;
+                    Status = null;
+                    Narrative = string.Empty;
+                    EventDate = null;
+                    Units = null;
+                    Duration = null;
+                    SelectedFormType = null;
+                    SelectedNoteType = null;
+                    await LoadUpcomingEventsAsync();
+                }
+                }
+
+
+             catch (Exception ex)
+            {
+                Debug.WriteLine($"SubmitNote failed: {ex.Message}");
+                MessageBox.Show(
+                    "Sati encountered an error saving your note. Please try again.  Tell Josh.",
+                    "Save Error",
+                     MessageBoxButton.OK,
+            MessageBoxImage.Error);
             }
         }
+
+
         [RelayCommand] private async Task DeleteNote()
         {
             if (SelectedNote != null)
@@ -234,7 +257,7 @@ namespace Sati
                 await _noteService.DeleteNoteAsync(SelectedNote);
                 Notes.Remove(SelectedNote);
                 SelectedPerson?.Notes.Remove(SelectedNote);
-                _ = LoadMonthlyNotesAsync();
+                await LoadMonthlyNotesAsync();
                 await LoadUpcomingEventsAsync();
                 SelectedNote = null;
             }
@@ -265,6 +288,10 @@ namespace Sati
             OnPropertyChanged(nameof(ReleaseDhhsCompliant));
             OnPropertyChanged(nameof(ReleaseMedicalCompliant));
         }
+
+        [RelayCommand]
+        private void OpenScratchpadHistory() =>
+    OpenScratchpadHistoryRequested?.Invoke(this, EventArgs.Empty);
 
         [RelayCommand] private void OpenScheduler() 
         {IsSchedulerOpen = !IsSchedulerOpen; 
@@ -300,14 +327,16 @@ namespace Sati
                 ScratchpadContent = _scratchpad!.Content;
 
                 StartAbandonmentTimer();
-                StartScratchpadTimer();
+               // StartScratchpadTimer();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"LoadAsync failed: {ex.Message}");
-                Debug.WriteLine(ex.StackTrace);
+                MessageBox.Show("Sati encountered an error loading your data. Please restart the application.  Tell Josh.",
+                                "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
         partial void OnSearchTextChanged(string? value)
         {
             NotesView.Refresh();
@@ -363,11 +392,24 @@ namespace Sati
             timer.Start();
         }
 
-        public async Task SaveScratchpadAsync()
+        public async Task SaveScratchpadAsync(string content)
         {
-            if (_scratchpad is null) return;
-            _scratchpad.Content = ScratchpadContent;
-            await _scratchpadService.SaveAsync(_scratchpad);
+            try
+            {
+                if (_scratchpad is null) return;
+                _scratchpad.Content = content;
+                Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SAVING SCRATCHPAD: '{content}'");
+                await _scratchpadService.SaveAsync(_scratchpad);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SaveScratchpadAsync failed: {ex.Message}");
+                MessageBox.Show(
+                    "Sati encountered an error saving your scratchpad. Your work may not have been saved.  Tell Josh.",
+                    "Save Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         public void EnterEditMode()

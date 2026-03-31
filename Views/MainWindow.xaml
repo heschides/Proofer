@@ -3,11 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Sati.Converters"
         xmlns:local="clr-namespace:Sati"
         mc:Ignorable="d"
         Title="Sati"
-        xmlns:converters="clr-namespace:Sati.Converters"
-        Background="#FDF6EC">
+        Background="#FDF6EC"
+        WindowState="Maximized"
+        MinWidth="900"
+        MinHeight="700">
 
     <Window.Resources>
         <Style x:Key="LabelStyle"
@@ -857,8 +860,26 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="TODAY'S WORK"
-                           Style="{StaticResource SectionHeader}" />
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,8">
+                    <TextBlock Text="TODAY'S WORK"
+                               FontSize="13"
+                               FontWeight="Bold"
+                               Foreground="#3D2B1F"
+                               VerticalAlignment="Center" />
+                    <Button Command="{Binding OpenScratchpadHistoryCommand}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Margin="8,0,0,0"
+                            Padding="4"
+                            ToolTip="Browse scratchpad history">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   Foreground="#9C7A5C" />
+                    </Button>
+                </StackPanel>
                 <TextBox x:Name="TodaysWorkBox"
                          Grid.Row="1"
                          AcceptsReturn="True"

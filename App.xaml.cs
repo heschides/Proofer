@@ -23,8 +23,7 @@ namespace Sati
         protected override async void OnStartup(StartupEventArgs e)
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-
+            
             _host = Host.CreateDefaultBuilder()
                 .ConfigureServices((context, services) =>
                 {
@@ -62,11 +61,15 @@ namespace Sati
                     services.AddTransient<ComplianceReviewViewModel>();
                     services.AddTransient<ComplianceReviewWindow>();
 
+                    services.AddTransient<ScratchpadHistoryViewModel>();
+                    services.AddTransient<ScratchpadHistoryWindow>();
+
                     services.AddTransient<SchedulerViewModel>();
 
                     services.AddTransient<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
                     services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
                     services.AddTransient<Func<NewClientWindow>>(sp => () => sp.GetRequiredService<NewClientWindow>());
+                    services.AddTransient<Func<ScratchpadHistoryWindow>>(sp => () => sp.GetRequiredService<ScratchpadHistoryWindow>());
 
                     //ef core
                     services.AddDbContext<SatiContext>(options => options.UseSqlServer(context.Configuration.GetConnectionString("SatiDb")), ServiceLifetime.Transient);
@@ -75,6 +78,12 @@ namespace Sati
                 .Build();
 
             _host.Start();
+            
+            //CREATE DATABASE
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SatiContext>();
+            db.Database.Migrate();
+            
 
             //LOGIN SEQUENCE
             var splash = new SplashScreenWindow();
@@ -91,7 +100,10 @@ namespace Sati
             {
                 var user = loginWindow.LoggedInUser;
                 if (user == null)
+                {
                     Shutdown();
+                    return;
+                }
                 var session = _host.Services.GetRequiredService<ISessionService>();
                 session.SetUser(user!);
                 mainVm.Initialize();
@@ -100,6 +112,7 @@ namespace Sati
             else
             {
                 Shutdown();
+
             }
 
             base.OnStartup(e);

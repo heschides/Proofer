@@ -33,6 +33,7 @@
 
 	
   <ItemGroup>
+    <Folder Include="Images\Screenshots\" />
     <Folder Include="Services\" />
   </ItemGroup>
 

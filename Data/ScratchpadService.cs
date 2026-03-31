@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 
 namespace Sati.Data
 {
@@ -25,11 +25,21 @@ namespace Sati.Data
             if (scratchpad is null)
             {
                 scratchpad = new Scratchpad { UserId = userId, Date = today };
+                Debug.WriteLine($"SERVICE SaveAsync called with: '{scratchpad.Content}'");
                 _context.Scratchpad.Add(scratchpad);
                 await _context.SaveChangesAsync();
             }
 
             return scratchpad;
+        }
+
+        public async Task<List<Scratchpad>> GetHistoryAsync(int userId)
+        {
+            var today = DateTime.Today;
+            return await _context.Scratchpad
+                .Where(s => s.UserId == userId && s.Date < today)
+                .OrderByDescending(s => s.Date)
+                .ToListAsync();
         }
 
         public async Task SaveAsync(Scratchpad scratchpad)

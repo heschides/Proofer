@@ -63,7 +63,7 @@ namespace Sati.ViewModels
         }
 
         [RelayCommand]
-        private void PreviousMonth()
+        private async Task PreviousMonth()
         {
             if (CurrentMonth == 1)
             {
@@ -74,11 +74,11 @@ namespace Sati.ViewModels
             {
                 CurrentMonth--;
             }
-            _ = LoadMonthAsync();
+            await LoadMonthAsync();
         }
 
         [RelayCommand]
-        private void NextMonth()
+        private async Task NextMonth()
         {
             if (CurrentMonth == 12)
             {
@@ -89,7 +89,7 @@ namespace Sati.ViewModels
             {
                 CurrentMonth++;
             }
-            _ = LoadMonthAsync();
+            await LoadMonthAsync();
         }
 
         //FUNCTIONS
