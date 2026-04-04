@@ -1072,6 +1072,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
                     </StackPanel>
                 </Grid>
             </Grid>

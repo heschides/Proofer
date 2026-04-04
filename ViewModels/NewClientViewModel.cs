@@ -36,6 +36,17 @@ namespace Sati
         partial void OnSelectedPersonChanged(Person? value)
         {
             OnPropertyChanged(nameof(HasSelectedPerson));
+            OnPropertyChanged(nameof(Q1RDueDate));
+            OnPropertyChanged(nameof(Q2RDueDate));
+            OnPropertyChanged(nameof(Q3RDueDate));
+            OnPropertyChanged(nameof(Q4RDueDate));
+            OnPropertyChanged(nameof(PcpDueDate));
+            OnPropertyChanged(nameof(CompAssessmentDueDate));
+            OnPropertyChanged(nameof(ReclassificationDueDate));
+            OnPropertyChanged(nameof(SafetyPlanDueDate));
+            OnPropertyChanged(nameof(ReleaseAgencyDueDate));
+            OnPropertyChanged(nameof(ReleaseMedicalDueDate));
+            OnPropertyChanged(nameof(ReleaseDhhsDueDate));
             RefreshComplianceFlags();
             _ = LoadSelectedPersonNotesAsync(value);
             IsEntryPanelOpen = false;
@@ -51,6 +62,18 @@ namespace Sati
 
         public ObservableCollection<Note> SelectedPersonNotes { get; } = [];
 
+        public DateTime? Q1RDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Q1R)?.DueDate;
+        public DateTime? Q2RDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Q2R)?.DueDate;
+        public DateTime? Q3RDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Q3R)?.DueDate;
+        public DateTime? Q4RDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Q4R)?.DueDate;
+        public DateTime? PcpDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.PCP)?.DueDate;
+        public DateTime? CompAssessmentDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.ComprehensiveAssessment)?.DueDate;
+        public DateTime? ReclassificationDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Reclassification)?.DueDate;
+        public DateTime? SafetyPlanDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.SafetyPlan)?.DueDate;
+        public DateTime? PrivacyPracticesDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.PrivacyPractices)?.DueDate;
+        public DateTime? ReleaseAgencyDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Release_Agency)?.DueDate;
+        public DateTime? ReleaseDhhsDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Release_DHHS)?.DueDate;
+        public DateTime? ReleaseMedicalDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Release_Medical)?.DueDate;
 
         private async Task LoadSelectedPersonNotesAsync(Person? person)
         {

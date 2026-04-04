@@ -127,15 +127,16 @@ namespace Sati
 
         public ICollectionView NotesView { get; }
         public IEnumerable<UpcomingEvent> FormEvents => SortByDate
-            ? UpcomingEvents.Where(e => e.Kind != UpcomingEventKind.ScheduledVisit).OrderBy(e => e.Date)
-            : UpcomingEvents.Where(e => e.Kind != UpcomingEventKind.ScheduledVisit).OrderBy(e => e.Kind);
+     ? UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.OpenReview || e.Kind == UpcomingEventKind.LateReview).OrderBy(e => e.Date)
+     : UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.OpenReview || e.Kind == UpcomingEventKind.LateReview).OrderBy(e => e.Kind);
 
-        public IEnumerable<UpcomingEvent> VisitEvents => UpcomingEvents
-            .Where(e => e.Kind == UpcomingEventKind.ScheduledVisit)
-            .OrderBy(e => e.Date);
-        public IEnumerable<UpcomingEvent> ContactEvents => UpcomingEvents
-            .Where(e => e.Kind == UpcomingEventKind.ScheduledContact)
-            .OrderBy(e => e.Date);
+        public IEnumerable<UpcomingEvent> VisitEvents => SortByDate
+            ? UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.ScheduledVisit).OrderBy(e => e.Date)
+            : UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.ScheduledVisit).OrderBy(e => e.Kind);
+
+        public IEnumerable<UpcomingEvent> ContactEvents => SortByDate
+            ? UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.ScheduledContact).OrderBy(e => e.Date)
+            : UpcomingEvents.Where(e => e.Kind == UpcomingEventKind.ScheduledContact).OrderBy(e => e.Kind);
         partial void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
         public ObservableCollection<Note> Notes { get; } = [];

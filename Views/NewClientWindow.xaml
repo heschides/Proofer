@@ -488,100 +488,160 @@
                                            Grid.Column="0"
                                            Text="90-Day Reviews"
                                            Style="{StaticResource SectionHeader}" />
-                                <CheckBox Grid.Row="1"
-                                          Grid.Column="0"
-                                          Content="Quarter 1"
-                                          IsChecked="{Binding Q1RCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Q1R}" />
-                                <CheckBox Grid.Row="2"
-                                          Grid.Column="0"
-                                          Content="Quarter 2"
-                                          IsChecked="{Binding Q2RCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Q2R}" />
-                                <CheckBox Grid.Row="3"
-                                          Grid.Column="0"
-                                          Content="Quarter 3"
-                                          IsChecked="{Binding Q3RCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Q3R}" />
-                                <CheckBox Grid.Row="4"
-                                          Grid.Column="0"
-                                          Content="Quarter 4"
-                                          IsChecked="{Binding Q4RCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Q4R}" />
+                                <StackPanel Grid.Row="1"
+                                            Grid.Column="0">
+                                    <CheckBox Content="Quarter 1"
+                                              IsChecked="{Binding Q1RCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Q1R}" />
+                                    <TextBlock Text="{Binding Q1RDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2"
+                                            Grid.Column="0">
+                                    <CheckBox Content="Quarter 2"
+                                              IsChecked="{Binding Q2RCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Q2R}" />
+                                    <TextBlock Text="{Binding Q2RDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="3"
+                                            Grid.Column="0">
+                                    <CheckBox Content="Quarter 3"
+                                              IsChecked="{Binding Q3RCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Q3R}" />
+                                    <TextBlock Text="{Binding Q3RDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="4"
+                                            Grid.Column="0">
+                                    <CheckBox Content="Quarter 4"
+                                              IsChecked="{Binding Q4RCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Q4R}" />
+                                    <TextBlock Text="{Binding Q4RDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
 
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="2"
                                            Text="Annual Forms"
                                            Style="{StaticResource SectionHeader}" />
-                                <CheckBox Grid.Row="1"
-                                          Grid.Column="2"
-                                          Content="PCP"
-                                          IsChecked="{Binding PcpCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.PCP}" />
-                                <CheckBox Grid.Row="2"
-                                          Grid.Column="2"
-                                          Content="Comp Assessment"
-                                          IsChecked="{Binding CompAssessmentCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.ComprehensiveAssessment}" />
-                                <CheckBox Grid.Row="3"
-                                          Grid.Column="2"
-                                          Content="Reclassification"
-                                          IsChecked="{Binding ReclassificationCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Reclassification}" />
-                                <CheckBox Grid.Row="4"
-                                          Grid.Column="2"
-                                          Content="Safety Plan"
-                                          IsChecked="{Binding SafetyPlanCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.SafetyPlan}" />
-                                <CheckBox Grid.Row="5"
-                                          Grid.Column="2"
-                                          Content="Privacy Practices"
-                                          IsChecked="{Binding PrivacyPracticesCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.PrivacyPractices}" />
+                                <StackPanel Grid.Row="1"
+                                            Grid.Column="2">
+                                    <CheckBox Content="PCP"
+                                              IsChecked="{Binding PcpCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.PCP}" />
+                                    <TextBlock Text="{Binding PcpDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2"
+                                            Grid.Column="2">
+                                    <CheckBox Content="Comp Assessment"
+                                              IsChecked="{Binding CompAssessmentCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.ComprehensiveAssessment}" />
+                                    <TextBlock Text="{Binding CompAssessmentDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="3"
+                                            Grid.Column="2">
+                                    <CheckBox Content="Reclassification"
+                                              IsChecked="{Binding ReclassificationCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Reclassification}" />
+                                    <TextBlock Text="{Binding ReclassificationDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="4"
+                                            Grid.Column="2">
+                                    <CheckBox Content="Safety Plan"
+                                              IsChecked="{Binding SafetyPlanCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.SafetyPlan}" />
+                                    <TextBlock Text="{Binding SafetyPlanDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="5"
+                                            Grid.Column="2">
+                                    <CheckBox Content="Privacy Practices"
+                                              IsChecked="{Binding PrivacyPracticesCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.PrivacyPractices}" />
+                                    <TextBlock Text="{Binding PrivacyPracticesDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
 
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="4"
                                            Text="Releases"
                                            Style="{StaticResource SectionHeader}" />
-                                <CheckBox Grid.Row="1"
-                                          Grid.Column="4"
-                                          Content="DHHS"
-                                          IsChecked="{Binding ReleaseDhhsCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Release_DHHS}" />
-                                <CheckBox Grid.Row="2"
-                                          Grid.Column="4"
-                                          Content="Agency"
-                                          IsChecked="{Binding ReleaseAgencyCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Release_Agency}" />
-                                <CheckBox Grid.Row="3"
-                                          Grid.Column="4"
-                                          Content="Medical"
-                                          IsChecked="{Binding ReleaseMedicalCompliant, Mode=OneWay}"
-                                          IsEnabled="{Binding AllowComplianceOverride}"
-                                          Command="{Binding ToggleFormCommand}"
-                                          CommandParameter="{x:Static local:FormType.Release_Medical}" />
+                                <StackPanel Grid.Row="1"
+                                            Grid.Column="4">
+                                    <CheckBox Content="DHHS"
+                                              IsChecked="{Binding ReleaseDhhsCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Release_DHHS}" />
+                                    <TextBlock Text="{Binding ReleaseDhhsDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2"
+                                            Grid.Column="4">
+                                    <CheckBox Content="Agency"
+                                              IsChecked="{Binding ReleaseAgencyCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Release_Agency}" />
+                                    <TextBlock Text="{Binding ReleaseAgencyDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="3"
+                                            Grid.Column="4">
+                                    <CheckBox Content="Medical"
+                                              IsChecked="{Binding ReleaseMedicalCompliant, Mode=OneWay}"
+                                              IsEnabled="{Binding AllowComplianceOverride}"
+                                              Command="{Binding ToggleFormCommand}"
+                                              CommandParameter="{x:Static local:FormType.Release_Medical}" />
+                                    <TextBlock Text="{Binding ReleaseMedicalDueDate, StringFormat={}{0:MM/dd/yy}}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               Margin="20,1,0,4" />
+                                </StackPanel>
                             </Grid>
                         </ScrollViewer>
                     </Grid>
