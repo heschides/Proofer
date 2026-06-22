@@ -58,6 +58,11 @@ namespace Sati.ViewModels
 
         [ObservableProperty] private object? currentViewModel;
 
+        // Open/closed state of the scratchpad panel. The actual column collapse and
+        // width-restore lives in ShellWindow.xaml.cs, which reacts to this changing —
+        // remembering a user-dragged GridSplitter width is pure view layout, not a
+        // view-model concern. Defaults open.
+        [ObservableProperty] private bool isScratchpadVisible = true;
         // -------------------------------------------------------------------------
         // Child ViewModels
         // -------------------------------------------------------------------------
@@ -72,7 +77,6 @@ namespace Sati.ViewModels
     _sessionService.CurrentUser?.Role is UserRole.Admin;
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
-        public bool IsScratchpadVisible => true;
 
         public bool IsSupervisionAvailable =>
             _sessionService.CurrentUser?.Role is UserRole.Supervisor
@@ -137,7 +141,7 @@ namespace Sati.ViewModels
         [RelayCommand] private void RequestSwitchUser() => SwitchUserRequested?.Invoke(this, EventArgs.Empty);
         [RelayCommand] public void OpenSettingsWindow() => OpenSettingsWindowRequested?.Invoke(this, true);
         [RelayCommand] private void NavigateToBilling() => CurrentViewModel = _billingDashboardViewModel;
-
+        [RelayCommand] private void ToggleScratchpad() => IsScratchpadVisible = !IsScratchpadVisible;
         // -------------------------------------------------------------------------
         // Initialization
         // -------------------------------------------------------------------------

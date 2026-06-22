@@ -3,15 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Sati.Converters"
         Title="Review Form Compliance"
-        Width="420"
+        Width="440"
         SizeToContent="Height"
-        MaxHeight="600"
+        MaxHeight="720"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="#FDF6EC">
 
     <Window.Resources>
         <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
         <Style x:Key="LabelStyle"
                TargetType="TextBlock">
@@ -85,34 +86,61 @@
                     CornerRadius="6"
                     Padding="12"
                     Margin="0,0,0,16">
-                <ScrollViewer MaxHeight="380"
+                <ScrollViewer MaxHeight="460"
                               VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding Forms}">
+                    <ItemsControl ItemsSource="{Binding Rows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,4">
+                                <Grid Margin="0,6,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                    <CheckBox Grid.Column="0"
+                                    <CheckBox Grid.Row="0"
+                                              Grid.Column="0"
                                               IsChecked="{Binding IsCompliant, Mode=TwoWay}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,10,0" />
 
-                                    <TextBlock Grid.Column="1"
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="1"
                                                Text="{Binding Type, Converter={StaticResource EnumDescriptionConverter}}"
                                                Foreground="#3D2B1F"
                                                FontSize="13"
                                                VerticalAlignment="Center" />
 
-                                    <TextBlock Grid.Column="2"
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="2"
                                                Text="{Binding DueDate, StringFormat={}{0:MMM d, yyyy}}"
                                                Foreground="#9C7A5C"
                                                FontSize="12"
                                                VerticalAlignment="Center" />
+
+                                    <!-- Completion date: visible only when the row is checked.
+                                         Bound to the row's CompletedDate, which the wrapper has
+                                         already defaulted to the due date and will keep non-null
+                                         while checked. Not clamped — a later date is the valid
+                                         late-completion case. Sits under the form name, indented
+                                         to the checkbox column gutter. -->
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="1"
+                                                Grid.ColumnSpan="2"
+                                                Orientation="Horizontal"
+                                                Margin="0,4,0,0"
+                                                Visibility="{Binding IsCompliant, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="Completed"
+                                                   Style="{StaticResource LabelStyle}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0" />
+                                        <DatePicker SelectedDate="{Binding CompletedDate, Mode=TwoWay}"
+                                                    Width="140" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

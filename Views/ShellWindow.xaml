@@ -4,12 +4,13 @@
         xmlns:views="clr-namespace:Sati.Views"
         Title="Sati"
         Icon="/images/sati.ico"
+        WindowState="Maximized"
         MinWidth="900"
         MinHeight="600"
         Background="#FDF6EC"
         FontFamily="{StaticResource AppFont}">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -19,13 +20,14 @@
             <ColumnDefinition Width="5" />
             <ColumnDefinition Width="300"
                               MinWidth="250" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <!-- ================================================================ -->
         <!-- NAVIGATION BAR                                                   -->
         <!-- ================================================================ -->
         <Border Grid.Row="0"
-                Grid.ColumnSpan="3"
+                Grid.ColumnSpan="4"
                 Background="#F5E6D0"
                 BorderBrush="#E8D0B8"
                 BorderThickness="0,0,0,1"
@@ -35,7 +37,6 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-
                 <!-- Tab navigation — left side -->
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal">
@@ -331,5 +332,47 @@
             <views:ScratchpadView DataContext="{Binding Scratchpad}" />
         </Border>
 
+        <!-- Chevron rail — always visible; toggles the Today's Work panel -->
+        <Border Grid.Row="1"
+                Grid.Column="3"
+                Background="#F5E6D0"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1,0,0,0">
+            <Button Command="{Binding ToggleScratchpadCommand}"
+                    Width="24"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    VerticalAlignment="Center"
+                    ToolTip="Show or hide Today's Work">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+                <TextBlock FontFamily="Segoe MDL2 Assets"
+                           FontSize="14"
+                           Foreground="#9C7A5C">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <!-- Closed: points left = bring the panel back in -->
+                            <Setter Property="Text"
+                                    Value="&#xE76B;" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsScratchpadVisible}"
+                                             Value="True">
+                                    <!-- Open: points right = collapse toward the edge -->
+                                    <Setter Property="Text"
+                                            Value="&#xE76C;" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Button>
+        </Border>
     </Grid>
 </Window>

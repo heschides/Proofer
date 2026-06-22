@@ -126,5 +126,17 @@ namespace Sati.Data
 
             return count;
         }
+
+        public async Task<List<Incentive>> GetHistoryAsync(int userId)
+        {
+            await using var context = _contextFactory.CreateDbContext();
+
+            return await context.Incentives
+                .AsNoTracking()
+                .Where(i => i.UserId == userId)
+                .OrderBy(i => i.Year)
+                .ThenBy(i => i.Month)
+                .ToListAsync();
+        }
     }
 }

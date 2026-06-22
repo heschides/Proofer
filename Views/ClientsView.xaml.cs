@@ -19,16 +19,39 @@ namespace Sati.Views
             {
                 vm.ComplianceReviewRequested += (forms) =>
                 {
-                    var reviewVm = new ComplianceReviewViewModel
+                    var reviewVm = new ComplianceReviewViewModel(forms)
                     {
-                        ClientName = $"{vm.FirstName} {vm.LastName}",
-                        Forms = forms
+                        ClientName = $"{vm.FirstName} {vm.LastName}"
                     };
 
                     var dialog = new ComplianceReviewWindow(reviewVm)
                     {
                         Owner = Application.Current.MainWindow
                     };
+
+                    var confirmed = dialog.ShowDialog() == true;
+                    if (confirmed)
+                        reviewVm.Commit();
+
+                    return confirmed;
+                };
+
+                vm.DeleteConfirmationRequested += () =>
+                {
+                    var person = vm.SelectedPerson;
+                    if (person is null)
+                        return false;
+
+                    var dialog = new ConfirmationDialog(
+                        title: "Delete Client",
+                        message: $"Delete {person.FullName}? This permanently removes the client "
+                               + "and all their notes and forms. This cannot be undone.",
+                        confirmText: "Delete",
+                        isDestructive: true)
+                    {
+                        Owner = Application.Current.MainWindow
+                    };
+
                     return dialog.ShowDialog() == true;
                 };
             }

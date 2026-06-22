@@ -30,6 +30,12 @@ namespace Sati.ViewModels
         public event Func<List<Form>, bool>? ComplianceReviewRequested;
         public event EventHandler? FormComplianceChanged;
 
+        // Raised before a client is deleted. The view answers true to proceed, false
+        // to abort — same View-less pattern as ComplianceReviewRequested. Null-coalesced
+        // to false at the call site, so if no handler is wired the delete does NOT
+        // happen — fail safe, not fail open: a missing handler can't cause silent loss.
+        public event Func<bool>? DeleteConfirmationRequested;
+
         // -------------------------------------------------------------------------
         // Observable properties
         // -------------------------------------------------------------------------
@@ -280,6 +286,13 @@ namespace Sati.ViewModels
         {
             if (SelectedPerson is null)
                 return;
+
+            // No handler wired => false => no delete. The guard fails safe: the only
+            // way past this line is an explicit true from the confirmation dialog.
+            var confirmed = DeleteConfirmationRequested?.Invoke() ?? false;
+            if (!confirmed)
+                return;
+
             await _personService.DeletePersonAsync(SelectedPerson);
             People.Remove(SelectedPerson);
             SelectedPerson = null;
@@ -298,7 +311,16 @@ namespace Sati.ViewModels
             if (SelectedPerson is null) return;
             var form = SelectedPerson.GetCurrentCycleForm(type);
             if (form is null) return;
-            form.IsCompliant = !form.IsCompliant;
+
+            // Toggle through the sanctioned door. Marking compliant uses the form's
+            // own DueDate as the completion date — the on-time assumption, matching the
+            // creation dialog's default. A detail-panel toggle is almost always "this
+            // was done on schedule"; the precise-late-date case lives in the dialog.
+            if (form.IsCompliant)
+                form.Reset();
+            else
+                form.MarkComplete(form.DueDate);
+
             await _formService.UpdateFormAsync(form);
             RefreshComplianceFlags();
             FormComplianceChanged?.Invoke(this, EventArgs.Empty);

@@ -62,6 +62,7 @@ namespace Sati
 
                         // Child ViewModels
                         services.AddSingleton<CaseManagerDashboardViewModel>();
+                        services.AddSingleton<StatisticsViewModel>();
                         services.AddTransient<ScratchpadViewModel>();
                         services.AddSingleton<GuidanceViewModel>();
                         services.AddSingleton<HelpersViewModel>();

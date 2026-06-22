@@ -53,6 +53,79 @@
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Padding="6,4" />
 
+                <TextBlock Text="DATE RANGE"
+                           Style="{StaticResource LabelStyle}" />
+                <DatePicker Margin="0,0,0,6"
+                            SelectedDate="{Binding RangeStart, Mode=TwoWay}"
+                            AutomationProperties.Name="Range start date" />
+                <DatePicker Margin="0,0,0,16"
+                            SelectedDate="{Binding RangeEnd, Mode=TwoWay}"
+                            AutomationProperties.Name="Range end date" />
+
+                <!-- Units summary — scoped by the filters above, fixed to Pending/Logged -->
+                <Border Background="#FDF6EC"
+                        BorderBrush="#E8D0B8"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="10,8"
+                        Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="UNITS IN RANGE"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="#9C7A5C"
+                                   Margin="0,0,0,6" />
+                        <Grid Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Pending"
+                                       FontSize="12"
+                                       Foreground="#3D2B1F" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding RangePendingUnits}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3D2B1F" />
+                        </Grid>
+                        <Grid Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Logged"
+                                       FontSize="12"
+                                       Foreground="#3D2B1F" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding RangeLoggedUnits}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3D2B1F" />
+                        </Grid>
+                        <Separator Background="#E8D0B8"
+                                   Margin="0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Total"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#C87941" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding RangeTotalUnits}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#C87941" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Attention section — hidden when nothing needs action -->
                 <StackPanel Visibility="{Binding HasAttentionItems,
                                 Converter={StaticResource BoolToVisibilityConverter}}">
@@ -324,8 +397,28 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="NARRATIVE"
-                               Style="{StaticResource LabelStyle}" />
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="NARRATIVE"
+                                   Style="{StaticResource LabelStyle}"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Style="{StaticResource IconButton}"
+                                Width="26"
+                                Height="26"
+                                Command="{Binding CopyNarrativeCommand}"
+                                ToolTip="Copy narrative to clipboard"
+                                AutomationProperties.Name="Copy narrative to clipboard">
+                            <TextBlock Text="&#xE8C8;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="14"
+                                       Foreground="#9C7A5C" />
+                        </Button>
+                    </Grid>
                     <TextBox Text="{Binding SelectedNote.Narrative, Mode=OneWay}"
                              IsReadOnly="True"
                              AcceptsReturn="True"

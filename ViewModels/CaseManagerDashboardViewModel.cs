@@ -30,7 +30,7 @@ namespace Sati.ViewModels
         private readonly IFormService _formService;
         private readonly Func<string, UserMessageDialog> _validationDialog;
         private readonly IExemptDateService _exemptDateService;
-
+        private const int DefaultLookaheadDays = 90;
         private Settings? _settings;
         private Incentive? _incentive;
         private List<Note> _monthlyNotes = [];
@@ -52,8 +52,9 @@ namespace Sati.ViewModels
             Func<string, UserMessageDialog> validationDialog,
             NotesWindowViewModel notesWindowViewModel,
             NewClientViewModel newClientViewModel,
-      CalendarViewModel calendarViewModel,
-            IExemptDateService exemptDateService
+CalendarViewModel calendarViewModel,
+            IExemptDateService exemptDateService,
+            StatisticsViewModel statisticsViewModel
             )
         {
             _personService = personService;
@@ -70,6 +71,8 @@ namespace Sati.ViewModels
             NotesLog = notesWindowViewModel;
             Calendar = calendarViewModel;
             Clients = newClientViewModel;
+            Statistics = statisticsViewModel;
+
 
             newClientViewModel.FormComplianceChanged += async (s, e) =>
             {
@@ -111,8 +114,10 @@ namespace Sati.ViewModels
         public bool IsMatrixSubActive => CurrentSubViewModel is CaseloadMatrixViewModel;
         public bool IsSubViewActive => CurrentSubViewModel is not null;
         public bool IsCalendarSubActive => CurrentSubViewModel is CalendarViewModel;
+        public bool IsStatisticsSubActive => CurrentSubViewModel is StatisticsViewModel;
         public Func<FormType, Task>? FormStatusRequested { get; set; }
         public CalendarViewModel Calendar { get; }
+        public StatisticsViewModel Statistics { get; }
         [ObservableProperty] private object? currentSubViewModel;
         [ObservableProperty] private User? loggedInUser;
         [ObservableProperty] private Person? selectedPerson;
@@ -128,10 +133,18 @@ namespace Sati.ViewModels
         [ObservableProperty] private bool isEditing;
         [ObservableProperty] private bool sortByDate = true;
         [ObservableProperty] private bool showOverdue;
+        [ObservableProperty] private BoardTab selectedTab = BoardTab.All;
         [ObservableProperty] private double narrativeFontSize = 14;
         [ObservableProperty] private bool isComplianceDialogVisible;
         [ObservableProperty] private string pendingJustification = string.Empty;
         [ObservableProperty] private IReadOnlyList<string> complianceFailureReasons = [];
+
+        // True when the current dialog was triggered by a billing-window block (note
+        // date inside a missed-form window), as opposed to a current-cycle paperwork
+        // gate failure. Decides the non-supervisor outcome: window block => the note
+        // is saved ComplianceBlocked (not billable, audit-trail evidence); paperwork
+        // gate => HeldForCompliance as before. Set when the dialog opens, read in Hold.
+        private bool _dialogIsWindowBlock;
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -144,6 +157,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsNotesLogSubActive));
             OnPropertyChanged(nameof(IsMatrixSubActive));
             OnPropertyChanged(nameof(IsCalendarSubActive));
+            OnPropertyChanged(nameof(IsStatisticsSubActive));
             OnPropertyChanged(nameof(IsSubViewActive));
         }
 
@@ -169,6 +183,12 @@ namespace Sati.ViewModels
         partial void OnShowOverdueChanged(bool value)
         {
             OnPropertyChanged(nameof(AllEvents));
+        }
+        partial void OnSelectedTabChanged(BoardTab value)
+        {
+            OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(IsTaskListTab));
+            OnPropertyChanged(nameof(IsEffectiveDatesTab));
         }
 
         partial void OnSearchTextChanged(string? value) => NotesView.Refresh();
@@ -261,7 +281,90 @@ namespace Sati.ViewModels
 
         public int OverdueCount => UpcomingEvents.Count(e => e.Kind == UpcomingEventKind.LateReview);
         public bool HasOverdueEvents => OverdueCount > 0;
+        // -------------------------------------------------------------------------
+        // Task board
+        // -------------------------------------------------------------------------
 
+        // Heterogeneous by design: FormTaskRow for the form tabs, UpcomingEvent for
+        // Appointments, both for All. The XAML picks a template per item type.
+        public IEnumerable<object> BoardItems => SelectedTab switch
+        {
+            BoardTab.CompAssessments => BuildFormRows(FormType.ComprehensiveAssessment),
+            BoardTab.Reclasses => BuildFormRows(FormType.Reclassification),
+            BoardTab.Pcps => BuildFormRows(FormType.PCP),
+            BoardTab.Releases => BuildFormRows(FormType.Release_Agency, FormType.Release_DHHS, FormType.Release_Medical),
+            BoardTab.Reviews => BuildFormRows(FormType.Q1R, FormType.Q2R, FormType.Q3R, FormType.Q4R),
+            BoardTab.Appointments => ScheduledEvents(),
+            BoardTab.All => AllBoardItems(),
+            _ => []
+        };
+
+        public bool IsEffectiveDatesTab => SelectedTab == BoardTab.EffectiveDates;
+        public bool IsTaskListTab => SelectedTab != BoardTab.EffectiveDates;
+
+        // Per client, per type: the soonest-due form not yet marked compliant, scoped
+        // to the current/next cycle, shown once it's overdue or within
+        // max(its open window, 90 days) of its due date. The compliant-default annual
+        // docs drop out, so this lands on next-cycle renewals and outstanding reviews.
+        private IEnumerable<FormTaskRow> BuildFormRows(params FormType[] types)
+        {
+            if (_settings is null)
+                return [];
+
+            var today = DateTime.Today;
+            var rows = new List<FormTaskRow>();
+
+            foreach (var person in People)
+            {
+                if (person.EffectiveDate is null)
+                    continue;
+
+                var boundaries = person.GetCurrentCycleBoundaries(today);
+                if (boundaries is null)
+                    continue;
+
+                var (cycleStart, _) = boundaries.Value;
+
+                foreach (var type in types)
+                {
+                    var form = person.Forms
+                        .Where(f => f.Type == type && !f.IsCompliant && f.DueDate >= cycleStart)
+                        .OrderBy(f => f.DueDate)
+                        .FirstOrDefault();
+                    if (form is null)
+                        continue;
+
+                    var openDaysBefore = Person.GetOpenDaysBefore(type, _settings);
+                    var windowDays = Math.Max(openDaysBefore, DefaultLookaheadDays);
+                    var isOverdue = today.Date > form.DueDate.Date;
+                    var inWindow = today.Date >= form.DueDate.Date.AddDays(-windowDays);
+                    if (!isOverdue && !inWindow)
+                        continue;
+
+                    var openByDate = form.DueDate.AddDays(-openDaysBefore);
+                    rows.Add(new FormTaskRow(form, person.FullName,
+                        Person.FormDisplayName(type), openByDate, today));
+                }
+            }
+
+            return rows.OrderBy(r => r.DueDate);
+        }
+
+        private IEnumerable<UpcomingEvent> ScheduledEvents() =>
+            UpcomingEvents
+                .Where(e => e.Kind is UpcomingEventKind.ScheduledVisit
+                                  or UpcomingEventKind.ScheduledContact
+                                  or UpcomingEventKind.ScheduledForm)
+                .OrderBy(e => e.Date);
+
+        private IEnumerable<object> AllBoardItems()
+        {
+            var formRows = BuildFormRows(Enum.GetValues<FormType>());
+            return formRows
+                .Cast<object>()
+                .Concat(ScheduledEvents().Cast<object>())
+                .OrderBy(item => item is FormTaskRow row ? row.DueDate : ((UpcomingEvent)item).Date);
+        }
         public bool IsFormNote => SelectedNoteType == NoteType.Form;
         public int Threshold
         {
@@ -323,9 +426,15 @@ namespace Sati.ViewModels
             CurrentSubViewModel = Matrix;
         }
         [RelayCommand] private void NavigateToCalendar() => CurrentSubViewModel = Calendar;
+        [RelayCommand]
+        private async Task NavigateToStatistics()
+        {
+            await Statistics.LoadAsync();
+            CurrentSubViewModel = Statistics;
+        }
         [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
         [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
-
+        [RelayCommand] private void ClearNote() => ResetForm();
         [RelayCommand]
         private async Task DeleteNote()
         {
@@ -342,7 +451,7 @@ namespace Sati.ViewModels
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
             SelectedNote = null;
-            ResetForm();
+            ClearNoteFields();
         }
 
         [RelayCommand]
@@ -355,10 +464,61 @@ namespace Sati.ViewModels
             if (form is null)
                 return;
 
-            form.IsCompliant = !form.IsCompliant;
-            form.CompletedDate = form.IsCompliant ? DateTime.Today : null;
+            if (form.IsCompliant)
+                form.Reset();
+            else
+                form.MarkComplete(form.DueDate);
             await _formService.UpdateFormAsync(form);
             RefreshComplianceFlags();
+        }
+
+        [RelayCommand]
+        private void SelectTab(BoardTab tab) => SelectedTab = tab;
+
+        [RelayCommand]
+        private async Task MarkFormOpened(FormTaskRow? row)
+        {
+            if (row is null)
+                return;
+
+            row.Form.Reset();
+            row.Form.OpenedDate = DateTime.Today;
+            await _formService.UpdateFormAsync(row.Form);
+            AfterRowStatusChange(row);
+        }
+
+        [RelayCommand]
+        private async Task MarkFormCompleted(FormTaskRow? row)
+        {
+            if (row is null)
+                return;
+
+            row.Form.MarkComplete(DateTime.Today);
+            await _formService.UpdateFormAsync(row.Form);
+            AfterRowStatusChange(row);
+        }
+
+        [RelayCommand]
+        private async Task MarkFormNotStarted(FormTaskRow? row)
+        {
+            if (row is null)
+                return;
+
+            row.Form.Reset();
+            row.Form.OpenedDate = null;
+            await _formService.UpdateFormAsync(row.Form);
+            AfterRowStatusChange(row);
+        }
+
+        // Updates the touched row in place rather than rebuilding the list, so the row
+        // recolors where you're looking and a just-completed form doesn't vanish before
+        // you see green. Compliance flags and the matrix do refresh, keeping the
+        // checkbox grid and caseload matrix in step with the board.
+        private void AfterRowStatusChange(FormTaskRow row)
+        {
+            row.Refresh();
+            RefreshComplianceFlags();
+            Matrix?.Rebuild(People, DateTime.Today);
         }
 
         [RelayCommand]
@@ -385,9 +545,19 @@ namespace Sati.ViewModels
                 {
                     var (passed, reasons) = SelectedPerson!.EvaluateComplianceGate(DateTime.Today,
                         SelectedNoteType == NoteType.Form ? SelectedFormType : null);
-                    if (!passed)
+
+                    // Window check is keyed to the NOTE's date, not today. EventDate is
+                    // non-null here — validated at the top of SubmitNote — so the
+                    // .Value is safe.
+                    var windowReasons = SelectedPerson!.EvaluateBillingWindow(EventDate!.Value);
+
+                    if (!passed || windowReasons.Count > 0)
                     {
-                        ComplianceFailureReasons = reasons;
+                        // Combine both sets of reasons for the one dialog. The window
+                        // flag drives the Hold outcome: if any window block is present,
+                        // a held note becomes ComplianceBlocked rather than HeldForCompliance.
+                        _dialogIsWindowBlock = windowReasons.Count > 0;
+                        ComplianceFailureReasons = reasons.Concat(windowReasons).ToList();
                         PendingJustification = string.Empty;
                         IsComplianceDialogVisible = true;
                         return;
@@ -456,7 +626,15 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task HoldForCompliance()
         {
-            Status = NoteStatus.HeldForCompliance;
+            // A window block can't be "held for paperwork" — the note's date sits in a
+            // missed-form window and isn't billable for that date. It's saved
+            // ComplianceBlocked: not Logged, distinct from Abandoned, an audit record of
+            // a unit suppressed by a missed form. A pure paperwork-gate failure keeps the
+            // existing HeldForCompliance behavior.
+            Status = _dialogIsWindowBlock
+                ? NoteStatus.ComplianceBlocked
+                : NoteStatus.HeldForCompliance;
+            _dialogIsWindowBlock = false;
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             if (IsEditing)
@@ -487,6 +665,10 @@ namespace Sati.ViewModels
 
         private async Task SubmitNewNoteAsync(string? caseManagerJustification = null)
         {
+            // Capture the client before any reload — LoadPeopleAsync rebuilds the People
+            // collection with fresh instances, which drops the current SelectedPerson.
+            var keepPersonId = SelectedPerson!.Id;
+
             var note = Note.Create(Narrative!, EventDate, Status, Minutes, SelectedPerson!.Id, SelectedFormType, SelectedNoteType);
             if (caseManagerJustification is not null)
                 note.CaseManagerJustification = caseManagerJustification;
@@ -497,19 +679,24 @@ namespace Sati.ViewModels
                             FormStatusRequested is not null)
                 await FormStatusRequested(note.FormType.Value);
 
-            ResetForm();
-
             await LoadPeopleAsync();
             await LoadMonthlyNotesAsync();
             await LoadUpcomingEventsAsync();
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
+
+            // Re-select the same client against the rebuilt collection so the combobox
+            // holds its selection, then clear only the note fields.
+            SelectedPerson = People.FirstOrDefault(p => p.Id == keepPersonId);
+            ClearNoteFields();
         }
 
         private async Task SubmitEditedNoteAsync(string? caseManagerJustification = null)
         {
             if (SelectedNote is null)
                 return;
+
+            var keepPersonId = SelectedPerson?.Id;
 
             SelectedNote.Narrative = Narrative!;
             SelectedNote.EventDate = EventDate;
@@ -526,12 +713,17 @@ namespace Sati.ViewModels
                 MarkFormCompleteRequested?.Invoke(this, formType.Value);
 
             IsEditing = false;
-            ResetForm();
             await LoadPeopleAsync();
             await LoadMonthlyNotesAsync();
             await LoadUpcomingEventsAsync();
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
+
+            // Keep the same client selected after an edit, mirroring new-note submit.
+            SelectedPerson = keepPersonId is null
+                ? null
+                : People.FirstOrDefault(p => p.Id == keepPersonId.Value);
+            ClearNoteFields();
         }
 
         private async void LoadNotesForPersonAsync(Person? person)
@@ -568,6 +760,9 @@ namespace Sati.ViewModels
                 var people = await _personService.GetAllPeopleAsync(LoggedInUser!.Id);
                 foreach (var person in people)
                     People.Add(person);
+
+                OnPropertyChanged(nameof(BoardItems));
+                OnPropertyChanged(nameof(EffectiveDateGroups));
             }
             catch (Exception ex)
             {
@@ -614,6 +809,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(AllEvents));
             OnPropertyChanged(nameof(OverdueCount));
             OnPropertyChanged(nameof(HasOverdueEvents));
+            OnPropertyChanged(nameof(BoardItems));
         }
 
         public async Task MarkFormCompleteAsync(FormType formType)
@@ -625,8 +821,7 @@ namespace Sati.ViewModels
             if (form is null)
                 return;
 
-            form.IsCompliant = true;
-            form.CompletedDate = DateTime.Today;
+            form.MarkComplete(DateTime.Today);
             await _formService.UpdateFormAsync(form);
             RefreshComplianceFlags();
             Matrix?.Rebuild(People, DateTime.Today);
@@ -661,14 +856,26 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ReleaseMedicalCompliant));
         }
 
+        // Full reset, including the selected client. Used only by the Clear button —
+        // the one place "start over completely" is the intent.
         private void ResetForm()
         {
             SelectedPerson = null;
+            ClearNoteFields();
+        }
+
+        // Clears the note-entry fields but leaves SelectedPerson in place, so the case
+        // manager can log several notes for the same client in a row. Minutes is reset
+        // here too: OnSelectedPersonChanged doesn't cover it, so without this line it
+        // would leak from one submitted note into the next.
+        private void ClearNoteFields()
+        {
             Status = null;
             Narrative = string.Empty;
             EventDate = null;
             SelectedFormType = null;
             SelectedNoteType = null;
+            Minutes = null;
         }
 
         public void EnterEditMode()

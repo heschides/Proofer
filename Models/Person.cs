@@ -135,12 +135,10 @@ namespace Sati
             var cycleEnd = effective.AddYears(1);
 
             return Enum.GetValues<FormType>()
-                .Select(type => new Form
-                {
-                    Type = type,
-                    DueDate = FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
-                    IsCompliant = !IsReviewType(type)
-                })
+                .Select(type => new Form(
+                    type,
+                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
+                    isCompliant: !IsReviewType(type)))
                 .ToList();
         }
 
@@ -211,7 +209,7 @@ namespace Sati
             return FormComplianceStatus.Overdue;
         }
 
-        private static int GetOpenDaysBefore(FormType type, Settings settings) => type switch
+        public static int GetOpenDaysBefore(FormType type, Settings settings) => type switch
         {
             FormType.Q1R or FormType.Q2R or FormType.Q3R or FormType.Q4R
                 => settings.ReviewOpenDaysBefore,
@@ -292,11 +290,11 @@ namespace Sati
                 // the caller's instruction (true for current cycle, false for next).
                 var defaultCompliant = !IsReviewType(type) && defaultAnnualCompliant;
 
-                Forms.Add(new Form
+                Forms.Add(new Form(
+                    type,
+                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
+                    isCompliant: defaultCompliant)
                 {
-                    Type = type,
-                    DueDate = FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
-                    IsCompliant = defaultCompliant,
                     PersonId = Id
                 });
                 added = true;
@@ -356,8 +354,55 @@ namespace Sati
                 return (reasons.Count == 0, reasons);
             }
         }
-        
-        private static string FormDisplayName(FormType type) => type switch
+
+        // Forward-looking, date-keyed billing window check. Returns the gated forms
+        // whose missed-due-date window contains noteDate — the note falls strictly
+        // after a form's due date while that form was not yet completed as of the
+        // note's date. Empty list => clear to bill.
+        //
+        // Why this is separate from EvaluateComplianceGate: that method reasons as of
+        // TODAY (current-cycle paperwork in order). This one reasons as of the NOTE's
+        // date, which may sit in a different cycle when back-entering notes — so it
+        // walks Forms directly by each form's own due date rather than via
+        // GetCurrentCycleForm, which is pinned to today.
+        //
+        // Gated: PCP, Comp, Reclass, and the four reviews. Safety Plan keeps its
+        // existing current-state check in EvaluateComplianceGate and is NOT windowed;
+        // Releases and Privacy Practices are excluded entirely, pending the
+        // configurable-billability-scope work.
+        //
+        // Window endpoints are exclusive on both ends: a note ON the due date bills
+        // (the deadline itself isn't a miss), and a note ON or after the completion
+        // date bills (done by then). Only dates strictly between block.
+        public IReadOnlyList<string> EvaluateBillingWindow(DateTime noteDate)
+        {
+            var gatedTypes = new[]
+            {
+                FormType.PCP,
+                FormType.ComprehensiveAssessment,
+                FormType.Reclassification,
+                FormType.Q1R, FormType.Q2R, FormType.Q3R, FormType.Q4R
+            };
+
+            var blocking = new List<string>();
+
+            foreach (var form in Forms.Where(f => gatedTypes.Contains(f.Type)))
+            {
+                var pastDue = noteDate.Date > form.DueDate.Date;
+                if (!pastDue)
+                    continue;
+
+                var notDoneAsOfNote = form.CompletedDate is null
+                    || noteDate.Date < form.CompletedDate.Value.Date;
+                if (notDoneAsOfNote)
+                    blocking.Add($"{FormDisplayName(form.Type)} was due {form.DueDate:MMM d, yyyy} "
+                               + "and was not completed as of this note's date.");
+            }
+
+            return blocking;
+        }
+
+        public static string FormDisplayName(FormType type) => type switch
         {
             FormType.PCP => "PCP",
             FormType.ComprehensiveAssessment => "Comprehensive Assessment",

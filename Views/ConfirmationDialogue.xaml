@@ -1,0 +1,105 @@
+﻿<Window x:Class="Sati.Views.ConfirmationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm"
+        Width="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#FDF6EC"
+        FocusManager.FocusedElement="{Binding ElementName=CancelButton}">
+
+    <Window.Resources>
+        <!-- Neutral button: the safe default, low-emphasis so the eye isn't pulled
+             to it. Cancel lives here. -->
+        <Style x:Key="NeutralButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="34" />
+            <Setter Property="MinWidth"
+                    Value="90" />
+            <Setter Property="Margin"
+                    Value="0,0,8,0" />
+            <Setter Property="Background"
+                    Value="#9C7A5C" />
+            <Setter Property="Foreground"
+                    Value="#FDF6EC" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="14,0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Action button: the consequential one. Background is set in code-behind —
+             deep red when destructive, warm accent otherwise — so one style serves both. -->
+        <Style x:Key="ActionButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="34" />
+            <Setter Property="MinWidth"
+                    Value="90" />
+            <Setter Property="Foreground"
+                    Value="White" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="14,0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="24">
+        <StackPanel>
+            <TextBlock x:Name="HeadingText"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="#3D2B1F"
+                       Margin="0,0,0,10" />
+
+            <TextBlock x:Name="MessageText"
+                       TextWrapping="Wrap"
+                       FontSize="13"
+                       Foreground="#3D2B1F"
+                       Margin="0,0,0,20" />
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Style="{StaticResource NeutralButton}"
+                        IsCancel="True" />
+                <Button x:Name="ConfirmButton"
+                        Style="{StaticResource ActionButton}"
+                        Click="Confirm_Click" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

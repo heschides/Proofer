@@ -2,6 +2,24 @@
 
 namespace Sati
 {
+    public enum FormWorkflowState
+    {
+        NotStarted,
+        Opened,
+        Completed
+    }
+    public enum BoardTab
+    {
+        CompAssessments,
+        Reclasses,
+        Pcps,
+        Releases,
+        Appointments,
+        Reviews,
+        EffectiveDates,
+        All
+    }
+
     public enum FormType
     {
         [Description("Q1 90-Day Review")] Q1R,
@@ -57,7 +75,8 @@ namespace Sati
         Delayed,
         Approved,
         Returned,
-        Abandoned
+        Abandoned,
+        ComplianceBlocked
     }
 
     public enum NoteType
@@ -109,4 +128,3 @@ namespace Sati
         Other = 99
     }
 }
-

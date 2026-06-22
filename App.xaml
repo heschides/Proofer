@@ -245,6 +245,7 @@
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
         <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
         <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
+        <converters:BoardTabConverter x:Key="BoardTabConverter" />
         <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter" />
         <converters:BoolToTileColorConverter x:Key="BoolToTileColorConverter" />
         <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" />
@@ -262,6 +263,10 @@
         </DataTemplate>
         <DataTemplate DataType="{x:Type viewmodels:NotesWindowViewModel}">
             <views:NotesLogView />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type viewmodels:StatisticsViewModel}">
+            <views:StatisticsView />
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type viewmodels:NewClientViewModel}">

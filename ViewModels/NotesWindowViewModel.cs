@@ -4,6 +4,8 @@ using Sati.Data;
 using Sati.Models;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Data;
 
 namespace Sati.ViewModels
@@ -37,6 +39,8 @@ namespace Sati.ViewModels
         [ObservableProperty] private StatusOption _selectedStatusOption = StatusOptions[0];
         [ObservableProperty] private Note? _selectedNote;
         [ObservableProperty] private string? _searchText;
+        [ObservableProperty] private DateTime? _rangeStart;
+        [ObservableProperty] private DateTime? _rangeEnd;
         [ObservableProperty] private bool _isComplianceDialogVisible;
         [ObservableProperty] private string _pendingJustification = string.Empty;
         [ObservableProperty] private IReadOnlyList<string> _complianceFailureReasons = [];
@@ -44,12 +48,14 @@ namespace Sati.ViewModels
         public event EventHandler? NoteStatusChanged;
 
         // CALLBACKS
-        partial void OnSelectedFilterPersonChanged(Person? value) => NotesView.Refresh();
+        partial void OnSelectedFilterPersonChanged(Person? value) => RefreshView();
         partial void OnSelectedStatusOptionChanged(StatusOption value) => NotesView.Refresh();
-        partial void OnSearchTextChanged(string? value) => NotesView.Refresh();
+        partial void OnSearchTextChanged(string? value) => RefreshView();
+        partial void OnRangeStartChanged(DateTime? value) => RefreshView();
+        partial void OnRangeEndChanged(DateTime? value) => RefreshView();
         partial void OnSelectedNoteChanged(Note? value) =>
             OnPropertyChanged(nameof(IsSelectedNoteReturned));
-     
+
         // COMPUTED
         public int ReturnedCount => _allNotes.Count(n => n.Status == NoteStatus.Returned);
         public int HeldCount => _allNotes.Count(n => n.Status == NoteStatus.HeldForCompliance);
@@ -57,6 +63,13 @@ namespace Sati.ViewModels
         public bool HasHeld => HeldCount > 0;
         public bool HasAttentionItems => HasReturned || HasHeld;
         public bool IsSelectedNoteReturned => SelectedNote?.Status == NoteStatus.Returned;
+
+        // RANGE SUMMARY — scoped by person/search/date range, independent of the status combobox
+        public int RangePendingUnits =>
+            _allNotes.Where(n => MatchesScope(n) && n.Status == NoteStatus.Pending).Sum(n => n.Units ?? 0);
+        public int RangeLoggedUnits =>
+            _allNotes.Where(n => MatchesScope(n) && n.Status == NoteStatus.Logged).Sum(n => n.Units ?? 0);
+        public int RangeTotalUnits => RangePendingUnits + RangeLoggedUnits;
 
         // CONSTRUCTOR
         public NotesWindowViewModel(IPersonService personService, ISessionService sessionService, INoteService noteService)
@@ -100,7 +113,7 @@ namespace Sati.ViewModels
             if (SelectedNote is null) return;
             SelectedNote.Status = NoteStatus.Logged;
             await _noteService.UpdateNoteAsync(SelectedNote);
-            NotesView.Refresh();
+            RefreshView();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -112,7 +125,7 @@ namespace Sati.ViewModels
             await _noteService.UpdateNoteAsync(SelectedNote);
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
-            NotesView.Refresh();
+            RefreshView();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -127,7 +140,7 @@ namespace Sati.ViewModels
             await _noteService.UpdateNoteAsync(SelectedNote);
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
-            NotesView.Refresh();
+            RefreshView();
         }
 
         [RelayCommand]
@@ -137,6 +150,22 @@ namespace Sati.ViewModels
             PendingJustification = string.Empty;
             NotesView.Refresh();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        [RelayCommand]
+        private void CopyNarrative()
+        {
+            var text = SelectedNote?.Narrative;
+            if (string.IsNullOrEmpty(text)) return;
+
+            try
+            {
+                Clipboard.SetText(text);
+            }
+            catch (ExternalException)
+            {
+                //NO CATCH NEEDED
+            }
         }
 
         // METHODS
@@ -177,20 +206,41 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(HasAttentionItems));
         }
 
-        private bool FilterNotes(object obj)
+        private void RefreshView()
         {
-            if (obj is not Note note) return false;
+            NotesView.Refresh();
+            OnPropertyChanged(nameof(RangePendingUnits));
+            OnPropertyChanged(nameof(RangeLoggedUnits));
+            OnPropertyChanged(nameof(RangeTotalUnits));
+        }
 
+        // Scoping filters shared by the grid and the units summary.
+        // Status is deliberately NOT here — the grid adds it; the summary fixes it to Pending/Logged.
+        private bool MatchesScope(Note note)
+        {
             var matchesPerson = ReferenceEquals(SelectedFilterPerson, AllPersonsSentinel)
                 || note.PersonId == SelectedFilterPerson?.Id;
-
-            var matchesStatus = SelectedStatusOption.Value is null
-                || note.Status == SelectedStatusOption.Value;
 
             var matchesSearch = string.IsNullOrWhiteSpace(SearchText)
                 || note.Narrative.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
 
-            return matchesPerson && matchesStatus && matchesSearch;
+            var noDateBounds = RangeStart is null && RangeEnd is null;
+            var matchesRange = noDateBounds
+                || (note.EventDate is DateTime date
+                    && (RangeStart is null || date.Date >= RangeStart.Value.Date)
+                    && (RangeEnd is null || date.Date <= RangeEnd.Value.Date));
+
+            return matchesPerson && matchesSearch && matchesRange;
+        }
+
+        private bool FilterNotes(object obj)
+        {
+            if (obj is not Note note) return false;
+
+            var matchesStatus = SelectedStatusOption.Value is null
+                || note.Status == SelectedStatusOption.Value;
+
+            return MatchesScope(note) && matchesStatus;
         }
     }
 }
