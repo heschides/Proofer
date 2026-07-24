@@ -99,7 +99,7 @@
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="{Binding IsEntryPanelOpen, Converter={StaticResource BoolToWidthConverter}}" />
-            <ColumnDefinition Width="{Binding IsEntryPanelOpen, Converter={StaticResource SpacerWidthConverter}}" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -114,9 +114,9 @@
   Converter={StaticResource BoolToVisibilityConverter}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="ADD CLIENT"
+                    <TextBlock Text="{Binding EntryPanelHeader}"
                                FontSize="13"
-                           FontWeight="Bold"
+                               FontWeight="Bold"
                            Foreground="#3D2B1F"
                            Margin="0,0,0,16" />
 
@@ -194,20 +194,111 @@
                           IsChecked="{Binding OpenWithVR}"
                           Margin="0,12,0,6" />
 
-                <CheckBox Content="Has guardian"
-                          IsChecked="{Binding HasGuardian}" />
-                <TextBox Text="{Binding GuardianName, UpdateSourceTrigger=PropertyChanged}"
-                         Visibility="{Binding HasGuardian, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <CheckBox Content="Has guardian"
+                              IsChecked="{Binding HasGuardian}" />
+                    <TextBox Text="{Binding GuardianName, UpdateSourceTrigger=PropertyChanged}"
+                             Visibility="{Binding HasGuardian, Converter={StaticResource BoolToVisibilityConverter}}" />
 
-                <Button Content="{Binding SubmitButtonLabel}"
-                        Style="{StaticResource PrimaryButton}"
-                        Command="{Binding SubmitCommand}" />
+                    <TextBlock Text="WAIVER SERVICES"
+                               Style="{StaticResource LabelStyle}"
+                               Margin="0,16,0,6" />
+
+                    <CheckBox Content="Home support"
+                              IsChecked="{Binding HasHomeSupport}" />
+                    <CheckBox Content="Self-directed home support"
+                              IsChecked="{Binding HasSelfDirectedHomeSupport}" />
+                    <CheckBox Content="Shared living"
+                              IsChecked="{Binding HasSharedLiving}" />
+                    <CheckBox Content="Community support 1:1"
+                              IsChecked="{Binding HasCommunitySupport1To1}" />
+                    <CheckBox Content="Community support self-directed"
+                              IsChecked="{Binding HasCommunitySupportSelfDirected}" />
+                    <CheckBox Content="Day program"
+                              IsChecked="{Binding HasCommunitySupportDayProgram}" />
+
+                    <!-- Reveal pattern borrowed from HasGuardian/GuardianName. Bound
+                     LostFocus rather than PropertyChanged: the VM clamps values
+                     below 1 up to 1, and clamping on every keystroke makes the
+                     field impossible to clear and retype. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="20,0,0,6"
+                                Visibility="{Binding HasCommunitySupportDayProgram, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="How many?"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <TextBox Text="{Binding DayProgramCount, UpdateSourceTrigger=LostFocus}"
+                                 Width="48" />
+                    </StackPanel>
+
+                    <CheckBox Content="Employed"
+                              IsChecked="{Binding IsEmployed}"
+                              Margin="0,12,0,6" />
+
+                    <CheckBox Content="Employment specialist"
+                              IsChecked="{Binding HasEmploymentSpecialist}"
+                              IsEnabled="{Binding IsEmployed}"
+                              Margin="20,0,0,6" />
+                    <CheckBox Content="Work supports"
+                              IsChecked="{Binding HasWorkSupports}"
+                              IsEnabled="{Binding IsEmployed}"
+                              Margin="20,0,0,6" />
+
+                    <Button Content="{Binding SubmitButtonLabel}"
+                            Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SubmitCommand}" 
+                            Margin="0,0,0,10"/>
 
                 <Button Content="Remove Selected"
                         Style="{StaticResource DangerButton}"
                         Command="{Binding RemoveSelectedPersonCommand}" />
             </StackPanel>
             </ScrollViewer>
+        </Border>
+
+        <!-- Chevron rail — always visible; toggles the entry panel. Mirrors the
+             Today's Work rail in ShellWindow, but sits to the right of its panel
+             rather than the left, so the chevron directions are reversed: the arrow
+             points the way the panel's outer edge will move. -->
+        <Border Grid.Column="1"
+                BorderThickness="1,0,1,0"
+                Margin="0,0,8,0">
+            <Button Command="{Binding ToggleEntryPanelCommand}"
+                    Width="24"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    VerticalAlignment="Center"
+                    ToolTip="Show or hide the client form">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+                <TextBlock FontFamily="Segoe MDL2 Assets"
+                           FontSize="14"
+                           Foreground="#9C7A5C">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <!-- Closed: points right = expand outward from the edge -->
+                            <Setter Property="Text"
+                                    Value="&#xE76C;" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEntryPanelOpen}"
+                                             Value="True">
+                                    <!-- Open: points left = collapse toward the edge -->
+                                    <Setter Property="Text"
+                                            Value="&#xE76B;" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Button>
         </Border>
 
         <!-- ═══ RIGHT PANEL ═══ -->
@@ -241,8 +332,8 @@
                                    Margin="0,0,12,0" />
                         <Button Style="{StaticResource IconButton}"
                                 Command="{Binding OpenEntryPanelCommand}"
-                                ToolTip="Add new client">
-                            <TextBlock Text="&#xE710;"
+                                ToolTip="Clear the form to add a new client">
+                            <TextBlock Text="&#xE72C;"
                                        FontFamily="Segoe MDL2 Assets"
                                        FontSize="14"
                                        Foreground="#9C7A5C" />
@@ -384,6 +475,24 @@
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,10"
                                    Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                        <TextBlock Text="SERVICES"
+                                   Style="{StaticResource LabelStyle}"
+                                   Visibility="{Binding HasSelectedPersonServices, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <TextBlock Text="{Binding SelectedPersonServices}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"
+                                   Visibility="{Binding HasSelectedPersonServices, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                        <TextBlock Text="Employment tracking required"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"
+                                   Visibility="{Binding ShowsEmploymentTracking, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                         <TextBlock Text="BIO"
                                    Style="{StaticResource LabelStyle}" />

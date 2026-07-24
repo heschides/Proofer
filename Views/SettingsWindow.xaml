@@ -446,6 +446,95 @@
                         Command="{Binding SaveSettingsCommand}"
                         Margin="0,16,0,0" />
 
+                <!-- ============================================================ -->
+                <!-- TEMPORARY MAINTENANCE — DUE-DATE BACKFILL                    -->
+                <!-- Remove this whole block (and the matching region in          -->
+                <!-- SettingsViewModel.cs) once the backfill has been run.        -->
+                <!-- ============================================================ -->
+                <TextBlock Text="MAINTENANCE — DUE-DATE BACKFILL"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,32,0,8" />
+                <Separator />
+
+                <TextBlock Text="Run the dry run first. It writes a full report to your Desktop and changes nothing. Read it, then type the exact 'forms changed' count below and press Commit to apply."
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Foreground="#9C7A5C"
+                           Margin="0,0,0,12" />
+
+                <Button Content="Dry Run (safe — writes report only)"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding BackfillDryRunCommand}"
+                        HorizontalAlignment="Left"
+                        Width="300"
+                        Margin="0,0,0,12" />
+
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,12">
+                    <TextBox Text="{Binding BackfillConfirmCount, UpdateSourceTrigger=PropertyChanged}"
+                             Width="120"
+                             VerticalAlignment="Center"
+                             Margin="0,0,8,0" />
+                    <Button Content="Commit Backfill"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding BackfillCommitCommand}"
+                            Width="160" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding BackfillStatus}"
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Foreground="#3D2B1F"
+                           Margin="0,0,0,8" />
+
+                <!-- ============================================================ -->
+                <!-- TEMPORARY MAINTENANCE — BULK FORM COMPLETION                 -->
+                <!-- Remove this whole block (and the matching region in          -->
+                <!-- SettingsViewModel.cs) once completion has been run.          -->
+                <!-- ============================================================ -->
+                <TextBlock Text="MAINTENANCE — BULK FORM COMPLETION"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,32,0,8" />
+                <Separator />
+
+                <TextBlock Text="Marks every form due on or before the cutoff (and not already compliant) as complete, stamping the due date. Dry run first — it writes a report to your Desktop and changes nothing — then type the exact count and press Commit."
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Foreground="#9C7A5C"
+                           Margin="0,0,0,12" />
+
+                <TextBlock Text="CUTOFF DATE (inclusive, yyyy-MM-dd)"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding BulkCompleteCutoff, UpdateSourceTrigger=PropertyChanged}"
+                         Width="140"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,12" />
+
+                <Button Content="Dry Run (safe — writes report only)"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding BulkCompleteDryRunCommand}"
+                        HorizontalAlignment="Left"
+                        Width="300"
+                        Margin="0,0,0,12" />
+
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,12">
+                    <TextBox Text="{Binding BulkCompleteConfirmCount, UpdateSourceTrigger=PropertyChanged}"
+                             Width="120"
+                             VerticalAlignment="Center"
+                             Margin="0,0,8,0" />
+                    <Button Content="Commit Completion"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding BulkCompleteCommitCommand}"
+                            Width="160" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding BulkCompleteStatus}"
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Foreground="#3D2B1F"
+                           Margin="0,0,0,8" />
+
             </StackPanel>
         </ScrollViewer>
     </Border>

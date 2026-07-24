@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sati.Data;
 
@@ -11,9 +12,11 @@ using Sati.Data;
 namespace Sati.Migrations
 {
     [DbContext(typeof(SatiContext))]
-    partial class SatiContextModelSnapshot : ModelSnapshot
+    [Migration("20260628135359_AddQ4RDaysBeforeAnniversary")]
+    partial class AddQ4RDaysBeforeAnniversary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -598,9 +601,6 @@ namespace Sati.Migrations
                     b.Property<DateTime>("BirthDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("DayProgramCount")
-                        .HasColumnType("int");
-
                     b.Property<string>("DiagnosisCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -619,39 +619,12 @@ namespace Sati.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<bool>("HasCommunitySupport1To1")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasCommunitySupportDayProgram")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasCommunitySupportSelfDirected")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasEmploymentSpecialist")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("HasGuardian")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasHomeSupport")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasSelfDirectedHomeSupport")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasSharedLiving")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasWorkSupports")
                         .HasColumnType("bit");
 
                     b.Property<string>("HealthcareSystemName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsEmployed")
-                        .HasColumnType("bit");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -688,48 +661,6 @@ namespace Sati.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("People");
-                });
-
-            modelBuilder.Entity("Sati.ReviewItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTime>("CycleAnchor")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("LoggedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("PersonId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Quarter")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ReceivedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("RequestedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("SlotIndex")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PersonId", "CycleAnchor", "Quarter", "Category", "SlotIndex")
-                        .IsUnique();
-
-                    b.ToTable("ReviewItems");
                 });
 
             modelBuilder.Entity("Sati.Models.Billing.BillingPeriod", b =>
@@ -847,17 +778,6 @@ namespace Sati.Migrations
                     b.Navigation("Agency");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Sati.ReviewItem", b =>
-                {
-                    b.HasOne("Sati.Person", "Person")
-                        .WithMany()
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Person");
                 });
 
             modelBuilder.Entity("Sati.Models.Billing.BillingPeriod", b =>

@@ -49,13 +49,14 @@ namespace Sati
                         services.AddTransient<IIncentiveService, IncentiveService>();
                         services.AddSingleton<ISessionService, SessionService>();
                         services.AddTransient<ISettingsService, SettingsService>();
-                        services.AddTransient<IUpcomingEventService, UpcomingEventService>();
-                        services.AddTransient<IFormService, FormService>();
+                        services.AddTransient<FormDueDateBackfill>();
+                        services.AddTransient<FormBulkCompletion>();
+                        services.AddTransient<IUpcomingEventService, UpcomingEventService>(); services.AddTransient<IFormService, FormService>();
                         services.AddTransient<ISupervisorService, SupervisorService>();
                         services.AddTransient<IBillingService, BillingService>();
                         services.AddTransient<IEdiService, EdiService>();
                         services.AddTransient<IExemptDateService, ExemptDateService>();
-
+                        services.AddTransient<IReviewItemService, ReviewItemService>();
                         // Shell
                         services.AddSingleton<ShellViewModel>();
                         services.AddSingleton<ShellWindow>();
@@ -66,6 +67,7 @@ namespace Sati
                         services.AddTransient<ScratchpadViewModel>();
                         services.AddSingleton<GuidanceViewModel>();
                         services.AddSingleton<HelpersViewModel>();
+                        services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();

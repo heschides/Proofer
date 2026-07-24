@@ -30,14 +30,13 @@ namespace Sati
         // Contact & support details
         // -------------------------------------------------------------------------
 
-        // Active Vocational Rehabilitation case running alongside Section 17 services.
+        // Active Vocational Rehabilitation case (Dept. of Labor) running alongside
+        // Section 17 services. Distinct from the MaineCare-funded employment
+        // supports below.
         public bool OpenWithVR { get; set; }
 
-        // HasGuardian drives the reveal of the guardian-name field in the edit form.
-        // GuardianName is kept independent of the flag — unchecking HasGuardian does
-        // not null out GuardianName — so a name typed in error-and-recovery, or a
-        // guardianship that lapses and resumes, doesn't silently destroy the stored
-        // value. The flag governs visibility; the user governs the data.
+        // HasGuardian governs field visibility only; unchecking it does not null
+        // GuardianName, so a lapsed-and-resumed guardianship doesn't destroy data.
         public bool HasGuardian { get; set; }
         public string? GuardianName { get; set; }
 
@@ -45,26 +44,50 @@ namespace Sati
         public string? Address { get; set; }
         public string? PrimaryCareProvider { get; set; }
 
-        // Healthcare system, stored denormalized as a plain name string. This is a
-        // deliberate design choice, not a shortcut, and the seam for a future
-        // relational model is pre-cut in three places so that migration is additive
-        // rather than a rewrite:
-        //
-        //   1. The property is named *Name* on purpose. It leaves the bare name
-        //      `HealthcareSystem` free for a future navigation property and
-        //      `HealthcareSystemId` free for a future foreign key. When records get
-        //      relational, you add those columns and backfill by matching on this
-        //      string — this column is never renamed.
-        //
-        //   2. In the UI, the ComboBox binds through SelectedValuePath against a
-        //      HealthcareSystemOption type rather than binding directly to a string.
-        //      When the option type later carries an Id, you flip SelectedValuePath
-        //      from "Name" to "Id" and the ItemsSource and item template are unchanged.
-        //
-        //   3. The configurable option list is serialized as JSON on Settings (see
-        //      HealthcareSystemsJson), so its stored shape can gain fields later
-        //      without breaking rows written today.
+        // Deliberately denormalized as a name string. The seam for a future
+        // relational model is pre-cut: this column never renames (a future
+        // HealthcareSystemId/HealthcareSystem nav gets added beside it and
+        // backfilled by name match), the ComboBox binds via SelectedValuePath so
+        // flipping "Name" → "Id" later touches one attribute, and the option list
+        // lives as JSON on Settings so its shape can grow without breaking rows.
         public string? HealthcareSystemName { get; set; }
+
+        // -------------------------------------------------------------------------
+        // Waiver services & employment
+        // -------------------------------------------------------------------------
+
+        // One flag per statutory waiver service. Columns rather than a child
+        // table: the service list is statute-stable, changing only when the
+        // state changes it, and flat flags keep queries and bindings simple.
+        public bool HasHomeSupport { get; set; }
+        public bool HasSelfDirectedHomeSupport { get; set; }
+        public bool HasSharedLiving { get; set; }
+        public bool HasCommunitySupport1To1 { get; set; }
+        public bool HasCommunitySupportSelfDirected { get; set; }
+        public bool HasCommunitySupportDayProgram { get; set; }
+
+        // Meaningful only when HasCommunitySupportDayProgram is true.
+        public int DayProgramCount { get; set; } = 1;
+
+        public bool HasEmploymentSpecialist { get; set; }
+        public bool HasWorkSupports { get; set; }
+
+        public bool IsEmployed { get; set; }
+
+        // Employed with no employment-related supports from any funding stream
+        // (waiver or VR) — the population whose employment parameters the case
+        // manager must track directly per state requirement.
+        public bool RequiresEmploymentTracking =>
+            IsEmployed && !HasEmploymentSpecialist && !HasWorkSupports && !OpenWithVR;
+
+        // Quarterly note-review slots derive from service flags. Self-directed
+        // services are exempt from note review and contribute no slots.
+        public int HomeNoteSlots =>
+            (HasHomeSupport ? 1 : 0) + (HasSharedLiving ? 1 : 0);
+
+        public int CommunityNoteSlots =>
+            (HasCommunitySupport1To1 ? 1 : 0) +
+            (HasCommunitySupportDayProgram ? DayProgramCount : 0);
 
         // -------------------------------------------------------------------------
         // Collections
@@ -83,8 +106,8 @@ namespace Sati
         // Factory
         // -------------------------------------------------------------------------
 
-        // Settings is no longer used in the body but kept on the signature so
-        // existing callers (NewClientViewModel) don't break. Remove in cleanup.
+        // Settings is unused in the body but kept on the signature so existing
+        // callers (NewClientViewModel) don't break. Remove in cleanup.
         public static Person CreatePerson(int userId, string firstName, string lastName,
                    string bio, DateTime birthdate, DateTime? effective, WaiverType waiver, Settings settings)
         {
@@ -102,13 +125,12 @@ namespace Sati
             if (effective is null)
                 return person;
 
-            person.Forms = GenerateFormList(effective.Value);
+            person.Forms = GenerateFormList(effective.Value, settings);
             return person;
         }
 
-        // Sentinel factory for filter dropdowns that need an "All Persons" row.
-        // Bypasses GenerateFormList deliberately — this object never enters the DB
-        // and has no forms, notes, or real identity. Id = -1 is a marker, not a key.
+        // Sentinel for filter dropdowns needing an "All Persons" row. Never
+        // enters the DB; Id = -1 is a marker, not a key.
         public static Person CreateSentinel(string label)
         {
             return new Person
@@ -123,13 +145,11 @@ namespace Sati
         // Methods
         // -------------------------------------------------------------------------
 
-        // First-cycle generation. Annual non-review documents default to compliant
-        // because cycle 1 begins with the consumer's initial signed PCP, comp
-        // assessment, and so on already in place at admission. Reviews default to
-        // non-compliant — they're tasks to complete during the cycle. The
-        // creation-time compliance dialog lets the user override these defaults
-        // for backdated admissions where some forms are already overdue.
-        public static List<Form> GenerateFormList(DateTime effective)
+        // First-cycle generation. Annual non-reviews default compliant (cycle 1
+        // begins with signed documents in place at admission); reviews default
+        // non-compliant (tasks to complete during the cycle). The creation-time
+        // compliance dialog handles overrides for backdated admissions.
+        public static List<Form> GenerateFormList(DateTime effective, Settings settings)
         {
             var cycleStart = effective;
             var cycleEnd = effective.AddYears(1);
@@ -137,15 +157,14 @@ namespace Sati
             return Enum.GetValues<FormType>()
                 .Select(type => new Form(
                     type,
-                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
+                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
                     isCompliant: !IsReviewType(type)))
                 .ToList();
         }
 
-        // Returns (cycleStart, cycleEnd) bracketing the cycle that contains today,
-        // using the half-open convention: today belongs to a cycle if cycleStart
-        // <= today < cycleEnd. The anniversary date itself belongs to the next
-        // cycle. Returns null if EffectiveDate is unset.
+        // Returns (cycleStart, cycleEnd) bracketing the cycle containing today:
+        // cycleStart <= today < cycleEnd. The anniversary itself belongs to the
+        // next cycle. Null if EffectiveDate is unset.
         public (DateTime cycleStart, DateTime cycleEnd)? GetCurrentCycleBoundaries(DateTime today)
         {
             if (EffectiveDate is null)
@@ -161,11 +180,42 @@ namespace Sati
             return (cycleStart, cycleEnd);
         }
 
-        // Returns the form of the given type that belongs to the consumer's
-        // current cycle. Cycle membership is half-open [cycleStart, cycleEnd) —
-        // forms whose DueDate equals cycleEnd belong to the next cycle, not
-        // this one. Returns null if no current-cycle form exists; the caller
-        // surfaces that as NoForm rather than borrowing a stale form.
+        // Which quarter of the current cycle today falls in, 1-4. Quarters are
+        // 90-day blocks from cycleStart, matching how Q1R-Q4R due dates are
+        // anchored (prevAnniversary + 90/180/270/365) — so "we're in Q3" means
+        // Q3R is the review currently in play.
+        //
+        // The clamp matters: a 365-day cycle divided into 90-day blocks leaves a
+        // 5-day tail, and a leap year leaves 6. Without it, the last days before
+        // the anniversary would report quarter 5. Those days belong to Q4.
+        //
+        // Null when EffectiveDate is unset — same contract as the boundaries
+        // method it delegates to.
+        public int? GetCurrentQuarter(DateTime today)
+        {
+            var boundaries = GetCurrentCycleBoundaries(today);
+            if (boundaries is null)
+                return null;
+
+            var elapsed = (today.Date - boundaries.Value.cycleStart.Date).Days;
+            return Math.Clamp(elapsed / 90 + 1, 1, 4);
+        }
+
+        // THE single definition of form-to-cycle membership: a form belongs to a
+        // cycle if its due date falls in (cycleStart, cycleEnd] — after the start,
+        // on OR before the end. The anniversary is INCLUSIVE because annual forms
+        // are dated cycleEnd − offset and the offset-0 forms land exactly on
+        // cycleEnd; an exclusive end would drop them into the next cycle.
+        //
+        // Every membership question in this class routes through here. The
+        // dashboard's forward-looking task filter deliberately does NOT — it
+        // scans current-and-future with no upper bound by design.
+        private static bool FormBelongsToCycle(DateTime dueDate, DateTime cycleStart, DateTime cycleEnd)
+            => dueDate > cycleStart && dueDate <= cycleEnd;
+
+        // Returns the current-cycle form of the given type, or null if none
+        // exists — the caller surfaces that as NoForm rather than borrowing a
+        // stale form.
         public Form? GetCurrentCycleForm(FormType type, DateTime? asOf = null)
         {
             var today = asOf ?? DateTime.Today;
@@ -177,8 +227,7 @@ namespace Sati
 
             return Forms
                 .Where(f => f.Type == type &&
-                            f.DueDate >= cycleStart &&
-                            f.DueDate < cycleEnd)
+                            FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd))
                 .OrderByDescending(f => f.DueDate)
                 .FirstOrDefault();
         }
@@ -232,23 +281,15 @@ namespace Sati
             _ => 30
         };
 
-        // Ensures forms exist for both the consumer's current cycle and their
-        // next cycle. Defaults differ by cycle:
+        // Ensures forms exist for the current AND next cycle. Current-cycle
+        // annual non-reviews default compliant (the cycle started because those
+        // documents were signed); next-cycle annuals default non-compliant and
+        // get marked true during the prep window as renewals are signed — if the
+        // cycle rolls over with them still false, missed prep is correctly
+        // flagged. Reviews default false in both cycles.
         //
-        //   - Current cycle: annual non-reviews default to IsCompliant = true,
-        //     because the cycle started because those documents were signed.
-        //     Reviews default to false — tasks to complete during the cycle.
-        //
-        //   - Next cycle: annual non-reviews default to IsCompliant = false.
-        //     The user marks them true during the prep window as each
-        //     renewal is signed. If the cycle rolls over with these still
-        //     false, the consumer is correctly flagged as having missed
-        //     prep — the renewal didn't happen in time. Reviews default
-        //     to false same as current.
-        //
-        // The Settings parameter is unused after the form-model refactor but
-        // kept on the signature so PersonService doesn't need to change in
-        // lockstep. Safe to remove in a follow-up sweep.
+        // Settings is unused after the form-model refactor; kept so PersonService
+        // doesn't change in lockstep. Remove in a follow-up sweep.
         public bool EnsureCurrentCycleForms(DateTime today, Settings settings)
         {
             var boundaries = GetCurrentCycleBoundaries(today);
@@ -258,42 +299,37 @@ namespace Sati
             var (cycleStart, cycleEnd) = boundaries.Value;
             var added = false;
 
-            // Current cycle: documents in force, reviews to do
-            added |= AddMissingFormsForCycle(cycleStart, cycleEnd, defaultAnnualCompliant: true);
+            added |= AddMissingFormsForCycle(cycleStart, cycleEnd, defaultAnnualCompliant: true, settings);
 
-            // Next cycle: prep not yet done; user marks true as renewals are signed
             var nextStart = cycleEnd;
             var nextEnd = cycleEnd.AddYears(1);
-            added |= AddMissingFormsForCycle(nextStart, nextEnd, defaultAnnualCompliant: false);
+            added |= AddMissingFormsForCycle(nextStart, nextEnd, defaultAnnualCompliant: false, settings);
 
             return added;
         }
 
-        // Idempotent: only adds forms that don't already exist for the cycle.
-        // Cycle membership uses the half-open [cycleStart, cycleEnd) convention,
-        // matching GetCurrentCycleForm so a form created here is visible there.
-        private bool AddMissingFormsForCycle(DateTime cycleStart, DateTime cycleEnd, bool defaultAnnualCompliant)
+        // Idempotent: only adds forms missing for the cycle. Membership routes
+        // through FormBelongsToCycle — the (cycleStart, cycleEnd] convention —
+        // so a form created here is visible to GetCurrentCycleForm.
+        private bool AddMissingFormsForCycle(DateTime cycleStart, DateTime cycleEnd, bool defaultAnnualCompliant, Settings settings)
         {
             var added = false;
 
             foreach (var type in Enum.GetValues<FormType>())
             {
                 var existsForCycle = Forms.Any(f =>
-                    f.Type == type &&
-                    f.DueDate >= cycleStart &&
-                    f.DueDate < cycleEnd);
+                                    f.Type == type &&
+                                    FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd));
 
                 if (existsForCycle)
                     continue;
 
-                // Reviews never default to compliant; annual non-reviews follow
-                // the caller's instruction (true for current cycle, false for next).
                 var defaultCompliant = !IsReviewType(type) && defaultAnnualCompliant;
 
                 Forms.Add(new Form(
-                    type,
-                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd),
-                    isCompliant: defaultCompliant)
+                                    type,
+                                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
+                                    isCompliant: defaultCompliant)
                 {
                     PersonId = Id
                 });
@@ -303,77 +339,68 @@ namespace Sati
             return added;
         }
 
-        // Returns whether the billing compliance gate is satisfied, and if not,
-        // a human-readable list of every reason it failed. Callers that only
-        // need a bool use .Passed; callers that need to explain the failure to
-        // the user destructure .Reasons. Both pieces come from one pass through
-        // the same logic, so they can never drift apart.
+        // Returns whether the billing compliance gate passes, and if not, every
+        // reason it failed. One pass produces both, so they can't drift.
         public (bool Passed, IReadOnlyList<string> Reasons) EvaluateComplianceGate(DateTime today, FormType? beingCompleted = null)
         {
-            {
-                var reasons = new List<string>();
+            var reasons = new List<string>();
 
-                var requiredAnnual = new[]
-                {
+            var requiredAnnual = new[]
+            {
                 FormType.PCP,
                 FormType.ComprehensiveAssessment,
                 FormType.Reclassification,
                 FormType.SafetyPlan
             };
 
-                foreach (var type in requiredAnnual)
-                {
-                    if (type == beingCompleted) continue;
-                    var form = GetCurrentCycleForm(type, today);
-                    if (form is null || !form.IsCompliant)
-                        reasons.Add($"{FormDisplayName(type)} is not marked compliant for the current cycle.");
-                }
-
-                var boundaries = GetCurrentCycleBoundaries(today);
-                if (boundaries is null)
-                {
-                    reasons.Add("No active compliance cycle found. This client may be missing an effective date.");
-                    return (false, reasons);
-                }
-
-                var (cycleStart, cycleEnd) = boundaries.Value;
-
-                var pastDueReviews = Forms.Where(f =>
-                    IsReviewType(f.Type) &&
-                    f.DueDate >= cycleStart &&
-                    f.DueDate < cycleEnd &&
-                    f.DueDate.Date <= today.Date);
-
-                foreach (var review in pastDueReviews)
-                {
-                    if (review.Type == beingCompleted) continue;
-                    if (!review.IsCompliant)
-                        reasons.Add($"{FormDisplayName(review.Type)} was due {review.DueDate:MMM d, yyyy} and is not marked compliant.");
-                }
-
-                return (reasons.Count == 0, reasons);
+            foreach (var type in requiredAnnual)
+            {
+                if (type == beingCompleted) continue;
+                var form = GetCurrentCycleForm(type, today);
+                if (form is null || !form.IsCompliant)
+                    reasons.Add($"{FormDisplayName(type)} is not marked compliant for the current cycle.");
             }
+
+            var boundaries = GetCurrentCycleBoundaries(today);
+            if (boundaries is null)
+            {
+                reasons.Add("No active compliance cycle found. This client may be missing an effective date.");
+                return (false, reasons);
+            }
+
+            var (cycleStart, cycleEnd) = boundaries.Value;
+
+            var pastDueReviews = Forms.Where(f =>
+                IsReviewType(f.Type) &&
+                FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd) &&
+                f.DueDate.Date <= today.Date);
+
+            foreach (var review in pastDueReviews)
+            {
+                if (review.Type == beingCompleted) continue;
+                if (!review.IsCompliant)
+                    reasons.Add($"{FormDisplayName(review.Type)} was due {review.DueDate:MMM d, yyyy} and is not marked compliant.");
+            }
+
+            return (reasons.Count == 0, reasons);
         }
 
-        // Forward-looking, date-keyed billing window check. Returns the gated forms
-        // whose missed-due-date window contains noteDate — the note falls strictly
-        // after a form's due date while that form was not yet completed as of the
-        // note's date. Empty list => clear to bill.
+        // Forward-looking, date-keyed billing window check: returns gated forms
+        // whose missed-due-date window contains noteDate. Empty list => clear
+        // to bill.
         //
-        // Why this is separate from EvaluateComplianceGate: that method reasons as of
-        // TODAY (current-cycle paperwork in order). This one reasons as of the NOTE's
-        // date, which may sit in a different cycle when back-entering notes — so it
-        // walks Forms directly by each form's own due date rather than via
-        // GetCurrentCycleForm, which is pinned to today.
+        // Separate from EvaluateComplianceGate because that reasons as of TODAY;
+        // this reasons as of the NOTE's date, which may sit in a different cycle
+        // when back-entering — so it walks Forms directly by due date rather than
+        // via GetCurrentCycleForm, which is pinned to today.
         //
-        // Gated: PCP, Comp, Reclass, and the four reviews. Safety Plan keeps its
-        // existing current-state check in EvaluateComplianceGate and is NOT windowed;
-        // Releases and Privacy Practices are excluded entirely, pending the
-        // configurable-billability-scope work.
+        // Gated: PCP, Comp, Reclass, four reviews. Safety Plan keeps its
+        // current-state check in EvaluateComplianceGate and is NOT windowed;
+        // Releases and Privacy Practices are excluded pending the configurable-
+        // billability-scope work.
         //
-        // Window endpoints are exclusive on both ends: a note ON the due date bills
-        // (the deadline itself isn't a miss), and a note ON or after the completion
-        // date bills (done by then). Only dates strictly between block.
+        // Endpoints exclusive on both ends: a note ON the due date bills, a note
+        // ON or after the completion date bills. Only strictly between blocks.
         public IReadOnlyList<string> EvaluateBillingWindow(DateTime noteDate)
         {
             var gatedTypes = new[]
@@ -418,6 +445,7 @@ namespace Sati
             FormType.Q4R => "Q4 Review",
             _ => type.ToString()
         };
+
         private static bool IsReviewType(FormType type) => type is
                 FormType.Q1R or FormType.Q2R or FormType.Q3R or FormType.Q4R;
     }

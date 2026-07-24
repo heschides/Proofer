@@ -277,6 +277,10 @@
             <views:CaseloadMatrixView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type viewmodels:ReviewsViewModel}">
+            <views:ReviewsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type children:GuidanceViewModel}">
             <views:GuidanceView />
         </DataTemplate>

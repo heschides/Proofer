@@ -116,6 +116,13 @@ namespace Sati.Models
         // These set when each annual form is *due*, distinct from when it
         // opens in the upcoming-events dashboard (*OpenDaysBefore above).
 
+        // Q4R is the one review anchored to the cycle *end*: Q1R–Q3R count
+        // forward as +90/+180/+270 from cycleStart, but Q4R is anniversary − N,
+        // so it belongs with the annual offsets here, not the forward reviews.
+        // Left bare like its siblings; the default of 5 is seeded in
+        // SettingsService and written into the existing row by migration.
+        public int Q4RDaysBeforeAnniversary { get; set; }
+
         public int PcpDaysBeforeAnniversary { get; set; }
         public int CompAssessmentDaysBeforeAnniversary { get; set; }
         public int ReclassificationDaysBeforeAnniversary { get; set; }

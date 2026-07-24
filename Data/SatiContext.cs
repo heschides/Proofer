@@ -17,6 +17,7 @@ namespace Sati.Data
         public DbSet<BillingPeriod> BillingPeriods { get; set; }
         public DbSet<ClaimLine> ClaimLines { get; set; }
         public DbSet<ExemptDate> ExemptDates { get; set; }
+        public DbSet<ReviewItem> ReviewItems { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -109,6 +110,26 @@ namespace Sati.Data
                       .WithMany(p => p.Forms)
                       .HasForeignKey(f => f.PersonId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ReviewItem>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.Category)
+                      .HasConversion<string>()
+                      .HasMaxLength(30);
+                entity.HasOne(r => r.Person)
+                      .WithMany()
+                      .HasForeignKey(r => r.PersonId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Enforces idempotent generation at the database level: one item
+                // per client, cycle, quarter, category, and slot. Generation can
+                // run repeatedly without the July duplicate-forms scenario,
+                // because the constraint makes duplicates impossible rather than
+                // merely unlikely.
+                entity.HasIndex(r => new { r.PersonId, r.CycleAnchor, r.Quarter, r.Category, r.SlotIndex })
+                      .IsUnique();
             });
 
             modelBuilder.Entity<Settings>(entity =>

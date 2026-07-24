@@ -1,11 +1,57 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-06-25.*
+*Living document. Updated during structured review sessions. Last updated: 2026-06-29.*
 
-**Review scope (2026-06-25):** Models, services, helpers, all ViewModel layers
-(CaseManager, Supervisor, Billing, Children), EDI generator, DI registration.
-**Not reviewed:** XAML views and converters. Views are excluded as they carry
-no domain logic; converters are stateless and low-risk.
+**Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
+`Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,
+`CaseManagerDashboardViewModel.BuildFormRows`, and the `BoardTabConverter` NoteType fix.
+Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layers, EDI, DI.
+**Now partially in scope:** converters (previously excluded) — see the `BoardTabConverter` note.
+
+---
+
+## Session Changelog — 2026-06-29
+
+The form due-date correctness pass. In dependency order:
+
+- **`FormDueDateCalculator.Compute` now takes `Settings`** and counts backward from `cycleEnd`
+  for all annual forms; Q4R = `cycleEnd − Q4RDaysBeforeAnniversary`. The "returns `cycleStart`
+  for annuals / `cycleEnd−1` for Q4R" bug is gone.
+- **`Settings.Q4RDaysBeforeAnniversary` added (default 5):** model initializer left bare (sibling
+  pattern), seeded `= 5` in `SettingsService`, migration adds the column and runs an explicit
+  `UPDATE Settings SET Q4RDaysBeforeAnniversary = 5` for the existing row. Verified in DB: `5, 120, 30`.
+- **Cycle-membership convention flipped** from `[cycleStart, cycleEnd)` to `(cycleStart, cycleEnd]`,
+  centralized in new `Person.FormBelongsToCycle`. Offset-0 annual forms land exactly on `cycleEnd`;
+  the old exclusive end dropped them into the next cycle, hid them from `GetCurrentCycleForm`, and
+  made `EnsureCurrentCycleForms` regenerate them on every load.
+- **`Settings` threaded through** `GenerateFormList` → `CreatePerson` and `AddMissingFormsForCycle`
+  → `EnsureCurrentCycleForms` to reach `Compute`. Those parameters are no longer dead.
+- **Backfill RUN:** `FormDueDateBackfill` corrected **4,095** stored `DueDate` values (dry-run +
+  count-latch two-key pattern). Recomputes each form's cycle from `EffectiveDate`, re-dates in place.
+  Dry-run diff matched the production spreadsheet; **zero anomalies**.
+- **Bulk-complete RUN:** `FormBulkCompletion` marked **308** non-compliant reviews (due ≤ 2026-06-10)
+  complete, stamping the due date. All 308 were reviews; no annual forms touched.
+- **`CaseManagerDashboardViewModel.BuildFormRows` filter changed** from `!f.IsCompliant` to
+  `f.CompletedDate is null` — the task tabs show "not yet done," not "overdue." This is why the
+  annual tabs were empty (their forms were compliant-but-incomplete).
+- **Fixed:** the Visit `NoteType` radio was bound through `BoardTabConverter` (whose `ConvertBack`
+  hardcodes `typeof(BoardTab)`), throwing `ArgumentException: 'Visit' not found` on select. Repointed
+  to `EnumToBoolConverter`, matching its Contact/Other/Form siblings.
+
+**Key clarification threaded throughout:** **`IsCompliant` means NOT OVERDUE — not complete.**
+`CompletedDate is null` is the correct predicate for "needs doing." Conflating the two caused the
+empty-tabs diagnosis detour; keep them distinct.
+
+**⚠ VERIFY — operational states not confirmable from code alone:**
+- `PersonService.EnableEnsureCycleFormsOnLoad` was added `false` to stop the app writing new
+  duplicates mid-migration. Confirm whether it's been lifted back to `true`.
+- **Duplicate-form cleanup NOT done in-session:** 372 triplicate cells across 25 real clients
+  (IDs 1032–1056 less 1034, plus 1357); 347 identical triplets, 25 divergent across 5 clients
+  (1033, 1043, 1047, 1050, 1056). Membership fix stops *new* duplicates; the historical ones remain.
+- **Maintenance scaffolding still present?** The backfill + bulk-complete UI blocks in
+  `SettingsWindow.xaml` / `SettingsViewModel.cs` and their DI registrations are temporary. The
+  `FormDueDateBackfill` / `FormBulkCompletion` service classes are worth keeping as reusable
+  reconciliation tools; the UI hooks are throwaway.
 
 ---
 
@@ -54,6 +100,11 @@ It is not aspirational. Every claim here should be verifiable in the current cod
 **Single source of truth: `Form.MarkComplete(DateTime)` and `Form.Reset()`**
 
 - `Form.IsCompliant` has `private set`. The only sanctioned writers are these two methods.
+- **Semantics (important, repeatedly confused):** `IsCompliant` means **not overdue**, NOT complete.
+  A form born compliant simply isn't past due yet; it flips to non-compliant when its due date
+  passes without completion. `CompletedDate is null` is the predicate for "not done." A form can be
+  compliant (not overdue) and incomplete (`CompletedDate is null`) at the same time — that's the
+  normal state of a not-yet-due form.
 - The generation constructor `Form(FormType, DateTime, bool)` is the sole birth exception —
   it sets initial compliance for in-force forms at admission where the real completion
   date is unknown.
@@ -62,386 +113,307 @@ It is not aspirational. Every claim here should be verifiable in the current cod
 - **Cascade rule:** Any code path that changes a form's completion state MUST go through
   `MarkComplete` or `Reset`. No direct property assignment. No exceptions.
 
-**[OPEN QUESTION]** Does anything in the services layer write `IsCompliant` directly,
-bypassing these methods? To be verified when services are reviewed.
+**Resolved (ViewModel review):** No services-layer path writes `IsCompliant` directly. See the
+ViewModels "compliance state writes — confirmed safe" note. `FormService.UpdateFormAsync` remains
+a raw update with no guard (still a latent risk if a future caller mutates state directly).
 
 ### Form Generation
 
-**Single source of truth: `Person.GenerateFormList(DateTime effective)`**
+**Single source of truth: `Person.GenerateFormList(DateTime effective, Settings settings)`**
 
-- Called by `Person.CreatePerson()` at admission.
-- Uses `FormDueDateCalculator.Compute()` for all due date math — `Person` does not
-  calculate dates itself.
+- Called by `Person.CreatePerson()` at admission; `Settings` is now threaded in and forwarded to
+  `FormDueDateCalculator.Compute`.
 - Default compliance at generation: annual non-review forms → `true` (in-force at
-  admission); review forms → `false` (tasks to complete).
+  admission); review forms → `false` (tasks to complete). Recall `true` here means "not overdue."
 
 **Related: `Person.EnsureCurrentCycleForms(DateTime, Settings)`**
-- Idempotent form generation for rollover — ensures both current and next cycle have
-  form records.
-- Called by `PersonService.GetAllPeopleAsync` on every load. If any person gains new
-  form records, the context saves once after the full loop — not per-person.
-- `Settings` parameter is currently unused on this method (noted in code comment).
-  Safe to remove in a follow-up sweep; `PersonService` is the only caller.
+- Idempotent form generation for rollover — ensures both current and next cycle have form records.
+- `Settings` is now **used** (forwarded through `AddMissingFormsForCycle` to `Compute`). The prior
+  "unused parameter, safe to remove" note is obsolete.
+- Called by `PersonService.GetAllPeopleAsync` on every load — **currently gated behind the temporary
+  `EnableEnsureCycleFormsOnLoad` flag** (see PersonService). With correct membership `(cs, ce]` and
+  corrected dates, this method is genuinely idempotent: existing forms are found, nothing is added.
 
 ### Form Due Dates
 
-**Single source of truth: `FormDueDateCalculator` (in `Helpers/`)**
+**Single source of truth: `FormDueDateCalculator` (in `Helpers/`) — corrected 2026-06-29.**
 
-- Both `Person.GenerateFormList` and `Person.AddMissingFormsForCycle` call it.
-- `UpcomingEventService` reads due dates from stored `Form` records via
-  `GetCurrentCycleForm` — it does not recompute them. This is correct: the calculator
-  runs at form creation, and the stored date is the source of truth thereafter.
+- Both `Person.GenerateFormList` and `Person.AddMissingFormsForCycle` call it, passing `Settings`.
+- `UpcomingEventService` and `CaseManagerDashboardViewModel` read stored `Form.DueDate` — they do
+  not recompute. The stored date is authoritative after creation.
 - No shadow copies of date logic found in any service reviewed.
 
 ### Cycle Boundaries
 
-**Single source of truth: `Person.GetCurrentCycleBoundaries(DateTime today)`**
+**Today→cycle: `Person.GetCurrentCycleBoundaries(DateTime today)`.
+Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 2026-06-29).**
 
-- Half-open convention: `[cycleStart, cycleEnd)`. Today belongs to a cycle if
-  `cycleStart <= today < cycleEnd`. The anniversary date belongs to the *next* cycle.
-- All cycle-aware logic (`GetCurrentCycleForm`, `EvaluateComplianceGate`,
-  `EnsureCurrentCycleForms`) calls this method. No inline cycle math elsewhere on `Person`.
+- `GetCurrentCycleBoundaries` keys *today* to a cycle with the half-open `[cycleStart, cycleEnd)`
+  rule — today on the anniversary belongs to the *next* cycle. **Unchanged.**
+- **Form-to-cycle membership is `(cycleStart, cycleEnd]`** — exclusive start, inclusive end.
+  Centralized in `FormBelongsToCycle`, the single definition of membership. A form due exactly on
+  the anniversary (offset-0 annuals) belongs to the cycle it *closes*, not the next one. Proven
+  against real data: every stored form maps to exactly one cycle under this rule (no orphans, no
+  double-counts).
+- Membership call sites routed through the helper: `GetCurrentCycleForm`,
+  `AddMissingFormsForCycle` (existence check), `EvaluateComplianceGate` (past-due reviews).
+- **Deliberately NOT routed through it:** `CaseManagerDashboardViewModel.BuildFormRows`, a
+  forward-looking `>= cycleStart` queue with no upper bound (by design). Code comment marks why —
+  do not "helpfully" convert it.
 
 ### Compliance Evaluation
 
 **Single source of truth: `Person.EvaluateComplianceGate(DateTime today, FormType? beingCompleted)`**
 
-- Returns `(bool Passed, IReadOnlyList<string> Reasons)` — one pass through the logic
-  produces both the pass/fail result and the human-readable explanation.
+- Returns `(bool Passed, IReadOnlyList<string> Reasons)` — one pass produces both result and
+  human-readable explanation.
 - Required annual forms checked: PCP, ComprehensiveAssessment, Reclassification, SafetyPlan.
-- Also checks all past-due reviews in the current cycle.
-- `beingCompleted` parameter exempts a form being marked complete in the same action —
-  prevents the gate from blocking a form from completing itself.
-- `SupervisorService` does NOT duplicate this logic. Both queue methods
-  (`GetPendingNotesAsync`, `GetNonCompliantNotesAsync`) and `ApproveNoteAsync` call
-  `person.EvaluateComplianceGate(today).Passed` directly. One engine, no shadow copies.
-- `ApproveNoteAsync` enforces the gate as a hard service-layer guard even if the UI
-  pre-filters — it throws if compliance is not met, preventing bypass by direct call.
+- Also checks all past-due reviews in the current cycle (via `FormBelongsToCycle`).
+- `beingCompleted` exempts a form being marked complete in the same action.
+- `SupervisorService` does NOT duplicate this logic — both queue methods and `ApproveNoteAsync`
+  call `person.EvaluateComplianceGate(today).Passed` directly. One engine, no shadow copies.
+- `ApproveNoteAsync` enforces the gate as a hard service-layer throw even if the UI pre-filters.
 
 ### Billing Window Evaluation
 
 **Single source of truth: `Person.EvaluateBillingWindow(DateTime noteDate)`**
 
-- Distinct from `EvaluateComplianceGate`. That method reasons as of *today*.
-  This one reasons as of the *note's event date* — necessary for back-entered notes
-  that may fall in a different cycle.
+- Reasons as of the *note's event date*, not today — necessary for back-entered notes in a
+  different cycle. Walks `Forms` directly by each form's own due date (not `GetCurrentCycleForm`).
 - Gated form types: PCP, ComprehensiveAssessment, Reclassification, Q1R–Q4R.
-- Safety Plan, Releases, and Privacy Practices are NOT windowed here (pending
-  configurable-billability-scope work).
-- Window is exclusive on both ends: a note ON the due date bills; a note ON or after
-  completion date bills.
+- Safety Plan, Releases, and Privacy Practices are NOT windowed here (pending configurable-
+  billability-scope work).
+- Window is exclusive on both ends: a note ON the due date bills; a note ON or after completion
+  date bills.
 
 ### Form Display Names
 
-**Potential duplication — needs resolution.**
+**Potential duplication — still needs resolution.**
 
-There are currently two mechanisms that map `FormType` to a display string:
-
-1. `Person.FormDisplayName(FormType)` — static method, switch expression.
-2. `[Description]` attributes on `FormType` enum values + `EnumDescriptionConverter`.
-
-These must agree at all times. If they diverge, the same form type will display
-differently in different parts of the UI. One should be designated canonical and the
-other should call it or be removed.
-
-**[DECISION NEEDED]** Which is canonical? Recommendation: the `[Description]` attributes
-are the more idiomatic .NET approach and require no extra call. `FormDisplayName` could
-either be deleted (callers switch to the converter) or reimplemented to read the
-`[Description]` attribute, making it a thin wrapper rather than a second list.
+Two mechanisms map `FormType` → display string: `Person.FormDisplayName(FormType)` (static switch)
+and `[Description]` attributes + `EnumDescriptionConverter`. They must agree. **[DECISION NEEDED]**
+which is canonical. Recommendation unchanged: prefer `[Description]`; make `FormDisplayName` a thin
+wrapper or delete it.
 
 ### Upcoming Events
 
 **Single source of truth: `UpcomingEventService` (in `Data/`)**
 
-- `UpcomingEvent` is a pure record — no Id, never persisted.
-- Generated fresh on every load via `GenerateEvents(people, settings, asOf?)`.
-- Form events: reads due dates from stored `Form` records via `GetCurrentCycleForm`.
-  Does not recompute dates. Skips compliant forms entirely.
-- Scheduled note events: 30-day lookahead window. `NoteType` drives the `UpcomingEventKind`.
-- Visibility window per form: `[dueDate − openBefore, dueDate + daysAfter]`. Both
-  endpoints come from `Settings`. Forms outside this window are silently excluded.
-- `UpcomingEventKind.OpenReview` vs `LateReview` is determined by whether today
-  is before or after the due date — not by form type.
+- `UpcomingEvent` is a pure record — no Id, never persisted. Generated fresh per load.
+- Form events read stored due dates via `GetCurrentCycleForm`; do not recompute. Skips compliant
+  forms. (Note: "compliant" = not overdue, so this skips not-yet-overdue forms — consistent with
+  its "upcoming/late" purpose.)
+- Scheduled note events: 30-day lookahead; `NoteType` drives `UpcomingEventKind`.
+- Visibility window per form: `[dueDate − openBefore, dueDate + daysAfter]`, both from `Settings`.
+- `OpenReview` vs `LateReview` is determined by today vs. due date — not by form type.
 
 ### Workday / Holiday Exclusions
 
 **Single source of truth: `WorkdayHelper` (in `Helpers/`) + `ExemptDate` records**
 
 - `ExemptDate` table (per-user) is the canonical store for manual day exclusions.
-- `IncentiveService` takes exempt dates as a caller-supplied `HashSet<DateTime>` in
-  `GetRemainingEligibleDaysAsync` — the caller is responsible for loading them from
-  `ExemptDateService` and passing them in. This is a leaky abstraction: if a second
-  caller ever handles this differently, results will diverge.
-- `Incentive.ExcludedDatesJson` / `ExcludedDates` is fully orphaned — no service reads
-  it. The migration rollback on the AGENDA is safe to run. Do not add new callers.
+- `IncentiveService` takes exempt dates as a caller-supplied `HashSet<DateTime>` — leaky
+  abstraction; the caller must load them from `ExemptDateService` and pass them in.
+- `Incentive.ExcludedDatesJson` / `ExcludedDates` is orphaned — no service reads it. Migration
+  rollback is safe *after* `SchedulerViewModel` is deleted (it's the last caller). Do not add callers.
+
+---
+
+## Maintenance Tools (added 2026-06-29 — temporary UI, keepable services)
+
+Both mirror the same **two-key latch** safety pattern: `DryRunAsync` computes + writes a timestamped
+Desktop report and arms a latch; `CommitAsync(...)` refuses unless a dry run ran *this session* and
+the caller passes back the exact count (and, for bulk-complete, the exact cutoff). Transient DI, so a
+fresh instance starts un-armed — a stale dry run can't authorize a commit.
+
+### `FormDueDateBackfill` (`Sati.Data`)
+- Corrects stored `Form.DueDate` from old (cycleStart-anchored) values to the current calculator's
+  output. Touches **`DueDate` only** — never `IsCompliant`/`CompletedDate`.
+- Buckets each form into the cycle that *produced* it, derived from `EffectiveDate` (never from the
+  wrong stored date). The old-rule offsets appear **only** in `ImpliedOldCycleStart` for bucketing;
+  new dates come from `FormDueDateCalculator.Compute` — one source of date-math truth.
+- Anomalies (a stored date that fits no cycle) are reported and left untouched, not guessed.
+- **Run 2026-06-29: 4,095 changed, 0 anomalies.** Reusable for future imports / provider swaps.
+
+### `FormBulkCompletion` (`Sati.Data`)
+- Marks every form due ≤ a cutoff and not already compliant as complete via `Form.MarkComplete`
+  (stamping the due date). One-time reconciliation against an external tracking sheet.
+- **Run 2026-06-29: 308 marked (all reviews), cutoff 2026-06-10 inclusive.**
 
 ---
 
 ## Services Layer
 
-All services follow the `IDbContextFactory<SatiContext>` pattern — per-method context
-lifetime via `await using`. No long-lived `_context` fields. This is correct and
-consistent across all services reviewed.
+All services follow the `IDbContextFactory<SatiContext>` pattern — per-method context lifetime via
+`await using`. No long-lived `_context` fields. Correct and consistent across all services.
 
 ### `PersonService`
-- Owns persistence for `Person` CRUD.
-- `GetAllPeopleAsync` is the primary load path: eager-loads `Notes` and `Forms`,
-  then calls `person.EnsureCurrentCycleForms` for every person before returning.
-  This means form rollover happens silently on every caseload load. One `SaveChangesAsync`
-  call covers all new forms if any were added.
-- **Cascade rule:** Anything that needs a fully-populated `Person` (with forms and notes)
-  must go through `GetAllPeopleAsync`, not a raw context query, or it must replicate
-  the `Include` calls and `EnsureCurrentCycleForms` call.
+- Owns `Person` CRUD.
+- `GetAllPeopleAsync` is the primary load path: eager-loads `Notes` and `Forms`, then (when enabled)
+  calls `person.EnsureCurrentCycleForms` for every person before returning; one `SaveChangesAsync`
+  covers all additions.
+- **⚠ TEMPORARY GUARD:** `EnableEnsureCycleFormsOnLoad` (const) gates the generate-and-save pass.
+  Added `false` during the due-date migration because, while the membership convention had moved to
+  `(cs, ce]` but stored dates were still old, the pass would *add a fresh duplicate for every annual
+  form on every load*. With the backfill complete, this can be lifted — but confirm the duplicate
+  cleanup first (a lifted pass over triplicated data is fine, but you want clean rows first). Remove
+  the flag and unwrap the `if` when done.
+- **Cascade rule:** Anything needing a fully-populated `Person` must go through `GetAllPeopleAsync`
+  or replicate its `Include` calls (and, once re-enabled, the `EnsureCurrentCycleForms` call).
 
 ### `FormService`
-- Owns persistence for `Form` updates, open-date stamping, and deletion.
-- `UpdateFormAsync` is a raw `context.Forms.Update(form)` with no invariant guards.
-  **This is a compliance risk.** If any caller mutates `form.IsCompliant` directly on
-  the entity before calling `UpdateFormAsync`, the `MarkComplete`/`Reset` invariant is
-  bypassed at the DB layer even though `IsCompliant` has `private set` — because EF
-  tracks the object by reference and will persist whatever state it's in.
-- **[OPEN QUESTION — PRIORITY]** Do any ViewModels mutate form state directly before
-  calling `FormService.UpdateFormAsync`? Must verify in ViewModel review. If yes,
-  `UpdateFormAsync` needs a guard that asserts `IsCompliant` and `CompletedDate` agree.
-- `OpenFormAsync` stamps `OpenedDate = DateTime.Today` directly — this is fine, `OpenedDate`
-  has no invariant.
+- Owns `Form` updates, open-date stamping, deletion.
+- `UpdateFormAsync` is a raw `context.Forms.Update(form)` with no invariant guards. If a caller ever
+  mutates `form.IsCompliant` directly before calling it, the `MarkComplete`/`Reset` invariant is
+  bypassed at the DB layer (EF tracks by reference). ViewModel review found no current offender, but
+  the guard is still absent. `OpenFormAsync` stamps `OpenedDate` directly — fine, no invariant.
 
 ### `SupervisorService`
-- Owns the approval/return/override workflow for `Logged` notes.
-- Does not duplicate compliance logic — delegates entirely to `person.EvaluateComplianceGate`.
-- `ApproveNoteAsync` enforces compliance as a hard throw, not just a UI filter.
-- `ApproveWithOverrideAsync` stamps `ComplianceOverride = true` and records reason +
-  approver. The resulting `ClaimLine` carries `IsComplianceException = true`.
-- `GetLoggedNotesAsync` (private) is the shared base query for both queue methods.
-  Loads `Person` and `Forms` so compliance can be evaluated in memory.
-- **Note:** When `allSupervisees = true`, the query returns ALL CaseManager-role users,
-  not just supervisees of the given supervisor. This is intentional for director-level
-  views but could be surprising if called with a non-director supervisorId.
+- Owns approval/return/override for `Logged` notes. No duplicated compliance logic — delegates to
+  `person.EvaluateComplianceGate`. `ApproveNoteAsync` enforces compliance as a hard throw.
+- `ApproveWithOverrideAsync` stamps `ComplianceOverride = true`; the `ClaimLine` carries
+  `IsComplianceException = true`.
+- When `allSupervisees = true`, returns ALL CaseManager users (intentional for director views).
 
 ### `NoteService`
-- Owns persistence for `Note` CRUD and status transitions.
-- `UpdateAbandonedNotesAsync` is the abandonment sweep — moves `Pending` notes older
-  than the threshold to `Abandoned`. Called on startup.
-- `GetMonthlyNotesAsync` uses inline `DateTime.Now` twice. Could straddle midnight
-  in theory. Low risk, worth tightening.
-- No compliance logic here. Status transitions happen in ViewModels; `NoteService`
-  persists whatever status the caller sets.
+- Owns `Note` CRUD and status transitions. `UpdateAbandonedNotesAsync` (startup sweep) moves stale
+  `Pending` → `Abandoned`. `GetMonthlyNotesAsync` uses inline `DateTime.Now` twice (midnight-straddle,
+  low risk). No compliance logic here.
 
 ### `BillingService`
-- Owns `BillingPeriod` and `ClaimLine` persistence.
-- `ValidateNoteForBilling` is a pure validation method (no DB calls) — returns
-  `BillingValidationResult` with all errors collected, not just the first.
-- **Bug:** `ValidateNoteForBilling` error message says "Section 13 TCM" but the
-  procedure code is T1016 (Section 17). Wrong if surfaced to a user or auditor.
-- `CreateClaimLineAsync` hardcodes procedure code `"T1016"`. If this ever changes
-  per client or service type, it will need to be parameterized.
-- `GetApprovedUnbilledNotesAsync` uses a subquery (`!context.ClaimLines.Any(...)`)
-  to exclude already-billed notes. This is correct but may be slow at scale; worth
-  revisiting if the ClaimLines table grows large.
+- Owns `BillingPeriod`/`ClaimLine` persistence. `ValidateNoteForBilling` is pure, collects all errors.
+- **Bug:** error message says "Section 13 TCM" but code is T1016 (Section 17).
+- `CreateClaimLineAsync` hardcodes `"T1016"`. `GetApprovedUnbilledNotesAsync` uses a `!Any(...)`
+  subquery (correct; may be slow at scale).
 
 ### `IncentiveService`
-- Owns `Incentive` CRUD and days-scheduled calculation.
-- `CalculateDaysScheduled` is a private method that loops over calendar days, calling
-  `WorkdayHelper.IsAlwaysExcludedWorkday`. This duplicates the loop structure that
-  `WorkdayHelper` should own. If holiday exclusion logic ever changes in `WorkdayHelper`,
-  this service's output will stay correct — but if someone adds a new exclusion category
-  here without updating `WorkdayHelper`, they'll diverge.
-- `GetRemainingEligibleDaysAsync` takes exempt dates as a `HashSet<DateTime>` parameter.
-  The caller must fetch them from `ExemptDateService`. This is a leaky abstraction —
-  the service cannot be called correctly without knowing to supply exempt dates.
-- `GetOrCreateAsync` self-corrects stale `DaysScheduled` and `UnitsPerDay` values on
-  every load. Intentional resilience against stale rows from old scheduler code.
+- Owns `Incentive` CRUD and days-scheduled calc. `CalculateDaysScheduled` loops via
+  `WorkdayHelper.IsAlwaysExcludedWorkday`. `GetRemainingEligibleDaysAsync` takes exempt dates as a
+  parameter (leaky abstraction). `GetOrCreateAsync` self-corrects stale `DaysScheduled`/`UnitsPerDay`.
 
 ### `SettingsService`
-- `LoadAsync` seeds defaults if no settings row exists. Default values are hardcoded
-  here — the only place they live. If defaults need to change, this is where to look.
-- No per-user isolation. All users share one settings row.
+- `LoadAsync` seeds defaults if no row exists — **the canonical default location** (not the model
+  initializers, which are bare). Now seeds `Q4RDaysBeforeAnniversary = 5` alongside the existing
+  anniversary offsets (Comp 120, Reclass 30, PCP/SafetyPlan/Privacy/Releases 0). No per-user isolation.
 
 ### `AuthService`
-- **DI inconsistency:** Instantiates `new PasswordHasher()` directly instead of taking
-  `IPasswordHasher` through DI. `UserService` correctly takes `IPasswordHasher` via DI.
-  These are inconsistent. `AuthService` silently bypasses the DI registration, making
-  the hasher implementation non-swappable for auth without modifying `AuthService` directly.
+- **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI
+  (`UserService` does it correctly). Hasher non-swappable for auth without editing `AuthService`.
 
 ### `SessionService`
-- Holds the logged-in `User` for the lifetime of the application (singleton).
-- `AllowComplianceOverride` flag lives here — set by supervisor-role UI, read by
-  case manager ViewModels to unlock override paths.
+- Singleton; holds logged-in `User`. `AllowComplianceOverride` flag lives here.
 
 ### `ExemptDateService`
-- Clean, simple CRUD over `ExemptDate` records.
-- Strips time component on `AddAsync` (`date.Date`) — correct, prevents duplicate
-  records from time-of-day differences.
+- Clean CRUD over `ExemptDate`. Strips time on `AddAsync` (`date.Date`).
 
 ### `EdiService`
-- Owns 837P file generation and output.
-- Output directory is hardcoded: `C:\Published\Sati\Contained\EDI`. Not configurable
-  via settings. Worth moving to settings or appsettings if path needs to vary per install.
-- File naming follows Office Ally companion guide (OATEST marker for test files).
-- Delegates actual EDI content generation to `EdiGenerator.Generate()` — service only
-  handles DB retrieval and file I/O.
-
----
-
-
-
-*When you change X, you must also check Y.*
-
-| If you change... | You must also check... |
-|-----------------|----------------------|
-| `FormType` enum (add/reorder values) | `Person.GenerateFormList`, `Person.EvaluateComplianceGate`, `Person.EvaluateBillingWindow`, `FormDueDateCalculator`, `FormDisplayName`, `[Description]` attributes, any switch expressions over `FormType` in ViewModels |
-| `Form.MarkComplete` / `Form.Reset` signatures | Every caller in services and ViewModels |
-| `Settings` form deadline properties | `FormDueDateCalculator`, `Person.GetOpenDaysBefore`, `UpcomingEventService` |
-| `Person.GetCurrentCycleBoundaries` logic | `GetCurrentCycleForm`, `EvaluateComplianceGate`, `EnsureCurrentCycleForms`, `AddMissingFormsForCycle` — all depend on cycle math |
-| `NoteStatus` enum (add/reorder values) | Stored as `int` — append only, never reorder |
-| `ExemptDate` records | `WorkdayHelper`, scheduler, incentive calculation — anything that reasons about billable days |
+- Owns 837P generation/output. Output dir hardcoded `C:\Published\Sati\Contained\EDI`. Delegates
+  content to `EdiGenerator.Generate()`.
 
 ---
 
 ## Known Rough Edges
 
-### Stale Signatures (safe to clean up, no behavior change)
+### Data Integrity (new — pending)
 
-- `Person.CreatePerson(... Settings settings)` — `Settings` parameter is unused.
-  Remove it and update `NewClientViewModel` call site.
-- `Person.EnsureCurrentCycleForms(DateTime, Settings)` — `Settings` parameter is unused.
-  Remove it and update caller(s) in `PersonService`.
+- **Duplicate forms:** 372 triplicated `(person, cycle, type)` cells across 25 real clients
+  (1032–1056 less 1034, plus 1357), all in future cycles. Origin: pre-fix `GetAllPeopleAsync`
+  regeneration across boundary crossings under the old membership rule. 347 identical triplets
+  (mechanically collapsible); 25 divergent on compliance across 5 clients (1033, 1043, 1047, 1050,
+  1056) — those need Josh's per-client judgment before dedup (delete on real data). Backfill dated
+  all copies correctly; dedup is the remaining step. Do this before lifting `EnableEnsureCycleFormsOnLoad`.
+
+### Stale Signatures
+
+- ~~`Person.CreatePerson(... Settings settings)` unused~~ — **now used** (forwards to
+  `GenerateFormList`). Not stale.
+- ~~`Person.EnsureCurrentCycleForms(DateTime, Settings)` unused~~ — **now used** (forwards to
+  `AddMissingFormsForCycle` → `Compute`). Not stale.
+- Consider retrofitting `= 120` / `= 30` onto the Comp/Reclass model initializers to kill the
+  "misleading bare defaults" smell (cosmetic; the seed is the real source).
 
 ### Deferred Design Decisions
 
-- **`Settings` is per-install, not per-user.** The AGENDA notes this as future work.
-  Until it's done, all users share one settings row. No FK exists yet.
-- **`HealthcareSystemName` on `Person` is denormalized by design.** Three seams are
-  pre-cut for future relational migration (property name, ComboBox binding path,
-  JSON shape on Settings). Do not "fix" this without reading the comments in `Person.cs`.
-- **`Incentive.ExcludedDatesJson` is superseded** by `ExemptDate` but the migration
-  rollback hasn't run. Do not add new callers of `Incentive.ExcludedDates`.
-- **Configurable billability scope** (which form types gate billing) is deferred.
-  Currently hardcoded in `Person.EvaluateBillingWindow`. Safety Plan, Releases, and
-  Privacy Practices are excluded pending this work.
-- **`ComplianceOverride` on `Note`** — override path exists with fields for reason and
-  approver. Full UI not yet wired. Do not remove these fields.
+- **`Settings` is per-install, not per-user.** Future work; all users share one row.
+- **`HealthcareSystemName` on `Person` is denormalized by design.** Three seams pre-cut. Read the
+  comments before "fixing."
+- **`Incentive.ExcludedDatesJson` superseded** by `ExemptDate`; rollback pending `SchedulerViewModel`
+  deletion. No new callers.
+- **Configurable billability scope** deferred; hardcoded in `EvaluateBillingWindow`.
+- **`ComplianceOverride` on `Note`** — fields exist, full UI not wired. Do not remove.
 
 ### Architectural Tension
 
-- `Person` carries significant logic weight: form generation, cycle math, compliance
-  evaluation, billing window evaluation, settings interpretation, display names.
-  This is a deliberate choice — compliance logic stays close to the data it reasons
-  about — but it means `Person` is load-bearing. Be cautious about adding more
-  responsibilities here without considering whether a dedicated service is more appropriate.
-
----
-
-## What This Document Does Not Cover Yet
-
-- ViewModels (ownership of UI state, command wiring, dialog patterns)
-- DI registration and lifetime discipline
-- EDI generator (`EdiGenerator`)
-
-*These sections will be added as the review continues.*
+- `Person` carries heavy logic weight (form generation, cycle math, membership, compliance, billing
+  window, display names). Deliberate — compliance logic stays near its data — but load-bearing. Be
+  cautious adding responsibilities.
 
 ---
 
 ## Helpers
 
-All helpers are static classes with no state and no DI dependencies. They are pure
-functions: same input always produces same output, no side effects.
+All helpers are static, stateless, DI-free pure functions.
 
 ### `FormDueDateCalculator`
 
-**Single source of truth for form due-date math — currently INCORRECT for annual forms.**
+**Single source of truth for due-date math. Corrected 2026-06-29 — now takes `Settings`.**
 
-- Called by `Person.GenerateFormList` and `Person.AddMissingFormsForCycle`.
-- `UpcomingEventService` reads due dates from stored `Form` records — it does not
-  call this calculator. The stored date is authoritative after creation.
-- Throws `ArgumentOutOfRangeException` for unhandled `FormType` values — a new enum
-  value without a matching case is a runtime throw, not a silent wrong answer.
+Signature: `Compute(FormType type, DateTime cycleStart, DateTime cycleEnd, Settings settings)`.
+Throws `ArgumentOutOfRangeException` for unhandled `FormType`.
 
-**Confirmed correct rules — verified against production spreadsheet, consistent across all 25 clients:**
+**Two families, opposite ends of the cycle:**
 
-| Form | Rule | Offset |
+| Form | Rule | Source |
 |------|------|--------|
-| Q1R | cycleStart + 90d | +90 |
-| Q2R | cycleStart + 180d | +180 |
-| Q3R | cycleStart + 270d | +270 |
-| Q4R | cycleEnd − 5d | −5 |
-| Comp Assessment | cycleEnd − 120d | −120 |
-| PCP | cycleEnd − 0d (due on anniversary; 90d open window is separate via PcpOpenDaysBefore) | 0 |
-| Reclassification | cycleEnd − 30d | −30 |
-| SafetyPlan, PrivacyPractices, all Releases | **TBD — not in spreadsheet** | unknown |
+| Q1R / Q2R / Q3R | `cycleStart + 90 / 180 / 270` | literal (fixed regulatory intervals) |
+| Q4R | `cycleEnd − Q4RDaysBeforeAnniversary` (5) | Settings |
+| Comp Assessment | `cycleEnd − CompAssessmentDaysBeforeAnniversary` (120) | Settings |
+| Reclassification | `cycleEnd − ReclassificationDaysBeforeAnniversary` (30) | Settings |
+| PCP | `cycleEnd − PcpDaysBeforeAnniversary` (0) — due on anniversary | Settings |
+| SafetyPlan / PrivacyPractices / Releases | `cycleEnd − *DaysBeforeAnniversary` (0) | Settings |
 
-**What the current code gets wrong:**
-- All annual non-review forms currently return `cycleStart`. The correct value is
-  `cycleEnd − N` using `Settings.*DaysBeforeAnniversary`.
-- Q4R currently returns `cycleEnd.AddDays(-1)`. The correct value is `cycleEnd.AddDays(-5)`.
-- `CompAssessmentDaysBeforeAnniversary` default is `120`. ✅ correct.
-- `ReclassificationDaysBeforeAnniversary` default is `30`. ✅ correct.
-- `PcpDaysBeforeAnniversary` default is `0`. ✅ correct — PCP is due on the anniversary.
-  The 90-day figure is `PcpOpenDaysBefore`, a separate setting governing when the PCP
-  appears in the upcoming events panel. These are different concepts; do not conflate them.
-- SafetyPlan, PrivacyPractices, all Releases default to `0`. ✅ correct — due on anniversary.
-
-**What must change before this is correct:**
-1. `FormDueDateCalculator.Compute` must accept `Settings` and compute
-   `cycleEnd.AddDays(-settings.*DaysBeforeAnniversary)` for all annual non-review forms.
-2. Q4R offset must change from `−1` to `cycleEnd.AddDays(-settings.Q4RDaysBeforeAnniversary)`.
-3. `Q4RDaysBeforeAnniversary` must be added to `Settings` with a default of `5`.
-4. All other `*DaysBeforeAnniversary` defaults are already correct.
-5. **Existing clients have incorrect stored due dates for all annual forms.**
-   After the calculator is fixed, a backfill is needed. The production spreadsheet is
-   the ground truth for what those dates should be.
+- Every annual form reads its **own** setting; nothing hardcoded (multi-agency requirement). A form
+  set to 0 is due exactly on `cycleEnd` — which is why form membership had to move to `(cs, ce]`.
+- Q1R–Q3R are intentionally *not* settings-driven (fixed intervals). The Q4R-reads-a-setting /
+  Q1–Q3-don't asymmetry is deliberate and on the record.
+- **Verified against the production spreadsheet — all 25 clients, zero exceptions.** Offset-0 annual
+  types weren't in the spreadsheet but are confirmed by Josh as due on the effective date.
+- Note: `PcpOpenDaysBefore` (90) is a *separate* setting governing when the PCP surfaces in the
+  upcoming/task views — not the due date. Do not conflate.
 
 ### `FormCellStatusCalculator`
-
-**Pure timing → color mapping for the Caseload Matrix.**
-
-- Input: `(Form? form, DateTime today)`. Output: `FormCellStatus`.
-- Intentionally orthogonal to the open-form indicator (the border on matrix cells).
-  A cell can be `DueNextMonth` AND have an open border simultaneously — these are
-  separate visual layers composed in XAML, not encoded here.
-- `null` form returns `NotYetOpen` defensively — should not occur once
-  `EnsureCurrentCycleForms` has run, but the calculator doesn't assume that.
-- `IsCompliant` is checked first. A completed form stays `Complete` regardless of
-  where today falls relative to the original due date.
+Pure timing→color for the Caseload Matrix. `(Form?, today) → FormCellStatus`. Orthogonal to the
+open-form border (composed in XAML). `null` → `NotYetOpen` defensively. `IsCompliant` (i.e., not
+overdue) checked first; a completed form stays `Complete` regardless of today vs. due date.
 
 ### `WorkdayHelper`
-
-**Weekday and holiday exclusion logic for productivity calculation.**
-
-- Called by `IncentiveService.CalculateDaysScheduled` and `GetRemainingEligibleDaysAsync`.
-- XML doc comment still references `SchedulerViewModel` as a caller — that is dead code.
-  Comment should be updated when `SchedulerViewModel` is deleted.
-- `IsAlwaysExcludedWorkday` assumes the caller has already filtered Saturday/Sunday.
-  The method does not re-check for weekends. All callers must filter before calling.
-- Holiday logic uses `IsNthWeekday` (nth occurrence of a weekday in a month) and
-  `IsLastMonday`. Both helpers are private and correct.
-- Does NOT handle `ExemptDate` records. Manual exempt dates are the caller's
-  responsibility (see leaky abstraction note under `IncentiveService`).
+Weekday/holiday exclusion for productivity. XML comment still names dead `SchedulerViewModel`.
+`IsAlwaysExcludedWorkday` assumes weekends pre-filtered. Does NOT handle `ExemptDate` (caller's job).
 
 ### `HealthcareSystemOptions`
-
-**Single source of truth for the healthcare system option list and its invariants.**
-
-- Both the settings window (edit) and client combobox (consume) route through here.
-- `Normalize` enforces: trim, de-duplicate (OrdinalIgnoreCase for identity),
-  alpha sort (CurrentCultureIgnoreCase for display), "Other" pinned last.
-- The two-comparer pattern is intentional and documented in code — OrdinalIgnoreCase
-  for identity, CurrentCultureIgnoreCase for sort. Do not collapse them.
-- `MergeDefaults` is idempotent — running it twice produces the same list.
-- Maine is the only state with defaults today. `DefaultsByState` is the seam for adding
-  others without touching callers.
-- `HealthcareSystemOption(string Name)` record is the ComboBox binding vehicle.
-  When systems become relational, it gains an `Id` and `SelectedValuePath` flips from
-  `"Name"` to `"Id"` — the third seam promised on `Person.HealthcareSystemName`.
+Single source for the healthcare-system option list + invariants. `Normalize` trims, de-dupes
+(Ordinal), sorts (CurrentCulture), pins "Other" last (two-comparer pattern is intentional).
+`MergeDefaults` idempotent. `DefaultsByState` is the seam for non-Maine states.
 
 ### `BindingProxy`
+`Freezable` binding intermediary for targets that don't inherit `DataContext` (`ContextMenu`,
+`Popup`, `DataGridColumn`, etc.). Pure infrastructure.
 
-**WPF binding intermediary for targets that don't inherit `DataContext`.**
+---
 
-- Used for `RowDefinition`, `ColumnDefinition`, `ContextMenu`, `Popup`, `DataGridColumn`.
-- Inherits `Freezable` so it participates in the element tree's inheritance context
-  and receives `DataContext` through it — a plain `DependencyObject` would not.
-- No logic. Pure infrastructure.
+## Converters (partial review — 2026-06-29)
+
+Previously excluded as "stateless, low-risk." One live bug surfaced and was fixed:
+
+- **`BoardTabConverter`** — bool↔`BoardTab` for the task-board pills. Its `ConvertBack` hardcodes
+  `Enum.Parse(typeof(BoardTab), ...)`, so it throws on any non-`BoardTab` value.
+- **`EnumToBoolConverter`** — the general-purpose sibling that parses the parameter against the bound
+  property's own enum type. This is what the NoteType radios use.
+- **Fixed:** the Visit NoteType radio was mistakenly bound through `BoardTabConverter` (copy-paste
+  fossil), so selecting "Visit" threw `ArgumentException: 'Visit' not found`. Repointed to
+  `EnumToBoolConverter`. Contact/Other/Form were already correct; the eight board pills correctly use
+  `BoardTabConverter`. **Lesson for reuse:** a NoteType/value control must use `EnumToBoolConverter`;
+  `BoardTabConverter` is board-tabs only.
 
 ---
 
@@ -451,366 +423,164 @@ functions: same input always produces same output, no side effects.
 
 | If you change... | You must also check... |
 |-----------------|----------------------|
-| `FormType` enum (add/reorder values) | `Person.GenerateFormList`, `Person.EvaluateComplianceGate`, `Person.EvaluateBillingWindow`, `FormDueDateCalculator`, `Person.FormDisplayName`, `[Description]` attributes on enum, `UpcomingEventService` formMeta table, any switch expressions over `FormType` in ViewModels |
-| `Form.MarkComplete` / `Form.Reset` signatures | Every ViewModel caller; `FormService.UpdateFormAsync` (see invariant risk below) |
-| `Settings` form deadline properties | `FormDueDateCalculator` (must accept Settings — currently does not), `Person.GetOpenDaysBefore`, `UpcomingEventService` formMeta table |
-| `Person.GetCurrentCycleBoundaries` logic | `GetCurrentCycleForm`, `EvaluateComplianceGate`, `EnsureCurrentCycleForms`, `AddMissingFormsForCycle` — all depend on cycle math |
-| `NoteStatus` enum (add/reorder values) | Stored as `int` — append only, never reorder. Also check `NoteService.UpdateAbandonedNotesAsync` and any ViewModel status filters |
-| `ExemptDate` records | `WorkdayHelper`, `IncentiveService.GetRemainingEligibleDaysAsync` (caller must supply them), productivity calculation |
-| Holiday exclusion flags on `Settings` | `WorkdayHelper.IsAlwaysExcludedWorkday`, `IncentiveService.CalculateDaysScheduled` |
-| `BillingStatus` enum | `BillingService.SubmitBillingPeriodAsync`, `BillingService.GetUnbilledClaimLinesAsync`, billing UI |
-| `PersonService.GetAllPeopleAsync` query | Any code that depends on fully-populated `Person` objects with forms and notes. Do not bypass without replicating `Include` calls and `EnsureCurrentCycleForms` |
+| `FormType` enum (add/reorder) | `Person.GenerateFormList`, `EvaluateComplianceGate`, `EvaluateBillingWindow`, `FormDueDateCalculator`, `Person.FormDisplayName`, `[Description]` attributes, `UpcomingEventService`, any `FormType` switches in ViewModels |
+| `Form.MarkComplete` / `Form.Reset` signatures | Every caller in services and ViewModels; `FormService.UpdateFormAsync` (invariant risk) |
+| `Settings` anniversary-offset or deadline properties | `FormDueDateCalculator` (now **does** accept `Settings`), `Person.GetOpenDaysBefore`, `UpcomingEventService`, `SettingsService` seed, `SettingsViewModel` + XAML if user-editable |
+| **Cycle-membership convention** | `Person.FormBelongsToCycle` (the one definition), and confirm `BuildFormRows` is still deliberately excluded |
+| `Person.GetCurrentCycleBoundaries` logic | `GetCurrentCycleForm`, `EvaluateComplianceGate`, `EnsureCurrentCycleForms`, `AddMissingFormsForCycle`, `FormBelongsToCycle` |
+| `NoteStatus` enum | Stored as `int` — append only, never reorder; `NoteService.UpdateAbandonedNotesAsync`, status filters |
+| `ExemptDate` records | `WorkdayHelper`, `IncentiveService.GetRemainingEligibleDaysAsync`, productivity calc |
+| Holiday flags on `Settings` | `WorkdayHelper.IsAlwaysExcludedWorkday`, `IncentiveService.CalculateDaysScheduled` |
+| `BillingStatus` enum | `BillingService` submit/unbilled paths, billing UI |
+| `PersonService.GetAllPeopleAsync` query | Anything needing fully-populated `Person`; don't bypass without replicating `Include`s (and `EnsureCurrentCycleForms` when re-enabled) |
 
 ---
 
 ## Additional Rough Edges (from services review)
 
-### Bugs
-
-- `BillingService.ValidateNoteForBilling` error message says "Section 13 TCM" but
-  the procedure code is T1016 (Section 17 TCM). Wrong if surfaced to a user or auditor.
-
-### DI Inconsistency
-
-- `AuthService` instantiates `new PasswordHasher()` directly instead of taking
-  `IPasswordHasher` through DI. `UserService` correctly uses DI. The hasher is
-  non-swappable for the auth path without modifying `AuthService` directly.
-
-### Leaky Abstraction
-
-- `IncentiveService.GetRemainingEligibleDaysAsync` requires the caller to supply
-  exempt dates as a `HashSet<DateTime>`. The service cannot be called correctly without
-  knowing to also call `ExemptDateService` first. Consider encapsulating this internally.
-
-### Invariant Risk (priority)
-
-- `FormService.UpdateFormAsync` is a raw EF update with no compliance invariant guards.
-  If any ViewModel sets `IsCompliant` on a form entity before calling this method, the
-  `MarkComplete`/`Reset` invariant is bypassed at the DB layer despite `private set`.
-  EF tracks the object by reference and will persist whatever state it finds.
-  **[OPEN QUESTION]** Do any ViewModels do this? Must verify in ViewModel review.
-
-### Minor
-
-- `NoteService.GetMonthlyNotesAsync` calls `DateTime.Now` twice inline. Could
-  theoretically straddle midnight. Low risk; worth tightening to a single capture.
-- `SatiContext.OnModelCreating` configures the `Person → User` relationship twice —
-  once without a navigation property name, once with `p => p.User`. EF may silently
-  merge these; worth cleaning up to remove ambiguity.
-- `EdiService` output directory (`C:\Published\Sati\Contained\EDI`) is hardcoded.
-  Not configurable. Acceptable for single-install use; must change before multi-user
-  or MSIX deployment.
+- **Bug:** `BillingService.ValidateNoteForBilling` says "Section 13 TCM"; code is T1016 (Section 17).
+- **DI inconsistency:** `AuthService` uses `new PasswordHasher()` instead of DI.
+- **Leaky abstraction:** `IncentiveService.GetRemainingEligibleDaysAsync` requires caller-supplied
+  exempt dates.
+- **Invariant risk:** `FormService.UpdateFormAsync` — raw EF update, no compliance guard. No current
+  offender, but unguarded.
+- **Minor:** `NoteService.GetMonthlyNotesAsync` double `DateTime.Now`; `OnModelCreating` configures
+  `Person → User` twice; `EdiService` output dir hardcoded.
 
 ---
 
 ## ViewModels
 
 ### Compliance state writes — confirmed safe
-
-Every call to `FormService.UpdateFormAsync` in the ViewModel layer goes through
-`Form.MarkComplete()`, `Form.Reset()`, or only touches `OpenedDate`. The `private set`
-invariant on `IsCompliant` is holding throughout. The one partial exception is
-`ToggleForm` (see below), which uses the correct methods but passes the wrong date.
+Every `FormService.UpdateFormAsync` call in the ViewModel layer goes through `MarkComplete`,
+`Reset`, or only touches `OpenedDate`. The `private set` invariant holds. Partial exception:
+`ToggleForm` (uses the right methods but the wrong date).
 
 ### `CaseManagerDashboardViewModel`
+The load-bearing ViewModel. Owns note submission, form status commands, compliance dialog routing,
+productivity calc, and task board construction.
 
-The load-bearing ViewModel. Owns note submission, form status commands, compliance
-dialog routing, productivity calculation, and task board construction.
+**`BuildFormRows` (updated 2026-06-29).** Task-board tabs (PCPs, Releases, Comp, Reclass, Reviews,
+All) flow through here. Filter changed from `!f.IsCompliant` to **`f.CompletedDate is null`** —
+"show what isn't done," not "show what's overdue." Then the existing window/overdue gate decides
+visibility (`inWindow = today >= dueDate − max(openDaysBefore, DefaultLookaheadDays=90)`) and
+`isOverdue` drives the red triangle. This is why the annual tabs had appeared empty: their forms
+were compliant-but-incomplete, and `!IsCompliant` (i.e., overdue-only) hid them. Still uses
+`>= cycleStart` with no upper bound — deliberately not the `(cs, ce]` membership helper.
+*Interaction:* with duplicates still present, `OrderBy(DueDate).FirstOrDefault()` picks a copy
+arbitrarily among equal dates — harmless for display, another reason to dedup.
 
-**`ToggleForm` bug (on AGENDA — confirmed):**
+**`ToggleForm` bug (still on AGENDA).**
 ```csharp
-if (form.IsCompliant)
-    form.Reset();
-else
-    form.MarkComplete(form.DueDate);  // stamps DueDate, not today or a user-chosen date
+if (form.IsCompliant) form.Reset();
+else form.MarkComplete(form.DueDate);  // stamps DueDate, not today/user-chosen
 ```
-When toggling a non-compliant form to compliant, it stamps `form.DueDate` as the
-completion date. This is semantically wrong — it implies the form was completed on
-time regardless of when the toggle happened. Combined with the `FormDueDateCalculator`
-bug (annual forms have `cycleStart` as their due date), this currently stamps the
-*previous* anniversary as the completion date for annual forms.
+Now that the calculator is fixed, annual forms have a *future* `cycleEnd`-based due date, so toggling
+one compliant stamps a completion date that hasn't happened yet — a sharper wrong than before.
+**[DECISION NEEDED]** stamp `DateTime.Today` vs. prompt (recommend prompt — dialog already has the
+picker). Fix before anyone toggles an annual form on a corrected client.
 
-**[DECISION NEEDED]** What should `ToggleForm` stamp as completion date?
-- `DateTime.Today` — simple, assumes the toggle means "done today"
-- A date prompt — same picker pattern as `ComplianceFormRow`, lets user enter actual date
-- Recommendation: date prompt. The compliance review dialog already has this UX.
-  A manual toggle without a real date is the same problem as auto-stamping DueDate.
+**Other:** `SubmitNote` correctly runs both `EvaluateComplianceGate` and `EvaluateBillingWindow`;
+`_dialogIsWindowBlock` routes hold outcome. `LoadNotesForPersonAsync` is `async void` (unobservable
+exceptions). `SubmitNote` catch uses `MessageBox` vs. `_validationDialog` elsewhere. `NoteStatusOptions`
+uses non-generic `Enum.GetValues`.
 
-**`MarkFormOpened`** calls `row.Form.Reset()` then sets `OpenedDate` directly. `OpenedDate`
-has no invariant, so direct assignment is fine. `Reset()` is called first, correctly.
-
-**`MarkFormCompleted`** and **`MarkFormCompleteAsync`** both call `form.MarkComplete(DateTime.Today)`.
-Clean.
-
-**`SubmitNote`** correctly runs both compliance gate (`EvaluateComplianceGate`) and billing
-window check (`EvaluateBillingWindow`). `_dialogIsWindowBlock` flag correctly routes
-the hold outcome to `ComplianceBlocked` vs `HeldForCompliance`.
-
-**`LoadNotesForPersonAsync` is `async void`** — called from `OnSelectedPersonChanged`
-which cannot be async. Exceptions are unobservable. Low risk (simple read), but if
-the DB call ever fails, it fails silently. Worth adding error logging at minimum.
-
-**`SubmitNote` uses `MessageBox` directly** for the catch-block error message, while
-all validation errors use `_validationDialog`. Minor inconsistency.
-
-**`NoteStatusOptions`** uses the non-generic `Enum.GetValues(typeof(NoteStatus))`.
-Style preference per CLAUDE.md is `Enum.GetValues<NoteStatus>()`.
-
-### `ComplianceFormRow` and `ComplianceReviewViewModel`
-
-The checkbox/date invariant is correctly enforced. `OnIsCompliantChanged` ensures
-compliant implies a date, not-compliant implies none. `Commit()` is the single
-write-back point, calling `MarkComplete`/`Reset` exclusively. Clean.
+### `ComplianceFormRow` / `ComplianceReviewViewModel`
+Checkbox/date invariant correctly enforced. `Commit()` is the single write-back, via
+`MarkComplete`/`Reset`. Clean.
 
 ### `FormTaskRow`
-
-`State` is computed from `CompletedDate` and `OpenedDate`, deliberately ignoring
-`IsCompliant`. Correct reasoning: `IsCompliant` defaults true for annual docs at
-admission, so using it would paint untouched forms green. This means `State` and
-`IsCompliant` can diverge — a form can be `IsCompliant = true` but `State = NotStarted`
-because it was never actually worked. This is intentional and correct for the task
-board's purpose (tracking work done), but is a known semantic split.
+`State` computed from `CompletedDate` and `OpenedDate`, deliberately ignoring `IsCompliant` (which
+defaults true/"not overdue" for annuals at admission). `State` and `IsCompliant` can diverge by
+design — the board tracks *work done*, not overdue-ness.
 
 ### `SchedulerViewModel`
-
-Confirmed dead code — on AGENDA for deletion. However, it is the **only active caller
-of `Incentive.ExcludedDates`** (`ToggleTile` reads and writes it directly).
-**The `ExcludedDatesJson` migration rollback is not safe until `SchedulerViewModel`
-is deleted first.** Order of operations: delete SchedulerViewModel and its DI
-registration → confirm clean build → run migration rollback.
+Dead — on AGENDA. **Only active caller of `Incentive.ExcludedDates`.** Delete it + `WorkdayTile` +
+DI registration → confirm clean build → then run the `ExcludedDatesJson` migration rollback.
 
 ### `NotesWindowViewModel`
-
-`MarkNoteLogged` calls `EvaluateComplianceGate` correctly before status transition.
-`SendToSupervisor` stores justification in `CaseManagerJustification` and sets status
-to `Logged` — the supervisor queue receives these alongside clean-compliance notes and
-must read `CaseManagerJustification` to distinguish them. Not a bug, but a workflow gap
-worth documenting in any future supervisor UI work.
+`MarkNoteLogged` calls `EvaluateComplianceGate` before transition. `SendToSupervisor` stores
+`CaseManagerJustification`; supervisor queue must read it to distinguish from clean notes.
 
 ### `SettingsViewModel`
-
-Clean. `SetHealthcareSystems` correctly snapshots the source before clearing the
-collection to avoid mutating a LINQ query's own source mid-iteration. `SaveSettingsAsync`
-correctly uses `_settings.HealthcareSystems = ...` assignment rather than in-place
-mutation, honoring the gotcha documented on `Settings.cs`.
-
-**`SettingsViewModel` does not yet expose `*DaysBeforeAnniversary` properties.**
-When `FormDueDateCalculator` is updated to read these from `Settings`, corresponding
-observable properties and XAML bindings will need to be added here. `Q4RDaysBeforeAnniversary`
-will also need to be added.
+Clean. `SetHealthcareSystems` snapshots before clearing; `SaveSettingsAsync` reassigns
+`HealthcareSystems` (honoring the `Settings.cs` gotcha). **Now hosts temporary maintenance regions**
+(backfill + bulk-complete triggers) — banner-marked for removal. **Still does not expose the
+`*DaysBeforeAnniversary` properties** in the normal settings UI; if agencies should tune Q4R/Comp/
+Reclass offsets, add observable properties + XAML (the calculator already reads them from `Settings`).
 
 ### `ShellViewModel`
-
-`IsBillingAvailable` is restricted to `Admin` role only. Confirm this is intentional
-and not an oversight that should include `Director` or `Supervisor`.
-
-### Dead ViewModels
-
-- `SchedulerViewModel` — confirmed dead. Delete with `WorkdayTile`. See deletion
-  order note above re: `ExcludedDatesJson` migration rollback.
+`IsBillingAvailable` restricted to `Admin` only — confirm intentional vs. Director/Supervisor.
 
 ### Supervisor ViewModels
-
-**`SupervisorDashboardViewModel`**
-- `InitializeAsync` makes 3 sequential DB calls per supervisee: `GetAllPeopleAsync`,
-  `GetMonthlyNotesAsync`, `GetOrCreateAsync`. N+1 pattern — 10 case managers = 30
-  round-trips. Not a bug, but will become slow at team scale. Future optimization:
-  batch queries per supervisee set.
-- Commented-out line `// SelectedCaseManager = CaseManagers.FirstOrDefault();` is
-  dead code. Remove.
-- `ClearCharts()` nulls OxyPlot models before navigation to prevent stale renders.
-  Intentional and correct.
-
-**`PendingApprovalsViewModel`**
-- Correctly delegates all approval/return/override actions to `SupervisorService`,
-  which enforces the compliance gate as a hard throw. The ViewModel catches and logs
-  but does not swallow silently — `Debug.WriteLine` is the only output, which means
-  failures are invisible to the user in production. Worth adding user-facing error
-  feedback before multi-user deployment.
-- `PendingNoteViewModel.IsComplianceException` is hardcoded `false` with a comment
-  saying "set by non-compliant queue context" — but nothing sets it. If this property
-  is bound in the UI, it always shows the wrong value for overridden notes. Either
-  wire it to `note.ComplianceOverride` or remove it if the UI doesn't use it yet.
-
-**`UserManagementViewModel`**
-- `ResetPassword` hardcodes `"defaultpassword"` as the reset value. **Pre-release
-  security fix required.** Must be replaced with a random temporary password, a
-  prompted new password, or a forced-reset-on-login flow before any multi-user
-  deployment.
-- `SaveChanges` mutates `SelectedUser.Role` and `SelectedUser.SupervisorId` directly
-  before the save succeeds. If `UpdateAsync` throws, the in-memory entity is dirty
-  and the UI shows values that weren't persisted. The catch block sets a status message
-  but does not roll back. Low risk, worth hardening.
-- `Roles` uses non-generic `Enum.GetValues(typeof(UserRole))`. Style preference per
-  CLAUDE.md: `Enum.GetValues<UserRole>()`.
-
-**`CaseManagerSummaryViewModel`, `TeamOverviewViewModel`, `MonthlyProductivityViewModel`,
-`OverdueItemsViewModel`** — read-only display ViewModels. No domain logic, no
-compliance writes, no invariant risks. Clean.
+`SupervisorDashboardViewModel`: N+1 load (3 calls/supervisee); dead commented line; `ClearCharts()`
+nulls OxyPlot models (correct). `PendingApprovalsViewModel`: delegates to `SupervisorService` (hard
+throw); `Debug.WriteLine`-only failures; `PendingNoteViewModel.IsComplianceException` hardcoded
+`false`. `UserManagementViewModel`: **`ResetPassword` hardcodes `"defaultpassword"` — pre-release
+security fix**; dirty-entity-on-throw; non-generic `Enum.GetValues`. Summary/overview VMs clean.
 
 ### Children ViewModels
-
-**`CalendarViewModel`**
-- `ToggleExempt` correctly fires `ExemptDateChanged` after mutating exempt state, which
-  triggers `CaseManagerDashboardViewModel` to refresh its exempt date cache. The event
-  chain is the correct pattern for cross-ViewModel coordination here.
-- `BuildMonths` rebuilds the full calendar wholesale on every change. Correct — cell
-  alignment depends on the full month structure, so in-place mutation isn't viable.
-- Assumes WPF's single-threaded dispatcher prevents `LoadYearAsync` and `ToggleExempt`
-  from racing. Valid assumption for a WPF app; note it if threading ever changes.
-
-**`CalendarDay`**
-- `IsExempt` and `ExemptDateId` have public setters; `Date`, `IsWeekend`, and `Notes`
-  use `init`. The asymmetry is intentional — `ToggleExempt` mutates these two properties
-  directly on the existing instance before rebuilding months. Not a bug, but means
-  `CalendarDay` is partly mutable despite its `init`-heavy appearance. Cannot be
-  converted to a record without changing the toggle logic.
-
-**`ScratchpadViewModel`**
-- Auto-save timer (10 min) starts in `InitializeAsync`, not the constructor — correct,
-  prevents the timer from running before a user is logged in.
-- `SaveScratchpadAsync` is called explicitly on shutdown from `ShellViewModel.ReinitializeAsync`,
-  providing belt-and-suspenders alongside the timer. Correct for data you can't afford to lose.
-- `Debug.WriteLine` in `SaveScratchpadAsync` logs the full scratchpad content to debug
-  output. Harmless in development; remove before any shared deployment — it prints
-  case-manager work product to a debug trace.
-
-**`GuidanceViewModel` and `HelpersViewModel`**
-- Pure static content ViewModels. No services, no state, no risks.
-- Content is hardcoded in C#. If content ever needs to be editable or sourced externally,
-  these are the files to change.
-
-**`CalendarMonth`** — pure data container, all `init`. Clean.
+`CalendarViewModel`: `ToggleExempt` fires `ExemptDateChanged` (correct cross-VM coordination);
+`BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: 10-min auto-save from
+`InitializeAsync`; explicit shutdown save; **`Debug.WriteLine` prints full scratchpad content —
+remove before shared deployment**. `GuidanceViewModel`/`HelpersViewModel`: static content.
 
 ### Billing ViewModels
-
-**`BillingDashboardViewModel`**
-- Navigation uses `HasLoaded` guard on queue and submissions to avoid redundant loads.
-- `_ = _queueViewModel.LoadAsync()` is fire-and-forget. Exceptions are unobservable;
-  failures produce an empty queue with no user-facing message. Pre-release gap.
-
-**`BillingQueueViewModel`**
-- `PromoteSelectedAsync` awaits `CreateClaimLineAsync` sequentially, not in parallel.
-  Intentionally correct — parallel promotion risks race conditions on `BillingPeriod`
-  creation since `GetOrCreateBillingPeriodAsync` is not atomic. Do not parallelize.
-- `BillingQueueItemViewModel.IsComplianceOverride` correctly reads from
-  `Result.Note.ComplianceOverride`. Contrast with `PendingNoteViewModel.IsComplianceException`
-  in the supervisor queue, which is hardcoded false — inconsistency to resolve when
-  supervisor queue compliance display is wired.
-- Three `Debug.WriteLine` calls with millisecond timestamps. Useful for profiling;
-  remove before release.
-
-**`BillingSubmissionsViewModel`**
-- Correctly gates billing period scope by role: Admin/Supervisor see all periods,
-  CaseManager sees only their own.
-- `IsTestMode = true` by default — safe. Must be explicitly set false for real
-  submission. The UI should make this flag prominent; a defaulted-true checkbox is
-  easy to overlook.
-- `OpenOutputFolder` uses `Process.Start("explorer.exe", folder)` — Windows-specific.
-  Acceptable for a Windows-only app; note if cross-platform ever becomes a goal.
-
-**`BillingOverviewViewModel`, `BillingRemittancesViewModel`, `BillingAlertsViewModel`**
-— stubs. Placeholders for future billing features. No risks.
+`BillingDashboardViewModel`: `HasLoaded` guards; fire-and-forget `LoadAsync` (unobservable).
+`BillingQueueViewModel`: sequential promotion (intentional — don't parallelize);
+`IsComplianceOverride` reads correctly (contrast supervisor queue's hardcoded false); profiling
+`Debug.WriteLine`s. `BillingSubmissionsViewModel`: role-gated scope; **`IsTestMode = true` by default
+— must be explicitly false for real submission**; `Process.Start("explorer.exe", ...)` Windows-only.
+Overview/Remittances/Alerts are stubs.
 
 ---
 
 ## EDI Generator
 
-**`EdiGenerator`** — pure static translation function. No DB access, no DI. Caller
-(`EdiService`) is responsible for loading `BillingPeriod` with all navigation properties:
-`Lines → Note → Person → Agency`. If any required navigation is missing, the generator
-throws at runtime rather than giving a clean error.
-
-**Segment count calculation is fragile.**
-```csharp
-var segmentCount = sb.ToString()
-    .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-    .Length + 1;
-```
-Counts newlines, not segment terminators. Works because each segment is on its own line,
-but breaks if any data field ever contains a newline character (consumer name, address).
-The correct approach: count `~` characters in the output string. The X12 spec defines
-SE01 as segment count, not line count.
-
-**`PER04` phone number is hardcoded as a placeholder.**
-`"3609787000"` is described in a comment as "OA support number as placeholder." This
-field is the submitter's contact phone — it must be the agency's own number before any
-real submission. Should be sourced from `Agency` rather than hardcoded.
-
-**Null-forgiving operators on all agency address fields.**
-`agency.Street!`, `agency.City!`, `agency.State!`, `agency.Zip!`, `agency.TaxId!`,
-`agency.Npi!` — if any are null, the generator throws `NullReferenceException` at
-runtime with no useful error message. `BillingService.ValidateNoteForBilling` checks
-`Agency.Npi` but not the address or tax ID fields. Add agency field validation to
-the pre-submission check before live use.
-
-**`CLM02` and `SV102` use `Units` as the charge amount.**
-In 837P, these fields are monetary values (dollars), not unit counts. For T1016 Maine
-TCM billing, verify whether Maine Medicaid's companion guide accepts units here or
-requires a dollar amount. If a dollar rate is required, `ClaimLine` will need a
-`Rate` or `ChargeAmount` field.
-
-**`claimCounter` reset per subscriber** — correct per 837P spec. LX numbering is
-per-subscriber, not global.
-
-**`isTest ? "T" : "P"` in ISA15** — correctly drives test vs. production mode.
-Flows from `BillingSubmissionsViewModel.IsTestMode`, which defaults true. Safe.
-
-**Structural correctness (what can be verified without the companion guide):**
-- ISA/GS/ST/BHT envelope structure is correct.
-- HL hierarchy (20 = billing provider → 22 = subscriber) is correct for 837P.
-- 2000B/2010BA/2010BB/2300/2400 loop nesting is correct.
-- `LX` correctly increments per service line within each subscriber.
-- Segment terminator `~`, element separator `*`, sub-element separator `:` are correct
-  for X12 837P.
-- One group per file (`gcn = "1"`) is correct for Office Ally submissions.
+**`EdiGenerator`** — pure static translation. Caller (`EdiService`) loads
+`BillingPeriod → Lines → Note → Person → Agency`; missing navigation → runtime throw.
 
 **Pre-live checklist (before first real submission):**
-1. Replace hardcoded `PER04` phone with agency's actual contact number.
+1. Replace hardcoded `PER04` phone (`"3609787000"`) with the agency's contact number (source from `Agency`).
 2. Add agency field validation (street, city, state, zip, tax ID) to pre-submission check.
-3. Confirm `CLM02`/`SV102` monetary vs. unit interpretation with Maine Medicaid companion guide.
-4. Fix SE01 segment count to use `~` count rather than line count.
-5. Test through Office Ally sandbox with `isTest = true` and verify 999 acknowledgment.
+3. Confirm `CLM02`/`SV102` monetary-vs-unit interpretation with Maine Medicaid companion guide
+   (may require a `Rate`/`ChargeAmount` on `ClaimLine`).
+4. Fix SE01 segment count to count `~`, not newlines.
+5. Fix the "Section 13 TCM" → Section 17 / T1016 message.
+6. Test through Office Ally sandbox (`isTest = true`) and verify 999 acknowledgment.
+
+**Verified-correct structure:** ISA/GS/ST/BHT envelope; HL hierarchy (20→22); 2000B/2010BA/2010BB/
+2300/2400 nesting; per-subscriber `LX`; `~`/`*`/`:` separators; one group per file. `isTest ? "T":"P"`
+in ISA15 flows from `BillingSubmissionsViewModel.IsTestMode` (defaults true — safe).
 
 ---
 
 ## DI Registration (`App.xaml.cs`)
 
-### Lifetime summary
+### Lifetime summary (deltas from prior review in **bold**)
 
 | Registration | Lifetime | Notes |
 |---|---|---|
-| All services (`IPersonService`, `INoteService`, etc.) | Transient | Correct |
-| `ISessionService` / `SessionService` | Singleton | Correct — holds logged-in user for app lifetime |
-| `IDbContextFactory<SatiContext>` | Singleton | Correct — per-method context via `await using` |
-| `ShellViewModel`, `ShellWindow` | Singleton | Correct |
-| `CaseManagerDashboardViewModel` | Singleton | Correct |
-| `NotesWindowViewModel` | Singleton | Correct |
-| `StatisticsViewModel` | Singleton | Correct |
-| `CalendarViewModel` | Singleton | Correct |
-| `BillingDashboardViewModel` and all billing sub-VMs | Singleton | Correct |
-| `SupervisorDashboardViewModel` | Singleton | Correct |
-| `GuidanceViewModel`, `HelpersViewModel` | Singleton | Correct — static content |
-| `ScratchpadViewModel` | Transient | **Misleading** — captured by singleton `ShellViewModel`, behaves as singleton. Should be `AddSingleton` to make intent explicit. |
-| `UserManagementViewModel` | Transient | **Lifetime mismatch** — injected into singleton `SupervisorDashboardViewModel`. Becomes singleton in practice. |
-| `PendingApprovalsViewModel` | Transient | **Lifetime mismatch** — injected into singleton `SupervisorDashboardViewModel`. Holds `PendingNotes`/`NonCompliantNotes` collections that will go stale rather than resetting. Deliberate decision needed. |
-| `NewClientViewModel` | Transient | **Misleading** — captured by singleton `CaseManagerDashboardViewModel` as `Clients`. Becomes singleton in practice. |
+| All domain services | Transient | Correct |
+| **`FormDueDateBackfill`, `FormBulkCompletion`** | **Transient** | **Concrete types, no interface (one-shot tools). Fresh instance per settings-window open keeps the latch un-armed. Temporary UI only.** |
+| `ISessionService` | Singleton | Holds logged-in user |
+| `IDbContextFactory<SatiContext>` | Singleton | Per-method context via `await using` |
+| `ShellViewModel`, `ShellWindow`, dashboards, billing VMs | Singleton | Correct |
+| `ScratchpadViewModel` | Transient | **Misleading** — captured by singleton `ShellViewModel`; behaves singleton. Consider `AddSingleton`. |
+| `UserManagementViewModel`, `PendingApprovalsViewModel` | Transient | **Lifetime mismatch** — captured by singleton `SupervisorDashboardViewModel`; stale collections. Deliberate decision needed. |
+| `NewClientViewModel` | Transient | **Misleading** — captured by singleton `CaseManagerDashboardViewModel`. |
 | `SchedulerViewModel` | Transient | **Dead code** — remove with `WorkdayTile`. |
-| `ComplianceReviewViewModel` | Transient | Correct — fresh per dialog invocation. |
-| Modal windows and their VMs | Transient | Correct. |
+| Modal windows + VMs, `ComplianceReviewViewModel` | Transient | Correct |
 
 ### Startup sequence
+Splash (3s) → Login → session set → `ShellViewModel.InitializeAsync` → `ShellWindow.Show`.
+`ShutdownMode.OnExplicitShutdown`. `db.Database.Migrate()` on every startup (idempotent).
+`DispatcherUnhandledException` shows the full exception in a `MessageBox` (dev-grade; add a log file
++ shorter user message before team deployment — this handler is what surfaced the LocalDB timeout
+and the `BoardTabConverter` throw this session).
 
-Splash (3s) → Login dialog → session set → `ShellViewModel.InitializeAsync` →
-`ShellWindow.Show`. `ShutdownMode.OnExplicitShutdown` prevents premature exit when
-login window closes. `db.Database.Migrate()` on every startup — correct, idempotent.
+---
 
-### Other notes
-
-- `DispatcherUnhandledException` handler catches all unhandled exceptions and shows a
-  `MessageBox` with the full exception. Acceptable for development; before team
-  deployment, add a log file path and a shorter user-facing message.
-- Factory delegates (`Func<SettingsWindow>`, `Func<NewUserWindow>`, etc.) are
-  registered correctly, resolving windows through the container to honor their own
-  DI graphs.
-- `Func<string, UserMessageDialog>` factory is registered correctly for validation dialogs.
+## What This Document Still Doesn't Fully Cover
+- Full XAML view review (only the note-entry + task-board view and converters touched this session).
+- `EdiGenerator` internals beyond the pre-live checklist.

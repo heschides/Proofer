@@ -96,6 +96,37 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string? healthcareSystemName;
 
+        // Waiver services & employment
+        [ObservableProperty]
+        private bool isEmployed;
+
+        [ObservableProperty]
+        private bool hasHomeSupport;
+
+        [ObservableProperty]
+        private bool hasSelfDirectedHomeSupport;
+
+        [ObservableProperty]
+        private bool hasSharedLiving;
+
+        [ObservableProperty]
+        private bool hasCommunitySupport1To1;
+
+        [ObservableProperty]
+        private bool hasCommunitySupportSelfDirected;
+
+        [ObservableProperty]
+        private bool hasCommunitySupportDayProgram;
+
+        [ObservableProperty]
+        private int dayProgramCount = 1;
+
+        [ObservableProperty]
+        private bool hasEmploymentSpecialist;
+
+        [ObservableProperty]
+        private bool hasWorkSupports;
+
         // -------------------------------------------------------------------------
         // Property change callbacks
         // -------------------------------------------------------------------------
@@ -103,6 +134,9 @@ namespace Sati.ViewModels
         partial void OnSelectedPersonChanged(Person? value)
         {
             OnPropertyChanged(nameof(HasSelectedPerson));
+            OnPropertyChanged(nameof(SelectedPersonServices));
+            OnPropertyChanged(nameof(HasSelectedPersonServices));
+            OnPropertyChanged(nameof(ShowsEmploymentTracking));
             OnPropertyChanged(nameof(Q1RDueDate));
             OnPropertyChanged(nameof(Q2RDueDate));
             OnPropertyChanged(nameof(Q3RDueDate));
@@ -116,7 +150,51 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ReleaseDhhsDueDate));
             RefreshComplianceFlags();
             _ = LoadSelectedPersonNotesAsync(value);
-            IsEntryPanelOpen = false;
+
+            // The panel is persistent now, so it can't be left showing one client's
+            // data while another is selected — Submit's edit branch writes to
+            // SelectedPerson, and a stale form would overwrite the wrong record.
+            // Selection is therefore the only thing that fills this form.
+            if (value is null)
+            {
+                ClearFields();
+                IsEditMode = false;
+            }
+            else
+            {
+                PopulateFrom(value);
+            }
+        }
+
+        // Header and button caption both key off edit mode, so one callback covers
+        // every path that flips it.
+        partial void OnIsEditModeChanged(bool value)
+        {
+            OnPropertyChanged(nameof(SubmitButtonLabel));
+            OnPropertyChanged(nameof(EntryPanelHeader));
+        }
+
+        // A day-program client always has at least one program. Clamping here rather
+        // than trusting the UI means a hand-typed 0 can't silently zero out that
+        // client's community note-review slots. The recursive set terminates: the
+        // second pass sees a value already >= 1 and doesn't set again.
+        // Employment supports are meaningless without employment. Clearing rather
+        // than merely disabling prevents storing a contradiction — unlike the
+        // HasGuardian/GuardianName pattern, where the preserved value is real
+        // typed data worth protecting.
+        partial void OnIsEmployedChanged(bool value)
+        {
+            if (value)
+                return;
+
+            HasEmploymentSpecialist = false;
+            HasWorkSupports = false;
+        }
+
+        partial void OnDayProgramCountChanged(int value)
+        {
+            if (value < 1)
+                DayProgramCount = 1;
         }
 
         partial void OnWaiverChanged(WaiverType value)
@@ -131,10 +209,44 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public bool HasSelectedPerson => SelectedPerson is not null;
+
+        // Comma-joined list of the selected client's active waiver services, for
+        // display only. Empty string when none are set, which the detail panel
+        // renders as a hidden section rather than an empty label.
+        public string SelectedPersonServices
+        {
+            get
+            {
+                if (SelectedPerson is not Person p)
+                    return string.Empty;
+
+                var services = new List<string>();
+
+                if (p.HasHomeSupport) services.Add("Home support");
+                if (p.HasSelfDirectedHomeSupport) services.Add("Self-directed home support");
+                if (p.HasSharedLiving) services.Add("Shared living");
+                if (p.HasCommunitySupport1To1) services.Add("Community support 1:1");
+                if (p.HasCommunitySupportSelfDirected) services.Add("Community support self-directed");
+                if (p.HasCommunitySupportDayProgram)
+                    services.Add(p.DayProgramCount > 1
+                        ? $"Day program ×{p.DayProgramCount}"
+                        : "Day program");
+                if (p.HasEmploymentSpecialist) services.Add("Employment specialist");
+                if (p.HasWorkSupports) services.Add("Work supports");
+
+                return string.Join(", ", services);
+            }
+        }
+
+        public bool HasSelectedPersonServices => SelectedPersonServices.Length > 0;
+
+        // Employed and receiving no employment supports from any funding stream —
+        // the population whose employment parameters must be tracked quarterly.
+        public bool ShowsEmploymentTracking => SelectedPerson?.RequiresEmploymentTracking ?? false;
         public bool AllowComplianceOverride => _sessionService.AllowComplianceOverride;
         public bool HasWaiver => Waiver != WaiverType.None;
         public string SubmitButtonLabel => IsEditMode ? "Save Changes" : "Add Client";
-        public Array Waivers => Enum.GetValues(typeof(WaiverType));
+        public string EntryPanelHeader => IsEditMode ? "EDIT CLIENT" : "ADD CLIENT"; public Array Waivers => Enum.GetValues(typeof(WaiverType));
 
         public ObservableCollection<Note> SelectedPersonNotes { get; } = [];
         public ObservableCollection<Person> People { get; } = [];
@@ -190,7 +302,6 @@ namespace Sati.ViewModels
             _noteService = noteService;
             _formService = formService;
             _settingsService = settingsService;
-            _ = LoadPeopleAsync();
             _ = LoadHealthcareOptionsAsync();
         }
 
@@ -198,14 +309,19 @@ namespace Sati.ViewModels
         // Commands
         // -------------------------------------------------------------------------
 
+        // The plus no longer means "open the panel" — the panel has its own toggle.
+        // It means "switch to add mode": drop the selection (which clears the form
+        // through OnSelectedPersonChanged) and make sure the panel is showing, so
+        // the click always produces a visible blank form.
         [RelayCommand]
         private void OpenEntryPanel()
         {
-            ClearFields();
-            IsEditMode = false;
-            OnPropertyChanged(nameof(SubmitButtonLabel));
+            SelectedPerson = null;
             IsEntryPanelOpen = true;
         }
+
+        [RelayCommand]
+        private void ToggleEntryPanel() => IsEntryPanelOpen = !IsEntryPanelOpen;
 
         [RelayCommand]
         private async Task Submit()
@@ -235,11 +351,21 @@ namespace Sati.ViewModels
                 existing.Address = Address;
                 existing.PrimaryCareProvider = PrimaryCareProvider;
                 existing.HealthcareSystemName = HealthcareSystemName;
+                existing.IsEmployed = IsEmployed;
+                existing.HasHomeSupport = HasHomeSupport;
+                existing.HasSelfDirectedHomeSupport = HasSelfDirectedHomeSupport;
+                existing.HasSharedLiving = HasSharedLiving;
+                existing.HasCommunitySupport1To1 = HasCommunitySupport1To1;
+                existing.HasCommunitySupportSelfDirected = HasCommunitySupportSelfDirected;
+                existing.HasCommunitySupportDayProgram = HasCommunitySupportDayProgram;
+                existing.DayProgramCount = HasCommunitySupportDayProgram ? DayProgramCount : 1;
+                existing.HasEmploymentSpecialist = HasEmploymentSpecialist;
+                existing.HasWorkSupports = HasWorkSupports;
 
                 if (wasNoWaiver && isAddingWaiver && effectiveDate is not null)
                 {
                     await _formService.DeleteFormsAsync(existing.Forms);
-                    var forms = Person.GenerateFormList(effectiveDate.Value);
+                    var forms = Person.GenerateFormList(effectiveDate.Value, settings);
                     existing.Forms = forms;
                     var confirmed = ComplianceReviewRequested?.Invoke(existing.Forms) ?? true;
                     if (!confirmed)
@@ -255,11 +381,7 @@ namespace Sati.ViewModels
                     People.Insert(index, existing);
                 }
 
-                IsEditMode = false;
                 SelectedPerson = null;
-                ClearFields();
-                OnPropertyChanged(nameof(SubmitButtonLabel));
-                IsEntryPanelOpen = false;
             }
             else
             {
@@ -272,12 +394,22 @@ namespace Sati.ViewModels
                 person.Address = Address;
                 person.PrimaryCareProvider = PrimaryCareProvider;
                 person.HealthcareSystemName = HealthcareSystemName;
+                person.IsEmployed = IsEmployed;
+                person.HasHomeSupport = HasHomeSupport;
+                person.HasSelfDirectedHomeSupport = HasSelfDirectedHomeSupport;
+                person.HasSharedLiving = HasSharedLiving;
+                person.HasCommunitySupport1To1 = HasCommunitySupport1To1;
+                person.HasCommunitySupportSelfDirected = HasCommunitySupportSelfDirected;
+                person.HasCommunitySupportDayProgram = HasCommunitySupportDayProgram;
+                person.DayProgramCount = HasCommunitySupportDayProgram ? DayProgramCount : 1;
+                person.HasEmploymentSpecialist = HasEmploymentSpecialist;
+                person.HasWorkSupports = HasWorkSupports;
                 var confirmed = ComplianceReviewRequested?.Invoke(person.Forms) ?? true;
                 if (!confirmed)
                     return;
                 await _personService.AddPersonAsync(person);
                 People.Add(person);
-                IsEntryPanelOpen = false;
+                ClearFields();
             }
         }
 
@@ -332,11 +464,17 @@ namespace Sati.ViewModels
 
         public void LoadPersonForEdit(Person person)
         {
-            IsEditMode = true;
+            PopulateFrom(person);
             IsEntryPanelOpen = true;
-            OnPropertyChanged(nameof(SubmitButtonLabel));
-            FirstName = person.FirstName;
-            LastName = person.LastName;
+        }
+
+        // Fills the form without touching panel visibility. Split from
+        // LoadPersonForEdit so a selection change can repopulate a panel the user
+        // already has open, while double-click additionally forces it open.
+        private void PopulateFrom(Person person)
+        {
+            IsEditMode = true;
+            FirstName = person.FirstName; LastName = person.LastName;
             Bio = person.Bio;
             BirthDate = person.BirthDate;
             EffectiveDateText = person.EffectiveDate?.ToString("MM/dd") ?? string.Empty;
@@ -348,7 +486,18 @@ namespace Sati.ViewModels
             Address = person.Address;
             PrimaryCareProvider = person.PrimaryCareProvider;
             HealthcareSystemName = person.HealthcareSystemName;
+            IsEmployed = person.IsEmployed;
+            HasHomeSupport = person.HasHomeSupport;
+            HasSelfDirectedHomeSupport = person.HasSelfDirectedHomeSupport;
+            HasSharedLiving = person.HasSharedLiving;
+            HasCommunitySupport1To1 = person.HasCommunitySupport1To1;
+            HasCommunitySupportSelfDirected = person.HasCommunitySupportSelfDirected;
+            HasCommunitySupportDayProgram = person.HasCommunitySupportDayProgram;
+            DayProgramCount = person.DayProgramCount;
+            HasEmploymentSpecialist = person.HasEmploymentSpecialist;
+            HasWorkSupports = person.HasWorkSupports;
         }
+
         public async Task ReloadAsync()
         {
             People.Clear();
@@ -365,7 +514,14 @@ namespace Sati.ViewModels
         {
             if (_sessionService.CurrentUser is null)
                 return;
+
             var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser.Id);
+
+            // Clear immediately before repopulating, not at the top: an awaited
+            // query that fails or runs long would otherwise leave the grid empty
+            // in the meantime. Clearing here also makes this method safe to call
+            // twice, which is what the constructor/ReloadAsync race exploited.
+            People.Clear();
             foreach (var person in people)
                 People.Add(person);
         }
@@ -430,6 +586,16 @@ namespace Sati.ViewModels
             Address = string.Empty;
             PrimaryCareProvider = string.Empty;
             HealthcareSystemName = null;
+            IsEmployed = false;
+            HasHomeSupport = false;
+            HasSelfDirectedHomeSupport = false;
+            HasSharedLiving = false;
+            HasCommunitySupport1To1 = false;
+            HasCommunitySupportSelfDirected = false;
+            HasCommunitySupportDayProgram = false;
+            DayProgramCount = 1;
+            HasEmploymentSpecialist = false;
+            HasWorkSupports = false;
             ClearErrors();
         }
 

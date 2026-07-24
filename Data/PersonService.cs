@@ -5,6 +5,9 @@ namespace Sati.Data
 {
     public class PersonService : IPersonService
     {
+
+        private const bool EnableEnsureCycleFormsOnLoad = false;
+
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISettingsService _settingsService;
 
@@ -45,20 +48,24 @@ namespace Sati.Data
                 .Include(p => p.Notes)
                 .Include(p => p.Forms)
                 .OrderBy(p => p.LastName)
+                .AsSplitQuery()
                 .ToListAsync();
 
-            var settings = await _settingsService.LoadAsync();
-            var today = DateTime.Today;
-            var anyChanges = false;
-
-            foreach (var person in people)
+            if (EnableEnsureCycleFormsOnLoad)
             {
-                if (person.EnsureCurrentCycleForms(today, settings))
-                    anyChanges = true;
-            }
+                var settings = await _settingsService.LoadAsync();
+                var today = DateTime.Today;
+                var anyChanges = false;
 
-            if (anyChanges)
-                await context.SaveChangesAsync();
+                foreach (var person in people)
+                {
+                    if (person.EnsureCurrentCycleForms(today, settings))
+                        anyChanges = true;
+                }
+
+                if (anyChanges)
+                    await context.SaveChangesAsync();
+            }
 
             return people;
         }

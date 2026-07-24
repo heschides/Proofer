@@ -30,7 +30,6 @@ namespace Sati.ViewModels
         private readonly IFormService _formService;
         private readonly Func<string, UserMessageDialog> _validationDialog;
         private readonly IExemptDateService _exemptDateService;
-        private const int DefaultLookaheadDays = 90;
         private Settings? _settings;
         private Incentive? _incentive;
         private List<Note> _monthlyNotes = [];
@@ -53,8 +52,9 @@ namespace Sati.ViewModels
             NotesWindowViewModel notesWindowViewModel,
             NewClientViewModel newClientViewModel,
 CalendarViewModel calendarViewModel,
-            IExemptDateService exemptDateService,
-            StatisticsViewModel statisticsViewModel
+           IExemptDateService exemptDateService,
+            StatisticsViewModel statisticsViewModel,
+            ReviewsViewModel reviewsViewModel
             )
         {
             _personService = personService;
@@ -72,6 +72,7 @@ CalendarViewModel calendarViewModel,
             Calendar = calendarViewModel;
             Clients = newClientViewModel;
             Statistics = statisticsViewModel;
+            Reviews = reviewsViewModel;
 
 
             newClientViewModel.FormComplianceChanged += async (s, e) =>
@@ -115,6 +116,8 @@ CalendarViewModel calendarViewModel,
         public bool IsSubViewActive => CurrentSubViewModel is not null;
         public bool IsCalendarSubActive => CurrentSubViewModel is CalendarViewModel;
         public bool IsStatisticsSubActive => CurrentSubViewModel is StatisticsViewModel;
+        public bool IsReviewsSubActive => CurrentSubViewModel is ReviewsViewModel;
+        public ReviewsViewModel Reviews { get; }
         public Func<FormType, Task>? FormStatusRequested { get; set; }
         public CalendarViewModel Calendar { get; }
         public StatisticsViewModel Statistics { get; }
@@ -134,6 +137,7 @@ CalendarViewModel calendarViewModel,
         [ObservableProperty] private bool sortByDate = true;
         [ObservableProperty] private bool showOverdue;
         [ObservableProperty] private BoardTab selectedTab = BoardTab.All;
+        [ObservableProperty] private BoardDateFilter dateFilter = BoardDateFilter.TwoWeeks;
         [ObservableProperty] private double narrativeFontSize = 14;
         [ObservableProperty] private bool isComplianceDialogVisible;
         [ObservableProperty] private string pendingJustification = string.Empty;
@@ -158,6 +162,7 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(IsMatrixSubActive));
             OnPropertyChanged(nameof(IsCalendarSubActive));
             OnPropertyChanged(nameof(IsStatisticsSubActive));
+            OnPropertyChanged(nameof(IsReviewsSubActive));
             OnPropertyChanged(nameof(IsSubViewActive));
         }
 
@@ -189,6 +194,15 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(BoardItems));
             OnPropertyChanged(nameof(IsTaskListTab));
             OnPropertyChanged(nameof(IsEffectiveDatesTab));
+            OnPropertyChanged(nameof(TabHasOverdue));
+        }
+
+        // The dot is per-tab and independent of the window, so it does not change
+        // here — only the visible set does.
+        partial void OnDateFilterChanged(BoardDateFilter value)
+        {
+            OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(DateFilterLabel));
         }
 
         partial void OnSearchTextChanged(string? value) => NotesView.Refresh();
@@ -287,7 +301,7 @@ CalendarViewModel calendarViewModel,
 
         // Heterogeneous by design: FormTaskRow for the form tabs, UpcomingEvent for
         // Appointments, both for All. The XAML picks a template per item type.
-        public IEnumerable<object> BoardItems => SelectedTab switch
+        private IEnumerable<object> UnfilteredBoardItems() => SelectedTab switch
         {
             BoardTab.CompAssessments => BuildFormRows(FormType.ComprehensiveAssessment),
             BoardTab.Reclasses => BuildFormRows(FormType.Reclassification),
@@ -299,13 +313,70 @@ CalendarViewModel calendarViewModel,
             _ => []
         };
 
+        public IEnumerable<object> BoardItems =>
+            UnfilteredBoardItems().Where(i => PassesDateFilter(BoardItemDate(i), DateTime.Today));
+
+        // The board is heterogeneous, so the filter needs one date per item regardless
+        // of type. Type pattern in a switch expression; the discard arm returns
+        // MaxValue so an unrecognized item is never treated as overdue and never
+        // disappears from a narrow window.
+        private static DateTime BoardItemDate(object item) => item switch
+        {
+            FormTaskRow row => row.DueDate,
+            UpcomingEvent e => e.Date,
+            _ => DateTime.MaxValue
+        };
+
+        // Upper bound only, by design — see BoardDateFilter. Overdue is the one arm
+        // with a lower bound and no upper. Since BuildFormRows no longer caps its
+        // lookahead, this is the only thing bounding how far ahead the board sees.
+        private bool PassesDateFilter(DateTime date, DateTime today) => DateFilter switch
+        {
+            BoardDateFilter.Overdue => date.Date < today,
+            BoardDateFilter.TwoWeeks => date.Date <= today.AddDays(14),
+            BoardDateFilter.FourWeeks => date.Date <= today.AddDays(28),
+            BoardDateFilter.SixWeeks => date.Date <= today.AddDays(42),
+            BoardDateFilter.EightWeeks => date.Date <= today.AddDays(56),
+            BoardDateFilter.TenWeeks => date.Date <= today.AddDays(70),
+            BoardDateFilter.TwelveWeeks => date.Date <= today.AddDays(84),
+            _ => true
+        };
+
+        public string DateFilterLabel => DateFilter switch
+        {
+            BoardDateFilter.Overdue => "Overdue",
+            BoardDateFilter.TwoWeeks => "2 wks",
+            BoardDateFilter.FourWeeks => "4 wks",
+            BoardDateFilter.SixWeeks => "6 wks",
+            BoardDateFilter.EightWeeks => "8 wks",
+            BoardDateFilter.TenWeeks => "10 wks",
+            BoardDateFilter.TwelveWeeks => "12 wks",
+            _ => "All"
+        };
+
+        // Counted against the UNFILTERED tab: the dot's job is to tell you there's
+        // overdue work you can't currently see. Counting the filtered set would make
+        // the dot vanish exactly when it's most useful.
+        public bool TabHasOverdue
+        {
+            get
+            {
+                if (SelectedTab == BoardTab.EffectiveDates)
+                    return false;
+
+                var today = DateTime.Today;
+                return UnfilteredBoardItems().Any(i => BoardItemDate(i).Date < today);
+            }
+        }
+
         public bool IsEffectiveDatesTab => SelectedTab == BoardTab.EffectiveDates;
         public bool IsTaskListTab => SelectedTab != BoardTab.EffectiveDates;
 
-        // Per client, per type: the soonest-due form not yet marked compliant, scoped
-        // to the current/next cycle, shown once it's overdue or within
-        // max(its open window, 90 days) of its due date. The compliant-default annual
-        // docs drop out, so this lands on next-cycle renewals and outstanding reviews.
+// Per client, per type: the soonest-due incomplete form scoped to the
+        // current/next cycle. No lookahead cap — DateFilter owns the forward bound
+        // now. One row per client per type is the ceiling, so All stays bounded.
+        // Completed forms drop out, so this lands on next-cycle renewals and
+        // outstanding reviews.
         private IEnumerable<FormTaskRow> BuildFormRows(params FormType[] types)
         {
             if (_settings is null)
@@ -328,19 +399,12 @@ CalendarViewModel calendarViewModel,
                 foreach (var type in types)
                 {
                     var form = person.Forms
-                        .Where(f => f.Type == type && !f.IsCompliant && f.DueDate >= cycleStart)
-                        .OrderBy(f => f.DueDate)
-                        .FirstOrDefault();
+                                            .Where(f => f.Type == type && f.CompletedDate is null && f.DueDate >= cycleStart)
+                                            .OrderBy(f => f.DueDate)
+                                            .FirstOrDefault();
                     if (form is null)
                         continue;
-
                     var openDaysBefore = Person.GetOpenDaysBefore(type, _settings);
-                    var windowDays = Math.Max(openDaysBefore, DefaultLookaheadDays);
-                    var isOverdue = today.Date > form.DueDate.Date;
-                    var inWindow = today.Date >= form.DueDate.Date.AddDays(-windowDays);
-                    if (!isOverdue && !inWindow)
-                        continue;
-
                     var openByDate = form.DueDate.AddDays(-openDaysBefore);
                     rows.Add(new FormTaskRow(form, person.FullName,
                         Person.FormDisplayName(type), openByDate, today));
@@ -432,6 +496,19 @@ CalendarViewModel calendarViewModel,
             await Statistics.LoadAsync();
             CurrentSubViewModel = Statistics;
         }
+
+        // Loads on every visit rather than once. Review items depend on the
+        // client's waiver-service flags, which can change in the Clients tab
+        // between visits, and on the cycle anchor, which rolls over on the
+        // anniversary. Reloading each time means those changes always show up
+        // without an event subscription per source of change; generation is
+        // idempotent, so the cost of a no-change visit is two queries.
+        [RelayCommand]
+        private async Task NavigateToReviews()
+        {
+            await Reviews.LoadAsync();
+            CurrentSubViewModel = Reviews;
+        }
         [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
         [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
         [RelayCommand] private void ClearNote() => ResetForm();
@@ -474,6 +551,14 @@ CalendarViewModel calendarViewModel,
 
         [RelayCommand]
         private void SelectTab(BoardTab tab) => SelectedTab = tab;
+
+        [RelayCommand]
+        private void CycleDateFilter()
+        {
+            var values = Enum.GetValues<BoardDateFilter>();
+            var next = (Array.IndexOf(values, DateFilter) + 1) % values.Length;
+            DateFilter = values[next];
+        }
 
         [RelayCommand]
         private async Task MarkFormOpened(FormTaskRow? row)
@@ -762,6 +847,7 @@ CalendarViewModel calendarViewModel,
                     People.Add(person);
 
                 OnPropertyChanged(nameof(BoardItems));
+                OnPropertyChanged(nameof(TabHasOverdue));
                 OnPropertyChanged(nameof(EffectiveDateGroups));
             }
             catch (Exception ex)
@@ -810,6 +896,7 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(OverdueCount));
             OnPropertyChanged(nameof(HasOverdueEvents));
             OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(TabHasOverdue));
         }
 
         public async Task MarkFormCompleteAsync(FormType formType)

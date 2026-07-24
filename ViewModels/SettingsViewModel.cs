@@ -14,12 +14,153 @@ namespace Sati.ViewModels
     public partial class SettingsViewModel : ObservableObject
     {
         private readonly ISettingsService _settingsService;
+        private readonly FormDueDateBackfill _backfill;
+        private readonly FormBulkCompletion _bulkCompletion;
         private Settings? _settings;
 
-        public SettingsViewModel(ISettingsService settingsService)
+        public SettingsViewModel(ISettingsService settingsService, FormDueDateBackfill backfill,
+                                 FormBulkCompletion bulkCompletion)
         {
             _settingsService = settingsService;
+            _backfill = backfill;
+            _bulkCompletion = bulkCompletion;
             _ = LoadAsync();
+        }
+
+        // ====================================================================
+        // TEMPORARY MAINTENANCE — DUE-DATE BACKFILL
+        // Remove this whole region (and the three controls in SettingsWindow.xaml
+        // marked with the same banner) once the backfill has been run and the
+        // PersonService.EnableEnsureCycleFormsOnLoad guard has been lifted.
+        // ====================================================================
+
+        // What the last dry run reported it would change. You type this exact
+        // number into BackfillConfirmCount to authorize the commit; the service
+        // refuses any other value. Starts -1 so "no dry run yet" can't coincide
+        // with a real count.
+        [ObservableProperty] private int backfillDryRunChangeCount = -1;
+
+        // The number you type to confirm. Bound to the textbox next to Commit.
+        [ObservableProperty] private string backfillConfirmCount = string.Empty;
+
+        // Human-readable outcome of the last action, shown beneath the buttons.
+        // The detailed report is always the .txt file on the Desktop; this is
+        // just the at-a-glance summary plus that file's path.
+        [ObservableProperty] private string backfillStatus = string.Empty;
+
+        [RelayCommand]
+        private async Task BackfillDryRunAsync()
+        {
+            try
+            {
+                var report = await _backfill.DryRunAsync();
+                BackfillDryRunChangeCount = report.FormsChanged;
+                BackfillStatus =
+                    $"Dry run complete. {report.FormsChanged} forms would change, "
+                    + $"{report.FormsUnchanged} unchanged, {report.FormsAnomalous} anomalies, "
+                    + $"{report.DuplicateCells} duplicate cells. "
+                    + $"To commit, type {report.FormsChanged} in the box and press Commit.\n"
+                    + $"Full report: {report.ReportFilePath}";
+            }
+            catch (Exception ex)
+            {
+                BackfillStatus = $"Dry run failed: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task BackfillCommitAsync()
+        {
+            if (!int.TryParse(BackfillConfirmCount, out var typed))
+            {
+                BackfillStatus = "Enter the exact change count from the dry run to commit.";
+                return;
+            }
+
+            try
+            {
+                var report = await _backfill.CommitAsync(typed);
+                BackfillStatus =
+                    $"COMMITTED. {report.FormsChanged} forms updated. "
+                    + $"Report: {report.ReportFilePath}";
+                BackfillConfirmCount = string.Empty;
+                BackfillDryRunChangeCount = -1;
+            }
+            catch (Exception ex)
+            {
+                // The service throws if no dry run ran this session or the number
+                // doesn't match. Surface that message verbatim — it's written to
+                // be read by exactly this caller.
+                BackfillStatus = $"Commit refused: {ex.Message}";
+            }
+        }
+
+        // ====================================================================
+        // TEMPORARY MAINTENANCE — BULK FORM COMPLETION
+        // One-time: mark every form due on/before the cutoff (and not already
+        // compliant) as complete, stamping the due date. Remove this region and
+        // its controls in SettingsWindow.xaml with the rest of the scaffolding.
+        // ====================================================================
+
+        // Cutoff, editable in the maintenance UI. Defaults to the agreed value;
+        // bound as text so the box starts populated but you can change it.
+        [ObservableProperty] private string bulkCompleteCutoff = "2026-06-10";
+
+        [ObservableProperty] private string bulkCompleteConfirmCount = string.Empty;
+        [ObservableProperty] private string bulkCompleteStatus = string.Empty;
+
+        [RelayCommand]
+        private async Task BulkCompleteDryRunAsync()
+        {
+            if (!DateTime.TryParse(BulkCompleteCutoff, out var cutoff))
+            {
+                BulkCompleteStatus = "Cutoff date is not a valid date (use yyyy-MM-dd).";
+                return;
+            }
+
+            try
+            {
+                var report = await _bulkCompletion.DryRunAsync(cutoff);
+                BulkCompleteStatus =
+                    $"Dry run complete. {report.FormsMarked} forms would be marked complete "
+                    + $"(cutoff {report.Cutoff:yyyy-MM-dd}, inclusive); "
+                    + $"{report.AlreadyCompliant} already compliant and untouched. "
+                    + $"To commit, type {report.FormsMarked} in the box and press Commit.\n"
+                    + $"Full report: {report.ReportFilePath}";
+            }
+            catch (Exception ex)
+            {
+                BulkCompleteStatus = $"Dry run failed: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task BulkCompleteCommitAsync()
+        {
+            if (!DateTime.TryParse(BulkCompleteCutoff, out var cutoff))
+            {
+                BulkCompleteStatus = "Cutoff date is not a valid date (use yyyy-MM-dd).";
+                return;
+            }
+
+            if (!int.TryParse(BulkCompleteConfirmCount, out var typed))
+            {
+                BulkCompleteStatus = "Enter the exact count from the dry run to commit.";
+                return;
+            }
+
+            try
+            {
+                var report = await _bulkCompletion.CommitAsync(cutoff, typed);
+                BulkCompleteStatus =
+                    $"COMMITTED. {report.FormsMarked} forms marked complete. "
+                    + $"Report: {report.ReportFilePath}";
+                BulkCompleteConfirmCount = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                BulkCompleteStatus = $"Commit refused: {ex.Message}";
+            }
         }
 
         [ObservableProperty] private int abandonedAfterDays;

@@ -44,6 +44,7 @@ namespace Sati.Data
                     // on the anniversary itself. Comp Assessment is due 120 days
                     // earlier so the next year's PCP can be informed by it.
                     // Reclassification is due 30 days earlier (Evergreen workflow).
+                    Q4RDaysBeforeAnniversary = 5,
                     PcpDaysBeforeAnniversary = 0,
                     CompAssessmentDaysBeforeAnniversary = 120,
                     ReclassificationDaysBeforeAnniversary = 30,

@@ -1,0 +1,425 @@
+﻿<UserControl x:Class="Sati.Views.ReviewsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Sati.Converters"
+             xmlns:local="clr-namespace:Sati"
+             Background="#FDF6EC">
+
+    <UserControl.Resources>
+        <converters:ReviewStageToBrushConverter x:Key="StageToBrush" />
+
+        <!-- Strips the built-in "Select a date" watermark. DatePicker renders it
+             from DatePickerTextBox's template, so the only way to remove it is to
+             supply a template without the watermark part. PART_ContentHost must
+             keep its name — DatePickerTextBox looks it up by name to host the
+             editable text. Scoped to this view's resources so app-wide DatePickers
+             keep their watermark. -->
+        <Style TargetType="DatePickerTextBox">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DatePickerTextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="LabelStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Foreground"
+                    Value="#9C7A5C" />
+            <Setter Property="Margin"
+                    Value="0,0,0,5" />
+        </Style>
+
+        <Style x:Key="SectionHeader"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="FontWeight"
+                    Value="Bold" />
+            <Setter Property="Foreground"
+                    Value="#3D2B1F" />
+            <Setter Property="Margin"
+                    Value="0,0,0,8" />
+        </Style>
+
+        <!-- One block per review item. Fill encodes stage; the letter names the
+             category. Foreground flips light on the two dark fills so the label
+             stays legible without a second converter. -->
+        <DataTemplate x:Key="CellBlockTemplate">
+            <Border Height="22"
+                    Margin="1"
+                    Padding="7,0"
+                    CornerRadius="3"
+                    Background="{Binding Stage, Converter={StaticResource StageToBrush}}"
+                    ToolTip="{Binding Tooltip}">
+                <TextBlock Text="{Binding ShortLabel}"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground"
+                                    Value="#6B4E2E" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Stage}"
+                                             Value="Received">
+                                    <Setter Property="Foreground"
+                                            Value="#FDF6EC" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Stage}"
+                                             Value="Logged">
+                                    <Setter Property="Foreground"
+                                            Value="#FDF6EC" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </DataTemplate>
+
+        <!-- Current-quarter outline. One style per quarter because a DataTrigger
+             can only test equality against a literal — it can't compare two
+             bindings — so each needs its own IsQnCurrent binding. The shared
+             geometry lives on the base style; only the trigger differs.
+             Border sits outside the Button so it can't interfere with the
+             QuarterCellButton style's IsMouseOver trigger. -->
+        <Style x:Key="QuarterOutlineBase"
+               TargetType="Border">
+            <Setter Property="BorderBrush"
+                    Value="Transparent" />
+            <Setter Property="BorderThickness"
+                    Value="2" />
+            <Setter Property="CornerRadius"
+                    Value="5" />
+            <Setter Property="Margin"
+                    Value="2" />
+        </Style>
+
+        <Style x:Key="Q1Outline"
+               TargetType="Border"
+               BasedOn="{StaticResource QuarterOutlineBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsQ1Current}"
+                             Value="True">
+                    <Setter Property="BorderBrush"
+                            Value="#C87941" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Q2Outline"
+               TargetType="Border"
+               BasedOn="{StaticResource QuarterOutlineBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsQ2Current}"
+                             Value="True">
+                    <Setter Property="BorderBrush"
+                            Value="#C87941" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Q3Outline"
+               TargetType="Border"
+               BasedOn="{StaticResource QuarterOutlineBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsQ3Current}"
+                             Value="True">
+                    <Setter Property="BorderBrush"
+                            Value="#C87941" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Q4Outline"
+               TargetType="Border"
+               BasedOn="{StaticResource QuarterOutlineBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsQ4Current}"
+                             Value="True">
+                    <Setter Property="BorderBrush"
+                            Value="#C87941" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A quarter cell: the blocks for that quarter, wrapped, inside a button
+             so the whole cell is the click target for selection. -->
+        <Style x:Key="QuarterCellButton"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Left" />
+            <Setter Property="Padding"
+                    Value="4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Left"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#F5E6D3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══ HEADER ═══ -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    Margin="0,0,0,12">
+            <TextBlock Text="REVIEWS"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Foreground="#3D2B1F"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0" />
+
+            <Button Command="{Binding RefreshCommand}"
+                    ToolTip="Reload and generate any missing review items"
+                    Width="32"
+                    Height="32"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand">
+                <TextBlock Text="&#xE72C;"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="14"
+                           Foreground="#9C7A5C" />
+            </Button>
+
+            <TextBlock Text="Loading…"
+                       Foreground="#9C7A5C"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </StackPanel>
+
+        <!-- ═══ CASELOAD GRID ═══ -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6">
+            <DataGrid ItemsSource="{Binding Rows}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="False"
+                      HeadersVisibility="Column"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      RowBackground="White"
+                      AlternatingRowBackground="#FDF6EC"
+                      GridLinesVisibility="All"
+                      HorizontalGridLinesBrush="#F0E0D0"
+                      VerticalGridLinesBrush="#F0E0D0">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Client"
+                                            Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}"
+                                           Foreground="#3D2B1F"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"
+                                           Margin="8,4"
+                                           ToolTip="{Binding SurplusTooltip}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Q1"
+                                            Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Q1Outline}">
+                                    <Button Style="{StaticResource QuarterCellButton}"
+                                            Command="{Binding DataContext.SelectCellCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding Q1Selection}">
+                                        <ItemsControl ItemsSource="{Binding Q1Cells}"
+                                                      ItemTemplate="{StaticResource CellBlockTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Button>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Q2"
+                                            Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Q2Outline}">
+                                    <Button Style="{StaticResource QuarterCellButton}"
+                                            Command="{Binding DataContext.SelectCellCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding Q2Selection}">
+                                        <ItemsControl ItemsSource="{Binding Q2Cells}"
+                                                      ItemTemplate="{StaticResource CellBlockTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Button>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Q3"
+                                            Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Q3Outline}">
+                                    <Button Style="{StaticResource QuarterCellButton}"
+                                            Command="{Binding DataContext.SelectCellCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding Q3Selection}">
+                                        <ItemsControl ItemsSource="{Binding Q3Cells}"
+                                                      ItemTemplate="{StaticResource CellBlockTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Button>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Q4"
+                                            Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Q4Outline}">
+                                    <Button Style="{StaticResource QuarterCellButton}"
+                                            Command="{Binding DataContext.SelectCellCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding Q4Selection}">
+                                        <ItemsControl ItemsSource="{Binding Q4Cells}"
+                                                      ItemTemplate="{StaticResource CellBlockTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Button>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- ═══ DETAIL PANE ═══ -->
+        <Border Grid.Row="3"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16"
+                Visibility="{Binding HasSelectedCell, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="{Binding DetailHeader}"
+                           Style="{StaticResource SectionHeader}" />
+
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="130" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1"
+                               Text="REQUESTED"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBlock Grid.Column="2"
+                               Text="RECEIVED"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBlock Grid.Column="3"
+                               Text="LOGGED"
+                               Style="{StaticResource LabelStyle}" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding DetailCells}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="130" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding DisplayName}"
+                                           Foreground="#3D2B1F"
+                                           FontSize="13"
+                                           VerticalAlignment="Center" />
+
+                                <DatePicker Grid.Column="1"
+                                            SelectedDate="{Binding RequestedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Margin="0,0,8,0" />
+                                <DatePicker Grid.Column="2"
+                                            SelectedDate="{Binding ReceivedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Margin="0,0,8,0" />
+                                <DatePicker Grid.Column="3"
+                                            SelectedDate="{Binding LoggedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
