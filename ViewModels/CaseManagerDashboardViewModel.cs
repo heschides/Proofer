@@ -667,10 +667,10 @@ CalendarViewModel calendarViewModel,
         // Initialization
         // -------------------------------------------------------------------------
 
-        public void Initialize()
+        public async Task InitializeAsync()
         {
             LoggedInUser = _sessionService.CurrentUser;
-            _ = LoadAsync();
+            await LoadAsync();
         }
 
         // -------------------------------------------------------------------------

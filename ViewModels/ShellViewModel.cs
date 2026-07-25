@@ -149,7 +149,11 @@ namespace Sati.ViewModels
         public async Task InitializeAsync()
         {
             await Scratchpad.InitializeAsync();
-            _notesViewModel.Initialize();
+            // Awaited, not fire-and-forget: the dashboard's own People-load must finish
+            // before the NotesLog and Clients reloads run theirs. Overlapping People-loads
+            // each demand a LocalDB sort grant and stall on RESOURCE_SEMAPHORE; sequenced,
+            // only one grant is live at a time.
+            await _notesViewModel.InitializeAsync();
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
 
@@ -166,7 +170,7 @@ namespace Sati.ViewModels
             await Scratchpad.SaveScratchpadAsync(Scratchpad.ScratchpadContent);
             await Scratchpad.InitializeAsync();
             _notesViewModel.Reset();
-            _notesViewModel.Initialize();
+            await _notesViewModel.InitializeAsync();
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
             OnPropertyChanged(nameof(UserGreeting));

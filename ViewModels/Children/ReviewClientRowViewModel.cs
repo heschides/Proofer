@@ -44,11 +44,23 @@ namespace Sati.ViewModels.Children
         public ObservableCollection<ReviewCellViewModel> Q2Cells { get; } = [];
         public ObservableCollection<ReviewCellViewModel> Q3Cells { get; } = [];
         public ObservableCollection<ReviewCellViewModel> Q4Cells { get; } = [];
-
         public ReviewCellSelection Q1Selection { get; }
         public ReviewCellSelection Q2Selection { get; }
         public ReviewCellSelection Q3Selection { get; }
         public ReviewCellSelection Q4Selection { get; }
+
+        // The single column shown in relative mode: the cells for whichever
+        // quarter the client is currently in. Empty when CurrentQuarter is null
+        // (no effective date) — reads as a blank row, which is correct for a
+        // client with no cycle rather than a reason to hide them.
+        public ObservableCollection<ReviewCellViewModel> CurrentQuarterCells =>
+            CurrentQuarter is int q ? CellsForQuarter(q) : [];
+
+        // Null-cycle clients aren't clickable in relative mode — there's no
+        // quarter to open. The XAML binds the button's command parameter to this;
+        // a null parameter is a harmless no-op through SelectCell.
+        public ReviewCellSelection? CurrentQuarterSelection =>
+            CurrentQuarter is int q ? new ReviewCellSelection(this, q) : null;
 
         // More support arrangements than the four quarterly review slots can
         // cover. Compliance is unaffected — any four satisfy the requirement —

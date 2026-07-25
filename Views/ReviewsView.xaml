@@ -224,6 +224,68 @@
                            Foreground="#9C7A5C" />
             </Button>
 
+            <!-- View toggle. Unchecked = relative (current quarter only, with the
+                 explainer); checked = all four quarters. Glyph swaps to signal the
+                 mode: a single column vs. a grid. The two layouts in Row 1 collapse
+                 against IsChecked via the BoolToVisibility converter. -->
+            <ToggleButton IsChecked="{Binding ShowAllQuarters}"
+                          Width="32"
+                          Height="32"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Cursor="Hand"
+                          Margin="4,0,0,0">
+                <ToggleButton.Style>
+                    <Style TargetType="ToggleButton">
+                        <Setter Property="ToolTip"
+                                Value="Showing each client's current quarter — click to show all four" />
+                        <Style.Triggers>
+                            <Trigger Property="IsChecked"
+                                     Value="True">
+                                <Setter Property="ToolTip"
+                                        Value="Showing all four quarters — click to show current quarter only" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ToggleButton.Style>
+                <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                       FontSize="14"
+                                       Foreground="#9C7A5C"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <!-- E71D: single column (relative) -->
+                                        <Setter Property="Text"
+                                                Value="&#xE71D;" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked,
+                                                         RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                                         Value="True">
+                                                <!-- E80A: grid (absolute) -->
+                                                <Setter Property="Text"
+                                                        Value="&#xE80A;" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="#F5E6D3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </ToggleButton.Template>
+            </ToggleButton>
+
             <TextBlock Text="Loading…"
                        Foreground="#9C7A5C"
                        FontSize="12"
@@ -232,12 +294,13 @@
                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}" />
         </StackPanel>
 
-        <!-- ═══ CASELOAD GRID ═══ -->
+        <!-- ═══ CASELOAD GRID — ABSOLUTE (all four quarters) ═══ -->
         <Border Grid.Row="1"
                 Background="White"
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
-                CornerRadius="6">
+                CornerRadius="6"
+                Visibility="{Binding ShowAllQuarters, Converter={StaticResource BoolToVisibilityConverter}}">
             <DataGrid ItemsSource="{Binding Rows}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
@@ -359,6 +422,257 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
+
+        <!-- ═══ CASELOAD GRID — RELATIVE (current quarter only) + EXPLAINER ═══
+             Same Row 1 as the absolute grid; the two are mutually exclusive on
+             ShowAllQuarters. Left: one column, each client's current quarter.
+             Right: fixed-width onboarding panel with a geometry backdrop and a
+             legend pulled from the real stage brushes. -->
+        <Grid Grid.Row="1"
+              Visibility="{Binding ShowAllQuarters, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="540" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Single-column grid -->
+            <Border Grid.Column="0"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Margin="0,0,12,0">
+                <DataGrid ItemsSource="{Binding Rows}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserSortColumns="False"
+                          HeadersVisibility="Column"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="White"
+                          AlternatingRowBackground="#FDF6EC"
+                          GridLinesVisibility="All"
+                          HorizontalGridLinesBrush="#F0E0D0"
+                          VerticalGridLinesBrush="#F0E0D0">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Client"
+                                                Width="180">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               Foreground="#3D2B1F"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               Margin="8,4"
+                                               ToolTip="{Binding SurplusTooltip}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- The one data column: the client's current quarter.
+                             No outline style — "current" is the only thing shown,
+                             so highlighting it would be redundant. -->
+                        <DataGridTemplateColumn Header="Current Quarter"
+                                                Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource QuarterCellButton}"
+                                            Command="{Binding DataContext.SelectCellCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding CurrentQuarterSelection}">
+                                        <ItemsControl ItemsSource="{Binding CurrentQuarterCells}"
+                                                      ItemTemplate="{StaticResource CellBlockTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <!-- Explainer panel -->
+            <Border Grid.Column="1"
+                    CornerRadius="6"
+                    ClipToBounds="True"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1">
+                <Grid>
+                    <!-- Geometry backdrop: palette gradient + soft off-edge rings.
+                         Pure shape, recolors with the theme, no image asset. -->
+                    <Rectangle>
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0"
+                                                 EndPoint="1,1">
+                                <GradientStop Color="#FBF3E8"
+                                              Offset="0" />
+                                <GradientStop Color="#F3E4CF"
+                                              Offset="1" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Canvas>
+                        <Ellipse Canvas.Left="180"
+                                 Canvas.Top="-90"
+                                 Width="280"
+                                 Height="280"
+                                 Stroke="#E8D0B8"
+                                 StrokeThickness="18"
+                                 Opacity="0.35" />
+                        <Ellipse Canvas.Left="230"
+                                 Canvas.Top="-40"
+                                 Width="180"
+                                 Height="180"
+                                 Stroke="#D9B48F"
+                                 StrokeThickness="14"
+                                 Opacity="0.30" />
+                        <Ellipse Canvas.Left="-70"
+                                 Canvas.Top="420"
+                                 Width="260"
+                                 Height="260"
+                                 Stroke="#C9B79C"
+                                 StrokeThickness="16"
+                                 Opacity="0.25" />
+                    </Canvas>
+
+                    <!-- Content -->
+                    <StackPanel Margin="22,24,22,24">
+                        <TextBlock Text="90-Day Reviews"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="#3D2B1F" />
+                        <TextBlock Text="Each client's quarterly reviews, tracked from request to completion."
+                                   FontSize="12.5"
+                                   Foreground="#6B4E2E"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,18" />
+
+                        <!-- Legend. Swatch colors come from the same hex values as
+                             ReviewStageToBrushConverter; if that palette changes,
+                             update these to match. -->
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,9">
+                                <Border Width="26"
+                                        Height="18"
+                                        CornerRadius="3"
+                                        Background="#F5E6D3"
+                                        Margin="0,0,10,0" />
+                                <StackPanel>
+                                    <TextBlock Text="Not Started"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#3D2B1F" />
+                                    <TextBlock Text="Nothing recorded yet for this item."
+                                               FontSize="11"
+                                               Foreground="#6B4E2E" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,9">
+                                <Border Width="26"
+                                        Height="18"
+                                        CornerRadius="3"
+                                        Background="#B08553"
+                                        Margin="0,0,10,0" />
+                                <StackPanel>
+                                    <TextBlock Text="Requested"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#3D2B1F" />
+                                    <TextBlock Text="You've asked the provider for the documentation."
+                                               FontSize="11"
+                                               Foreground="#6B4E2E"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,9">
+                                <Border Width="26"
+                                        Height="18"
+                                        CornerRadius="3"
+                                        Background="#A8C5D6"
+                                        Margin="0,0,10,0" />
+                                <StackPanel>
+                                    <TextBlock Text="Received"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#3D2B1F" />
+                                    <TextBlock Text="The documentation has come back."
+                                               FontSize="11"
+                                               Foreground="#6B4E2E" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,0">
+                                <Border Width="26"
+                                        Height="18"
+                                        CornerRadius="3"
+                                        Background="#6B8E6B"
+                                        Margin="0,0,10,0" />
+                                <StackPanel>
+                                    <TextBlock Text="Logged"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#3D2B1F" />
+                                    <TextBlock Text="The date is entered; this quarter's 90-day review is complete."
+                                               FontSize="11"
+                                               Foreground="#6B4E2E"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Height="1"
+                                Background="#E8D0B8"
+                                Margin="0,18,0,14" />
+
+                        <TextBlock FontSize="11"
+                                   Foreground="#6B4E2E"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10">
+                            <Run Text="By default, each client shows only their " />
+                            <Run Text="current quarter"
+                                 FontWeight="SemiBold" />
+                            <Run Text=". Use the toggle above to see all four." />
+                        </TextBlock>
+
+                        <TextBlock FontSize="11"
+                                   Foreground="#6B4E2E"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10">
+                            <Run Text="The items shown per client adjust with the services on that client's record, under the " />
+                            <Run Text="Clients"
+                                 FontWeight="SemiBold" />
+                            <Run Text=" tab." />
+                        </TextBlock>
+                        
+                        <TextBlock FontSize="11"
+                                   Foreground="#6B4E2E"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10">
+    <Run Text="The Medical tile signifies doctor appointment dates.  The Dental tile, dentist appointments.  The Goals tile represents the Goals portion of a PCP revised for the 90-day review.  The Employment tab represents documentation required for consumers who work without work supports.  Additional tiles are for service provider notes required for quarterly reviews. " />
+                            
+                        </TextBlock>
+
+                        <TextBlock FontSize="11"
+                                   Foreground="#6B4E2E"
+                                   TextWrapping="Wrap">
+<Run Text="When you select a row within the Current Quarter column, you'll be able to enter dates for when the items were requested, received, and logged." />
+
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- ═══ DETAIL PANE ═══ -->
         <Border Grid.Row="3"

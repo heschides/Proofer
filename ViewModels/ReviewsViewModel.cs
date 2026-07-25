@@ -26,6 +26,12 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private bool isLoading;
 
+        // False (default) = relative mode: one column per client, their current
+        // quarter only, with the explainer panel. True = absolute mode: all four
+        // quarters. Not persisted — resets to the friendly default each launch.
+        [ObservableProperty]
+        private bool showAllQuarters;
+
         // -------------------------------------------------------------------------
         // Collections
         // -------------------------------------------------------------------------
