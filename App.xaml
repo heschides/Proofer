@@ -258,6 +258,9 @@
         <DataTemplate DataType="{x:Type viewmodels:CaseManagerDashboardViewModel}">
             <views:CaseManagerDashboardView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type children:NoteEntryViewModel}">
+            <views:NoteEntryView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type supervisorVms:SupervisorDashboardViewModel}">
             <views:SupervisorDashboardWindow />
         </DataTemplate>

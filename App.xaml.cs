@@ -94,6 +94,10 @@ namespace Sati
                         services.AddTransient<SchedulerViewModel>();
                         services.AddTransient<NewClientViewModel>();
 
+                        // Transient by intent: injected into two singleton hosts
+                        // (CaseManagerDashboardViewModel, NotesWindowViewModel),
+                        // each capturing its own long-lived, isolated instance.
+                        services.AddTransient<NoteEntryViewModel>();
                         services.AddSingleton<BillingDashboardViewModel>();
                         services.AddSingleton<BillingOverviewViewModel>();
                         services.AddSingleton<BillingQueueViewModel>();

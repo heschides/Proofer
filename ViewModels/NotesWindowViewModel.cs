@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Models;
+using Sati.ViewModels.Children;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -19,6 +20,11 @@ namespace Sati.ViewModels
         private readonly ISessionService _sessionService;
         private readonly INoteService _noteService;
 
+        // True when the open dialog was triggered by a billing-window block rather
+        // than a paperwork-gate failure. Same fork as the entry module: window
+        // block => Hold saves ComplianceBlocked; paperwork gate => HeldForCompliance.
+        private bool _dialogIsWindowBlock;
+
         private readonly ObservableCollection<Note> _allNotes = [];
 
         private static readonly Person AllPersonsSentinel = Person.CreateSentinel("All Persons");
@@ -33,6 +39,7 @@ namespace Sati.ViewModels
         public ObservableCollection<Person?> FilterPeople { get; } = [AllPersonsSentinel];
 
         // PROPERTIES
+        public NoteEntryViewModel NoteEntry { get; }
         public ICollectionView NotesView { get; }
 
         [ObservableProperty] private Person? _selectedFilterPerson = AllPersonsSentinel;
@@ -72,13 +79,32 @@ namespace Sati.ViewModels
         public int RangeTotalUnits => RangePendingUnits + RangeLoggedUnits;
 
         // CONSTRUCTOR
-        public NotesWindowViewModel(IPersonService personService, ISessionService sessionService, INoteService noteService)
+        public NotesWindowViewModel(
+            IPersonService personService,
+            ISessionService sessionService,
+            INoteService noteService,
+            NoteEntryViewModel noteEntryViewModel)
         {
             _personService = personService;
             _sessionService = sessionService;
             _noteService = noteService;
+            NoteEntry = noteEntryViewModel;
             NotesView = CollectionViewSource.GetDefaultView(_allNotes);
             NotesView.Filter = FilterNotes;
+
+            // Second host. Its own transient instance — drafts here never bleed
+            // into the dashboard's copy. FormNoteSavedAsync stays null by intent:
+            // form-completion side effects need the dashboard's SelectedPerson
+            // context, so a form note edited from NotesLog does not touch form
+            // state (matches pre-refactor behavior).
+            //
+            // On save: refresh this grid, then bubble to the dashboard via the
+            // existing NoteStatusChanged seam so productivity and the board track.
+            noteEntryViewModel.NoteSaved += async (s, e) =>
+            {
+                await ReloadAsync();
+                NoteStatusChanged?.Invoke(this, EventArgs.Empty);
+            };
         }
 
         // COMMANDS
@@ -97,9 +123,20 @@ namespace Sati.ViewModels
             if (SelectedNote is null) return;
 
             var (passed, reasons) = SelectedNote.Person.EvaluateComplianceGate(DateTime.Today,
-                            SelectedNote.NoteType == NoteType.Form ? SelectedNote.FormType : null); if (!passed)
+                SelectedNote.NoteType == NoteType.Form ? SelectedNote.FormType : null);
+
+            // Window check keyed to the note's date — previously missing here,
+            // which let notes inside a missed-form window get Logged from the
+            // context menu when the dashboard would have blocked them. Notes
+            // without an EventDate skip the window check (nothing to key on).
+            var windowReasons = SelectedNote.EventDate is DateTime eventDate
+                ? SelectedNote.Person.EvaluateBillingWindow(eventDate)
+                : [];
+
+            if (!passed || windowReasons.Count > 0)
             {
-                ComplianceFailureReasons = reasons;
+                _dialogIsWindowBlock = windowReasons.Count > 0;
+                ComplianceFailureReasons = reasons.Concat(windowReasons).ToList();
                 PendingJustification = string.Empty;
                 IsComplianceDialogVisible = true;
                 return;
@@ -121,7 +158,10 @@ namespace Sati.ViewModels
         private async Task HoldForCompliance()
         {
             if (SelectedNote is null) return;
-            SelectedNote.Status = NoteStatus.HeldForCompliance;
+            SelectedNote.Status = _dialogIsWindowBlock
+                ? NoteStatus.ComplianceBlocked
+                : NoteStatus.HeldForCompliance;
+            _dialogIsWindowBlock = false;
             await _noteService.UpdateNoteAsync(SelectedNote);
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
@@ -138,6 +178,7 @@ namespace Sati.ViewModels
             SelectedNote.Status = NoteStatus.Logged;
             SelectedNote.CaseManagerJustification = PendingJustification;
             await _noteService.UpdateNoteAsync(SelectedNote);
+            _dialogIsWindowBlock = false;
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             RefreshView();
@@ -146,6 +187,7 @@ namespace Sati.ViewModels
         [RelayCommand]
         private void CancelComplianceDialog()
         {
+            _dialogIsWindowBlock = false;
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             NotesView.Refresh();
@@ -197,6 +239,10 @@ namespace Sati.ViewModels
                 foreach (var note in person.Notes)
                     _allNotes.Add(note);
             }
+
+            // Real people only — the sentinel would render as a bogus "All Persons"
+            // client in the module's combobox.
+            NoteEntry.SetPeople(people);
 
             NotesView.Refresh();
             OnPropertyChanged(nameof(ReturnedCount));

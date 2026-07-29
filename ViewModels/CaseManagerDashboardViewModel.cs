@@ -28,7 +28,6 @@ namespace Sati.ViewModels
         private readonly ISessionService _sessionService;
         private readonly IUpcomingEventService _upcomingEventService;
         private readonly IFormService _formService;
-        private readonly Func<string, UserMessageDialog> _validationDialog;
         private readonly IExemptDateService _exemptDateService;
         private Settings? _settings;
         private Incentive? _incentive;
@@ -47,8 +46,8 @@ namespace Sati.ViewModels
             IIncentiveService incentiveService,
             ISessionService sessionService,
             IUpcomingEventService upcomingEventService,
-            IFormService formService,
-            Func<string, UserMessageDialog> validationDialog,
+IFormService formService,
+            NoteEntryViewModel noteEntryViewModel,
             NotesWindowViewModel notesWindowViewModel,
             NewClientViewModel newClientViewModel,
 CalendarViewModel calendarViewModel,
@@ -64,9 +63,8 @@ CalendarViewModel calendarViewModel,
             _sessionService = sessionService;
             _upcomingEventService = upcomingEventService;
             _formService = formService;
-            _validationDialog = validationDialog;
             _exemptDateService = exemptDateService;
-            NotesView = CollectionViewSource.GetDefaultView(Notes);
+            NoteEntry = noteEntryViewModel; NotesView = CollectionViewSource.GetDefaultView(Notes);
             NotesView.Filter = FilterNotes;
             NotesLog = notesWindowViewModel;
             Calendar = calendarViewModel;
@@ -74,6 +72,29 @@ CalendarViewModel calendarViewModel,
             Statistics = statisticsViewModel;
             Reviews = reviewsViewModel;
 
+            // Mirror the module's client selection onto the dashboard. One-way:
+            // the CLIENT combobox lives in the module now, but the notes grid and
+            // compliance checkboxes still key off this VM's SelectedPerson.
+            // Instance assignment is safe — SetPeople hands the module the same
+            // Person instances this VM holds.
+            noteEntryViewModel.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(NoteEntryViewModel.SelectedPerson))
+                    SelectedPerson = NoteEntry.SelectedPerson;
+            };
+
+            // Form side effects, awaited by the module BEFORE NoteSaved fires.
+            // Preserves the old split: new form notes → FormStatusRequested;
+            // edited form notes → MarkFormCompleteRequested.
+            noteEntryViewModel.FormNoteSavedAsync = async (formType, wasEdit) =>
+            {
+                if (wasEdit)
+                    MarkFormCompleteRequested?.Invoke(this, formType);
+                else if (FormStatusRequested is not null)
+                    await FormStatusRequested(formType);
+            };
+
+            noteEntryViewModel.NoteSaved += async (s, e) => await OnNoteSavedAsync();
 
             newClientViewModel.FormComplianceChanged += async (s, e) =>
             {
@@ -105,6 +126,7 @@ CalendarViewModel calendarViewModel,
         // Properties
         // -------------------------------------------------------------------------
 
+        public NoteEntryViewModel NoteEntry { get; }
         public NotesWindowViewModel NotesLog { get; }
         public NewClientViewModel Clients { get; }
         public CaseloadMatrixViewModel? Matrix { get; private set; }
@@ -127,28 +149,11 @@ CalendarViewModel calendarViewModel,
         [ObservableProperty] private Note? selectedNote;
         [ObservableProperty] private string? searchText;
         [ObservableProperty] private NoteStatus? filterStatus;
-        [ObservableProperty] private NoteStatus? status;
-        [ObservableProperty] private NoteType? selectedNoteType;
-        [ObservableProperty] private FormType? selectedFormType;
-        [ObservableProperty] private string? narrative;
-        [ObservableProperty] private int? minutes;
-        [ObservableProperty] private DateTime? eventDate;
-        [ObservableProperty] private bool isEditing;
         [ObservableProperty] private bool sortByDate = true;
         [ObservableProperty] private bool showOverdue;
         [ObservableProperty] private BoardTab selectedTab = BoardTab.All;
         [ObservableProperty] private BoardDateFilter dateFilter = BoardDateFilter.TwoWeeks;
-        [ObservableProperty] private double narrativeFontSize = 14;
-        [ObservableProperty] private bool isComplianceDialogVisible;
-        [ObservableProperty] private string pendingJustification = string.Empty;
-        [ObservableProperty] private IReadOnlyList<string> complianceFailureReasons = [];
 
-        // True when the current dialog was triggered by a billing-window block (note
-        // date inside a missed-form window), as opposed to a current-cycle paperwork
-        // gate failure. Decides the non-supervisor outcome: window block => the note
-        // is saved ComplianceBlocked (not billable, audit-trail evidence); paperwork
-        // gate => HeldForCompliance as before. Set when the dialog opens, read in Hold.
-        private bool _dialogIsWindowBlock;
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -172,12 +177,6 @@ CalendarViewModel calendarViewModel,
         {
             LoadNotesForPersonAsync(value);
             RefreshComplianceFlags();
-            IsEditing = false;
-            Status = null;
-            Narrative = string.Empty;
-            EventDate = null;
-            SelectedNoteType = null;
-            SelectedFormType = null;
         }
 
         partial void OnSortByDateChanged(bool value)
@@ -208,49 +207,7 @@ CalendarViewModel calendarViewModel,
         partial void OnSearchTextChanged(string? value) => NotesView.Refresh();
         partial void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
 
-        partial void OnSelectedNoteTypeChanged(NoteType? value)
-        {
-            OnPropertyChanged(nameof(IsFormNote));
 
-            if (value != NoteType.Form)
-                SelectedFormType = null;
-
-            if (value is null || !string.IsNullOrWhiteSpace(Narrative))
-                return;
-
-            Narrative = value.Value switch
-            {
-                NoteType.Visit => _settings?.VisitTemplate ?? string.Empty,
-                NoteType.Contact => _settings?.ContactTemplate ?? string.Empty,
-                _ => string.Empty
-            };
-        }
-
-        partial void OnSelectedFormTypeChanged(FormType? value)
-        {
-            if (value is null || SelectedPerson is null || !string.IsNullOrWhiteSpace(Narrative))
-                return;
-
-            var user = _sessionService.CurrentUser?.DisplayName ?? "Case Manager";
-            var client = SelectedPerson.FullName;
-
-            Narrative = value switch
-            {
-                FormType.Q1R => $"{user} completed the Q1 90-Day Review for {client}.",
-                FormType.Q2R => $"{user} completed the Q2 90-Day Review for {client}.",
-                FormType.Q3R => $"{user} completed the Q3 90-Day Review for {client}.",
-                FormType.Q4R => $"{user} completed the Q4 90-Day Review for {client}.",
-                FormType.PCP => $"{user} attached the signed PCP and set the plan's status to \"Complete.\"",
-                FormType.ComprehensiveAssessment => $"{user} completed the Comprehensive Assessment for {client}.",
-                FormType.Reclassification => $"{user} completed the Reclassification for {client}.",
-                FormType.SafetyPlan => $"{user} received the signed Safety Plan from {client} and filed it with annual documentation.",
-                FormType.PrivacyPractices => $"{user} received the signed Privacy Practices form from {client} and filed it with annual documentation.",
-                FormType.Release_Agency => $"{user} received the signed Agency Release from {client} and filed it with annual documentation.",
-                FormType.Release_DHHS => $"{user} received the signed DHHS Release from {client} and filed it with annual documentation.",
-                FormType.Release_Medical => $"{user} received the signed Medical Release from {client} and filed it with annual documentation.",
-                _ => string.Empty
-            };
-        }
 
         // -------------------------------------------------------------------------
         // Collections & computed properties
@@ -278,8 +235,6 @@ CalendarViewModel calendarViewModel,
         public ICollectionView NotesView { get; }
 
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
-        public Array FormTypes => Enum.GetValues(typeof(FormType));
-
         public IEnumerable<UpcomingEvent> AllEvents
         {
             get
@@ -429,7 +384,6 @@ CalendarViewModel calendarViewModel,
                 .Concat(ScheduledEvents().Cast<object>())
                 .OrderBy(item => item is FormTaskRow row ? row.DueDate : ((UpcomingEvent)item).Date);
         }
-        public bool IsFormNote => SelectedNoteType == NoteType.Form;
         public int Threshold
         {
             get
@@ -481,7 +435,8 @@ CalendarViewModel calendarViewModel,
         // -------------------------------------------------------------------------
         [RelayCommand] private void SelectUpcomingTab() => ShowOverdue = false;
         [RelayCommand] private void SelectOverdueTab() => ShowOverdue = true;
-        [RelayCommand] private void NavigateToOverview() => CurrentSubViewModel = null; [RelayCommand] private void NavigateToClients() => CurrentSubViewModel = Clients;
+        [RelayCommand] private void NavigateToOverview() => CurrentSubViewModel = null; 
+        [RelayCommand] private void NavigateToClients() => CurrentSubViewModel = Clients;
         [RelayCommand] private void NavigateToNotesLog() => CurrentSubViewModel = NotesLog;
         [RelayCommand]
         private void NavigateToMatrix() 
@@ -509,9 +464,7 @@ CalendarViewModel calendarViewModel,
             await Reviews.LoadAsync();
             CurrentSubViewModel = Reviews;
         }
-        [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
-        [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
-        [RelayCommand] private void ClearNote() => ResetForm();
+
         [RelayCommand]
         private async Task DeleteNote()
         {
@@ -528,7 +481,6 @@ CalendarViewModel calendarViewModel,
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
             SelectedNote = null;
-            ClearNoteFields();
         }
 
         [RelayCommand]
@@ -606,63 +558,6 @@ CalendarViewModel calendarViewModel,
             Matrix?.Rebuild(People, DateTime.Today);
         }
 
-        [RelayCommand]
-        public async Task SubmitNote()
-        {
-            var errors = new List<string>();
-
-            if (SelectedPerson is null) errors.Add("• Please select a client.");
-            if (Status is null) errors.Add("• Please select a status.");
-            if (EventDate is null) errors.Add("• Please enter a date.");
-            if (string.IsNullOrWhiteSpace(Narrative)) errors.Add("• Please enter a narrative.");
-            if (SelectedNoteType is null) errors.Add("• Please select a note type.");
-
-            if (errors.Count > 0)
-            {
-                var dialog = new UserMessageDialog(string.Join("\n", errors)) { Owner = Application.Current.MainWindow };
-                dialog.ShowDialog();
-                return;
-            }
-
-            try
-            {
-                if (Status == NoteStatus.Logged)
-                {
-                    var (passed, reasons) = SelectedPerson!.EvaluateComplianceGate(DateTime.Today,
-                        SelectedNoteType == NoteType.Form ? SelectedFormType : null);
-
-                    // Window check is keyed to the NOTE's date, not today. EventDate is
-                    // non-null here — validated at the top of SubmitNote — so the
-                    // .Value is safe.
-                    var windowReasons = SelectedPerson!.EvaluateBillingWindow(EventDate!.Value);
-
-                    if (!passed || windowReasons.Count > 0)
-                    {
-                        // Combine both sets of reasons for the one dialog. The window
-                        // flag drives the Hold outcome: if any window block is present,
-                        // a held note becomes ComplianceBlocked rather than HeldForCompliance.
-                        _dialogIsWindowBlock = windowReasons.Count > 0;
-                        ComplianceFailureReasons = reasons.Concat(windowReasons).ToList();
-                        PendingJustification = string.Empty;
-                        IsComplianceDialogVisible = true;
-                        return;
-                    }
-                }
-
-                if (!IsEditing)
-                    await SubmitNewNoteAsync();
-                else
-                    await SubmitEditedNoteAsync();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"SubmitNote failed: {ex.Message}");
-                MessageBox.Show(
-                    "Sati encountered an error saving your note. Please try again.",
-                    "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
         // -------------------------------------------------------------------------
         // Initialization
         // -------------------------------------------------------------------------
@@ -670,6 +565,7 @@ CalendarViewModel calendarViewModel,
         public async Task InitializeAsync()
         {
             LoggedInUser = _sessionService.CurrentUser;
+            await NoteEntry.InitializeAsync();
             await LoadAsync();
         }
 
@@ -708,107 +604,20 @@ CalendarViewModel calendarViewModel,
             }
         }
 
-        [RelayCommand]
-        private async Task HoldForCompliance()
+
+
+        // The reload cascade that used to tail SubmitNewNoteAsync/SubmitEditedNoteAsync.
+        // Fires after the module has saved and awaited its form side effects.
+        // LoadPeopleAsync → SetPeople re-selects by Id inside the module; the mirror
+        // then updates SelectedPerson here, which re-runs LoadNotesForPersonAsync and
+        // RefreshComplianceFlags — grid and checkboxes track without explicit calls.
+        private async Task OnNoteSavedAsync()
         {
-            // A window block can't be "held for paperwork" — the note's date sits in a
-            // missed-form window and isn't billable for that date. It's saved
-            // ComplianceBlocked: not Logged, distinct from Abandoned, an audit record of
-            // a unit suppressed by a missed form. A pure paperwork-gate failure keeps the
-            // existing HeldForCompliance behavior.
-            Status = _dialogIsWindowBlock
-                ? NoteStatus.ComplianceBlocked
-                : NoteStatus.HeldForCompliance;
-            _dialogIsWindowBlock = false;
-            IsComplianceDialogVisible = false;
-            PendingJustification = string.Empty;
-            if (IsEditing)
-                await SubmitEditedNoteAsync();
-            else
-                await SubmitNewNoteAsync();
-        }
-
-        [RelayCommand]
-        private async Task SendToSupervisor()
-        {
-            if (string.IsNullOrWhiteSpace(PendingJustification)) return;
-            var justification = PendingJustification;
-            IsComplianceDialogVisible = false;
-            PendingJustification = string.Empty;
-            if (IsEditing)
-                await SubmitEditedNoteAsync(justification);
-            else
-                await SubmitNewNoteAsync(justification);
-        }
-
-        [RelayCommand]
-        private void CancelComplianceDialog()
-        {
-            IsComplianceDialogVisible = false;
-            PendingJustification = string.Empty;
-        }
-
-        private async Task SubmitNewNoteAsync(string? caseManagerJustification = null)
-        {
-            // Capture the client before any reload — LoadPeopleAsync rebuilds the People
-            // collection with fresh instances, which drops the current SelectedPerson.
-            var keepPersonId = SelectedPerson!.Id;
-
-            var note = Note.Create(Narrative!, EventDate, Status, Minutes, SelectedPerson!.Id, SelectedFormType, SelectedNoteType);
-            if (caseManagerJustification is not null)
-                note.CaseManagerJustification = caseManagerJustification;
-            var savedNote = await _noteService.AddNoteAsync(note);
-
-            if (note.NoteType == NoteType.Form && note.FormType.HasValue &&
-                            Status is NoteStatus.Pending or NoteStatus.Logged &&
-                            FormStatusRequested is not null)
-                await FormStatusRequested(note.FormType.Value);
-
             await LoadPeopleAsync();
             await LoadMonthlyNotesAsync();
             await LoadUpcomingEventsAsync();
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
-
-            // Re-select the same client against the rebuilt collection so the combobox
-            // holds its selection, then clear only the note fields.
-            SelectedPerson = People.FirstOrDefault(p => p.Id == keepPersonId);
-            ClearNoteFields();
-        }
-
-        private async Task SubmitEditedNoteAsync(string? caseManagerJustification = null)
-        {
-            if (SelectedNote is null)
-                return;
-
-            var keepPersonId = SelectedPerson?.Id;
-
-            SelectedNote.Narrative = Narrative!;
-            SelectedNote.EventDate = EventDate;
-            SelectedNote.Minutes = Minutes ?? 0;
-            SelectedNote.Status = Status;
-            SelectedNote.NoteType = SelectedNoteType;
-            SelectedNote.FormType = SelectedFormType;
-
-            await _noteService.UpdateNoteAsync(SelectedNote);
-            NotesView.Refresh();
-
-            var formType = SelectedNote.FormType;
-            if (formType.HasValue && Status is NoteStatus.Pending or NoteStatus.Logged)
-                MarkFormCompleteRequested?.Invoke(this, formType.Value);
-
-            IsEditing = false;
-            await LoadPeopleAsync();
-            await LoadMonthlyNotesAsync();
-            await LoadUpcomingEventsAsync();
-            await NotesLog.ReloadAsync();
-            await Clients.ReloadAsync();
-
-            // Keep the same client selected after an edit, mirroring new-note submit.
-            SelectedPerson = keepPersonId is null
-                ? null
-                : People.FirstOrDefault(p => p.Id == keepPersonId.Value);
-            ClearNoteFields();
         }
 
         private async void LoadNotesForPersonAsync(Person? person)
@@ -845,6 +654,10 @@ CalendarViewModel calendarViewModel,
                 var people = await _personService.GetAllPeopleAsync(LoggedInUser!.Id);
                 foreach (var person in people)
                     People.Add(person);
+
+                // Hand the module the same instances. It re-selects by Id, and its
+                // same-Id guard preserves any in-progress draft.
+                NoteEntry.SetPeople(People);
 
                 OnPropertyChanged(nameof(BoardItems));
                 OnPropertyChanged(nameof(TabHasOverdue));
@@ -943,41 +756,15 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(ReleaseMedicalCompliant));
         }
 
-        // Full reset, including the selected client. Used only by the Clear button —
-        // the one place "start over completely" is the intent.
-        private void ResetForm()
-        {
-            SelectedPerson = null;
-            ClearNoteFields();
-        }
 
-        // Clears the note-entry fields but leaves SelectedPerson in place, so the case
-        // manager can log several notes for the same client in a row. Minutes is reset
-        // here too: OnSelectedPersonChanged doesn't cover it, so without this line it
-        // would leak from one submitted note into the next.
-        private void ClearNoteFields()
-        {
-            Status = null;
-            Narrative = string.Empty;
-            EventDate = null;
-            SelectedFormType = null;
-            SelectedNoteType = null;
-            Minutes = null;
-        }
-
+        // Double-click handoff: the grid's selection pushes into the module, which
+        // owns edit state now.
         public void EnterEditMode()
         {
             if (SelectedNote is null)
                 return;
 
-            IsEditing = true;
-            Narrative = SelectedNote.Narrative;
-            EventDate = SelectedNote.EventDate;
-            Minutes = SelectedNote.Minutes;
-            Status = SelectedNote.Status;
-            SelectedNoteType = SelectedNote.NoteType;
-            SelectedFormType = SelectedNote.FormType;
-            SelectedPerson = People.First(p => p.Id == SelectedNote.PersonId);
+            NoteEntry.EnterEditMode(SelectedNote);
         }
 
         private async Task LoadExemptDatesAsync()
@@ -1030,7 +817,7 @@ CalendarViewModel calendarViewModel,
             _exemptDatesForMonth = [];
             SelectedPerson = null;
             SelectedNote = null;
-            IsEditing = false;
+            NoteEntry.Reset();
         }
 
         public IEnumerable<EffectiveDateGroup> EffectiveDateGroups => BuildEffectiveDateGroups();

@@ -234,25 +234,46 @@
             </StackPanel>
         </Border>
 
-        <!-- ═══ NOTES DATAGRID ═══ -->
-        <Border Grid.Column="2"
-                Background="White"
-                BorderBrush="#E8D0B8"
-                BorderThickness="1"
-                CornerRadius="6">
-            <DataGrid ItemsSource="{Binding NotesView}"
-                      SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      RowBackground="White"
-                      AlternatingRowBackground="#FDF6EC"
-                      GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="#F0E0D0"
-                      HeadersVisibility="Column"
-                      SelectionMode="Single">
-                <DataGrid.ContextMenu>
+        <!-- ═══ NOTE ENTRY MODULE + NOTES DATAGRID ═══
+             Second host of the shared entry module. Its own instance — drafts
+             here are independent of the dashboard's copy. -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <!-- Proportional, not fixed: a fixed module height reserves the same
+                     pixels regardless of window size, so on a short screen (768px)
+                     it pushes the grid below the fold. Star-sizing lets both rows
+                     scale with the window — the module gets the larger share and its
+                     internal ScrollViewer absorbs any shortfall, while the grid keeps
+                     a guaranteed share and never leaves the viewport. MinHeight floors
+                     each so neither collapses to nothing on an extreme window. -->
+                <RowDefinition Height="4*"
+                               MinHeight="240" />
+                <RowDefinition Height="12" />
+                <RowDefinition Height="5*"
+                               MinHeight="140" />
+            </Grid.RowDefinitions>
+            <ContentControl Grid.Row="0"
+                            Content="{Binding NoteEntry}" />
+
+            <Border Grid.Row="2"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <DataGrid ItemsSource="{Binding NotesView}"
+                          SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                          MouseDoubleClick="DataGrid_MouseDoubleClick"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="White"
+                          AlternatingRowBackground="#FDF6EC"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#F0E0D0"
+                          HeadersVisibility="Column"
+                          SelectionMode="Single">
+                    <DataGrid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Mark Note Logged"
                                   Command="{Binding PlacementTarget.DataContext.MarkNoteLoggedCommand,
@@ -276,8 +297,9 @@
                                         Binding="{Binding Units}"
                                         Width="50" />
                 </DataGrid.Columns>
-            </DataGrid>
-        </Border>
+                </DataGrid>
+            </Border>
+        </Grid>
 
         <!-- ═══ NOTE DETAIL PANEL ═══ -->
         <Border Grid.Column="4"

@@ -154,11 +154,14 @@ namespace Sati.ViewModels
             // each demand a LocalDB sort grant and stall on RESOURCE_SEMAPHORE; sequenced,
             // only one grant is live at a time.
             await _notesViewModel.InitializeAsync();
+            // NotesLog hosts its own NoteEntry instance; the dashboard's init only
+            // covers the dashboard's copy. This loads the module's settings so its
+            // narrative templates populate.
+            await _notesViewModel.NotesLog.NoteEntry.InitializeAsync();
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
 
-            OnPropertyChanged(nameof(UserGreeting));
-            OnPropertyChanged(nameof(UserInitials));
+            OnPropertyChanged(nameof(UserGreeting)); OnPropertyChanged(nameof(UserInitials));
             OnPropertyChanged(nameof(AvatarBrush));
             OnPropertyChanged(nameof(IsSupervisionAvailable));
             OnPropertyChanged(nameof(IsBillingAvailable));
@@ -171,10 +174,14 @@ namespace Sati.ViewModels
             await Scratchpad.InitializeAsync();
             _notesViewModel.Reset();
             await _notesViewModel.InitializeAsync();
+            // NotesLog hosts its own NoteEntry instance; the dashboard's init only
+            // covers the dashboard's copy. This loads the module's settings so its
+            // narrative templates populate.
+            await _notesViewModel.NotesLog.NoteEntry.InitializeAsync();
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
-            OnPropertyChanged(nameof(UserGreeting));
-            OnPropertyChanged(nameof(UserInitials));
+
+            OnPropertyChanged(nameof(UserGreeting)); OnPropertyChanged(nameof(UserInitials));
             OnPropertyChanged(nameof(AvatarBrush));
             OnPropertyChanged(nameof(IsSupervisionAvailable));
             OnPropertyChanged(nameof(IsBillingAvailable));
