@@ -127,4 +127,15 @@ namespace Sati
         [Description("Other")]
         Other = 99
     }
+
+    public enum ATRequestStatus
+    {
+        Development,
+        Review,
+        Approved,
+        Denied,
+        Appeal,
+        Received,
+        Withdrawn
+    }
 }

@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Sati.Models;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels.Children
@@ -22,9 +23,14 @@ namespace Sati.ViewModels.Children
         // and remains testable.
         public int? CurrentQuarter { get; }
 
-        public ReviewClientRowViewModel(Person person, DateTime today)
+        private readonly DateTime _today;
+        private readonly Settings _settings;
+
+        public ReviewClientRowViewModel(Person person, DateTime today, Settings settings)
         {
             Person = person;
+            _today = today.Date;
+            _settings = settings;
             CurrentQuarter = person.GetCurrentQuarter(today);
             Q1Selection = new ReviewCellSelection(this, 1);
             Q2Selection = new ReviewCellSelection(this, 2);
@@ -32,6 +38,55 @@ namespace Sati.ViewModels.Children
             Q4Selection = new ReviewCellSelection(this, 4);
         }
 
+        // The Q_R form for the client's current quarter. Read from the stored
+        // Form records rather than recomputed — FormDueDateCalculator is the
+        // single owner of due-date math, and Q4R in particular is anchored to
+        // nextAnniversary − Q4RDaysBeforeAnniversary, not a flat 360 days.
+        private Form? CurrentQuarterForm =>
+            CurrentQuarter is int q ? Person.GetCurrentCycleForm(QuarterFormType(q), _today) : null;
+
+        public DateTime? DueDate => CurrentQuarterForm?.DueDate;
+
+        // The window opens ReviewOpenDaysBefore ahead of the due date and closes
+        // on the due date itself.
+        public DateTime? WindowStart =>
+            DueDate?.AddDays(-Person.GetOpenDaysBefore(FormType.Q1R, _settings));
+
+        // Empty string when the client has no cycle — reads as a blank cell,
+        // which is correct for a client with no effective date.
+        public string WindowDisplay =>
+            WindowStart is DateTime start && DueDate is DateTime due
+                ? $"{start:MM/dd} – {due:MM/dd}"
+                : string.Empty;
+
+        // Today falls inside the window: the review is actionable now.
+        public bool IsWindowOpen =>
+            WindowStart is DateTime start && DueDate is DateTime due
+            && _today >= start.Date && _today <= due.Date;
+
+        // Past the due date and not yet completed.
+        public bool IsOverdue =>
+            CurrentQuarterForm is Form form
+            && _today > form.DueDate.Date
+            && form.CompletedDate is null;
+
+        // The window opens later than today — nothing to do yet.
+        public bool IsWindowUpcoming =>
+            WindowStart is DateTime start && _today < start.Date;
+
+        // The due date has passed. Purely temporal: says nothing about whether
+        // the review was completed.
+        public bool IsWindowClosed =>
+            DueDate is DateTime due && _today > due.Date;
+
+        private static FormType QuarterFormType(int quarter) => quarter switch
+        {
+            1 => FormType.Q1R,
+            2 => FormType.Q2R,
+            3 => FormType.Q3R,
+            4 => FormType.Q4R,
+            _ => throw new ArgumentOutOfRangeException(nameof(quarter), quarter, "Quarter must be 1 through 4.")
+        };
         // One flag per quarter rather than binding the int and comparing in XAML.
         // A DataTrigger can only test equality against a literal, so the
         // alternative is four converters or a converter with a parameter; four

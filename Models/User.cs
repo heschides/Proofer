@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
-using Windows.Media.Audio;
 
 namespace Sati.Models
 {
@@ -19,6 +18,13 @@ namespace Sati.Models
         public ICollection<User> Supervisees { get; set; } = [];
         public int AgencyId { get; set; }
         public Agency Agency { get; set; } = null!;
+
+        // Contact details for the case manager. Mutable and off the constructor
+        // — a CM edits these over time; changing a phone number shouldn't require
+        // re-minting the user. Nullable until captured. Source for the CM contact
+        // block snapshotted onto payment/authorization forms at creation.
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
 
 
 

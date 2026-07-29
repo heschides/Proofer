@@ -26,6 +26,12 @@ namespace Sati
         public string? DiagnosisCode { get; set; }
         public int? PlaceOfService { get; set; }
 
+        // The client's Evergreen ID — Maine's case management system of record.
+        // Surfaces on payment/authorization forms as the "EIS #" (the forms
+        // predate Evergreen and still use the legacy EIS label). Nullable: not
+        // every client has one recorded yet.
+        public string? EvergreenId { get; set; }
+
         // -------------------------------------------------------------------------
         // Contact & support details
         // -------------------------------------------------------------------------

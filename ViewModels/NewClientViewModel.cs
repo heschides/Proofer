@@ -85,8 +85,10 @@ namespace Sati.ViewModels
         private string? guardianName;
 
         [ObservableProperty]
-        private string? phoneNumber;
+        private string? evergreenId;
 
+        [ObservableProperty]
+        private string? phoneNumber;
         [ObservableProperty]
         private string? address;
 
@@ -347,8 +349,8 @@ namespace Sati.ViewModels
                 existing.OpenWithVR = OpenWithVR;
                 existing.HasGuardian = HasGuardian;
                 existing.GuardianName = GuardianName;
-                existing.PhoneNumber = PhoneNumber;
-                existing.Address = Address;
+                existing.EvergreenId = EvergreenId;
+                existing.PhoneNumber = PhoneNumber; existing.Address = Address;
                 existing.PrimaryCareProvider = PrimaryCareProvider;
                 existing.HealthcareSystemName = HealthcareSystemName;
                 existing.IsEmployed = IsEmployed;
@@ -390,6 +392,7 @@ namespace Sati.ViewModels
                 person.OpenWithVR = OpenWithVR;
                 person.HasGuardian = HasGuardian;
                 person.GuardianName = GuardianName;
+                person.EvergreenId = EvergreenId;
                 person.PhoneNumber = PhoneNumber;
                 person.Address = Address;
                 person.PrimaryCareProvider = PrimaryCareProvider;
@@ -482,9 +485,9 @@ namespace Sati.ViewModels
             OpenWithVR = person.OpenWithVR;
             HasGuardian = person.HasGuardian;
             GuardianName = person.GuardianName;
+            EvergreenId = person.EvergreenId;
             PhoneNumber = person.PhoneNumber;
-            Address = person.Address;
-            PrimaryCareProvider = person.PrimaryCareProvider;
+            Address = person.Address; PrimaryCareProvider = person.PrimaryCareProvider;
             HealthcareSystemName = person.HealthcareSystemName;
             IsEmployed = person.IsEmployed;
             HasHomeSupport = person.HasHomeSupport;
@@ -582,6 +585,7 @@ namespace Sati.ViewModels
             OpenWithVR = false;
             HasGuardian = false;
             GuardianName = string.Empty;
+            EvergreenId = string.Empty;
             PhoneNumber = string.Empty;
             Address = string.Empty;
             PrimaryCareProvider = string.Empty;

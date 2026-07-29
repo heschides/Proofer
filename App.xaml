@@ -292,6 +292,13 @@
             <views:HelpersView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type children:HelperReferenceViewModel}">
+            <views:HelperReferenceView />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type children:ATRequestViewModel}">
+            <views:ATRequestView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
             <views:TeamOverviewView />
         </DataTemplate>

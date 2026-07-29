@@ -9,6 +9,8 @@ namespace Sati.Views
         private readonly ShellViewModel _shellViewModel;
         private readonly CaseManagerDashboardViewModel _caseManagerDashboardViewModel;
         private readonly Func<SwitchUserWindow> _switchUserWindowFactory;
+        private readonly Func<MyAccountWindow> _myAccountWindowFactory;
+        private readonly Func<MyAccountViewModel> _myAccountViewModelFactory;
         private readonly ISessionService _sessionService;
         private bool _isSavingOnClose = false;
 
@@ -22,13 +24,17 @@ namespace Sati.Views
             ISessionService sessionService,
             Func<SettingsWindow> settingsWindowFactory,
             Func<ScratchpadHistoryWindow> scratchpadHistoryWindowFactory,
-            Func<SwitchUserWindow> switchUserWindowFactory)
+            Func<SwitchUserWindow> switchUserWindowFactory,
+            Func<MyAccountWindow> myAccountWindowFactory,
+            Func<MyAccountViewModel> myAccountViewModelFactory)
         {
             InitializeComponent();
             _shellViewModel = shellViewModel;
             _caseManagerDashboardViewModel = caseManagerDashboardViewModel;
             _sessionService = sessionService;
             _switchUserWindowFactory = switchUserWindowFactory;
+            _myAccountWindowFactory = myAccountWindowFactory;
+            _myAccountViewModelFactory = myAccountViewModelFactory;
             DataContext = shellViewModel;
 
             // The view model owns whether the panel is open; collapsing the actual grid
@@ -46,21 +52,6 @@ namespace Sati.Views
                 win.Owner = this;
                 win.ShowDialog();
             };
-
-            //_caseManagerDashboardViewModel.OpenClientsWindowRequested += async (s, e) =>
-            //{
-            //    var win = newClientWindowFactory();
-            //    win.Owner = this;
-            //    win.ShowDialog();
-            //    await _caseManagerDashboardViewModel.LoadPeopleAsync();
-            //};
-
-            //_caseManagerDashboardViewModel.OpenNotesWindowRequested += (s, e) =>
-            //{
-            //    var win = notesWindowFactory();
-            //    win.Owner = this;
-            //    win.Show();
-            //};
 
             _caseManagerDashboardViewModel.MarkFormCompleteRequested += (s, formType) =>
             {
@@ -98,21 +89,24 @@ namespace Sati.Views
                 win.Show();
             };
 
-            shellViewModel.SwitchUserRequested += async (s, e) =>
+            // The greeting opens My Account. Switch-user lives on a button inside it,
+            // which raises SwitchUserRequested on the account VM — handled by the
+            // extracted flow below. VM comes from the injected factory (no service
+            // locator); the window's parameterless ctor takes DataContext externally.
+            shellViewModel.SwitchUserRequested += (s, e) =>
             {
-                // Save scratchpad before switching users
-                var content = _shellViewModel.Scratchpad.ScratchpadContent;
-                await _shellViewModel.Scratchpad.SaveScratchpadAsync(content);
-
-                var win = _switchUserWindowFactory();
+                var vm = _myAccountViewModelFactory();
+                var win = _myAccountWindowFactory();
                 win.Owner = this;
-                bool? result = win.ShowDialog();
+                win.DataContext = vm;
 
-                if (result == true && win.NewUser is not null)
+                vm.SwitchUserRequested += async (s2, e2) =>
                 {
-                    _sessionService.SetUser(win.NewUser);
-                    await _shellViewModel.ReinitializeAsync();
-                }
+                    win.Close();
+                    await OpenSwitchUserFlowAsync();
+                };
+
+                win.ShowDialog();
             };
 
             Closing += async (s, e) =>
@@ -129,6 +123,26 @@ namespace Sati.Views
             };
 
             Closed += (s, e) => Application.Current.Shutdown();
+        }
+
+        // The switch-to-another-user flow, formerly inline in the greeting handler,
+        // now reached from the My Account window's "Switch user" button. Preserved
+        // verbatim: save scratchpad, open the switch modal, and on success swap the
+        // session user and reinitialize the shell.
+        private async Task OpenSwitchUserFlowAsync()
+        {
+            var content = _shellViewModel.Scratchpad.ScratchpadContent;
+            await _shellViewModel.Scratchpad.SaveScratchpadAsync(content);
+
+            var win = _switchUserWindowFactory();
+            win.Owner = this;
+            bool? result = win.ShowDialog();
+
+            if (result == true && win.NewUser is not null)
+            {
+                _sessionService.SetUser(win.NewUser);
+                await _shellViewModel.ReinitializeAsync();
+            }
         }
 
         // Collapses the scratchpad column to zero (after saving its current width) or

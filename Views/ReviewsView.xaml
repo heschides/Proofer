@@ -469,6 +469,53 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
+                        <!-- The window in which this client's current-quarter
+                             review is actionable: ReviewOpenDaysBefore back from
+                             the Q_R form's due date, through the due date. Amber
+                             when today falls inside it; red when the due date has
+                             passed with the form still incomplete. -->
+                        <DataGridTemplateColumn Header="Window"
+                                                Width="110">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding WindowDisplay}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Margin="8,4">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <!-- Default covers the no-cycle case,
+                                                     where all three flags are false. -->
+                                                <Setter Property="Foreground"
+                                                        Value="#9C7A5C" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsWindowUpcoming}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground"
+                                                                Value="#C87941" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsWindowOpen}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground"
+                                                                Value="#2F6FA8" />
+                                                        <Setter Property="FontWeight"
+                                                                Value="SemiBold" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsWindowClosed}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground"
+                                                                Value="#A33" />
+                                                        <Setter Property="FontWeight"
+                                                                Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
                         <!-- The one data column: the client's current quarter.
                              No outline style — "current" is the only thing shown,
                              so highlighting it would be redundant. -->

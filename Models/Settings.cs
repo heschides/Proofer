@@ -18,6 +18,19 @@ namespace Sati.Models
         public decimal BaseIncentive { get; set; } = 0;
         public decimal PerUnitIncentive { get; set; } = 0;
 
+        // AT / payment requests
+        //
+        // The agency passthrough fee applied to authorized payment requests: a
+        // fraction (0.15 = 15%) of the TAX-INCLUSIVE subtotal. Stored as a rate,
+        // not a percent — code multiplies by it directly, no /100. The single
+        // source of truth for the *value*; the arithmetic that consumes it lives
+        // in ATRequestCalculator. decimal(5,4) column (set in SatiContext) gives
+        // room for sub-percent precision (e.g. 0.155) without a schema change.
+        //
+        // Property default 0.15m covers new in-memory instances; the migration
+        // also writes a SQL default + backfills the existing row, so no install
+        // ever computes against a zero rate.
+        public decimal PassthroughRate { get; set; } = 0.15m;
         // Note templates
         public string VisitTemplate { get; set; } = string.Empty;
         public string ContactTemplate { get; set; } = string.Empty;

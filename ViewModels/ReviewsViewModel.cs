@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
+using Sati.Models;
 using Sati.ViewModels.Children;
 using System.Collections.ObjectModel;
 
@@ -11,10 +12,10 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
         // Services
         // -------------------------------------------------------------------------
-
         private readonly ISessionService _sessionService;
         private readonly IPersonService _personService;
         private readonly IReviewItemService _reviewItemService;
+        private readonly ISettingsService _settingsService;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -73,11 +74,12 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ReviewsViewModel(ISessionService sessionService, IPersonService personService,
-                                IReviewItemService reviewItemService)
+                                        IReviewItemService reviewItemService, ISettingsService settingsService)
         {
             _sessionService = sessionService;
             _personService = personService;
             _reviewItemService = reviewItemService;
+            _settingsService = settingsService;
         }
 
         // -------------------------------------------------------------------------
@@ -97,13 +99,15 @@ namespace Sati.ViewModels
 
             try
             {
-                var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser.Id); var today = DateTime.Today;
+                var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser.Id);
+                var today = DateTime.Today;
+                var settings = await _settingsService.LoadAsync();
 
                 await _reviewItemService.EnsureCurrentCycleItemsAsync(people, today);
 
                 var items = await _reviewItemService.GetForCaseloadAsync(_sessionService.CurrentUser.Id);
 
-                BuildRows(people, items, today);
+                BuildRows(people, items, today, settings);
             }
             finally
             {
@@ -156,7 +160,7 @@ namespace Sati.ViewModels
         // whole class of bugs where an incremental update misses a case — a
         // client whose services changed, an item generated this session, a cycle
         // that rolled over between visits.
-        private void BuildRows(List<Person> people, List<ReviewItem> items, DateTime today)
+        private void BuildRows(List<Person> people, List<ReviewItem> items, DateTime today, Settings settings)
         {
             Rows.Clear();
             DetailCells.Clear();
@@ -175,7 +179,7 @@ namespace Sati.ViewModels
                     continue;
 
                 var anchor = boundaries.Value.cycleStart.Date;
-                var row = new ReviewClientRowViewModel(person, today);
+                var row = new ReviewClientRowViewModel(person, today, settings);
                 if (byPerson.TryGetValue(person.Id, out var personItems))
                 {
                     var currentCycle = personItems

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
+using System.Security;
 
 namespace Sati.Data
 {
@@ -38,6 +39,20 @@ namespace Sati.Data
         }
 
         public async Task ResetPasswordAsync(User user, string newPassword)
+        {
+            await using var context = _contextFactory.CreateDbContext();
+            var (hash, salt) = _hasher.HashPassword(newPassword);
+            user.SetPassword(hash, salt);
+            context.Users.Update(user);
+            await context.SaveChangesAsync();
+        }
+
+        // Self-service change. Mirrors ResetPasswordAsync's persistence exactly,
+        // but hashes a SecureString via the secure HashPassword overload — a
+        // user's chosen password is a secret worth protecting in transit, unlike
+        // the reset's known literal. Assumes the caller has already verified
+        // identity (via AuthenticateAsync); this only hashes and saves.
+        public async Task ChangePasswordAsync(User user, SecureString newPassword)
         {
             await using var context = _contextFactory.CreateDbContext();
             var (hash, salt) = _hasher.HashPassword(newPassword);

@@ -18,6 +18,8 @@ namespace Sati.Data
         public DbSet<ClaimLine> ClaimLines { get; set; }
         public DbSet<ExemptDate> ExemptDates { get; set; }
         public DbSet<ReviewItem> ReviewItems { get; set; }
+        public DbSet<ATRequest> ATRequests { get; set; }
+        public DbSet<ATRequestItem> ATRequestItems { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -129,7 +131,47 @@ namespace Sati.Data
                 // because the constraint makes duplicates impossible rather than
                 // merely unlikely.
                 entity.HasIndex(r => new { r.PersonId, r.CycleAnchor, r.Quarter, r.Category, r.SlotIndex })
-                      .IsUnique();
+                                      .IsUnique();
+            });
+
+            modelBuilder.Entity<ATRequest>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+
+                // Status persisted as its enum name ("Approved"), not an ordinal.
+                // Chosen for a financial record's readability and to avoid the
+                // append-only fragility that int storage imposes on NoteStatus.
+                entity.Property(a => a.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+
+                // SalesTax is decimal → SQL decimal(18,2) by default, correct for
+                // currency; stated explicitly to match the Settings/ClaimLine
+                // money columns rather than lean on the default.
+                entity.Property(a => a.SalesTax).HasColumnType("decimal(18,2)");
+
+                // Link to the client. Restrict, NOT cascade: a payment request is
+                // a document of record and already carries snapshot columns, so it
+                // must survive the client's deletion rather than vanish with it.
+                // Contrast Note/Form below, which cascade because they have no
+                // independent record-keeping value once the person is gone.
+                entity.HasOne(a => a.Person)
+                      .WithMany()
+                      .HasForeignKey(a => a.PersonId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ATRequestItem>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.ItemCost).HasColumnType("decimal(18,2)");
+
+                // Cascade: line items are worthless orphaned from their request.
+                // Same parent-child shape as ClaimLine → BillingPeriod above.
+                entity.HasOne(i => i.ATRequest)
+                      .WithMany(a => a.Items)
+                      .HasForeignKey(i => i.ATRequestId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<Settings>(entity =>
@@ -137,6 +179,15 @@ namespace Sati.Data
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.BaseIncentive).HasColumnType("decimal(18,2)");
                 entity.Property(s => s.PerUnitIncentive).HasColumnType("decimal(18,2)");
+
+                // A rate, not an amount — decimal(5,4) holds 0.1500 with room for
+                // sub-percent precision, unlike the decimal(18,2) money columns
+                // above. HasDefaultValue backfills the existing Settings row (and
+                // writes a going-forward DEFAULT) so nothing ever computes the
+                // passthrough against 0. Same rationale as HealthcareSystemsJson.
+                entity.Property(s => s.PassthroughRate)
+                      .HasColumnType("decimal(5,4)")
+                      .HasDefaultValue(0.15m);
 
                 // SQL-level default. When this non-nullable column is added by the
                 // migration, EF needs a value for the rows already in your database;

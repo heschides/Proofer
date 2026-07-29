@@ -51,13 +51,14 @@ namespace Sati
                         services.AddTransient<ISettingsService, SettingsService>();
                         services.AddTransient<FormDueDateBackfill>();
                         services.AddTransient<FormBulkCompletion>();
-                        services.AddTransient<IUpcomingEventService, UpcomingEventService>(); services.AddTransient<IFormService, FormService>();
+                        services.AddTransient<IUpcomingEventService, UpcomingEventService>(); 
+                        services.AddTransient<IFormService, FormService>();
                         services.AddTransient<ISupervisorService, SupervisorService>();
                         services.AddTransient<IBillingService, BillingService>();
                         services.AddTransient<IEdiService, EdiService>();
                         services.AddTransient<IExemptDateService, ExemptDateService>();
                         services.AddTransient<IReviewItemService, ReviewItemService>();
-                        // Shell
+                        services.AddTransient<IATRequestService, ATRequestService>();                        // Shell
                         services.AddSingleton<ShellViewModel>();
                         services.AddSingleton<ShellWindow>();
 
@@ -66,7 +67,9 @@ namespace Sati
                         services.AddSingleton<StatisticsViewModel>();
                         services.AddTransient<ScratchpadViewModel>();
                         services.AddSingleton<GuidanceViewModel>();
-                        services.AddSingleton<HelpersViewModel>();
+                        services.AddSingleton<HelperReferenceViewModel>();
+                        services.AddSingleton<ATRequestViewModel>();
+                        services.AddSingleton<HelpersViewModel>(); 
                         services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
                         services.AddTransient<UserManagementViewModel>();
@@ -86,6 +89,8 @@ namespace Sati
                         services.AddTransient<ScratchpadHistoryWindow>();
                         services.AddTransient<SwitchUserViewModel>();
                         services.AddTransient<SwitchUserWindow>();
+                        services.AddTransient<MyAccountViewModel>();
+                        services.AddTransient<MyAccountWindow>();
                         services.AddTransient<SchedulerViewModel>();
                         services.AddTransient<NewClientViewModel>();
 
@@ -103,7 +108,8 @@ namespace Sati
                         services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
                         services.AddTransient<Func<ScratchpadHistoryWindow>>(sp => () => sp.GetRequiredService<ScratchpadHistoryWindow>());
                         services.AddTransient<Func<SwitchUserWindow>>(sp => () => sp.GetRequiredService<SwitchUserWindow>());
-
+                        services.AddTransient<Func<MyAccountWindow>>(sp => () => sp.GetRequiredService<MyAccountWindow>());
+                        services.AddTransient<Func<MyAccountViewModel>>(sp => () => sp.GetRequiredService<MyAccountViewModel>());
                         // EF Core
                         services.AddDbContextFactory<SatiContext>(options =>
                             options.UseSqlServer(context.Configuration.GetConnectionString("SatiDb")),

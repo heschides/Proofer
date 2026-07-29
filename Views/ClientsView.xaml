@@ -171,11 +171,14 @@
                          VerticalScrollBarVisibility="Auto"
                          Height="100" />
 
-                <TextBlock Text="PHONE"
-                           Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="EVERGREEN ID"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding EvergreenId, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Text="ADDRESS"
+                    <TextBlock Text="PHONE"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="ADDRESS"
                            Style="{StaticResource LabelStyle}" />
                 <TextBox Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" />
 
@@ -431,13 +434,20 @@
                                    FontSize="13"
                                    Margin="0,0,0,10" />
 
+                        <TextBlock Text="EVERGREEN ID"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBlock Text="{Binding SelectedPerson.EvergreenId}"
+                                   Foreground="#3D2B1F"
+                                   FontSize="13"
+                                   Margin="0,0,0,10" />
+
                         <TextBlock Text="PHONE"
                                    Style="{StaticResource LabelStyle}" />
                         <TextBlock Text="{Binding SelectedPerson.PhoneNumber}"
                                    Foreground="#3D2B1F"
                                    FontSize="13"
                                    Margin="0,0,0,10" />
-
+                        
                         <TextBlock Text="ADDRESS"
                                    Style="{StaticResource LabelStyle}" />
                         <TextBlock Text="{Binding SelectedPerson.Address}"

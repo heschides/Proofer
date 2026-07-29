@@ -1,0 +1,381 @@
+﻿<UserControl x:Class="Sati.Views.ATFormDocument"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="816"
+             Background="White"
+             TextElement.Foreground="#111111"
+             TextElement.FontFamily="{StaticResource AppFont}">
+    <UserControl.Resources>
+        <Style x:Key="Cell"
+               TargetType="Border">
+            <Setter Property="BorderBrush"
+                    Value="#000000" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Padding"
+                    Value="6,4" />
+        </Style>
+        <Style x:Key="FieldLabel"
+               TargetType="TextBlock">
+            <Setter Property="FontWeight"
+                    Value="Bold" />
+            <Setter Property="FontSize"
+                    Value="12" />
+        </Style>
+        <Style x:Key="FieldValue"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="12" />
+            <Setter Property="Foreground"
+                    Value="#222222" />
+        </Style>
+        <Style x:Key="ColHead"
+               TargetType="TextBlock">
+            <Setter Property="FontWeight"
+                    Value="Bold" />
+            <Setter Property="FontSize"
+                    Value="11" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Margin="36,32">
+
+        <!-- HEADER -->
+        <TextBlock Text="Department of Health &amp; Human Services – Office of Aging &amp; Disability Services"
+                   FontSize="13"
+                   Foreground="#555555"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="Authorized Payment Information Form"
+                   FontSize="15"
+                   FontWeight="Bold"
+                   HorizontalAlignment="Center"
+                   Margin="0,4,0,10" />
+        <TextBlock TextWrapping="Wrap"
+                   FontSize="10"
+                   Foreground="#333333"
+                   Margin="0,0,0,12"
+                   Text="This form is to accompany any request for service that will require payment to a vendor, or pass through agency for the purchasing of devices, goods, services or other items in Section 21 and 29 if authorized." />
+
+        <!-- INFO TABLE -->
+        <Border Style="{StaticResource Cell}"
+                BorderThickness="1,1,1,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal">
+                    <TextBlock Text="Client Name: "
+                               Style="{StaticResource FieldLabel}" />
+                    <TextBlock Text="{Binding ClientName}"
+                               Style="{StaticResource FieldValue}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal">
+                    <TextBlock Text="Client EIS #: "
+                               Style="{StaticResource FieldLabel}" />
+                    <TextBlock Text="{Binding ClientEvergreenId}"
+                               Style="{StaticResource FieldValue}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Border Style="{StaticResource Cell}"
+                BorderThickness="1,1,1,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Case Manager: "
+                                   Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="{Binding CaseManagerName}"
+                                   Style="{StaticResource FieldValue}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,6,0,0">
+                        <TextBlock Text="CM Agency: "
+                                   Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="{Binding CaseManagerAgency}"
+                                   Style="{StaticResource FieldValue}" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CM Email: "
+                                   Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="{Binding CaseManagerEmail}"
+                                   Style="{StaticResource FieldValue}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,6,0,0">
+                        <TextBlock Text="CM Phone #: "
+                                   Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="{Binding CaseManagerPhone}"
+                                   Style="{StaticResource FieldValue}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- SERVICE CHECKBOXES (AT hardcoded checked — this is the AT page) -->
+        <Border Style="{StaticResource Cell}"
+                BorderThickness="1,1,1,0">
+            <StackPanel>
+                <TextBlock Text="Payment is for which service (s):"
+                           Style="{StaticResource FieldLabel}"
+                           Margin="0,0,0,4" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="☐ Specialized Medical Equipment (SME)"
+                                   FontSize="11" />
+                        <TextBlock Text="☐ Communication Aids, Devices or services"
+                                   FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="☒ Assistive Technology (AT) – Devices &amp; Transmission"
+                                   FontSize="11" />
+                        <TextBlock Text="☐ Other (indicate):"
+                                   FontSize="11" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- CRT / RC — blank on the submission copy -->
+        <Border Style="{StaticResource Cell}"
+                Background="#EEEEEE">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="CRT Use Only"
+                               FontWeight="Bold"
+                               FontSize="11" />
+                    <TextBlock Text="Date received:"
+                               FontSize="11"
+                               Margin="0,3,0,0" />
+                    <TextBlock Text="Date of Approval:"
+                               FontSize="11" />
+                    <TextBlock Text="CRT Initials:"
+                               FontSize="11" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="RC Use Only:"
+                               FontWeight="Bold"
+                               FontSize="11" />
+                    <TextBlock Text="Date received:"
+                               FontSize="11"
+                               Margin="0,3,0,0" />
+                    <TextBlock Text="Date of Authorization:"
+                               FontSize="11" />
+                    <TextBlock Text="RC Initials:"
+                               FontSize="11" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ITEMS -->
+        <TextBlock Text="ITEMS OR SERVICES TO BE PURCHASED:"
+                   FontWeight="Bold"
+                   FontSize="12"
+                   Margin="0,14,0,6" />
+        <Border BorderBrush="#000000"
+                BorderThickness="1">
+            <StackPanel>
+                <!-- Column headers -->
+                <Grid Background="#F2F2F2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="90" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Item #"
+                               Style="{StaticResource ColHead}"
+                               Margin="6,4" />
+                    <TextBlock Grid.Column="1"
+                               Text="Name of Item:"
+                               Style="{StaticResource ColHead}"
+                               Margin="6,4" />
+                    <TextBlock Grid.Column="2"
+                               Text="Item Cost"
+                               Style="{StaticResource ColHead}"
+                               Margin="6,4" />
+                    <TextBlock Grid.Column="3"
+                               Text="Quantity"
+                               Style="{StaticResource ColHead}"
+                               Margin="6,4" />
+                    <TextBlock Grid.Column="4"
+                               Text="Total for Line"
+                               Style="{StaticResource ColHead}"
+                               Margin="6,4" />
+                </Grid>
+
+                <!-- Item rows arrive in 1c (ItemsControl over CurrentEditor.Items) -->
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="90" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Name}"
+                                           FontSize="11"
+                                           Margin="6,3" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding ItemCost, StringFormat=C}"
+                                           FontSize="11"
+                                           Margin="6,3" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding Quantity}"
+                                           FontSize="11"
+                                           Margin="6,3" />
+                                <TextBlock Grid.Column="4"
+                                           Text="{Binding LineTotal, StringFormat=C}"
+                                           FontSize="11"
+                                           Margin="6,3" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- 15% Passthrough Fee -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="90" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1"
+                               Text="15% Passthrough Fee"
+                               FontSize="11"
+                               Margin="6,3" />
+                    <TextBlock Grid.Column="4"
+                               Text="{Binding PassthroughFee, StringFormat=C}"
+                               FontSize="11"
+                               Margin="6,3" />
+                </Grid>
+                <!-- Sales Tax -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="90" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="3"
+                               Text="Sales Tax:"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Margin="6,3" />
+                    <TextBlock Grid.Column="4"
+                               Text="{Binding SalesTax, StringFormat=C}"
+                               FontSize="11"
+                               Margin="6,3" />
+                </Grid>
+                <!-- Total Cost -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="90" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="3"
+                               Text="Total Cost:"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Margin="6,3" />
+                    <TextBlock Grid.Column="4"
+                               Text="{Binding TotalCost, StringFormat=C}"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Margin="6,3" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- PAYMENT INFORMATION -->
+        <TextBlock Text="PAYMENT INFORMATION:"
+                   FontWeight="Bold"
+                   FontSize="12"
+                   Margin="0,14,0,6" />
+        <StackPanel>
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,0,0,4">
+                <TextBlock Text="Vendor/Provider Name: "
+                           Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="{Binding VendorName}"
+                           Style="{StaticResource FieldValue}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,0,0,4">
+                <TextBlock Text="Billing Location (EIS): "
+                           Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="{Binding VendorBillingLocation}"
+                           Style="{StaticResource FieldValue}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,0,0,4">
+                <TextBlock Text="Program Contact: "
+                           Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="{Binding VendorProgramContact}"
+                           Style="{StaticResource FieldValue}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Billing Contact: "
+                           Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="{Binding VendorBillingContact}"
+                           Style="{StaticResource FieldValue}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- SIGNATURE -->
+        <StackPanel Orientation="Horizontal"
+                    Margin="0,28,0,0">
+            <StackPanel Margin="0,0,40,0">
+                <Border BorderBrush="#000000"
+                        BorderThickness="0,0,0,1"
+                        Width="200"
+                        Height="18" />
+                <TextBlock Text="Signature of Case Manager"
+                           FontWeight="Bold"
+                           FontSize="11"
+                           Margin="0,2,0,0" />
+            </StackPanel>
+            <StackPanel>
+                <Border BorderBrush="#000000"
+                        BorderThickness="0,0,0,1"
+                        Width="100"
+                        Height="18" />
+                <TextBlock Text="Date"
+                           FontWeight="Bold"
+                           FontSize="11"
+                           Margin="0,2,0,0" />
+            </StackPanel>
+        </StackPanel>
+
+    </StackPanel>
+</UserControl>
