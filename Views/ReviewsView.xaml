@@ -760,6 +760,8 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock Grid.Column="0"
@@ -776,6 +778,37 @@
                                             Margin="0,0,8,0" />
                                 <DatePicker Grid.Column="3"
                                             SelectedDate="{Binding LoggedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <!-- Appointment capture — Medical and Dental only, now on
+                                     the same row as the stage pickers, right of LOGGED.
+                                     The date is the anchor: clearing it removes the
+                                     appointment; a provider typed with no date won't
+                                     persist on its own. Provider commits on LostFocus to
+                                     avoid a write per keystroke. Cluster collapses whole
+                                     on non-appointment categories, leaving the row as it
+                                     was before. -->
+                                <StackPanel Grid.Column="5"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsAppointmentCategory, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="Appointment"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#9C7A5C"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <DatePicker Width="120"
+                                                SelectedDate="{Binding AppointmentDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Margin="0,0,10,0" />
+                                    <TextBlock Text="with"
+                                               FontSize="11"
+                                               Foreground="#9C7A5C"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <TextBox Width="180"
+                                             VerticalAlignment="Center"
+                                             Text="{Binding ProviderName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

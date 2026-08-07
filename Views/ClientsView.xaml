@@ -31,6 +31,27 @@
                                               TrueUnit="Star"
                                               FalseLength="0"
                                               FalseUnit="Pixel" />
+        <!-- Dot-grid fill for the Journal. A DrawingBrush tiling a single 2px dot in
+             the palette's border tone at a 16px pitch. Viewport is absolute (Viewport
+             + ViewportUnits=Absolute), so the dot stays a fixed size and the grid
+             density doesn't stretch with the box. TileMode=Tile repeats it. Faint by
+             color choice, not opacity, so it doesn't dim text drawn over it. -->
+        <DrawingBrush x:Key="JournalDotBrush"
+                      TileMode="Tile"
+                      Viewport="0,0,16,16"
+                      ViewportUnits="Absolute"
+                      Stretch="None">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing Brush="#E8D0B8">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="8,8"
+                                         RadiusX="1"
+                                         RadiusY="1" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
         <Style x:Key="LabelStyle"
                TargetType="TextBlock">
             <Setter Property="FontSize"
@@ -555,9 +576,11 @@
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
@@ -727,44 +750,160 @@
                                                FontSize="11"
                                                Margin="20,1,0,4" />
                                 </StackPanel>
+
+                                <!-- Appointments: latest doctor/dentist for the
+                                     selected client. Date tints #A33 when >365 days
+                                     stale (per category); dash when none on record.
+                                     Read on selection, not from the caseload load. -->
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="6"
+                                           Text="Appointments"
+                                           Style="{StaticResource SectionHeader}" />
+                                <StackPanel Grid.Row="1"
+                                            Grid.Column="6">
+                                    <TextBlock Text="Doctor"
+                                               Foreground="#3D2B1F"
+                                               FontSize="13" />
+                                    <TextBlock Text="{Binding LastDoctorDate, StringFormat={}{0:MM/dd/yy}, TargetNullValue=—}"
+                                               FontSize="11"
+                                               Margin="20,1,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#9C7A5C" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDoctorOverdue}" Value="True">
+                                                        <Setter Property="Foreground" Value="#A33" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding DoctorName}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Margin="20,0,0,4" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2"
+                                            Grid.Column="6">
+                                    <TextBlock Text="Dentist"
+                                               Foreground="#3D2B1F"
+                                               FontSize="13" />
+                                    <TextBlock Text="{Binding LastDentistDate, StringFormat={}{0:MM/dd/yy}, TargetNullValue=—}"
+                                               FontSize="11"
+                                               Margin="20,1,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#9C7A5C" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDentistOverdue}" Value="True">
+                                                        <Setter Property="Foreground" Value="#A33" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding DentistName}"
+                                               Foreground="#9C7A5C"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Margin="20,0,0,4" />
+                                </StackPanel>
                             </Grid>
                         </ScrollViewer>
                     </Grid>
 
-                    <!-- NOTES HISTORY -->
+                    <!-- NOTES HISTORY + JOURNAL — split the bottom-right cell so the
+                         per-consumer journal sits beside the read-only notes list. The
+                         3*/2* split gives notes the larger share; both scale with the
+                         panel. Journal auto-saves 2s after typing stops (debounced in
+                         the VM), plus on client-switch and shutdown — no Save button,
+                         matching the app's auto-save-over-dialogs convention. -->
                     <Grid Grid.Column="2"
                           Grid.Row="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Row="0"
-                                   Text="NOTES"
-                                   Style="{StaticResource SectionHeader}" />
+                        <!-- NOTES HISTORY -->
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
 
-                        <DataGrid Grid.Row="1"
-                                  ItemsSource="{Binding SelectedPersonNotes}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  RowBackground="White"
-                                  AlternatingRowBackground="#FDF6EC"
-                                  GridLinesVisibility="Horizontal"
-                                  HorizontalGridLinesBrush="#F0E0D0">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Date"
-                                                    Binding="{Binding EventDate, StringFormat={}{0:MM/dd}}"
-                                                    Width="60" />
-                                <DataGridTextColumn Header="Status"
-                                                    Binding="{Binding Status}"
-                                                    Width="80" />
-                                <DataGridTextColumn Header="Narrative"
-                                                    Binding="{Binding Narrative}"
-                                                    Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                            <TextBlock Grid.Row="0"
+                                       Text="NOTES"
+                                       Style="{StaticResource SectionHeader}" />
+
+                            <DataGrid Grid.Row="1"
+                                      ItemsSource="{Binding SelectedPersonNotes}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      RowBackground="White"
+                                      AlternatingRowBackground="#FDF6EC"
+                                      GridLinesVisibility="Horizontal"
+                                      HorizontalGridLinesBrush="#F0E0D0">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Date"
+                                                        Binding="{Binding EventDate, StringFormat={}{0:MM/dd}}"
+                                                        Width="60" />
+                                    <DataGridTextColumn Header="Status"
+                                                        Binding="{Binding Status}"
+                                                        Width="80" />
+                                    <DataGridTextColumn Header="Narrative"
+                                                        Binding="{Binding Narrative}"
+                                                        Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+
+                        <!-- JOURNAL -->
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="JOURNAL"
+                                       Style="{StaticResource SectionHeader}" />
+
+                            <!-- Pattern layer sits UNDER the TextBox in the same cell:
+                                 the dot brush fills a Border, the TextBox draws over it
+                                 with a ~70%-opaque cream background (#B3FDF6EC) so the
+                                 dots read faintly through the fill without dimming text.
+                                 The Border carries the visible frame now, so the TextBox
+                                 drops its own border to avoid a double edge. -->
+                            <Border Grid.Row="1"
+                                    Background="{StaticResource JournalDotBrush}"
+                                    BorderBrush="#E8D0B8"
+                                    BorderThickness="1"
+                                    CornerRadius="2" />
+
+                            <!-- UpdateSourceTrigger=PropertyChanged so the debounce
+                                 timer sees each keystroke; without it the VM's Journal
+                                 wouldn't update until focus loss and the 2s save
+                                 wouldn't fire mid-typing. Indefinitely long: wraps and
+                                 scrolls vertically, no height cap of its own — the row's
+                                 * share bounds it and the ScrollViewer takes overflow. -->
+                            <TextBox Grid.Row="1"
+                                     Text="{Binding Journal, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     SpellCheck.IsEnabled="True"
+                                     FontFamily="{StaticResource NarrativeFont}"
+                                     Background="#40FDF6EC"
+                                     BorderThickness="0"
+                                     Padding="8" />
+                        </Grid>
                     </Grid>
                 </Grid>
             </Border>

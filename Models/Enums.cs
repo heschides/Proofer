@@ -1,7 +1,30 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 
 namespace Sati
 {
+    // The three provider categories. Waiver is the one that matters for AT
+    // passthrough; Healthcare and Other exist for directory completeness.
+    public enum ProviderType
+    {
+        Waiver,
+        Healthcare,
+        Other
+    }
+
+    // Waiver services a Provider offers. [Flags] so one provider can offer several.
+    // Only the four in-scope services are modeled now; AT Assessments and the rest
+    // are deferred. Passthrough is NOT here — it's an orthogonal bool on Provider.
+    [Flags]
+    public enum WaiverService
+    {
+        None = 0,
+        HomeSupport = 1,
+        CommunitySupport = 2,
+        SelfDirection = 4,
+        CommunityMembership = 8
+    }
+
     public enum FormWorkflowState
     {
         NotStarted,

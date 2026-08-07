@@ -8,12 +8,11 @@ namespace Sati.ViewModels.Supervisor
         private readonly User _user;
         public int UserId => _user.Id;
 
-        public CaseManagerSummaryViewModel(User user, List<Person> people,
-            List<Note> monthlyNotes, List<UpcomingEvent> upcomingEvents)
+        public CaseManagerSummaryViewModel(User user, List<PersonSummary> people,
+                    List<Note> monthlyNotes, List<UpcomingEvent> upcomingEvents)
         {
             _user = user;
 
-            People = people;
             DisplayName = user.DisplayName;
             Initials = GetInitials(user.DisplayName);
             ClientCount = people.Count;
@@ -34,7 +33,6 @@ namespace Sati.ViewModels.Supervisor
             DelayedCount = monthlyNotes.Count(n => n.Status == NoteStatus.Delayed);
         }
 
-        public List<Person> People { get; }
         public string DisplayName { get; }
         public string Initials { get; }
         public int ClientCount { get; }

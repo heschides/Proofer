@@ -119,10 +119,78 @@
                         <TextBlock Text="Program Contact (Name &amp; Email)"
                                    Style="{StaticResource LabelStyle}" />
                         <TextBox Text="{Binding CurrentEditor.VendorProgramContact, UpdateSourceTrigger=PropertyChanged}" />
-
                         <TextBlock Text="Billing Contact (Name &amp; Email)"
                                    Style="{StaticResource LabelStyle}" />
                         <TextBox Text="{Binding CurrentEditor.VendorBillingContact, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <Separator />
+
+                        <TextBlock Text="ITEMS OR SERVICES"
+                                   Style="{StaticResource SectionHeader}" />
+
+                        <!-- One card per item. DataContext inside the template is the
+                             item's editor VM, so Name/Url/ItemCost/Quantity bind to it. -->
+                        <ItemsControl ItemsSource="{Binding CurrentEditor.Items}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#FBF3E6"
+                                            BorderBrush="#E8D0B8"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Item Name"
+                                                       Style="{StaticResource LabelStyle}" />
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Text="URL"
+                                                       Style="{StaticResource LabelStyle}" />
+                                            <TextBox Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <Grid Margin="0,4,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Item Cost"
+                                                               Style="{StaticResource LabelStyle}" />
+                                                    <!-- LostFocus (default): per-keystroke
+                                                         decimal parse chokes on "1." — same
+                                                         reason as Sales Tax below. -->
+                                                    <TextBox Text="{Binding ItemCost, StringFormat=F2}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Quantity"
+                                                               Style="{StaticResource LabelStyle}" />
+                                                    <TextBox Text="{Binding Quantity}" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- RemoveItem lives on the editor VM, not the
+                                                 item VM. AncestorType reaches the ItemsControl,
+                                                 whose DataContext is the page VM; hence
+                                                 DataContext.CurrentEditor.RemoveItemCommand.
+                                                 CommandParameter {Binding} = this item VM. -->
+                                            <Button Content="Remove"
+                                                    Style="{StaticResource SmallButton}"
+                                                    HorizontalAlignment="Right"
+                                                    Margin="0,8,0,0"
+                                                    Command="{Binding DataContext.CurrentEditor.RemoveItemCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Content="+ Add Item"
+                                Style="{StaticResource SmallButton}"
+                                HorizontalAlignment="Left"
+                                Margin="0,4,0,0"
+                                Command="{Binding CurrentEditor.AddItemCommand}" />
 
                         <Separator />
 
@@ -135,6 +203,48 @@
                              per-keystroke parsing chokes on partial input ("1."). Preview
                              tax updates on focus-loss, which is fine. -->
                         <TextBox Text="{Binding CurrentEditor.SalesTax, StringFormat=F2}" />
+
+                        <!-- Live readout — mirrors the preview so the math sits next
+                             to the tax box. Bound to the editor VM's computed totals,
+                             which re-raise on every item/tax change. -->
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Items Subtotal"
+                                       Foreground="#6B4E3D" />
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding CurrentEditor.ItemsTotal, StringFormat=C}"
+                                       Foreground="#3D2B1F" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="15% Passthrough"
+                                       Foreground="#6B4E3D"
+                                       Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding CurrentEditor.PassthroughFee, StringFormat=C}"
+                                       Foreground="#3D2B1F"
+                                       Margin="0,4,0,0" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="Total Cost"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3D2B1F"
+                                       Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="1"
+                                       Text="{Binding CurrentEditor.TotalCost, StringFormat=C}"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3D2B1F"
+                                       Margin="0,4,0,0" />
+                        </Grid>
 
                     </StackPanel>
                 </ScrollViewer>

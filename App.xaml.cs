@@ -58,7 +58,9 @@ namespace Sati
                         services.AddTransient<IEdiService, EdiService>();
                         services.AddTransient<IExemptDateService, ExemptDateService>();
                         services.AddTransient<IReviewItemService, ReviewItemService>();
-                        services.AddTransient<IATRequestService, ATRequestService>();                        // Shell
+                        services.AddTransient<IATRequestService, ATRequestService>();
+                        services.AddTransient<IProviderService, ProviderService>();
+                        // Shell
                         services.AddSingleton<ShellViewModel>();
                         services.AddSingleton<ShellWindow>();
 
@@ -69,7 +71,8 @@ namespace Sati
                         services.AddSingleton<GuidanceViewModel>();
                         services.AddSingleton<HelperReferenceViewModel>();
                         services.AddSingleton<ATRequestViewModel>();
-                        services.AddSingleton<HelpersViewModel>(); 
+                        services.AddSingleton<HelpersViewModel>();
+                        services.AddSingleton<ProvidersViewModel>();
                         services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
                         services.AddTransient<UserManagementViewModel>();

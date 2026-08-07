@@ -14,18 +14,31 @@ namespace Sati.ViewModels
     public partial class SettingsViewModel : ObservableObject
     {
         private readonly ISettingsService _settingsService;
+        private readonly IProviderService _providerService;
         private readonly FormDueDateBackfill _backfill;
         private readonly FormBulkCompletion _bulkCompletion;
         private Settings? _settings;
 
-        public SettingsViewModel(ISettingsService settingsService, FormDueDateBackfill backfill,
-                                 FormBulkCompletion bulkCompletion)
+        public SettingsViewModel(ISettingsService settingsService, IProviderService providerService,
+                                 FormDueDateBackfill backfill, FormBulkCompletion bulkCompletion)
         {
             _settingsService = settingsService;
+            _providerService = providerService;
             _backfill = backfill;
             _bulkCompletion = bulkCompletion;
             _ = LoadAsync();
         }
+
+        // Sales tax as a rate (0.055 = 5.5%), adjustable. Frozen onto AT requests
+        // at save in a later slice; here it's just the editable default.
+        [ObservableProperty] private decimal salesTaxRate;
+
+        // The passthrough-provider list for the default picker, and the chosen
+        // default's Id. The combo binds SelectedValue → this, SelectedValuePath=Id,
+        // so it round-trips the int? FK without matching object identity. Nullable:
+        // null = no default set.
+        public ObservableCollection<Provider> PassthroughProviders { get; } = [];
+        [ObservableProperty] private int? defaultPassthroughProviderId;
 
         // ====================================================================
         // TEMPORARY MAINTENANCE — DUE-DATE BACKFILL
@@ -229,6 +242,13 @@ namespace Sati.ViewModels
         {
             _settings = await _settingsService.LoadAsync();
 
+            SalesTaxRate = _settings.SalesTaxRate;
+            DefaultPassthroughProviderId = _settings.DefaultPassthroughProviderId;
+
+            PassthroughProviders.Clear();
+            foreach (var p in await _providerService.GetPassthroughProvidersAsync())
+                PassthroughProviders.Add(p);
+
             AbandonedAfterDays = _settings.AbandonedAfterDays;
             ProductivityThreshold = _settings.ProductivityThreshold;
             BaseIncentive = _settings.BaseIncentive;
@@ -287,6 +307,8 @@ namespace Sati.ViewModels
                 return;
 
             _settings.AbandonedAfterDays = AbandonedAfterDays;
+            _settings.SalesTaxRate = SalesTaxRate;
+            _settings.DefaultPassthroughProviderId = DefaultPassthroughProviderId;
             _settings.ProductivityThreshold = ProductivityThreshold;
             _settings.BaseIncentive = BaseIncentive;
             _settings.PerUnitIncentive = PerUnitIncentive;

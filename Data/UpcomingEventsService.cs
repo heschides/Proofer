@@ -4,7 +4,7 @@ namespace Sati.Data
 {
     public class UpcomingEventService : IUpcomingEventService
     {
-        public List<UpcomingEvent> GenerateEvents(IEnumerable<Person> people, Settings settings, DateTime? asOf = null)
+        public List<UpcomingEvent> GenerateEvents(IEnumerable<IEventSource> people, Settings settings, DateTime? asOf = null)
         {
             var today = asOf ?? DateTime.Today;
             var events = new List<UpcomingEvent>();
@@ -21,8 +21,8 @@ namespace Sati.Data
             return events.OrderBy(e => e.Date).ToList();
         }
 
-        private static void GenerateFormEvents(Person person, DateTime today,
-            Settings settings, List<UpcomingEvent> events)
+        private static void GenerateFormEvents(IEventSource person, DateTime today,
+                    Settings settings, List<UpcomingEvent> events)
         {
             // All 12 form types in one table. Due dates come from the stored
             // form record via GetCurrentCycleForm — never recomputed here.
@@ -68,8 +68,8 @@ namespace Sati.Data
             }
         }
 
-        private static void GenerateScheduledNoteEvents(Person person, DateTime today,
-            List<UpcomingEvent> events)
+        private static void GenerateScheduledNoteEvents(IEventSource person, DateTime today,
+                    List<UpcomingEvent> events)
         {
             var lookahead = today.AddDays(30);
 

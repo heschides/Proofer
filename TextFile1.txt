@@ -1,0 +1,23 @@
+﻿## NoteEntry module: shared VM type, not shared instance (2026-07-29)
+
+The note entry/edit UI is one `NoteEntryViewModel` type hosted by two singletons
+(`CaseManagerDashboardViewModel`, `NotesWindowViewModel`). Registered **transient**
+and injected into each host, so each captures its OWN long-lived instance —
+"transient into singleton becomes singleton" is normally a lifetime smell, but here
+two stable, isolated instances are exactly the intent: drafts on the dashboard and
+in NotesLog must not bleed into each other.
+
+`FormNoteSavedAsync` is deliberately **null in the NotesLog host.** Marking a form
+complete needs the dashboard's `SelectedPerson` context; a form note edited from
+NotesLog therefore does NOT touch form state. This matches pre-refactor behavior and
+is not a bug — do not "fix" the null.
+
+Host refresh after save is event-driven: the module raises `NoteSaved`, each host
+refreshes what it owns. The NotesLog host additionally bubbles up via the existing
+`NoteStatusChanged` seam so the dashboard's productivity/board track a save made
+from NotesLog.
+
+The billing gate was unified in this refactor: NotesLog's context-menu "Mark Note
+Logged" previously ran only `EvaluateComplianceGate`, missing the `EvaluateBillingWindow`
+check the dashboard ran. Both paths now run both checks, and the Hold outcome forks
+ComplianceBlocked (window) vs HeldForCompliance (paperwork) consistently.

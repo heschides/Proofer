@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Reflection.Metadata;
 using System.Windows.Threading;
 
 namespace Sati.ViewModels.Supervisor
@@ -55,6 +56,16 @@ namespace Sati.ViewModels.Supervisor
             _userService = userService;
             _userManagementViewModel = userManagementViewModel;
 
+            // Rebuild the sidebar when a supervisee's supervisor/role changes.
+            // async lambda is the standard fire-and-forget handler shape; InitializeAsync
+            // has its own try/catch, so nothing escapes unobserved.
+            _userManagementViewModel.UsersChanged += async () =>
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                await InitializeAsync();
+                sw.Stop();
+                Debug.WriteLine($">>> Sidebar rebuild took {sw.ElapsedMilliseconds} ms");
+            };
             _teamOverviewViewModel = new TeamOverviewViewModel();
             _overdueItemsViewModel = new OverdueItemsViewModel();
             _monthlyProductivityViewModel = new MonthlyProductivityViewModel();
@@ -194,23 +205,41 @@ namespace Sati.ViewModels.Supervisor
                 var settings = await _settingsService.LoadAsync();
                 var now = DateTime.Now;
 
-                foreach (var user in supervisees)
+                // Each supervisee's summary is independent, and every service uses
+                // IDbContextFactory (a fresh context per call), so these loads are safe to run
+                // concurrently. We build all summaries in parallel, then add them to the
+                // ObservableCollection sequentially below — ObservableCollection is not
+                // thread-safe and must only be mutated on the UI thread.
+                var summaryTasks = supervisees.Select(async user =>
                 {
-                    var people = await _personService.GetAllPeopleAsync(user.Id);
+                    var people = await _personService.GetPeopleForSummaryAsync(user.Id);
                     var monthlyNotes = await _noteService.GetMonthlyNotesAsync(user.Id);
                     var events = _upcomingEventService.GenerateEvents(people, settings);
 
                     var summary = new CaseManagerSummaryViewModel(
                         user, people, monthlyNotes, events);
 
+                    var incentiveSw = System.Diagnostics.Stopwatch.StartNew();
                     var (incentive, _) = await _incentiveService.GetOrCreateAsync(
                         user.Id, now.Month, now.Year);
+                    incentiveSw.Stop();
+                    System.Diagnostics.Debug.WriteLine(
+                        $">>> GetOrCreate for {user.DisplayName}: {incentiveSw.ElapsedMilliseconds} ms");
 
                     summary.SetThreshold(incentive?.Threshold ?? 0);
-                    CaseManagers.Add(summary);
-                }
+                    return summary;
+                });
 
-               // SelectedCaseManager = CaseManagers.FirstOrDefault();
+                var whenAllSw = System.Diagnostics.Stopwatch.StartNew();
+                var summaries = await Task.WhenAll(summaryTasks);
+                whenAllSw.Stop();
+                System.Diagnostics.Debug.WriteLine(
+                    $">>> Task.WhenAll (all {supervisees.Count} CMs) took {whenAllSw.ElapsedMilliseconds} ms");
+                // Preserve the supervisee ordering from GetSuperviseesAsync.
+                foreach (var summary in summaries)
+                    CaseManagers.Add(summary);
+
+                // SelectedCaseManager = CaseManagers.FirstOrDefault();
 
                 OnPropertyChanged(nameof(TeamSizeLabel));
                 OnPropertyChanged(nameof(TotalClients));

@@ -18,8 +18,10 @@ namespace Sati.Data
         public DbSet<ClaimLine> ClaimLines { get; set; }
         public DbSet<ExemptDate> ExemptDates { get; set; }
         public DbSet<ReviewItem> ReviewItems { get; set; }
+        public DbSet<Appointment> Appointments { get; set; }
         public DbSet<ATRequest> ATRequests { get; set; }
         public DbSet<ATRequestItem> ATRequestItems { get; set; }
+        public DbSet<Provider> Providers { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -37,8 +39,44 @@ namespace Sati.Data
                       .IsRequired()
                       .HasMaxLength(100);
                 entity.HasData(
-                    new Agency { Id = 1, Name = "Internal" },
-                    new Agency { Id = 2, Name = "Sandbox Mode" });
+                                    new Agency { Id = 1, Name = "Internal" },
+                                    new Agency { Id = 2, Name = "Sandbox Mode" });
+            });
+
+            modelBuilder.Entity<Provider>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Name)
+                      .IsRequired()
+                      .HasMaxLength(150);
+
+                // Enum-as-string, matching User.Role / ATRequest.Status. OfferedServices
+                // is deliberately NOT converted — a [Flags] bitmask stores as its int,
+                // the queryable, idiomatic form for flags.
+                entity.Property(p => p.Type)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+
+                entity.Property(p => p.Street).HasMaxLength(250);
+                entity.Property(p => p.City).HasMaxLength(100);
+                entity.Property(p => p.State).HasMaxLength(2);
+                entity.Property(p => p.Zip).HasMaxLength(10);
+                entity.Property(p => p.PrimaryContact).HasMaxLength(150);
+                entity.Property(p => p.Phone).HasMaxLength(20);
+                entity.Property(p => p.BillingLocationEis).HasMaxLength(150);
+                entity.Property(p => p.ProgramContact).HasMaxLength(150);
+                entity.Property(p => p.BillingContact).HasMaxLength(150);
+
+                // Seed the statewide passthrough default. OfferedServices left None:
+                // AT Assessments isn't modeled yet, and passthrough is a separate bool.
+                entity.HasData(new Provider
+                {
+                    Id = 1,
+                    Type = ProviderType.Waiver,
+                    Name = "Maine AT Solutions",
+                    ProvidesPassthroughService = true,
+                    OfferedServices = WaiverService.None
+                });
             });
 
             modelBuilder.Entity<User>(entity =>
@@ -131,7 +169,26 @@ namespace Sati.Data
                 // because the constraint makes duplicates impossible rather than
                 // merely unlikely.
                 entity.HasIndex(r => new { r.PersonId, r.CycleAnchor, r.Quarter, r.Category, r.SlotIndex })
-                                      .IsUnique();
+                                                      .IsUnique();
+            });
+
+            modelBuilder.Entity<Appointment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.ProviderName).HasMaxLength(100);
+
+                // One-to-one with the Medical/Dental ReviewItem it was recorded on.
+                // Appointment is the dependent (it carries ReviewItemId); WithOne +
+                // HasForeignKey<Appointment> is what makes this one-to-one, and EF
+                // creates the unique index on ReviewItemId automatically from that
+                // configuration — so a review item owns at most one appointment. No
+                // explicit HasIndex here: adding one would duplicate that index.
+                // Cascade: an appointment has no record-keeping value once its item
+                // (and above it, the client) is gone — the opposite of ATRequest.
+                entity.HasOne(a => a.ReviewItem)
+                      .WithOne(r => r.Appointment)
+                      .HasForeignKey<Appointment>(a => a.ReviewItemId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<ATRequest>(entity =>
@@ -195,7 +252,26 @@ namespace Sati.Data
                 // DEFAULT constraint going forward. Without it, existing rows get ""
                 // and the [NotMapped] wrapper reads that as an empty dropdown.
                 entity.Property(s => s.HealthcareSystemsJson)
-                      .HasDefaultValue("""["Other"]""");
+                                      .HasDefaultValue("""["Other"]""");
+
+                // Rate, not amount — decimal(5,4) like PassthroughRate. HasDefaultValue
+                // backfills the existing row and writes a going-forward DEFAULT so the
+                // tax never computes against 0.
+                entity.Property(s => s.SalesTaxRate)
+                      .HasColumnType("decimal(5,4)")
+                      .HasDefaultValue(0.055m);
+
+                // FK to Provider, no nav property (Settings doesn't navigate to it;
+                // the AT page loads providers separately). SetNull so deleting the
+                // default provider clears the setting rather than blocking the delete.
+                // Deliberately NO HasDefaultValue: a SQL default of 1 would backfill
+                // the existing Settings row at AddColumn time, which can fire before
+                // the Provider seed inserts row 1 — an FK violation. Nullable-null is
+                // safe; the default gets set via the Settings window in slice 2.
+                entity.HasOne<Provider>()
+                      .WithMany()
+                      .HasForeignKey(s => s.DefaultPassthroughProviderId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<Incentive>(entity =>

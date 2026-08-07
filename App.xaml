@@ -302,6 +302,10 @@
         <DataTemplate DataType="{x:Type children:ATRequestViewModel}">
             <views:ATRequestView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
+            <views:ProvidersView />
+        </DataTemplate>
+        
         <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
             <views:TeamOverviewView />
         </DataTemplate>

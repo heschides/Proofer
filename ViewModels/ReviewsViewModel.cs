@@ -136,6 +136,17 @@ namespace Sati.ViewModels
             SelectedCell?.Row.NotifyCellsChanged();
         }
 
+        // Appointment sibling of PersistStageDateAsync. Upserts-or-removes the one
+        // appointment through the service, then refreshes the cell from the
+        // persisted entity so the UI shows what was stored.
+        private async Task PersistAppointmentAsync(ReviewCellViewModel cell, DateTime? date, string? providerName)
+        {
+            var updated = await _reviewItemService.SetAppointmentAsync(cell.ReviewItemId, date, providerName);
+
+            cell.Refresh(updated);
+            SelectedCell?.Row.NotifyCellsChanged();
+        }
+
         [RelayCommand]
         private async Task Refresh()
         {
@@ -189,8 +200,8 @@ namespace Sati.ViewModels
                                             .ThenBy(i => i.SlotIndex);
 
                     foreach (var item in currentCycle)
-                            row.CellsForQuarter(item.Quarter).Add(
-                                new ReviewCellViewModel(item, PersistStageDateAsync));
+                        row.CellsForQuarter(item.Quarter).Add(
+                            new ReviewCellViewModel(item, PersistStageDateAsync, PersistAppointmentAsync));
                 }
 
                 Rows.Add(row);

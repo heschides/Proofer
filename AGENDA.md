@@ -244,3 +244,49 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 
 
+## From note-entry extraction + per-consumer Journal session (2026-07-29)
+
+### Data integrity
+- [ ] **Duplicate forms surfacing in billing window.** `EvaluateBillingWindow`
+      displayed the same PCP three times for one client (Christian Bobe) — it
+      iterates `Forms.Where(gated)` with no dedup, so duplicate/multi-cycle PCP
+      rows all match. Not cosmetic: duplicate `Form` rows on a Person could skew
+      compliance elsewhere. Trace where the triplicate came from (form generation?
+      rollover?) before deduping the display — the display is the symptom, the
+      rows are the bug.
+
+### Data loss risk
+- [ ] **App-close flush for Journal + Scratchpad.** Quitting via the window X
+      within 2s of typing loses the Journal tail (debounce hasn't fired). Same
+      gap likely affects Scratchpad — its only shutdown save is in
+      `ShellViewModel.ReinitializeAsync` (user-switch), not true app-close. Fix:
+      `ShellWindow.OnClosing` handler calling `_notesViewModel.Clients.FlushJournalAsync()`
+      and the scratchpad save. User-switch is already covered.
+
+### Consolidation left unfinished
+- [ ] **NotesLog has two compliance dialogs.** The extracted entry module carries
+      its own (entry-form path); the old host-level overlay in `NotesLogView.xaml`
+      (`Grid.ColumnSpan="5"`, fixed `Width="460"`, no height bound) still serves the
+      context-menu "Mark Note Logged" path via `NotesWindowViewModel`. Both work,
+      driven by different VMs, but it's one screen with two dialog definitions.
+      Fold the context-menu path onto the module's dialog, delete the host overlay.
+- [ ] **User-switch doesn't reset the NotesLog entry module's draft.** Dashboard's
+      `Reset()` cascades to its `NoteEntry.Reset()`; NotesLog's copy only gets
+      `SetPeople` on reload (which clears selection but not a half-typed narrative).
+      Add `NotesLog.NoteEntry.Reset()` to the reinit path.
+
+### Cleanup
+- [ ] **Delete dead `NotesWindowViewModel.LoadAsync`.** Superseded by `ReloadAsync`
+      (which also does sentinel reset + property notifications). Nothing calls the
+      private `LoadAsync` — confirmed via Shell lifecycle. Shadow copy of load logic.
+- [ ] **`SendToSupervisor`/`Cancel` event asymmetry in `NotesWindowViewModel`.**
+      `Cancel` fires `NoteStatusChanged`; `SendToSupervisor` doesn't. Looks
+      backwards. Verify intent, align.
+
+### Architectural debt (widened, not fixed)
+- [ ] **Tiered loading — `GetAllPeopleAsync` still fat-loads.** Base row now pulls
+      `Bio` AND `Journal` (both `nvarchar(max)`) plus the full Notes/Forms graph via
+      dual `.Include` + `.AsSplitQuery()`. Journal's on-demand methods dodge this,
+      but the base load is unchanged. Still the `RESOURCE_SEMAPHORE` culprit; now
+      with one more unbounded column riding along. Projection-to-summary-DTO remains
+      the fix.

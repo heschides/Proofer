@@ -27,6 +27,13 @@ namespace Sati.ViewModels.Supervisor
         }
 
         // -------------------------------------------------------------------------
+        // Events
+        // -------------------------------------------------------------------------
+
+        // Raised after a user edit persists. Parent dashboard subscribes to rebuild
+        // its sidebar — VM fires, parent handles, no child→parent reference.
+        public event Action? UsersChanged;
+        // -------------------------------------------------------------------------
         // Observable properties
         // -------------------------------------------------------------------------
 
@@ -82,6 +89,7 @@ namespace Sati.ViewModels.Supervisor
                 await _userService.UpdateAsync(SelectedUser);
                 StatusMessage = "Changes saved.";
                 await RefreshAsync();
+                UsersChanged?.Invoke();
             }
             catch (Exception ex)
             {

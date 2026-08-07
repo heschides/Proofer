@@ -52,8 +52,9 @@ IFormService formService,
             NewClientViewModel newClientViewModel,
 CalendarViewModel calendarViewModel,
            IExemptDateService exemptDateService,
-            StatisticsViewModel statisticsViewModel,
-            ReviewsViewModel reviewsViewModel
+StatisticsViewModel statisticsViewModel,
+            ReviewsViewModel reviewsViewModel,
+            ProvidersViewModel providersViewModel
             )
         {
             _personService = personService;
@@ -71,6 +72,7 @@ CalendarViewModel calendarViewModel,
             Clients = newClientViewModel;
             Statistics = statisticsViewModel;
             Reviews = reviewsViewModel;
+            Providers = providersViewModel;
 
             // Mirror the module's client selection onto the dashboard. One-way:
             // the CLIENT combobox lives in the module now, but the notes grid and
@@ -139,7 +141,9 @@ CalendarViewModel calendarViewModel,
         public bool IsCalendarSubActive => CurrentSubViewModel is CalendarViewModel;
         public bool IsStatisticsSubActive => CurrentSubViewModel is StatisticsViewModel;
         public bool IsReviewsSubActive => CurrentSubViewModel is ReviewsViewModel;
+        public bool IsProvidersSubActive => CurrentSubViewModel is ProvidersViewModel;
         public ReviewsViewModel Reviews { get; }
+        public ProvidersViewModel Providers { get; }
         public Func<FormType, Task>? FormStatusRequested { get; set; }
         public CalendarViewModel Calendar { get; }
         public StatisticsViewModel Statistics { get; }
@@ -168,6 +172,7 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(IsCalendarSubActive));
             OnPropertyChanged(nameof(IsStatisticsSubActive));
             OnPropertyChanged(nameof(IsReviewsSubActive));
+            OnPropertyChanged(nameof(IsProvidersSubActive));
             OnPropertyChanged(nameof(IsSubViewActive));
         }
 
@@ -463,6 +468,16 @@ CalendarViewModel calendarViewModel,
         {
             await Reviews.LoadAsync();
             CurrentSubViewModel = Reviews;
+        }
+
+        // Loads on every visit, mirroring Reviews — the provider directory is shared
+        // reference data another CM could edit between visits (multi-user future).
+        // Cheap: one query.
+        [RelayCommand]
+        private async Task NavigateToProviders()
+        {
+            await Providers.LoadAsync();
+            CurrentSubViewModel = Providers;
         }
 
         [RelayCommand]

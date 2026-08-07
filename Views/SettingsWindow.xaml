@@ -131,6 +131,28 @@
                            Style="{StaticResource LabelStyle}" />
                 <TextBox Text="{Binding PerUnitIncentive, UpdateSourceTrigger=PropertyChanged}" />
 
+                <!-- AT / PAYMENT REQUESTS -->
+                <TextBlock Text="AT / PAYMENT REQUESTS"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,8,0,8" />
+                <Separator />
+
+                <TextBlock Text="SALES TAX RATE (e.g. 0.055 = 5.5%)"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding SalesTaxRate, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="DEFAULT PASSTHROUGH PROVIDER"
+                           Style="{StaticResource LabelStyle}" />
+                <!-- SelectedValue round-trips the int? FK: SelectedValuePath=Id maps
+                     the chosen Provider to DefaultPassthroughProviderId without needing
+                     the bound value to be the same object instance the list holds. -->
+                <ComboBox ItemsSource="{Binding PassthroughProviders}"
+                          SelectedValue="{Binding DefaultPassthroughProviderId}"
+                          SelectedValuePath="Id"
+                          DisplayMemberPath="Name"
+                          Width="250"
+                          HorizontalAlignment="Left" />
+
                 <!-- SCHEDULE EXCLUSIONS -->
                 <TextBlock Text="EXCLUDED WEEKDAYS"
                            Style="{StaticResource SectionHeader}"

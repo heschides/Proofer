@@ -17,5 +17,7 @@ namespace Sati.Data
         // Sets or clears one workflow date. Returns the updated item so the
         // caller can refresh its in-memory copy.
         Task<ReviewItem> SetStageDateAsync(int reviewItemId, ReviewStage stage, DateTime? date);
+        Task<ReviewItem> SetAppointmentAsync(int reviewItemId, DateTime? date, string? providerName);
+        Task<(Appointment? Medical, Appointment? Dental)> GetLatestAppointmentsAsync(int personId);
     }
 }

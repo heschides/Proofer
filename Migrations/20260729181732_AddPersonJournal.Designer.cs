@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sati.Data;
 
@@ -11,9 +12,11 @@ using Sati.Data;
 namespace Sati.Migrations
 {
     [DbContext(typeof(SatiContext))]
-    partial class SatiContextModelSnapshot : ModelSnapshot
+    [Migration("20260729181732_AddPersonJournal")]
+    partial class AddPersonJournal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,32 +24,6 @@ namespace Sati.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("Sati.Appointment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ProviderName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("ReviewItemId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReviewItemId")
-                        .IsUnique();
-
-                    b.ToTable("Appointments");
-                });
 
             modelBuilder.Entity("Sati.Models.ATRequest", b =>
                 {
@@ -132,9 +109,6 @@ namespace Sati.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
-
-                    b.Property<string>("Url")
-                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -450,81 +424,6 @@ namespace Sati.Migrations
                     b.ToTable("Notes");
                 });
 
-            modelBuilder.Entity("Sati.Models.Provider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BillingContact")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("BillingLocationEis")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("City")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<int>("OfferedServices")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("PrimaryContact")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("ProgramContact")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<bool>("ProvidesPassthroughService")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("State")
-                        .HasMaxLength(2)
-                        .HasColumnType("nvarchar(2)");
-
-                    b.Property<string>("Street")
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Zip")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Providers");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Maine AT Solutions",
-                            OfferedServices = 0,
-                            ProvidesPassthroughService = true,
-                            Type = "Waiver"
-                        });
-                });
-
             modelBuilder.Entity("Sati.Models.Scratchpad", b =>
                 {
                     b.Property<int>("Id")
@@ -577,9 +476,6 @@ namespace Sati.Migrations
                     b.Property<string>("ContactTemplate")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DefaultPassthroughProviderId")
-                        .HasColumnType("int");
 
                     b.Property<string>("DocumentationTemplate")
                         .IsRequired()
@@ -725,18 +621,11 @@ namespace Sati.Migrations
                     b.Property<int>("SafetyPlanOpenDaysBefore")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("SalesTaxRate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(5,4)")
-                        .HasDefaultValue(0.055m);
-
                     b.Property<string>("VisitTemplate")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DefaultPassthroughProviderId");
 
                     b.ToTable("Settings");
                 });
@@ -955,17 +844,6 @@ namespace Sati.Migrations
                     b.ToTable("ReviewItems");
                 });
 
-            modelBuilder.Entity("Sati.Appointment", b =>
-                {
-                    b.HasOne("Sati.ReviewItem", "ReviewItem")
-                        .WithOne("Appointment")
-                        .HasForeignKey("Sati.Appointment", "ReviewItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ReviewItem");
-                });
-
             modelBuilder.Entity("Sati.Models.ATRequest", b =>
                 {
                     b.HasOne("Sati.Person", "Person")
@@ -1069,14 +947,6 @@ namespace Sati.Migrations
                     b.Navigation("Person");
                 });
 
-            modelBuilder.Entity("Sati.Models.Settings", b =>
-                {
-                    b.HasOne("Sati.Models.Provider", null)
-                        .WithMany()
-                        .HasForeignKey("DefaultPassthroughProviderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-                });
-
             modelBuilder.Entity("Sati.Models.User", b =>
                 {
                     b.HasOne("Sati.Models.Agency", "Agency")
@@ -1144,11 +1014,6 @@ namespace Sati.Migrations
                     b.Navigation("Forms");
 
                     b.Navigation("Notes");
-                });
-
-            modelBuilder.Entity("Sati.ReviewItem", b =>
-                {
-                    b.Navigation("Appointment");
                 });
 #pragma warning restore 612, 618
         }

@@ -291,9 +291,48 @@
                     </TextBlock>
                 </Border>
 
+                <Border Cursor="Hand"
+                        CornerRadius="4"
+                        Padding="12,4"
+                        Margin="0,0,4,0">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding NavigateToProvidersCommand}" />
+                    </Border.InputBindings>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background"
+                                    Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsProvidersSubActive}"
+                                             Value="True">
+                                    <Setter Property="Background"
+                                            Value="#C87941" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="Providers"
+                               FontSize="12">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground"
+                                        Value="#9C7A5C" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsProvidersSubActive}"
+                                                 Value="True">
+                                        <Setter Property="Foreground"
+                                                Value="#FDF6EC" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
             </StackPanel>
         </Border>
-       
+
         <!-- ═══ CONTENT AREA ═══ -->
         <Grid Grid.Row="1">
 

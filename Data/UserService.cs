@@ -34,7 +34,15 @@ namespace Sati.Data
         public async Task UpdateAsync(User user)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Users.Update(user);
+
+            var tracked = await context.Users.FindAsync(user.Id);
+            if (tracked is null)
+                return;
+
+            // CurrentValues.SetValues copies scalar + FK properties only,
+            // never navigations — so a stale self-referencing Supervisor nav
+            // can't override the new SupervisorId during fixup.
+            context.Entry(tracked).CurrentValues.SetValues(user);
             await context.SaveChangesAsync();
         }
 

@@ -31,6 +31,19 @@ namespace Sati.Models
         // also writes a SQL default + backfills the existing row, so no install
         // ever computes against a zero rate.
         public decimal PassthroughRate { get; set; } = 0.15m;
+
+        // Maine sales tax, a rate like PassthroughRate (0.055 = 5.5%), adjustable.
+        // Frozen onto the request at save (snapshot-consistent with the rest of the
+        // AT document). decimal(5,4) column set in SatiContext.
+        public decimal SalesTaxRate { get; set; } = 0.055m;
+
+        // The provider pre-selected on the AT page when a consumer's own support
+        // provider doesn't offer passthrough (Maine AT Solutions, by seed). Nullable
+        // FK to Provider — editable in the Settings window. Null = nothing
+        // pre-selected; the CM picks manually. See SatiContext for the FK + the
+        // deliberate choice NOT to SQL-default it.
+        public int? DefaultPassthroughProviderId { get; set; }
+
         // Note templates
         public string VisitTemplate { get; set; } = string.Empty;
         public string ContactTemplate { get; set; } = string.Empty;

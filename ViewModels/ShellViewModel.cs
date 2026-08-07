@@ -171,6 +171,9 @@ namespace Sati.ViewModels
         public async Task ReinitializeAsync()
         {
             await Scratchpad.SaveScratchpadAsync(Scratchpad.ScratchpadContent);
+            // Flush the outgoing user's open journal before Reset() clears the caseload
+            // and the journal's person-id tracking. Mirrors the Scratchpad save above.
+            await _notesViewModel.Clients.FlushJournalAsync();
             await Scratchpad.InitializeAsync();
             _notesViewModel.Reset();
             await _notesViewModel.InitializeAsync();

@@ -1,0 +1,204 @@
+﻿<UserControl x:Class="Sati.Views.ProvidersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#FDF6EC"
+             TextElement.FontFamily="{StaticResource AppFont}">
+
+    <Grid Margin="24,20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══ LEFT: provider list + New button ═══ -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Button Grid.Row="0"
+                    Content="+ New Provider"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding NewProviderCommand}"
+                    Margin="0,0,0,12" />
+
+            <Border Grid.Row="1"
+                    Background="White"
+                    BorderBrush="#E8D0B8"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <ListBox ItemsSource="{Binding Providers}"
+                         SelectedItem="{Binding SelectedProvider, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4,6">
+                                <TextBlock Text="{Binding Name}"
+                                           FontWeight="SemiBold"
+                                           Foreground="#3D2B1F" />
+                                <!-- Passthrough tag only when applicable, so the
+                                     directory reads at a glance which agencies the
+                                     AT dropdown will offer. -->
+                                <TextBlock Text="Passthrough"
+                                           FontSize="10"
+                                           Foreground="#C87941"
+                                           Visibility="{Binding ProvidesPassthroughService,
+                                               Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+
+        <!-- ═══ RIGHT: editor pane, shown only when editing ═══ -->
+        <Border Grid.Column="2"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="20"
+                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          DataContext="{Binding CurrentEditor}">
+                <StackPanel>
+
+                    <TextBlock Text="PROVIDER"
+                               Style="{StaticResource SectionHeader}" />
+
+                    <TextBlock Text="Name"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="Type"
+                               Style="{StaticResource LabelStyle}" />
+                    <ComboBox ItemsSource="{Binding ProviderTypeOptions}"
+                              SelectedItem="{Binding Type}"
+                              HorizontalAlignment="Left"
+                              Width="200" />
+
+                    <TextBlock Text="ADDRESS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,8,0,8" />
+
+                    <TextBlock Text="Street"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding Street, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="City"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBox Text="{Binding City, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="State"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBox Text="{Binding State, UpdateSourceTrigger=PropertyChanged}"
+                                     MaxLength="2" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="Zip"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBox Text="{Binding Zip, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="CONTACT"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,8,0,8" />
+
+                    <TextBlock Text="Primary Contact"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding PrimaryContact, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="Phone"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="WAIVER SERVICES"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,8,0,8" />
+                    <!-- Each checkbox is one bit of the OfferedServices [Flags] enum,
+                         mapped in the editor VM. -->
+                    <CheckBox Content="Home Support"
+                              IsChecked="{Binding OffersHomeSupport}"
+                              Foreground="#3D2B1F"
+                              Margin="0,0,0,6" />
+                    <CheckBox Content="Community Support"
+                              IsChecked="{Binding OffersCommunitySupport}"
+                              Foreground="#3D2B1F"
+                              Margin="0,0,0,6" />
+                    <CheckBox Content="Self-Direction"
+                              IsChecked="{Binding OffersSelfDirection}"
+                              Foreground="#3D2B1F"
+                              Margin="0,0,0,6" />
+                    <CheckBox Content="Community Membership"
+                              IsChecked="{Binding OffersCommunityMembership}"
+                              Foreground="#3D2B1F"
+                              Margin="0,0,0,12" />
+
+                    <Separator />
+
+                    <!-- Passthrough is a standalone bool, not a waiver service.
+                         Checking it reveals the three billing fields below. -->
+                    <CheckBox Content="Provides Passthrough Service"
+                              IsChecked="{Binding ProvidesPassthroughService}"
+                              FontWeight="SemiBold"
+                              Foreground="#3D2B1F"
+                              Margin="0,0,0,10" />
+
+                    <StackPanel Visibility="{Binding ProvidesPassthroughService,
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="Billing Location (EIS)"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBox Text="{Binding BillingLocationEis, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Text="Program Contact"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBox Text="{Binding ProgramContact, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Text="Billing Contact"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBox Text="{Binding BillingContact, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <!-- Save/Delete/Cancel. Commands live on the ProvidersViewModel
+                         (the parent), not the editor VM this ScrollViewer is scoped to,
+                         so they reach up via AncestorType=UserControl → the page VM. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,16,0,0">
+                        <Button Content="Save"
+                                Style="{StaticResource PrimaryButton}"
+                                Width="100"
+                                Margin="0,0,8,0"
+                                Command="{Binding DataContext.SaveProviderCommand,
+                                    RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        <Button Content="Delete"
+                                Style="{StaticResource DangerButton}"
+                                Width="100"
+                                Margin="0,0,8,0"
+                                Command="{Binding DataContext.DeleteProviderCommand,
+                                    RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        <Button Content="Cancel"
+                                Style="{StaticResource SmallButton}"
+                                Width="100"
+                                Command="{Binding DataContext.CloseEditorCommand,
+                                    RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

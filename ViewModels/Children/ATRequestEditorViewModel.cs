@@ -1,38 +1,40 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Sati.Models;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels.Children
 {
     // Observable editing wrapper around one in-memory ATRequest — the "detail"
-    // half of the AT master-detail. Exists because ATRequest is a pure persistence
-    // entity with no change notification; the live document preview needs the
-    // right pane to react as the left pane is typed into, which requires an
-    // observable surface. Keeps INotifyPropertyChanged OUT of the domain entity.
+    // half of the AT master-detail. Keeps INotifyPropertyChanged out of the domain
+    // entity; write-through properties mean the entity is always current.
     //
-    // Write-through: each bindable property reads and writes the underlying entity
-    // directly, so the entity is always current and Save just persists it — no
-    // copy-back step. The entity is the single store; this VM is the notifying lens.
-    //
-    // BUILD STATE: slice 1b — vendor block + sales tax. The item grid
-    // (ObservableCollection<ATRequestItemEditorViewModel>) and live totals land in
-    // 1c; the collection and total properties are seamed in here but not yet
-    // populated/computed.
+    // BUILD STATE: slice 1c — item grid + live totals. Item rows are wrapped in
+    // ATRequestItemEditorViewModel; cost/qty edits route through RaiseTotalsChanged
+    // so passthrough/total recompute live. Persistence (Save) is still 1d: nothing
+    // here reaches the DB, so closing the editor discards an unsaved request.
     public partial class ATRequestEditorViewModel : ObservableObject
     {
         private readonly ATRequest _request;
 
-        public ATRequestEditorViewModel(ATRequest request)
+        // Passthrough rate from Settings, injected because the entity can't see
+        // Settings and its TotalCost/PassthroughFee methods take the rate as an arg.
+        private readonly decimal _rate;
+
+        public ATRequestEditorViewModel(ATRequest request, decimal passthroughRate)
         {
             _request = request;
+            _rate = passthroughRate;
+
+            // Wrap existing rows (present when 1d opens a saved request; empty for a
+            // new one). Each row gets RaiseTotalsChanged as its change callback.
+            foreach (var item in _request.Items)
+                Items.Add(new ATRequestItemEditorViewModel(item, RaiseTotalsChanged));
         }
 
-        // The wrapped entity, exposed for Save and for the preview's read-only
-        // snapshot fields (client/CM info, frozen at CreateForClient).
         public ATRequest Request => _request;
 
         // ---- Read-only snapshot fields (for the preview pane) ----
-        // Frozen at creation; displayed on the form, never edited here.
         public string? ClientName => _request.ClientName;
         public string? ClientEvergreenId => _request.ClientEvergreenId;
         public string? CaseManagerName => _request.CaseManagerName;
@@ -41,10 +43,6 @@ namespace Sati.ViewModels.Children
         public string? CaseManagerAgency => _request.CaseManagerAgency;
 
         // ---- Editable: vendor block ----
-        // Write-through properties. Each setter writes the entity and raises
-        // PropertyChanged so the preview pane updates live. Not [ObservableProperty]
-        // because these back onto the entity's fields, not VM-local backing fields.
-
         public string? VendorName
         {
             get => _request.VendorName;
@@ -70,10 +68,6 @@ namespace Sati.ViewModels.Children
         }
 
         // ---- Editable: sales tax ----
-        // Changing tax must also refresh the totals (passthrough is computed on
-        // the tax-inclusive subtotal). Totals are stubbed in 1b, computed in 1c;
-        // the OnPropertyChanged for them is already fired here so the wiring is
-        // complete when 1c fills the getters in.
         public decimal SalesTax
         {
             get => _request.SalesTax;
@@ -88,20 +82,37 @@ namespace Sati.ViewModels.Children
             }
         }
 
-        // ---- Item grid (populated in 1c) ----
+        // ---- Item grid ----
         public ObservableCollection<ATRequestItemEditorViewModel> Items { get; } = [];
 
-        // ---- Live totals (computed in 1c) ----
-        // Stubbed to zero for 1b so the file builds and the preview can bind now;
-        // 1c replaces the bodies with real calculator-backed math and wires
-        // per-item change notifications to RaiseTotalsChanged.
-        public decimal ItemsTotal => 0m;
-        public decimal PassthroughFee => 0m;
-        public decimal TotalCost => 0m;
+        // Append a blank item to both the entity and the observable grid, then
+        // refresh totals. The new row carries RaiseTotalsChanged so its later
+        // cost/qty edits propagate.
+        [RelayCommand]
+        private void AddItem()
+        {
+            var item = new ATRequestItem();
+            _request.Items.Add(item);
+            Items.Add(new ATRequestItemEditorViewModel(item, RaiseTotalsChanged));
+            RaiseTotalsChanged();
+        }
 
-        // Re-raises the three computed totals. Called by SalesTax and (in 1c) by
-        // item add/remove/edit. Central so every total-affecting change routes
-        // through one notifier.
+        // Remove a row from both the entity and the grid, then refresh totals.
+        [RelayCommand]
+        private void RemoveItem(ATRequestItemEditorViewModel row)
+        {
+            _request.Items.Remove(row.Item);
+            Items.Remove(row);
+            RaiseTotalsChanged();
+        }
+
+        // ---- Live totals ----
+        // Read-only lenses over the entity's calculator-backed math. Passthrough is
+        // applied post-tax (see ATRequestCalculator); both pass the injected rate.
+        public decimal ItemsTotal => _request.ItemsTotal;
+        public decimal PassthroughFee => _request.PassthroughFee(_rate);
+        public decimal TotalCost => _request.TotalCost(_rate);
+
         private void RaiseTotalsChanged()
         {
             OnPropertyChanged(nameof(ItemsTotal));

@@ -5,275 +5,297 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d">
 
+    <!--
+        LAYOUT (post-restructure):
+        Outer grid owns the top/bottom split now. Row 0 holds the sidebar (col 0)
+        and the note-entry module (col 2); row 2 holds the notes grid, which spans
+        cols 0-2 so it runs full-width beneath BOTH the filter sidebar and the entry
+        form. The detail panel (col 4) RowSpans the whole thing to stay full-height
+        on the right.
+
+        The 4*/5* + MinHeight split that used to live on the inner col-2 grid was
+        lifted up to this outer grid — same short-screen protection (module keeps its
+        share and scrolls internally; grid keeps a floor and never leaves the viewport),
+        just applied one level higher now that the grid is a peer of the sidebar.
+
+        The sidebar no longer gets full window height (it's confined to row 0), so its
+        content is wrapped in a ScrollViewer — if the attention section expands past the
+        row's share it scrolls rather than clipping. This is the one addition beyond a
+        pure move.
+    -->
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="180" />
+            <ColumnDefinition Width="3*" />
             <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="4*" />
             <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="3*" />
         </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="2*"
+                           MinHeight="240" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="1*"
+                           MinHeight="140" />
+        </Grid.RowDefinitions>
 
         <!-- ═══ SIDEBAR ═══ -->
         <Border Grid.Column="0"
+                Grid.Row="0"
                 Background="White"
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="12">
-            <StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
 
-                <TextBlock Text="FILTERS"
-                           Style="{StaticResource SectionHeader}" />
-                <Separator Background="#E8D0B8"
-                           Margin="0,0,0,10" />
-
-                <TextBlock Text="CLIENT"
-                           Style="{StaticResource LabelStyle}" />
-                <ComboBox Margin="0,0,0,10"
-                          ItemsSource="{Binding FilterPeople}"
-                          SelectedItem="{Binding SelectedFilterPerson, Mode=TwoWay}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding FullName, FallbackValue='All Clients'}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-
-                <TextBlock Text="STATUS"
-                           Style="{StaticResource LabelStyle}" />
-                <ComboBox Margin="0,0,0,10"
-                          ItemsSource="{Binding StatusOptions}"
-                          SelectedItem="{Binding SelectedStatusOption, Mode=TwoWay}"
-                          DisplayMemberPath="Display" />
-
-                <TextBlock Text="SEARCH"
-                           Style="{StaticResource LabelStyle}" />
-                <TextBox Margin="0,0,0,20"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         Padding="6,4" />
-
-                <TextBlock Text="DATE RANGE"
-                           Style="{StaticResource LabelStyle}" />
-                <DatePicker Margin="0,0,0,6"
-                            SelectedDate="{Binding RangeStart, Mode=TwoWay}"
-                            AutomationProperties.Name="Range start date" />
-                <DatePicker Margin="0,0,0,16"
-                            SelectedDate="{Binding RangeEnd, Mode=TwoWay}"
-                            AutomationProperties.Name="Range end date" />
-
-                <!-- Units summary — scoped by the filters above, fixed to Pending/Logged -->
-                <Border Background="#FDF6EC"
-                        BorderBrush="#E8D0B8"
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="10,8"
-                        Margin="0,0,0,20">
-                    <StackPanel>
-                        <TextBlock Text="UNITS IN RANGE"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"
-                                   Foreground="#9C7A5C"
-                                   Margin="0,0,0,6" />
-                        <Grid Margin="0,0,0,2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="Pending"
-                                       FontSize="12"
-                                       Foreground="#3D2B1F" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding RangePendingUnits}"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="#3D2B1F" />
-                        </Grid>
-                        <Grid Margin="0,0,0,2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="Logged"
-                                       FontSize="12"
-                                       Foreground="#3D2B1F" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding RangeLoggedUnits}"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="#3D2B1F" />
-                        </Grid>
-                        <Separator Background="#E8D0B8"
-                                   Margin="0,4" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="Total"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="#C87941" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding RangeTotalUnits}"
-                                       FontSize="12"
-                                       FontWeight="Bold"
-                                       Foreground="#C87941" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <!-- Attention section — hidden when nothing needs action -->
-                <StackPanel Visibility="{Binding HasAttentionItems,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-
-                    <TextBlock Text="ATTENTION NEEDED"
+                    <TextBlock Text="FILTERS"
                                Style="{StaticResource SectionHeader}" />
                     <Separator Background="#E8D0B8"
                                Margin="0,0,0,10" />
 
-                    <!-- Returned notes link -->
-                    <Button Margin="0,0,0,8"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left"
-                            Command="{Binding ShowReturnedCommand}"
-                            Visibility="{Binding HasReturned,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="4"
-                                        Padding="4,6">
-                                    <ContentPresenter />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="#F5EBE0" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#C87941"
-                                    CornerRadius="10"
-                                    MinWidth="20"
-                                    Height="20"
-                                    Padding="5,0"
-                                    Margin="0,0,8,0"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ReturnedCount}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="White"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Text="Returned"
-                                       FontSize="12"
-                                       Foreground="#3D2B1F"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <TextBlock Text="CLIENT"
+                               Style="{StaticResource LabelStyle}" />
+                    <ComboBox Margin="0,0,0,10"
+                              ItemsSource="{Binding FilterPeople}"
+                              SelectedItem="{Binding SelectedFilterPerson, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding FullName, FallbackValue='All Clients'}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
 
-                    <!-- Held for compliance link -->
-                    <Button Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left"
-                            Command="{Binding ShowHeldCommand}"
-                            Visibility="{Binding HasHeld,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="4"
-                                        Padding="4,6">
-                                    <ContentPresenter />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="#F5EBE0" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#7A3B3B"
-                                    CornerRadius="10"
-                                    MinWidth="20"
-                                    Height="20"
-                                    Padding="5,0"
-                                    Margin="0,0,8,0"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{Binding HeldCount}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="White"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Text="Held for Compliance"
-                                       FontSize="12"
-                                       Foreground="#3D2B1F"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <TextBlock Text="STATUS"
+                               Style="{StaticResource LabelStyle}" />
+                    <ComboBox Margin="0,0,0,10"
+                              ItemsSource="{Binding StatusOptions}"
+                              SelectedItem="{Binding SelectedStatusOption, Mode=TwoWay}"
+                              DisplayMemberPath="Display" />
 
+                    <TextBlock Text="SEARCH"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Margin="0,0,0,20"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="6,4" />
+
+                    <TextBlock Text="DATE RANGE"
+                               Style="{StaticResource LabelStyle}" />
+                    <DatePicker Margin="0,0,0,6"
+                                SelectedDate="{Binding RangeStart, Mode=TwoWay}"
+                                AutomationProperties.Name="Range start date" />
+                    <DatePicker Margin="0,0,0,16"
+                                SelectedDate="{Binding RangeEnd, Mode=TwoWay}"
+                                AutomationProperties.Name="Range end date" />
+
+                    <!-- Units summary — scoped by the filters above, fixed to Pending/Logged -->
+                    <Border Background="#FDF6EC"
+                            BorderBrush="#E8D0B8"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="10,8"
+                            Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="UNITS IN RANGE"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#9C7A5C"
+                                       Margin="0,0,0,6" />
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Pending"
+                                           FontSize="12"
+                                           Foreground="#3D2B1F" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding RangePendingUnits}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#3D2B1F" />
+                            </Grid>
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Logged"
+                                           FontSize="12"
+                                           Foreground="#3D2B1F" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding RangeLoggedUnits}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#3D2B1F" />
+                            </Grid>
+                            <Separator Background="#E8D0B8"
+                                       Margin="0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Total"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#C87941" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding RangeTotalUnits}"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#C87941" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Attention section — hidden when nothing needs action -->
+                    <StackPanel Visibility="{Binding HasAttentionItems,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+
+                        <TextBlock Text="ATTENTION NEEDED"
+                                   Style="{StaticResource SectionHeader}" />
+                        <Separator Background="#E8D0B8"
+                                   Margin="0,0,0,10" />
+
+                        <!-- Returned notes link -->
+                        <Button Margin="0,0,0,8"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Command="{Binding ShowReturnedCommand}"
+                                Visibility="{Binding HasReturned,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="4,6">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter Property="Background"
+                                                    Value="#F5EBE0" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="#C87941"
+                                        CornerRadius="10"
+                                        MinWidth="20"
+                                        Height="20"
+                                        Padding="5,0"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ReturnedCount}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Returned"
+                                           FontSize="12"
+                                           Foreground="#3D2B1F"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Held for compliance link -->
+                        <Button Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Command="{Binding ShowHeldCommand}"
+                                Visibility="{Binding HasHeld,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="4,6">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter Property="Background"
+                                                    Value="#F5EBE0" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="#7A3B3B"
+                                        CornerRadius="10"
+                                        MinWidth="20"
+                                        Height="20"
+                                        Padding="5,0"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding HeldCount}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Held for Compliance"
+                                           FontSize="12"
+                                           Foreground="#3D2B1F"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <!-- ═══ NOTE ENTRY MODULE + NOTES DATAGRID ═══
+        <!-- ═══ NOTE ENTRY MODULE ═══
              Second host of the shared entry module. Its own instance — drafts
-             here are independent of the dashboard's copy. -->
-        <Grid Grid.Column="2">
-            <Grid.RowDefinitions>
-                <!-- Proportional, not fixed: a fixed module height reserves the same
-                     pixels regardless of window size, so on a short screen (768px)
-                     it pushes the grid below the fold. Star-sizing lets both rows
-                     scale with the window — the module gets the larger share and its
-                     internal ScrollViewer absorbs any shortfall, while the grid keeps
-                     a guaranteed share and never leaves the viewport. MinHeight floors
-                     each so neither collapses to nothing on an extreme window. -->
-                <RowDefinition Height="4*"
-                               MinHeight="240" />
-                <RowDefinition Height="12" />
-                <RowDefinition Height="5*"
-                               MinHeight="140" />
-            </Grid.RowDefinitions>
-            <ContentControl Grid.Row="0"
-                            Content="{Binding NoteEntry}" />
+             here are independent of the dashboard's copy. Now a direct child of
+             the outer grid (row 0, col 2); the inner wrapper grid it used to live
+             in was dissolved when the notes grid moved out to span full-width. -->
+        <ContentControl Grid.Row="0"
+                        Grid.Column="2"
+                        Content="{Binding NoteEntry}" />
 
-            <Border Grid.Row="2"
-                    Background="White"
-                    BorderBrush="#E8D0B8"
-                    BorderThickness="1"
-                    CornerRadius="6">
-                <DataGrid ItemsSource="{Binding NotesView}"
-                          SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                          MouseDoubleClick="DataGrid_MouseDoubleClick"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          RowBackground="White"
-                          AlternatingRowBackground="#FDF6EC"
-                          GridLinesVisibility="Horizontal"
-                          HorizontalGridLinesBrush="#F0E0D0"
-                          HeadersVisibility="Column"
-                          SelectionMode="Single">
-                    <DataGrid.ContextMenu>
+        <!-- ═══ NOTES DATAGRID ═══
+             Row 2, spanning cols 0-2 (sidebar, gutter, entry) so it runs full-width
+             beneath both. -->
+        <Border Grid.Row="2"
+                Grid.Column="0"
+                Grid.ColumnSpan="5"
+                Background="White"
+                BorderBrush="#E8D0B8"
+                BorderThickness="1"
+                CornerRadius="6">
+            <DataGrid ItemsSource="{Binding NotesView}"
+                      SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                      MouseDoubleClick="DataGrid_MouseDoubleClick"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      RowBackground="White"
+                      AlternatingRowBackground="#FDF6EC"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="#F0E0D0"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single">
+                <DataGrid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Mark Note Logged"
                                   Command="{Binding PlacementTarget.DataContext.MarkNoteLoggedCommand,
@@ -296,13 +318,17 @@
                     <DataGridTextColumn Header="Units"
                                         Binding="{Binding Units}"
                                         Width="50" />
+                    <DataGridTextColumn Header="Narrative"
+                                        Binding="{Binding Narrative}"
+                                        Width="*" />
                 </DataGrid.Columns>
-                </DataGrid>
-            </Border>
-        </Grid>
+            </DataGrid>
+        </Border>
 
-        <!-- ═══ NOTE DETAIL PANEL ═══ -->
+        <!-- ═══ NOTE DETAIL PANEL ═══
+             Col 4, RowSpan 3 to stay full-height on the right across the new split. -->
         <Border Grid.Column="4"
+                Grid.Row="0"
                 Background="White"
                 BorderBrush="#E8D0B8"
                 BorderThickness="1"
@@ -454,9 +480,14 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <!-- Compliance dialog overlay -->
+
+        <!-- Compliance dialog overlay — spans the full grid (all 5 cols, all 3 rows)
+             so the scrim covers the whole view after the row split. -->
         <Grid Background="#80000000"
+              Grid.Column="0"
               Grid.ColumnSpan="5"
+              Grid.Row="0"
+              Grid.RowSpan="3"
               Visibility="{Binding IsComplianceDialogVisible,
                   Converter={StaticResource BoolToVisibilityConverter}}">
             <Border Background="#FDF6EC"

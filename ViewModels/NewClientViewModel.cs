@@ -8,6 +8,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Windows.Threading;
 
 namespace Sati.ViewModels
 {
@@ -22,7 +23,21 @@ namespace Sati.ViewModels
         private readonly INoteService _noteService;
         private readonly IFormService _formService;
         private readonly ISettingsService _settingsService;
+        private readonly IReviewItemService _reviewItemService;
 
+        // Per-consumer journal state. The timer debounces saves to 2s after the last
+        // keystroke — Stop()+Start() on every edit means it fires once typing pauses,
+        // not once per character. _journalPersonId is the id the CURRENT Journal text
+        // belongs to, captured so a debounced save writes to the right record even if
+        // selection has since moved. _suppressJournalSave guards the load: assigning
+        // Journal from the DB raises OnJournalChanged, which would otherwise start the
+        // timer and save the just-loaded text straight back.
+        private DispatcherTimer? _journalSaveTimer;
+        private int? _journalPersonId;
+        private bool _suppressJournalSave;
+
+        [ObservableProperty]
+        private string? journal;
         // -------------------------------------------------------------------------
         // Events
         // -------------------------------------------------------------------------
@@ -133,6 +148,23 @@ namespace Sati.ViewModels
         // Property change callbacks
         // -------------------------------------------------------------------------
 
+        // Two-parameter overload runs alongside the single-param one below. Its job is
+        // the journal handoff: flush the OUTGOING person's journal (using oldValue,
+        // before the id is lost), then load the incoming person's journal under the
+        // suppress guard so the load doesn't retrigger a save. Ordering matters —
+        // flush old, then load new.
+        partial void OnSelectedPersonChanged(Person? oldValue, Person? newValue)
+        {
+            // Flush any pending edit for the person we're leaving. Fire-and-forget is
+            // acceptable: the write is a single-column UPDATE and the timer is stopped
+            // so it can't also fire.
+            _journalSaveTimer?.Stop();
+            if (_journalPersonId is int leavingId && !_suppressJournalSave)
+                _ = _personService.SaveJournalAsync(leavingId, Journal);
+
+            _ = LoadJournalAsync(newValue);
+        }
+
         partial void OnSelectedPersonChanged(Person? value)
         {
             OnPropertyChanged(nameof(HasSelectedPerson));
@@ -152,6 +184,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ReleaseDhhsDueDate));
             RefreshComplianceFlags();
             _ = LoadSelectedPersonNotesAsync(value);
+            _ = LoadAppointmentsAsync(value);
 
             // The panel is persistent now, so it can't be left showing one client's
             // data while another is selected — Submit's edit branch writes to
@@ -259,10 +292,28 @@ namespace Sati.ViewModels
         // into DateTime? before Max means an empty sequence yields null rather than
         // throwing, and the detail panel renders null as a dash.
         public DateTime? LastContact =>
-            SelectedPersonNotes
-                .Where(n => n.NoteType == NoteType.Contact)
-                .Select(n => (DateTime?)n.EventDate)
-                .Max();
+                    SelectedPersonNotes
+                        .Where(n => n.NoteType == NoteType.Contact)
+                        .Select(n => (DateTime?)n.EventDate)
+                        .Max();
+
+        // Latest doctor/dentist appointments for the selected client, loaded on
+        // selection (LoadAppointmentsAsync) rather than stored on Person — so the
+        // caseload-load path and the Person entity stay untouched. Overdue = more
+        // than 365 days since the most recent of that kind; null = none on record,
+        // which the Clients column renders as a dash.
+        private Appointment? _latestDoctor;
+        private Appointment? _latestDentist;
+
+        public DateTime? LastDoctorDate => _latestDoctor?.Date;
+        public string? DoctorName => _latestDoctor?.ProviderName;
+        public bool IsDoctorOverdue =>
+            _latestDoctor is not null && (DateTime.Today - _latestDoctor.Date).TotalDays > 365;
+
+        public DateTime? LastDentistDate => _latestDentist?.Date;
+        public string? DentistName => _latestDentist?.ProviderName;
+        public bool IsDentistOverdue =>
+            _latestDentist is not null && (DateTime.Today - _latestDentist.Date).TotalDays > 365;
 
         // Due dates
         public DateTime? Q1RDueDate => SelectedPerson?.GetCurrentCycleForm(FormType.Q1R)?.DueDate;
@@ -297,13 +348,15 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public NewClientViewModel(IPersonService personService, ISessionService session,
-                   INoteService noteService, IFormService formService, ISettingsService settingsService)
+                           INoteService noteService, IFormService formService, ISettingsService settingsService,
+                           IReviewItemService reviewItemService)
         {
             _personService = personService;
             _sessionService = session;
             _noteService = noteService;
             _formService = formService;
             _settingsService = settingsService;
+            _reviewItemService = reviewItemService;
             _ = LoadHealthcareOptionsAsync();
         }
 
@@ -428,6 +481,12 @@ namespace Sati.ViewModels
             if (!confirmed)
                 return;
 
+            // Drop journal tracking before the delete so the selection-change flush
+            // (triggered by SelectedPerson = null below) can't write a journal back to
+            // the row we're removing.
+            _journalSaveTimer?.Stop();
+            _journalPersonId = null;
+
             await _personService.DeletePersonAsync(SelectedPerson);
             People.Remove(SelectedPerson);
             SelectedPerson = null;
@@ -545,6 +604,92 @@ namespace Sati.ViewModels
             // until they're here. (The notes arrive async after the selection changes,
             // which is why this can't live in OnSelectedPersonChanged.)
             OnPropertyChanged(nameof(LastContact));
+        }
+
+        // Loads the selected client's most-recent doctor and dentist appointments
+        // for the Clients-tab column. A per-selection read like the notes load above
+        // — deliberately NOT part of GetAllPeopleAsync, so the caseload load stays
+        // blob-free and Person gains no appointment columns. Null person clears both.
+        private async Task LoadAppointmentsAsync(Person? person)
+        {
+            if (person is null)
+            {
+                _latestDoctor = null;
+                _latestDentist = null;
+            }
+            else
+            {
+                var (medical, dental) = await _reviewItemService.GetLatestAppointmentsAsync(person.Id);
+                _latestDoctor = medical;
+                _latestDentist = dental;
+            }
+
+            OnPropertyChanged(nameof(LastDoctorDate));
+            OnPropertyChanged(nameof(DoctorName));
+            OnPropertyChanged(nameof(IsDoctorOverdue));
+            OnPropertyChanged(nameof(LastDentistDate));
+            OnPropertyChanged(nameof(DentistName));
+            OnPropertyChanged(nameof(IsDentistOverdue));
+        }
+        
+
+        // Every keystroke restarts the 2s countdown; it elapses only after typing
+        // pauses. The suppress guard skips the load-time assignment. Timer is created
+        // lazily on first real edit so a session that never touches a journal never
+        // spins one up.
+        partial void OnJournalChanged(string? value)
+        {
+            if (_suppressJournalSave)
+                return;
+
+            _journalSaveTimer ??= CreateJournalTimer();
+            _journalSaveTimer.Stop();
+            _journalSaveTimer.Start();
+        }
+
+        private DispatcherTimer CreateJournalTimer()
+        {
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            timer.Tick += async (s, e) =>
+            {
+                timer.Stop();
+                if (_journalPersonId is int id)
+                    await _personService.SaveJournalAsync(id, Journal);
+            };
+            return timer;
+        }
+
+        // Loads the incoming person's journal under the suppress guard so the
+        // assignment doesn't trip OnJournalChanged and save it straight back.
+        // _journalPersonId is set to the loaded person so any subsequent edit saves
+        // against the right record.
+        private async Task LoadJournalAsync(Person? person)
+        {
+            if (person is null)
+            {
+                _suppressJournalSave = true;
+                Journal = string.Empty;
+                _journalPersonId = null;
+                _suppressJournalSave = false;
+                return;
+            }
+
+            var text = await _personService.GetJournalAsync(person.Id);
+
+            _suppressJournalSave = true;
+            Journal = text ?? string.Empty;
+            _journalPersonId = person.Id;
+            _suppressJournalSave = false;
+        }
+
+        // Immediate flush for shutdown/user-switch. Public so ShellViewModel can call
+        // it in the same teardown path that saves the Scratchpad. Stops the timer
+        // first so a pending tick can't double-write.
+        public async Task FlushJournalAsync()
+        {
+            _journalSaveTimer?.Stop();
+            if (_journalPersonId is int id)
+                await _personService.SaveJournalAsync(id, Journal);
         }
 
         // Loads the configurable system names from Settings and projects each into a

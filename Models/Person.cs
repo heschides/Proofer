@@ -3,7 +3,7 @@ using Sati.Models;
 
 namespace Sati
 {
-    public class Person
+    public class Person : IEventSource
     {
         // -------------------------------------------------------------------------
         // Properties
@@ -18,6 +18,15 @@ namespace Sati
         public Gender Gender { get; set; } = Gender.Unknown;
         public DateTime? EffectiveDate { get; set; }
         public string? Bio { get; set; }
+
+        // Per-consumer freeform working journal — indefinitely long, distinct from
+        // the date-scoped Scratchpad. Maps to nvarchar(max). MUST be excluded from
+        // GetAllPeopleAsync: like Bio and Note.Narrative, an unbounded column on the
+        // caseload-load path inflates the memory-grant estimate and feeds the
+        // RESOURCE_SEMAPHORE stalls. Loaded and saved on demand via
+        // IPersonService.GetJournalAsync / SaveJournalAsync only.
+        public string? Journal { get; set; }
+
         public WaiverType Waiver { get; set; } = WaiverType.None;
         public string FullName => $"{FirstName} {LastName}".Trim();
         public int? AgencyId { get; set; }
@@ -101,6 +110,12 @@ namespace Sati
 
         public List<Form> Forms { get; set; } = [];
         public List<Note> Notes { get; set; } = [];
+
+        // Explicit interface implementation: exposes the entity's Notes as the
+        // read-only INoteInfo surface IEventSource requires. List<Note> doesn't
+        // satisfy IEnumerable<INoteInfo> directly (C# property types must match
+        // exactly), so this adapter bridges them. Note already implements INoteInfo.
+        IEnumerable<INoteInfo> IEventSource.Notes => Notes;
 
         // -------------------------------------------------------------------------
         // Constructor
@@ -223,15 +238,31 @@ namespace Sati
         // exists — the caller surfaces that as NoForm rather than borrowing a
         // stale form.
         public Form? GetCurrentCycleForm(FormType type, DateTime? asOf = null)
+                    => FindCurrentCycleForm(Forms, EffectiveDate, type, asOf);
+
+        // Static single-source-of-truth for current-cycle form lookup. Extracted so
+        // PersonSummary (the blob-free sidebar DTO) can answer GetCurrentCycleForm
+        // without a shadow copy of cycle-membership math. Cycle boundaries are computed
+        // inline here from effectiveDate rather than via the instance
+        // GetCurrentCycleBoundaries, so the helper needs no Person instance — same
+        // convention, (cycleStart, cycleEnd], enforced by FormBelongsToCycle.
+        public static Form? FindCurrentCycleForm(
+            List<Form> forms, DateTime? effectiveDate, FormType type, DateTime? asOf = null)
         {
-            var today = asOf ?? DateTime.Today;
-            var boundaries = GetCurrentCycleBoundaries(today);
-            if (boundaries is null)
+            if (effectiveDate is null)
                 return null;
 
-            var (cycleStart, cycleEnd) = boundaries.Value;
+            var today = asOf ?? DateTime.Today;
+            var effective = effectiveDate.Value;
 
-            return Forms
+            var yearsElapsed = today.Year - effective.Year;
+            if (today < effective.AddYears(yearsElapsed))
+                yearsElapsed--;
+
+            var cycleStart = effective.AddYears(yearsElapsed);
+            var cycleEnd = effective.AddYears(yearsElapsed + 1);
+
+            return forms
                 .Where(f => f.Type == type &&
                             FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd))
                 .OrderByDescending(f => f.DueDate)

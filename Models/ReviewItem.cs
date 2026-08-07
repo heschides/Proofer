@@ -35,6 +35,14 @@
         public int PersonId { get; set; }
         public Person? Person { get; set; }
 
+        // The optional appointment recorded on this item. Meaningful only for
+        // Medical and Dental categories; null for all others AND for a Medical/
+        // Dental item whose appointment hasn't been recorded yet. One-to-one —
+        // Appointment carries the FK and a unique index (see OnModelCreating).
+        // Nothing on this class changes shape: the nav is the whole addition, so
+        // ReviewItem stays free of appointment-specific scalar columns.
+        public Appointment? Appointment { get; set; }
+
         // The anniversary date opening the cycle this item belongs to — the
         // same cycleStart that Person.GetCurrentCycleBoundaries returns. Stored
         // explicitly rather than derived from a year number so cycle identity
