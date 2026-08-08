@@ -20,6 +20,7 @@ namespace Sati.ViewModels
         //EVENTS
         public event EventHandler<bool>? OpenNewUserRequested;
         public event EventHandler<bool>? LoginSucceeded;
+        public event EventHandler? IncorrectPasswordRequested;
 
         //PROPERTIES
         [ObservableProperty] private string username = string.Empty;
@@ -42,7 +43,10 @@ namespace Sati.ViewModels
 
             var user = await _authService.AuthenticateAsync(Username, SecurePassword);
             if (user == null)
+            {
+                IncorrectPasswordRequested?.Invoke(this, EventArgs.Empty);
                 return;
+            }
 
             SelectedUser = user;
             LoginSucceeded?.Invoke(this, true);

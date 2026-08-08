@@ -441,6 +441,9 @@ namespace Sati.Migrations
                     b.Property<int?>("Status")
                         .HasColumnType("int");
 
+                    b.Property<string>("VisitDocumentationJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AgencyId");
@@ -448,6 +451,85 @@ namespace Sati.Migrations
                     b.HasIndex("PersonId");
 
                     b.ToTable("Notes");
+                });
+
+            modelBuilder.Entity("Sati.Models.PersonContact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(75)
+                        .HasColumnType("nvarchar(75)");
+
+                    b.Property<bool>("HasActiveRelease")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEmergencyContact")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(75)
+                        .HasColumnType("nvarchar(75)");
+
+                    b.Property<string>("Organization")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Relationship")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId", "IsActive");
+
+                    b.ToTable("PersonContacts");
+                });
+
+            modelBuilder.Entity("Sati.Models.Assessments.ComprehensiveAssessment", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<DateTime?>("ApprovedAt").HasColumnType("datetime2");
+                    b.Property<int?>("ApprovedByUserId").HasColumnType("int");
+                    b.Property<int>("AuthorUserId").HasColumnType("int");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<string>("DocumentJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<int>("PersonId").HasColumnType("int");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(30).HasColumnType("nvarchar(30)");
+                    b.Property<DateTime?>("SubmittedAt").HasColumnType("datetime2");
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<int>("Version").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.HasIndex("ApprovedByUserId");
+                    b.HasIndex("AuthorUserId");
+                    b.HasIndex("PersonId", "Version").IsUnique();
+                    b.ToTable("ComprehensiveAssessments");
                 });
 
             modelBuilder.Entity("Sati.Models.Provider", b =>
@@ -977,6 +1059,15 @@ namespace Sati.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("Sati.Models.Assessments.ComprehensiveAssessment", b =>
+                {
+                    b.HasOne("Sati.Models.User", null).WithMany().HasForeignKey("ApprovedByUserId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("Sati.Models.User", "AuthorUser").WithMany().HasForeignKey("AuthorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("Sati.Person", "Person").WithMany().HasForeignKey("PersonId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("AuthorUser");
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("Sati.Models.ATRequestItem", b =>
                 {
                     b.HasOne("Sati.Models.ATRequest", "ATRequest")
@@ -1069,6 +1160,17 @@ namespace Sati.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("Sati.Models.PersonContact", b =>
+                {
+                    b.HasOne("Sati.Person", "Person")
+                        .WithMany("Contacts")
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("Sati.Models.Settings", b =>
                 {
                     b.HasOne("Sati.Models.Provider", null)
@@ -1141,6 +1243,8 @@ namespace Sati.Migrations
 
             modelBuilder.Entity("Sati.Person", b =>
                 {
+                    b.Navigation("Contacts");
+
                     b.Navigation("Forms");
 
                     b.Navigation("Notes");

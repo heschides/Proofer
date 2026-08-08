@@ -1,4 +1,4 @@
-﻿<Window x:Class="Sati.Views.SwitchUserWindow"
+<Window x:Class="Sati.Views.SwitchUserWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Switch User"
@@ -6,7 +6,7 @@
         Width="340"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#FDF6EC"
+        Background="{DynamicResource WindowBackgroundBrush}"
         FontFamily="{StaticResource AppFont}">
 
     <Border Padding="32">
@@ -15,13 +15,13 @@
             <TextBlock Text="Switch User"
                        FontSize="22"
                        FontWeight="Bold"
-                       Foreground="#3D2B1F"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,4" />
 
             <TextBlock Text="Select your name and enter your password to continue."
                        FontSize="12"
-                       Foreground="#9C7A5C"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        HorizontalAlignment="Center"
                        TextWrapping="Wrap"
                        TextAlignment="Center"
@@ -30,41 +30,42 @@
             <TextBlock Text="USERNAME"
                        FontSize="11"
                        FontWeight="SemiBold"
-                       Foreground="#9C7A5C"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,5" />
-            <ComboBox ItemsSource="{Binding Users}"
+            <ComboBox AutomationProperties.Name="User" ItemsSource="{Binding Users}"
                       SelectedItem="{Binding SelectedUser}"
                       DisplayMemberPath="DisplayName"
                       Height="36"
                       Padding="10,0"
                       FontSize="14"
                       VerticalContentAlignment="Center"
-                      Background="White"
-                      BorderBrush="#D4A882"
+                      Background="{DynamicResource SurfaceBrush}"
+                      BorderBrush="{DynamicResource HoverStrongBrush}"
                       BorderThickness="1"
-                      Foreground="#3D2B1F"
+                      Foreground="{DynamicResource TextPrimaryBrush}"
                       Margin="0,0,0,16" />
 
             <TextBlock Text="PASSWORD"
                        FontSize="11"
                        FontWeight="SemiBold"
-                       Foreground="#9C7A5C"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,5" />
-            <PasswordBox x:Name="PasswordBox"
+            <PasswordBox AutomationProperties.Name="Password" x:Name="PasswordBox"
                          Height="36"
                          Padding="10,0"
                          FontSize="14"
                          VerticalContentAlignment="Center"
-                         Background="White"
-                         BorderBrush="#D4A882"
+                         Background="{DynamicResource SurfaceBrush}"
+                         BorderBrush="{DynamicResource HoverStrongBrush}"
                          BorderThickness="1"
-                         Foreground="#3D2B1F"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
                          Margin="0,0,0,16"
                          PasswordChanged="PasswordBox_PasswordChanged" />
 
             <TextBlock Text="{Binding ErrorMessage}"
+                       AutomationProperties.LiveSetting="Assertive"
                        FontSize="12"
-                       Foreground="#A83220"
+                       Foreground="{DynamicResource OverdueBrush}"
                        TextWrapping="Wrap"
                        Margin="0,0,0,12"
                        Visibility="{Binding ErrorMessage,
@@ -86,8 +87,8 @@
 
             <Button Content="Switch User"
                     Height="40"
-                    Background="#C87941"
-                    Foreground="White"
+                    Background="{DynamicResource AccentBrush}"
+                    Foreground="{DynamicResource SurfaceBrush}"
                     FontSize="14"
                     FontWeight="SemiBold"
                     BorderThickness="0"
@@ -104,12 +105,12 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#A85E28" />
+                                        Value="{DynamicResource AccentHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#8A4D20" />
+                                        Value="{DynamicResource AccentPressedBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

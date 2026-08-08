@@ -10,341 +10,400 @@
              xmlns:views="clr-namespace:Sati.Views"
              xmlns:billingViews="clr-namespace:Sati.Views.Billing">
     <Application.Resources>
+        <ResourceDictionary>
 
-        <!-- Fonts -->
-        <FontFamily x:Key="AppFont">Inter</FontFamily>
-        <FontFamily x:Key="NarrativeFont">Cambria</FontFamily>
+            <!-- Theme + state colors. States is theme-independent; the second entry
+                 is the ACTIVE theme — swap this one dictionary (or its Source) to
+                 retheme. DynamicResource refs throughout the app re-resolve on swap. -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/States.xaml" />
+                <ResourceDictionary Source="/Themes/SunlitShell.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-      
-        <!-- Global styles -->
-        <Style x:Key="LabelStyle"
-               TargetType="TextBlock">
-            <Setter Property="FontSize"
-                    Value="11" />
-            <Setter Property="FontWeight"
-                    Value="SemiBold" />
-            <Setter Property="Foreground"
-                    Value="#9C7A5C" />
-            <Setter Property="Margin"
-                    Value="0,0,0,4" />
-        </Style>
+            <!-- Fonts -->
+            <FontFamily x:Key="AppFont">Inter</FontFamily>
+            <FontFamily x:Key="NarrativeFont">Cambria</FontFamily>
 
-        <Style x:Key="SectionHeader"
-               TargetType="TextBlock">
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="FontWeight"
-                    Value="Bold" />
-            <Setter Property="Foreground"
-                    Value="#3D2B1F" />
-            <Setter Property="Margin"
-                    Value="0,0,0,8" />
-        </Style>
+            <!-- Global styles -->
+            <Style x:Key="LabelStyle"
+                   TargetType="TextBlock">
+                <Setter Property="FontSize"
+                        Value="11" />
+                <Setter Property="FontWeight"
+                        Value="SemiBold" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextSecondaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,4" />
+            </Style>
 
-        <Style TargetType="TextBox">
-            <Setter Property="Padding"
-                    Value="8,4" />
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="Background"
-                    Value="White" />
-            <Setter Property="BorderBrush"
-                    Value="#D4A882" />
-            <Setter Property="BorderThickness"
-                    Value="1" />
-            <Setter Property="Foreground"
-                    Value="#3D2B1F" />
-            <Setter Property="Margin"
-                    Value="0,0,0,10" />
-        </Style>
+            <Style x:Key="SectionHeader"
+                   TargetType="TextBlock">
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="FontWeight"
+                        Value="Bold" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,8" />
+            </Style>
 
-        <Style TargetType="ComboBox">
-            <Setter Property="Padding"
-                    Value="6,4" />
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="Background"
-                    Value="White" />
-            <Setter Property="BorderBrush"
-                    Value="#D4A882" />
-            <Setter Property="BorderThickness"
-                    Value="1" />
-            <Setter Property="Foreground"
-                    Value="#3D2B1F" />
-            <Setter Property="Margin"
-                    Value="0,0,0,10" />
-        </Style>
+            <Style TargetType="TextBox">
+                <Setter Property="Padding"
+                        Value="8,4" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="Background"
+                        Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource InputBorderBrush}" />
+                <Setter Property="BorderThickness"
+                        Value="1" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,10" />
+            </Style>
 
-        <Style TargetType="DatePicker">
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="Background"
-                    Value="White" />
-            <Setter Property="BorderBrush"
-                    Value="#D4A882" />
-            <Setter Property="BorderThickness"
-                    Value="1" />
-            <Setter Property="Foreground"
-                    Value="#3D2B1F" />
-            <Setter Property="Margin"
-                    Value="0,0,0,10" />
-        </Style>
+            <Style TargetType="ComboBox">
+                <Setter Property="Padding"
+                        Value="6,4" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="Background"
+                        Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource InputBorderBrush}" />
+                <Setter Property="BorderThickness"
+                        Value="1" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,10" />
+            </Style>
 
-        <Style TargetType="Separator">
-            <Setter Property="Background"
-                    Value="#E8D0B8" />
-            <Setter Property="Margin"
-                    Value="0,4,0,12" />
-        </Style>
+            <Style TargetType="DatePicker">
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="Background"
+                        Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource InputBorderBrush}" />
+                <Setter Property="BorderThickness"
+                        Value="1" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,10" />
+            </Style>
 
-        <Style x:Key="PrimaryButton"
-               TargetType="Button">
-            <Setter Property="Height"
-                    Value="36" />
-            <Setter Property="Background"
-                    Value="#C87941" />
-            <Setter Property="Foreground"
-                    Value="White" />
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="FontWeight"
-                    Value="SemiBold" />
-            <Setter Property="BorderThickness"
-                    Value="0" />
-            <Setter Property="Cursor"
-                    Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Background"
-                                        Value="#A85E28" />
-                            </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter Property="Background"
-                                        Value="#8A4D20" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style TargetType="Separator">
+                <Setter Property="Background"
+                        Value="{DynamicResource DividerBrush}" />
+                <Setter Property="Margin"
+                        Value="0,4,0,12" />
+            </Style>
 
-        <Style x:Key="DangerButton"
-               TargetType="Button">
-            <Setter Property="Height"
-                    Value="36" />
-            <Setter Property="Background"
-                    Value="#E8D0B8" />
-            <Setter Property="Foreground"
-                    Value="#8A4D20" />
-            <Setter Property="FontSize"
-                    Value="13" />
-            <Setter Property="FontWeight"
-                    Value="SemiBold" />
-            <Setter Property="BorderThickness"
-                    Value="0" />
-            <Setter Property="Cursor"
-                    Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Background"
-                                        Value="#D4A882" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="IconButton"
-               TargetType="Button">
-            <Setter Property="Width"
-                    Value="32" />
-            <Setter Property="Height"
-                    Value="32" />
-            <Setter Property="Background"
-                    Value="Transparent" />
-            <Setter Property="BorderThickness"
-                    Value="0" />
-            <Setter Property="Cursor"
-                    Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Background"
-                                        Value="#E8D0B8" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SmallButton"
-               TargetType="Button">
-            <Setter Property="Height"
-                    Value="28" />
-            <Setter Property="Padding"
-                    Value="12,0" />
-            <Setter Property="Background"
-                    Value="#EDD9C0" />
-            <Setter Property="Foreground"
-                    Value="#3D2B1F" />
-            <Setter Property="FontSize"
-                    Value="12" />
-            <Setter Property="BorderThickness"
-                    Value="0" />
-            <Setter Property="Cursor"
-                    Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Background"
-                                        Value="#D4A882" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="PrimaryButton"
+                   TargetType="Button">
+                <Setter Property="Height"
+                        Value="36" />
+                <Setter Property="Background"
+                        Value="{DynamicResource AccentBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnAccentBrush}" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="FontWeight"
+                        Value="SemiBold" />
+                <Setter Property="BorderThickness"
+                        Value="0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource AccentHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource AccentPressedBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-        <!-- Converters -->
-        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
-        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
-        <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
-        <converters:BoardTabConverter x:Key="BoardTabConverter" />
-        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter" />
-        <converters:BoolToTileColorConverter x:Key="BoolToTileColorConverter" />
-        <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" />
-        <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
-                                         TrueWidth="16"
-                                         FalseWidth="0" />
-        <converters:FormCellStatusToBrushConverter x:Key="FormCellStatusToBrushConverter" />
-        <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
-        <!-- View → ViewModel DataTemplates -->
-        <DataTemplate DataType="{x:Type viewmodels:CaseManagerDashboardViewModel}">
-            <views:CaseManagerDashboardView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type children:NoteEntryViewModel}">
-            <views:NoteEntryView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type supervisorVms:SupervisorDashboardViewModel}">
-            <views:SupervisorDashboardWindow />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type viewmodels:NotesWindowViewModel}">
-            <views:NotesLogView />
-        </DataTemplate>
+            <Style x:Key="LocalAiButton"
+                   TargetType="Button">
+                <Setter Property="Height"
+                        Value="34" />
+                <Setter Property="Padding"
+                        Value="22,0" />
+                <Setter Property="Background"
+                        Value="{DynamicResource AiAccentBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnAiAccentBrush}" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="FontWeight"
+                        Value="SemiBold" />
+                <Setter Property="BorderThickness"
+                        Value="0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    CornerRadius="5">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource AiAccentHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource AiAccentPressedBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled"
+                                         Value="False">
+                                    <Setter Property="Opacity"
+                                            Value="0.55" />
+                                    <Setter Property="Cursor"
+                                            Value="Arrow" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-        <DataTemplate DataType="{x:Type viewmodels:StatisticsViewModel}">
-            <views:StatisticsView />
-        </DataTemplate>
+            <Style x:Key="DangerButton"
+                   TargetType="Button">
+                <Setter Property="Height"
+                        Value="36" />
+                <Setter Property="Background"
+                        Value="{DynamicResource BorderBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource AccentPressedBrush}" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="FontWeight"
+                        Value="SemiBold" />
+                <Setter Property="BorderThickness"
+                        Value="0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource HoverStrongBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="IconButton"
+                   TargetType="Button">
+                <Setter Property="Width"
+                        Value="32" />
+                <Setter Property="Height"
+                        Value="32" />
+                <Setter Property="Background"
+                        Value="Transparent" />
+                <Setter Property="BorderThickness"
+                        Value="0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource BorderBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="SmallButton"
+                   TargetType="Button">
+                <Setter Property="Height"
+                        Value="28" />
+                <Setter Property="Padding"
+                        Value="12,0" />
+                <Setter Property="Background"
+                        Value="{DynamicResource HoverBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="FontSize"
+                        Value="12" />
+                <Setter Property="BorderThickness"
+                        Value="0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource HoverStrongBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-        <DataTemplate DataType="{x:Type viewmodels:NewClientViewModel}">
-            <views:ClientsView />
-        </DataTemplate>
+            <!-- Converters -->
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
+            <converters:BoardTabConverter x:Key="BoardTabConverter" />
+            <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter" />
+            <converters:BoolToTileColorConverter x:Key="BoolToTileColorConverter" />
+            <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" />
+            <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
+                                             TrueWidth="16"
+                                             FalseWidth="0" />
+            <converters:FormCellStatusToBrushConverter x:Key="FormCellStatusToBrushConverter" />
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+            <!-- View → ViewModel DataTemplates -->
+            <DataTemplate DataType="{x:Type viewmodels:CaseManagerDashboardViewModel}">
+                <views:CaseManagerDashboardView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type children:NoteEntryViewModel}">
+                <views:NoteEntryView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:SupervisorDashboardViewModel}">
+                <views:SupervisorDashboardWindow />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodels:NotesWindowViewModel}">
+                <views:NotesLogView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type viewmodels:CaseloadMatrixViewModel}">
-            <views:CaseloadMatrixView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodels:StatisticsViewModel}">
+                <views:StatisticsView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type viewmodels:ReviewsViewModel}">
-            <views:ReviewsView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodels:NewClientViewModel}">
+                <views:ClientsView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type children:GuidanceViewModel}">
-            <views:GuidanceView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type children:CalendarViewModel}">
-            <views:CalendarView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodels:CaseloadMatrixViewModel}">
+                <views:CaseloadMatrixView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type children:HelpersViewModel}">
-            <views:HelpersView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodels:ReviewsViewModel}">
+                <views:ReviewsView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type children:HelperReferenceViewModel}">
-            <views:HelperReferenceView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type children:GuidanceViewModel}">
+                <views:GuidanceView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type children:CalendarViewModel}">
+                <views:CalendarView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type children:ATRequestViewModel}">
-            <views:ATRequestView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
-            <views:ProvidersView />
-        </DataTemplate>
-        
-        <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
-            <views:TeamOverviewView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type supervisorVms:OverdueItemsViewModel}">
-            <views:OverdueItemsView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type supervisorVms:MonthlyProductivityViewModel}">
-            <views:MonthlyProductivityView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type children:HelpersViewModel}">
+                <views:HelpersView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type supervisorVms:UserManagementViewModel}">
-            <views:UserManagementView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type supervisorVms:PendingApprovalsViewModel}">
-            <views:PendingApprovalsView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type billingVms:BillingDashboardViewModel}">
-            <billingViews:BillingDashboardView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type children:HelperReferenceViewModel}">
+                <views:HelperReferenceView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type billingVms:BillingOverviewViewModel}">
-            <billingViews:BillingOverviewView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type children:ATRequestViewModel}">
+                <views:ATRequestView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
+                <views:ProvidersView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
+                <views:TeamOverviewView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:OverdueItemsViewModel}">
+                <views:OverdueItemsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:MonthlyProductivityViewModel}">
+                <views:MonthlyProductivityView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type billingVms:BillingQueueViewModel}">
-            <billingViews:BillingQueueView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:UserManagementViewModel}">
+                <views:UserManagementView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:PendingApprovalsViewModel}">
+                <views:PendingApprovalsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type billingVms:BillingDashboardViewModel}">
+                <billingViews:BillingDashboardView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type billingVms:BillingSubmissionsViewModel}">
-            <billingViews:BillingSubmissionsView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type billingVms:BillingOverviewViewModel}">
+                <billingViews:BillingOverviewView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type billingVms:BillingRemittancesViewModel}">
-            <billingViews:BillingRemittancesView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type billingVms:BillingQueueViewModel}">
+                <billingViews:BillingQueueView />
+            </DataTemplate>
 
-        <DataTemplate DataType="{x:Type billingVms:BillingAlertsViewModel}">
-            <billingViews:BillingAlertsView />
-        </DataTemplate>
+            <DataTemplate DataType="{x:Type billingVms:BillingSubmissionsViewModel}">
+                <billingViews:BillingSubmissionsView />
+            </DataTemplate>
 
+            <DataTemplate DataType="{x:Type billingVms:BillingRemittancesViewModel}">
+                <billingViews:BillingRemittancesView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type billingVms:BillingAlertsViewModel}">
+                <billingViews:BillingAlertsView />
+            </DataTemplate>
+
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

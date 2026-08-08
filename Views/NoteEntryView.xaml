@@ -1,8 +1,135 @@
-﻿<UserControl x:Class="Sati.Views.NoteEntryView"
+<UserControl x:Class="Sati.Views.NoteEntryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sati="clr-namespace:Sati"
              TextElement.FontFamily="{StaticResource AppFont}">
+
+    <UserControl.Resources>
+        <!-- Three staggered, gently pulsing pearls. The animations start only while
+             the local assistant is busy and are removed as soon as it finishes. -->
+        <Style x:Key="AiThinkingPearlBase"
+               TargetType="Ellipse">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="Margin" Value="3,0" />
+            <Setter Property="Fill" Value="{DynamicResource AiAccentBrush}" />
+            <Setter Property="Opacity" Value="0.3" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="0.72" ScaleY="0.72" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AiThinkingPearlOne"
+               TargetType="Ellipse"
+               BasedOn="{StaticResource AiThinkingPearlBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAiBusy}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="AiPearlPulseOne">
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 BeginTime="0:0:0"
+                                                 From="0.3" To="1"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 BeginTime="0:0:0"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 BeginTime="0:0:0"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <RemoveStoryboard BeginStoryboardName="AiPearlPulseOne" />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiThinkingPearlTwo"
+               TargetType="Ellipse"
+               BasedOn="{StaticResource AiThinkingPearlBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAiBusy}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="AiPearlPulseTwo">
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 BeginTime="0:0:0.18"
+                                                 From="0.3" To="1"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 BeginTime="0:0:0.18"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 BeginTime="0:0:0.18"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <RemoveStoryboard BeginStoryboardName="AiPearlPulseTwo" />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiThinkingPearlThree"
+               TargetType="Ellipse"
+               BasedOn="{StaticResource AiThinkingPearlBase}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAiBusy}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="AiPearlPulseThree">
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 BeginTime="0:0:0.36"
+                                                 From="0.3" To="1"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 BeginTime="0:0:0.36"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 BeginTime="0:0:0.36"
+                                                 From="0.72" To="1.18"
+                                                 Duration="0:0:0.55"
+                                                 AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <RemoveStoryboard BeginStoryboardName="AiPearlPulseThree" />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
 
     <!-- Root grid stacks the form and the compliance overlay. The overlay dims
          the MODULE only, not the hosting screen — deliberate, one definition. -->
@@ -14,8 +141,8 @@
              long narrative can never push it out of the module's clip bounds. The
              field grid fills what's left, inside a ScrollViewer — fields scroll,
              Submit stays put. This is the fix for the clipped-button bug. -->
-        <Border Background="White"
-                BorderBrush="#E8D0B8"
+        <Border Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="14">
@@ -61,7 +188,7 @@
                         <TextBlock Text="CLIENT"
                            Grid.Row="1"
                            Style="{StaticResource LabelStyle}" />
-                <ComboBox Grid.Row="2"
+                <ComboBox AutomationProperties.Name="Person" Grid.Row="2"
                           ItemsSource="{Binding People}"
                           SelectedItem="{Binding SelectedPerson}"
                           DisplayMemberPath="FullName" />
@@ -69,7 +196,7 @@
                 <TextBlock Text="STATUS"
                            Grid.Row="3"
                            Style="{StaticResource LabelStyle}" />
-                <ComboBox Grid.Row="4"
+                <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}" />
 
@@ -97,7 +224,7 @@
                                  Grid.Column="1"
                                  Content="Visit"
                                  Margin="0,0,12,4"
-                                 Foreground="#3D2B1F"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
@@ -106,7 +233,7 @@
                                  Grid.Column="3"
                                  Content="Contact"
                                  Margin="0,0,12,4"
-                                 Foreground="#3D2B1F"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
@@ -115,7 +242,7 @@
                                  Grid.Column="1"
                                  Content="Other"
                                  Margin="0,0,12,4"
-                                 Foreground="#3D2B1F"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
@@ -124,12 +251,12 @@
                                  Grid.Column="3"
                                  Content="Form"
                                  Margin="0,0,8,4"
-                                 Foreground="#3D2B1F"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
                                      ConverterParameter=Form}" />
-                    <ComboBox Grid.Row="3"
+                    <ComboBox AutomationProperties.Name="Form Type" Grid.Row="3"
                               Grid.ColumnSpan="4"
                               ItemsSource="{Binding FormTypes}"
                               SelectedItem="{Binding SelectedFormType, Mode=TwoWay}"
@@ -151,21 +278,189 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="MINUTES"
                                Grid.Row="0"
                                Style="{StaticResource LabelStyle}" />
-                    <TextBox Grid.Row="1"
+                    <TextBox AutomationProperties.Name="Minutes" Grid.Row="1"
                              Text="{Binding Minutes}" />
 
                     <TextBlock Text="DATE"
                                Grid.Row="2"
                                Style="{StaticResource LabelStyle}" />
-                    <DatePicker Grid.Row="3"
+                    <DatePicker AutomationProperties.Name="Event date" Grid.Row="3"
                                 SelectedDate="{Binding EventDate}" />
 
-                    <Grid Grid.Row="4">
+                    <Expander Grid.Row="4"
+                              Header="IN-PERSON MEETING DETAILS"
+                              IsExpanded="True"
+                              Margin="0,2,0,10"
+                              Visibility="{Binding IsVisitNote,
+                                  Converter={StaticResource BoolToVisibilityConverter}}"
+                              AutomationProperties.Name="In-person meeting details">
+                        <Border Margin="0,6,0,0"
+                                Padding="11"
+                                Background="{DynamicResource PersonGroupAltBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Text="Select only facts you personally observed or verified. Sati saves these selections with the note and can incorporate them into the AI draft."
+                                           Margin="0,0,0,10"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <TextBlock Text="MEETING SETTING"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <ComboBox ItemsSource="{Binding VisitSettings}"
+                                                  SelectedItem="{Binding VisitSetting}"
+                                                  AutomationProperties.Name="Meeting setting">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="2">
+                                        <TextBlock Text="APPEARANCE"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <ComboBox ItemsSource="{Binding VisitAppearances}"
+                                                  SelectedItem="{Binding VisitAppearance}"
+                                                  AutomationProperties.Name="Observed appearance">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,0,0">
+                                        <TextBlock Text="PARTICIPATION"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <ComboBox ItemsSource="{Binding VisitParticipations}"
+                                                  SelectedItem="{Binding VisitParticipation}"
+                                                  AutomationProperties.Name="Consumer participation">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,8,0,0">
+                                        <TextBlock Text="HEALTH / SAFETY"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <ComboBox ItemsSource="{Binding VisitSafetyObservations}"
+                                                  SelectedItem="{Binding VisitSafetyObservation}"
+                                                  AutomationProperties.Name="Health and safety observation">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="SETTING DETAILS"
+                                           Style="{StaticResource LabelStyle}"
+                                           Margin="0,10,0,5" />
+                                <TextBox Text="{Binding VisitSettingDetails, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Meeting setting details"
+                                         ToolTip="Optional location or setting details. Enter only what should appear in the record." />
+
+                                <DockPanel Margin="0,11,0,5">
+                                    <CheckBox DockPanel.Dock="Right"
+                                              Content="Consumer was present"
+                                              IsChecked="{Binding VisitConsumerPresent}"
+                                              Margin="12,0,0,0"
+                                              AutomationProperties.Name="Consumer was present" />
+                                    <TextBlock Text="ATTENDEES FROM THE CONSUMER PROFILE"
+                                               Style="{StaticResource LabelStyle}"
+                                               Margin="0" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding VisitAttendees}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding DisplayLabel}"
+                                                      IsChecked="{Binding IsSelected}"
+                                                      Margin="0,0,14,6"
+                                                      AutomationProperties.Name="{Binding DisplayLabel}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="ADDITIONAL ATTENDEES"
+                                           Style="{StaticResource LabelStyle}"
+                                           Margin="0,4,0,5" />
+                                <TextBox Text="{Binding VisitAdditionalAttendees, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Additional meeting attendees"
+                                         ToolTip="For a one-time attendee who is not in the consumer profile. Include the person's name and role." />
+
+                                <TextBlock Text="VERIFIED MEETING FACTS"
+                                           Style="{StaticResource LabelStyle}"
+                                           Margin="0,11,0,5" />
+                                <WrapPanel>
+                                    <CheckBox Content="Expressed preferences"
+                                              IsChecked="{Binding VisitExpressedPreferences}" />
+                                    <CheckBox Content="Asked questions"
+                                              IsChecked="{Binding VisitAskedQuestions}"
+                                              Margin="14,0,0,6" />
+                                    <CheckBox Content="Made choices"
+                                              IsChecked="{Binding VisitMadeChoices}"
+                                              Margin="14,0,0,6" />
+                                    <CheckBox Content="Communication support used"
+                                              IsChecked="{Binding VisitCommunicationSupportUsed}"
+                                              Margin="14,0,0,6" />
+                                    <CheckBox Content="Goals reviewed"
+                                              IsChecked="{Binding VisitGoalsReviewed}"
+                                              Margin="14,0,0,6" />
+                                    <CheckBox Content="Services discussed"
+                                              IsChecked="{Binding VisitServicesDiscussed}"
+                                              Margin="14,0,0,6" />
+                                    <CheckBox Content="Documents reviewed"
+                                              IsChecked="{Binding VisitDocumentsReviewed}"
+                                              Margin="14,0,0,6" />
+                                </WrapPanel>
+
+                                <TextBlock Text="OBSERVATION DETAILS"
+                                           Style="{StaticResource LabelStyle}"
+                                           Margin="0,6,0,5" />
+                                <TextBox Text="{Binding VisitObservationDetails, UpdateSourceTrigger=PropertyChanged}"
+                                         MinHeight="58"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         SpellCheck.IsEnabled="True"
+                                         AutomationProperties.Name="Visit observation details"
+                                         ToolTip="Required when an appearance, health, or safety concern is selected." />
+                            </StackPanel>
+                        </Border>
+                    </Expander>
+
+                    <Grid Grid.Row="5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -175,29 +470,31 @@
                                    Style="{StaticResource LabelStyle}" />
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal">
-                            <Button Command="{Binding DecreaseNarrativeFontCommand}"
+                <Button Command="{Binding DecreaseNarrativeFontCommand}"
+                        AutomationProperties.Name="Decrease note text size"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Padding="4,0">
                                 <TextBlock Text="A"
                                            FontSize="11"
-                                           Foreground="#9C7A5C" />
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
                             </Button>
-                            <Button Command="{Binding IncreaseNarrativeFontCommand}"
+                <Button Command="{Binding IncreaseNarrativeFontCommand}"
+                        AutomationProperties.Name="Increase note text size"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Padding="4,0">
                                 <TextBlock Text="A"
                                            FontSize="16"
-                                           Foreground="#9C7A5C"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontWeight="SemiBold" />
                             </Button>
                         </StackPanel>
                     </Grid>
 
-                            <TextBox Grid.Row="5"
+                            <TextBox AutomationProperties.Name="Note narrative" Grid.Row="6"
                                      MinHeight="160"
                                      TextWrapping="Wrap"
                                      AcceptsReturn="True"
@@ -205,7 +502,171 @@
                                      SpellCheck.IsEnabled="True"
                                      FontFamily="{StaticResource NarrativeFont}"
                                      FontSize="{Binding NarrativeFontSize}"
-                                     Text="{Binding Narrative}" />
+                                     Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <StackPanel Grid.Row="7"
+                                        Margin="0,2,0,10"
+                                        Visibility="{Binding IsLocalAiEnabled,
+                                            Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                            Command="{Binding FormatNarrativeWithAiCommand}"
+                                            AutomationProperties.Name="Create a local AI case note draft"
+                                            ToolTip="Formats the current narrative locally. You must compare and accept the result."
+                                            Style="{StaticResource LocalAiButton}"
+                                            Content="Format with Local AI" />
+
+                                    <TextBlock Grid.Column="1"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding AiStatusMessage}"
+                                               AutomationProperties.LiveSetting="Polite" />
+                                </Grid>
+
+                                <Border Margin="0,8,0,0"
+                                        Padding="12,9"
+                                        CornerRadius="7"
+                                        Background="{DynamicResource AiAccentSoftBrush}"
+                                        BorderBrush="{DynamicResource AiAccentBorderBrush}"
+                                        BorderThickness="1"
+                                        Visibility="{Binding IsAiBusy,
+                                            Converter={StaticResource BoolToVisibilityConverter}}"
+                                        AutomationProperties.Name="Local AI is thinking"
+                                        AutomationProperties.LiveSetting="Polite">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="{DynamicResource AiGlowColor}"
+                                                          BlurRadius="14"
+                                                          ShadowDepth="0"
+                                                          Opacity="0.38" />
+                                    </Border.Effect>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,10,0">
+                                            <Ellipse Style="{StaticResource AiThinkingPearlOne}" />
+                                            <Ellipse Style="{StaticResource AiThinkingPearlTwo}" />
+                                            <Ellipse Style="{StaticResource AiThinkingPearlThree}" />
+                                        </StackPanel>
+                                        <TextBlock Text="Sati is gathering context and shaping the draft…"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource AiPanelTextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <ProgressBar Height="4"
+                                             Margin="0,8,0,0"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding AiDownloadProgress, TargetNullValue=0}"
+                                             Visibility="{Binding AiDownloadProgress,
+                                                Converter={StaticResource NullToVisibilityConverter}}"
+                                             AutomationProperties.Name="Local AI model download progress" />
+                            </StackPanel>
+
+                            <Border Grid.Row="8"
+                                    Margin="0,2,0,10"
+                                    Padding="12"
+                                    CornerRadius="6"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource AiAccentBorderBrush}"
+                                    BorderThickness="1"
+                                    Visibility="{Binding IsAiReviewVisible,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="LOCAL AI DRAFT - REVIEW REQUIRED"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Margin="0,3,0,8"
+                                               Text="Compare this draft with your original. Sati has not changed or submitted the note."
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                    <ItemsControl ItemsSource="{Binding AiWarnings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,0,5"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource DangerStrongBrush}"
+                                                           FontSize="11">
+                                                    <Run Text="Warning: " />
+                                                    <Run Text="{Binding}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Expander Margin="0,2,0,8"
+                                              Header="{Binding AiContextSummary}"
+                                              AutomationProperties.Name="Show client context sources used by local AI">
+                                        <Border Margin="0,5,0,0"
+                                                Padding="9"
+                                                Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                            <StackPanel>
+                                                <TextBlock Margin="0,0,0,6"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           Text="Historical records were supplied as background only. They cannot establish what happened during this contact." />
+                                                <ItemsControl ItemsSource="{Binding AiContextSources}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Margin="0,0,0,3"
+                                                                       FontSize="11"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}">
+                                                                <Run Text="{Binding Category}" FontWeight="SemiBold" />
+                                                                <Run Text=" — " />
+                                                                <Run Text="{Binding Description}" />
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
+
+                                    <TextBox AutomationProperties.Name="Proposed local AI case note draft"
+                                             Text="{Binding AiDraftNarrative, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             MinHeight="130"
+                                             MaxHeight="260"
+                                             TextWrapping="Wrap"
+                                             AcceptsReturn="True"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontFamily="{StaticResource NarrativeFont}"
+                                             FontSize="{Binding NarrativeFontSize}" />
+
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right">
+                                        <Button Content="Discard Draft"
+                                                Command="{Binding DiscardAiDraftCommand}"
+                                                AutomationProperties.Name="Discard local AI draft"
+                                                Height="32"
+                                                Padding="14,0"
+                                                Margin="0,0,8,0" />
+                                        <Button Content="Accept as Narrative"
+                                                Command="{Binding AcceptAiDraftCommand}"
+                                                AutomationProperties.Name="Accept local AI draft as note narrative"
+                                                Style="{StaticResource LocalAiButton}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </Grid>
 
                     </Grid>
@@ -214,7 +675,7 @@
         </Border>
 
         <!-- ═══ COMPLIANCE DIALOG OVERLAY (module-scoped) ═══ -->
-        <Grid Background="#80000000"
+        <Grid Background="{DynamicResource ScrimBrush}"
               Visibility="{Binding IsComplianceDialogVisible,
                   Converter={StaticResource BoolToVisibilityConverter}}">
             <!-- MaxHeight bound to the overlay Grid keeps the dialog inside the
@@ -222,8 +683,8 @@
                  pins the button row to the bottom and lets the message + reasons +
                  justification scroll — so buttons are reachable no matter how many
                  compliance reasons or how long the client name. -->
-            <Border Background="#FDF6EC"
-                    BorderBrush="#D9AEAE"
+            <Border Background="{DynamicResource WindowBackgroundBrush}"
+                    BorderBrush="{DynamicResource OverdueBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     MaxWidth="460"
@@ -243,8 +704,8 @@
                                 FontSize="12"
                                 Cursor="Hand"
                                 BorderThickness="0"
-                                Background="#9C7A5C"
-                                Foreground="#FDF6EC"
+                                Background="{DynamicResource TextSecondaryBrush}"
+                                Foreground="{DynamicResource WindowBackgroundBrush}"
                                 Margin="0,0,6,0"
                                 Command="{Binding CancelComplianceDialogCommand}">
                             <Button.Template>
@@ -263,8 +724,8 @@
                                 FontSize="12"
                                 Cursor="Hand"
                                 BorderThickness="0"
-                                Background="#C87941"
-                                Foreground="#FDF6EC"
+                                Background="{DynamicResource AccentBrush}"
+                                Foreground="{DynamicResource WindowBackgroundBrush}"
                                 Margin="0,0,6,0"
                                 Command="{Binding HoldForComplianceCommand}">
                             <Button.Template>
@@ -283,8 +744,8 @@
                                 FontSize="12"
                                 Cursor="Hand"
                                 BorderThickness="0"
-                                Background="#7A3B3B"
-                                Foreground="#FDF6EC"
+                                Background="{DynamicResource DangerStrongBrush}"
+                                Foreground="{DynamicResource WindowBackgroundBrush}"
                                 Command="{Binding SendToSupervisorCommand}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -306,19 +767,19 @@
                             <TextBlock Text="CLIENT NOT BILLING COMPLIANT"
                                        FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="#7A3B3B"
+                                       Foreground="{DynamicResource DangerStrongBrush}"
                                        Margin="0,0,0,8" />
 
                             <TextBlock TextWrapping="Wrap"
                                        FontSize="12"
-                                       Foreground="#3D2B1F"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,12">
                                 <Run Text="{Binding SelectedPerson.FullName, FallbackValue='This client', Mode=OneWay}" />
                                 <Run Text="does not currently meet billing compliance requirements. You may hold this note in your queue until compliance is resolved, or send it to your supervisor with a written justification." />
                             </TextBlock>
 
-                            <Border Background="#FFF0E8"
-                            BorderBrush="#D9AEAE"
+                            <Border Background="{DynamicResource SurfaceRaisedBrush}"
+                            BorderBrush="{DynamicResource OverdueBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="4"
                             Padding="10,8"
@@ -330,7 +791,7 @@
                                     <DataTemplate>
                                         <TextBlock Text="{Binding}"
                                                    FontSize="12"
-                                                   Foreground="#7A3B3B"
+                                                   Foreground="{DynamicResource DangerStrongBrush}"
                                                    Margin="0,2"
                                                    TextWrapping="Wrap" />
                                     </DataTemplate>
@@ -341,20 +802,20 @@
 
                     <TextBlock Text="JUSTIFICATION"
                                FontSize="10"
-                                   Foreground="#9C7A5C"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    Margin="0,0,0,4" />
                         <TextBlock Text="Required if sending to supervisor. Ignored if holding."
                                    FontSize="10"
-                                   Foreground="#9C7A5C"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    Margin="0,0,0,6" />
-                            <TextBox Text="{Binding PendingJustification, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox AutomationProperties.Name="Pending note justification" Text="{Binding PendingJustification, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      Height="90"
                                      Padding="8"
                                      FontSize="12"
-                                     Background="White"
-                                     BorderBrush="#D9AEAE"
+                                     Background="{DynamicResource SurfaceBrush}"
+                                     BorderBrush="{DynamicResource OverdueBorderBrush}"
                                      VerticalScrollBarVisibility="Auto"
                                      Margin="0,0,0,0" />
 

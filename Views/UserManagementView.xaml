@@ -1,8 +1,8 @@
-﻿<UserControl x:Class="Sati.Views.UserManagementView"
+<UserControl x:Class="Sati.Views.UserManagementView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sati="clr-namespace:Sati"
-             Background="#FDF6EC"
+             Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
 
     <Grid>
@@ -15,14 +15,14 @@
         <!-- SIDEBAR — user list                                               -->
         <!-- ================================================================ -->
         <Border Grid.Column="0"
-                Background="#F5EAD8"
-                BorderBrush="#E8D0B8"
+                Background="{DynamicResource SurfaceAltBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,1,0">
             <StackPanel>
                 <TextBlock Text="ALL USERS"
                            FontSize="11"
                            FontWeight="SemiBold"
-                           Foreground="#9C7A5C"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="12,14,12,10" />
 
                 <ItemsControl ItemsSource="{Binding Users}">
@@ -44,7 +44,7 @@
                                             <Trigger Property="IsMouseOver"
                                                      Value="True">
                                                 <Setter Property="Background"
-                                                        Value="#EDD9C0" />
+                                                        Value="{DynamicResource HoverBrush}" />
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
@@ -52,10 +52,10 @@
                                 <StackPanel Margin="12,6">
                                     <TextBlock Text="{Binding DisplayName}"
                                                FontSize="12"
-                                               Foreground="#3D2B1F" />
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{Binding Role}"
                                                FontSize="10"
-                                               Foreground="#9C7A5C" />
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -75,7 +75,7 @@
                 <!-- Empty state -->
                 <TextBlock Text="Select a user to edit"
                            FontSize="14"
-                           Foreground="#9C7A5C"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,0,0,16"
                            Visibility="{Binding HasSelectedUser,
                                Converter={StaticResource BoolToVisibilityConverter},
@@ -102,24 +102,24 @@
                     <TextBlock Text="{Binding SelectedUser.DisplayName}"
                                FontSize="18"
                                FontWeight="SemiBold"
-                               Foreground="#3D2B1F"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,0,0,4" />
                     <TextBlock Text="{Binding SelectedUser.Username}"
                                FontSize="12"
-                               Foreground="#9C7A5C"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="0,0,0,20" />
 
                     <!-- Role -->
                     <TextBlock Text="ROLE"
                                Style="{StaticResource LabelStyle}" />
-                    <ComboBox ItemsSource="{Binding Roles}"
+                    <ComboBox AutomationProperties.Name="Role" ItemsSource="{Binding Roles}"
                               SelectedItem="{Binding SelectedRole}"
                               Margin="0,0,0,16" />
 
                     <!-- Supervisor -->
                     <TextBlock Text="SUPERVISOR"
                                Style="{StaticResource LabelStyle}" />
-                    <ComboBox ItemsSource="{Binding Supervisors}"
+                    <ComboBox AutomationProperties.Name="Supervisor" ItemsSource="{Binding Supervisors}"
                               SelectedItem="{Binding SelectedSupervisor}"
                               DisplayMemberPath="DisplayName"
                               Margin="0,0,0,24" />
@@ -131,8 +131,8 @@
                             Margin="0,0,0,12" />
 
                     <!-- Password reset -->
-                    <Border Background="#F0E4D0"
-                            BorderBrush="#E8D0B8"
+                    <Border Background="{DynamicResource SurfaceMutedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="14"
@@ -143,7 +143,7 @@
                                        Margin="0,0,0,8" />
                             <TextBlock Text="Resets the user's password to 'defaultpassword'. The user should change it on next login."
                                        FontSize="12"
-                                       Foreground="#9C7A5C"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,12" />
                             <Button Content="Reset Password"
@@ -155,8 +155,9 @@
 
                     <!-- Status message -->
                     <TextBlock Text="{Binding StatusMessage}"
+                               AutomationProperties.LiveSetting="Polite"
                                FontSize="12"
-                               Foreground="#3A6B35"
+                               Foreground="{DynamicResource SuccessStrongBrush}"
                                Visibility="{Binding StatusMessage,
                                    Converter={StaticResource BoolToVisibilityConverter}}" />
 

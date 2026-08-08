@@ -1,6 +1,6 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-06-29.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-07.*
 
 **Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
 `Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,
@@ -9,6 +9,31 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 **Now partially in scope:** converters (previously excluded) — see the `BoardTabConverter` note.
 
 ---
+
+## Session Changelog — 2026-08-07
+
+First functional Comprehensive Assessment slice:
+
+- Added `Models/Assessments/ComprehensiveAssessment.cs`. Relational columns own identity,
+  person/author, workflow status, version, and timestamps. `DocumentJson` owns the draft's
+  contributor, answer, support, dissent, and identified-need aggregate.
+- Added `IComprehensiveAssessmentService` / `ComprehensiveAssessmentService`, following the
+  existing per-method `IDbContextFactory<SatiContext>` convention.
+- Added `ComprehensiveAssessmentViewModel` and replaced the client-document placeholder with
+  an eight-domain, vertically navigated workspace. It provides question-specific practical
+  guidance, explicit answer dispositions, combinable support characteristics, contributors,
+  dissent, needs, progress, and debounced autosave.
+- Editing is currently allowed only when `SelectedPerson.UserId == CurrentUser.Id`; supervisor
+  role alone does not confer authorship. Submission moves a complete draft to
+  `ReadyForReview`. The supervisor queue/approval implementation remains pending.
+- Added migration `20260807120000_AddComprehensiveAssessments`; startup's existing
+  `Database.Migrate()` applies it. The migration updates a legacy 120-day assessment setting
+  to 60 only when it still equals 120. It deliberately does not rewrite existing `Form`
+  due-date rows.
+- `ComprehensiveAssessmentWorkspace` currently resolves its services from `App.Services`
+  because it is instantiated directly inside `ClientsView.xaml`. This reintroduces a localized
+  service-locator exception and is documented debt; move workspace creation to DI/factory when
+  the document-workspace composition is refactored.
 
 ## Session Changelog — 2026-06-29
 
@@ -86,6 +111,8 @@ It is not aspirational. Every claim here should be verifiable in the current cod
 | `BillingPeriod` | `Sati.Models.Billing` | Monthly billing container. Has many `ClaimLine`s. |
 | `ClaimLine` | `Sati.Models.Billing` | One billable service note within a billing period. |
 | `BillingValidationResult` | `Sati.Models.Billing` | Immutable result record from billing validation. |
+| `ComprehensiveAssessment` | `Sati.Models.Assessments` | Versioned assessment envelope: ownership, workflow, timestamps, and serialized document aggregate. |
+| `AssessmentDocument` | `Sati.Models.Assessments` | JSON aggregate containing contributors, keyed answers, dissent, support characteristics, and identified needs. |
 
 ### Dead Code (pending removal)
 - `Event.cs` — empty class, no members, not referenced anywhere.
@@ -94,6 +121,44 @@ It is not aspirational. Every claim here should be verifiable in the current cod
 ---
 
 ## Ownership Map
+
+### Comprehensive Assessment drafts and versions
+
+**Persistence owner: `ComprehensiveAssessmentService`.**
+
+- `GetOrCreateDraftAsync(personId, authorUserId)` returns the author's newest Draft or
+  Returned version, or creates the next version number for the person.
+- `SaveDocumentAsync` serializes the entire `AssessmentDocument` aggregate to
+  `DocumentJson` and refuses to modify Approved or Superseded versions.
+- `SubmitForReviewAsync` checks author identity and permits only Draft/Returned to move to
+  `ReadyForReview`.
+- Database uniqueness on `(PersonId, Version)` prevents two records from claiming the same
+  document version.
+- Current ownership enforcement is both UI-side (`CanEdit`) and service-side at submission.
+  **Pending hardening:** save itself must also verify the current actor/assignment rather than
+  accepting only an assessment ID.
+
+**Editor owner: `ComprehensiveAssessmentViewModel`.**
+
+- A 900 ms `DispatcherTimer` debounces writes. Person changes flush the outgoing draft before
+  loading the incoming consumer.
+- Question definitions and practical guidance currently live in `BuildSections`; persisted
+  answers use stable string keys so wording can evolve without losing saved responses.
+- `AssessmentAnswerStatus.FollowUpRequired` is the default. `IsComplete` requires every question
+  to be addressed and rejects any remaining follow-up-required answer.
+- Support choices are a `[Flags] SupportMethod`. Setup/environment, prompting/coaching,
+  hands-on assistance, another person completing an activity, and situational variation may
+  coexist. `NoSupportCurrentlyNeeded` is exclusive in the ViewModel. `Varies` is complete only
+  with another concrete support and explanatory detail.
+- Needs are independent records inside the JSON aggregate. The current provider link is a name
+  snapshot placeholder; relational consumer/provider selection is deferred.
+- The current first slice does not yet implement supervisor flags/approval, PDF/signatures,
+  audit events, attachment storage, or full version creation after return/approval.
+
+**Deadline owner remains `Form` + `FormDueDateCalculator`.** The assessment table does not
+introduce another due-date field. `Settings.CompAssessmentDaysBeforeAnniversary` now defaults to
+60. Stored `Form.DueDate` values remain authoritative and require an explicit reconciliation for
+records generated under the old 120-day setting.
 
 ### Compliance State
 
@@ -268,6 +333,16 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   bypassed at the DB layer (EF tracks by reference). ViewModel review found no current offender, but
   the guard is still absent. `OpenFormAsync` stamps `OpenedDate` directly — fine, no invariant.
 
+### `ComprehensiveAssessmentService`
+
+- Owns assessment draft creation, JSON document persistence, and author submission.
+- Uses `IDbContextFactory<SatiContext>` with one context per call.
+- Approved and Superseded records are write-protected by `SaveDocumentAsync`.
+- `SubmitForReviewAsync` enforces author identity and workflow state.
+- **Pending:** supervisor return/approval, append-only audit history, attachment/PDF storage,
+  actor-aware authorization on every write, concurrency token, and transactionally marking the
+  corresponding legacy `Form` complete on approval.
+
 ### `SupervisorService`
 - Owns approval/return/override for `Logged` notes. No duplicated compliance logic — delegates to
   `person.EvaluateComplianceGate`. `ApproveNoteAsync` enforces compliance as a hard throw.
@@ -433,6 +508,10 @@ Previously excluded as "stateless, low-risk." One live bug surfaced and was fixe
 | Holiday flags on `Settings` | `WorkdayHelper.IsAlwaysExcludedWorkday`, `IncentiveService.CalculateDaysScheduled` |
 | `BillingStatus` enum | `BillingService` submit/unbilled paths, billing UI |
 | `PersonService.GetAllPeopleAsync` query | Anything needing fully-populated `Person`; don't bypass without replicating `Include`s (and `EnsureCurrentCycleForms` when re-enabled) |
+| Assessment question key, status, or support flag | `BuildSections`, JSON compatibility, completion validation, PDF rendering, supervisor review, and backward-compatibility tests |
+| Assessment workflow state | `ComprehensiveAssessmentService`, permissions, supervisor queue, immutable-version rules, audit events, and matching `Form` completion |
+| `CompAssessmentDaysBeforeAnniversary` | `SettingsService`, `FormDueDateCalculator`, stored `Form.DueDate` reconciliation, reminders, PCP-submission gate, and billing-window tests |
+| Consumer/provider association | Assessment needs, PCP authorized services, Classification, provider snapshots, authorization periods, and historical rendering |
 
 ---
 
@@ -450,6 +529,23 @@ Previously excluded as "stateless, low-risk." One live bug surfaced and was fixe
 ---
 
 ## ViewModels
+
+### `ComprehensiveAssessmentViewModel`
+
+Owns the first functional assessment editor. Stable question keys bind code-defined prompts and
+guidance to JSON answers. `LoadPersonAsync` flushes the outgoing record, verifies the selected
+consumer belongs to the current user's caseload, creates/loads the editable version, and applies
+the aggregate to observable wrappers. Changes debounce to persistence after 900 ms.
+
+Completion is stricter than nonblank text: every question needs an addressed status; answered
+support questions need either `NoSupportCurrentlyNeeded` or a concrete support; `Varies` also
+needs details; follow-up-required never completes. Submission saves first, transitions through
+the service, then disables editing. Needs and contributors use write-through wrapper ViewModels.
+
+**Known first-slice limitations:** no supervisor UI, section flags, approval transition, PDF,
+signature upload, attachment store, concurrency token, save retry queue, question-definition
+version, rich need validation, or runtime provider selection. The code-behind service-locator
+construction is a temporary composition seam, not the preferred architecture.
 
 ### Compliance state writes — confirmed safe
 Every `FormService.UpdateFormAsync` call in the ViewModel layer goes through `MarkComplete`,
@@ -565,6 +661,7 @@ in ISA15 flows from `BillingSubmissionsViewModel.IsTestMode` (defaults true — 
 | **`FormDueDateBackfill`, `FormBulkCompletion`** | **Transient** | **Concrete types, no interface (one-shot tools). Fresh instance per settings-window open keeps the latch un-armed. Temporary UI only.** |
 | `ISessionService` | Singleton | Holds logged-in user |
 | `IDbContextFactory<SatiContext>` | Singleton | Per-method context via `await using` |
+| `IComprehensiveAssessmentService` | Transient | Correct service lifetime; workspace currently resolves it through `App.Services` and should move to injected composition. |
 | `ShellViewModel`, `ShellWindow`, dashboards, billing VMs | Singleton | Correct |
 | `ScratchpadViewModel` | Transient | **Misleading** — captured by singleton `ShellViewModel`; behaves singleton. Consider `AddSingleton`. |
 | `UserManagementViewModel`, `PendingApprovalsViewModel` | Transient | **Lifetime mismatch** — captured by singleton `SupervisorDashboardViewModel`; stale collections. Deliberate decision needed. |
@@ -584,3 +681,69 @@ and the `BoardTabConverter` throw this session).
 ## What This Document Still Doesn't Fully Cover
 - Full XAML view review (only the note-entry + task-board view and converters touched this session).
 - `EdiGenerator` internals beyond the pre-live checklist.
+
+---
+
+## Local Case-Note Drafting (Development Slice, 2026-08-07)
+
+`ICaseNoteFormatter` is the application boundary for assisted note drafting.
+`FoundryLocalCaseNoteFormatter` is a singleton because both long-lived `NoteEntryViewModel`
+instances may use it and only one multi-gigabyte model should be loaded. A semaphore serializes
+inference requests. The model is initialized lazily on the first formatting request; ordinary
+startup and note entry do not initialize Foundry Local.
+
+The implementation uses the in-process `Microsoft.AI.Foundry.Local.WinML` runtime and the
+configured `phi-4-mini` catalog alias. The first request may contact the model catalog and download
+the selected hardware variant. Note inference occurs locally. Runtime data is explicitly rooted at
+`%LOCALAPPDATA%\Sati\LocalAi`; the repository, SQL database, and note record do not contain model
+weights or runtime logs.
+
+`LocalAiOptions` is bound from the `LocalAi` section in `appsettings.json`. `Enabled=false` removes
+the feature from the note-entry UI without changing XAML or DI. `AI_CASE_NOTE_RULES.md` is copied
+beside the executable and forms the editable agency-policy portion of the system prompt.
+
+The UI preserves the existing narrative and holds generated text in `AiDraftNarrative`. The user
+must compare and explicitly accept it before it replaces the editable narrative; submission remains
+the existing separate command. Edits to the source invalidate an outstanding draft. Numeric-token
+and placeholder checks produce review warnings but are deliberately not treated as proof of factual
+equivalence.
+
+`CaseNoteFormattingRequest` also carries trusted context from the current session and selected
+consumer: case-manager display name, consumer first name, and a deterministic fallback follow-up.
+`NoteEntryViewModel.BuildFallbackFollowUp` selects the most recently overdue incomplete core form,
+or otherwise the next upcoming incomplete core form, and supplies its stored due date. Required
+opening and missing-`Follow-up:` envelopes are enforced after generation as well as in the prompt.
+
+`IClientAiContextService` is the separate data-access boundary for client-aware drafting. Its
+implementation first projects a person only when `Person.UserId == requestingUserId`; a failed
+ownership check returns no context. The projection always includes the general Bio plus the
+current waiver, limited care-team fields, service/employment flags, and form status. It deliberately
+does not select Journal, address, phone, MaineCare ID, diagnosis code, place-of-service, or billing
+fields. The Journal is therefore excluded at the SQL boundary rather than merely omitted later.
+
+The context service adds the ten most recent non-cancelled/non-abandoned notes and up to five older
+notes matched locally from meaningful terms in the rough narrative. When editing, the note being
+edited is excluded. An assessment author may receive their own active Draft/Returned version;
+otherwise only the latest Approved assessment is eligible. Context and per-note excerpts have
+configurable size ceilings under `LocalAi`.
+
+Historical material is wrapped as untrusted data in the model request. The system prompt forbids
+following instructions found inside client records and forbids treating prior notes or assessment
+answers as current-contact evidence. The draft review panel exposes the profile/service/deadline,
+assessment-version, and note-ID sources used. The assembled prompt is transient and is not stored.
+
+Visit documentation now has a separate trusted-current-facts path. `PersonContact` and
+`IPersonContactService` own the consumer's live support-network directory; the Overview page edits
+that reference data without loading it into the caseload query. A Visit note stores
+`VisitDocumentationJson`, a note-owned snapshot containing selected attendee names/roles,
+setting, appearance, participation, safety status, and independent verified-fact checkboxes.
+The snapshot deliberately retains names and roles even when a profile contact is later edited or
+archived. `NoteEntryViewModel` converts those explicit selections into
+`StructuredVisitFacts`; the system prompt treats that block as current evidence while continuing to
+treat historical client context as untrusted background. `Not documented` and `Not assessed`
+choices are never translated into normal findings.
+
+Current production gaps: no persisted source/draft/model-version audit record; no validated agency
+note standard or de-identified regression corpus; no formal factual-fidelity threshold; no model
+hash/version pin in the note; no cancellation control; and no security/privacy assessment of the
+model catalog/cache lifecycle. The feature must remain development-only until these are resolved.

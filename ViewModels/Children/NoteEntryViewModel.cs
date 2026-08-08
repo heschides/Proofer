@@ -3,9 +3,12 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services.LocalAi;
 using Sati.Views;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Windows;
 
 namespace Sati.ViewModels.Children
@@ -34,10 +37,18 @@ namespace Sati.ViewModels.Children
         private readonly INoteService _noteService;
         private readonly ISettingsService _settingsService;
         private readonly ISessionService _sessionService;
+        private readonly IPersonContactService _personContactService;
+        private readonly IClientAiContextService _clientAiContextService;
+        private readonly ICaseNoteFormatter _caseNoteFormatter;
         private readonly Func<string, UserMessageDialog> _validationDialog;
 
         private Settings? _settings;
         private Note? _editingNote;
+        private string? _aiSourceNarrative;
+        private bool _applyingAiDraft;
+        private VisitDocumentation? _pendingVisitDocumentation;
+        private int _attendeeLoadVersion;
+        private bool _suppressVisitChangeNotifications;
 
         // True when the open dialog was triggered by a billing-window block (note
         // date inside a missed-form window) rather than a current-cycle paperwork
@@ -53,11 +64,17 @@ namespace Sati.ViewModels.Children
             INoteService noteService,
             ISettingsService settingsService,
             ISessionService sessionService,
+            IPersonContactService personContactService,
+            IClientAiContextService clientAiContextService,
+            ICaseNoteFormatter caseNoteFormatter,
             Func<string, UserMessageDialog> validationDialog)
         {
             _noteService = noteService;
             _settingsService = settingsService;
             _sessionService = sessionService;
+            _personContactService = personContactService;
+            _clientAiContextService = clientAiContextService;
+            _caseNoteFormatter = caseNoteFormatter;
             _validationDialog = validationDialog;
         }
 
@@ -90,10 +107,43 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private bool isComplianceDialogVisible;
         [ObservableProperty] private string pendingJustification = string.Empty;
         [ObservableProperty] private IReadOnlyList<string> complianceFailureReasons = [];
+        [ObservableProperty] private bool isAiBusy;
+        [ObservableProperty] private bool isAiReviewVisible;
+        [ObservableProperty] private string aiDraftNarrative = string.Empty;
+        [ObservableProperty] private string aiStatusMessage = string.Empty;
+        [ObservableProperty] private double? aiDownloadProgress;
+        [ObservableProperty] private IReadOnlyList<string> aiWarnings = [];
+        [ObservableProperty] private IReadOnlyList<ClientAiContextSource> aiContextSources = [];
+        [ObservableProperty] private string aiContextSummary = "Context used";
+
+        // Structured visit facts. Exclusive observations use enum pickers; the
+        // independent facts are checkboxes and may be combined.
+        [ObservableProperty] private VisitSetting visitSetting;
+        [ObservableProperty] private VisitAppearance visitAppearance;
+        [ObservableProperty] private VisitParticipation visitParticipation;
+        [ObservableProperty] private VisitSafetyObservation visitSafetyObservation;
+        [ObservableProperty] private bool visitConsumerPresent = true;
+        [ObservableProperty] private bool visitExpressedPreferences;
+        [ObservableProperty] private bool visitAskedQuestions;
+        [ObservableProperty] private bool visitMadeChoices;
+        [ObservableProperty] private bool visitCommunicationSupportUsed;
+        [ObservableProperty] private bool visitGoalsReviewed;
+        [ObservableProperty] private bool visitServicesDiscussed;
+        [ObservableProperty] private bool visitDocumentsReviewed;
+        [ObservableProperty] private string? visitSettingDetails;
+        [ObservableProperty] private string? visitObservationDetails;
+        [ObservableProperty] private string? visitAdditionalAttendees;
 
         public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
         public Array FormTypes => Enum.GetValues(typeof(FormType));
         public bool IsFormNote => SelectedNoteType == NoteType.Form;
+        public bool IsVisitNote => SelectedNoteType == NoteType.Visit;
+        public bool IsLocalAiEnabled => _caseNoteFormatter.IsEnabled;
+        public Array VisitSettings => Enum.GetValues(typeof(VisitSetting));
+        public Array VisitAppearances => Enum.GetValues(typeof(VisitAppearance));
+        public Array VisitParticipations => Enum.GetValues(typeof(VisitParticipation));
+        public Array VisitSafetyObservations => Enum.GetValues(typeof(VisitSafetyObservation));
+        public ObservableCollection<VisitAttendeeOptionViewModel> VisitAttendees { get; } = [];
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -108,7 +158,10 @@ namespace Sati.ViewModels.Children
         partial void OnSelectedPersonChanged(Person? oldValue, Person? newValue)
         {
             if (oldValue?.Id == newValue?.Id)
+            {
+                _ = LoadVisitAttendeesAsync(newValue);
                 return;
+            }
 
             // Genuine client switch: reset the draft; edit mode ends because the
             // note being edited belongs to the previous client.
@@ -123,14 +176,23 @@ namespace Sati.ViewModels.Children
             SelectedNoteType = null;
             SelectedFormType = null;
             Minutes = null;
+            _pendingVisitDocumentation = null;
+            ResetVisitDocumentation(clearAttendees: true);
+            _ = LoadVisitAttendeesAsync(newValue);
         }
 
         partial void OnSelectedNoteTypeChanged(NoteType? value)
         {
             OnPropertyChanged(nameof(IsFormNote));
+            OnPropertyChanged(nameof(IsVisitNote));
 
             if (value != NoteType.Form)
                 SelectedFormType = null;
+
+            if (value != NoteType.Visit)
+                ResetVisitDocumentation(clearAttendees: false);
+            else
+                _ = LoadVisitAttendeesAsync(SelectedPerson);
 
             if (value is null || !string.IsNullOrWhiteSpace(Narrative))
                 return;
@@ -142,6 +204,37 @@ namespace Sati.ViewModels.Children
                 _ => string.Empty
             };
         }
+
+        partial void OnNarrativeChanged(string? value)
+        {
+            FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+
+            if (!_applyingAiDraft && IsAiReviewVisible &&
+                !string.Equals(value, _aiSourceNarrative, StringComparison.Ordinal))
+            {
+                ClearAiReview();
+                AiStatusMessage = "The rough narrative changed, so the previous AI draft was discarded.";
+            }
+        }
+
+        partial void OnIsAiBusyChanged(bool value) =>
+            FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+
+        partial void OnVisitSettingChanged(VisitSetting value) => VisitFactsChanged();
+        partial void OnVisitAppearanceChanged(VisitAppearance value) => VisitFactsChanged();
+        partial void OnVisitParticipationChanged(VisitParticipation value) => VisitFactsChanged();
+        partial void OnVisitSafetyObservationChanged(VisitSafetyObservation value) => VisitFactsChanged();
+        partial void OnVisitConsumerPresentChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitExpressedPreferencesChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitAskedQuestionsChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitMadeChoicesChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitCommunicationSupportUsedChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitGoalsReviewedChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitServicesDiscussedChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitDocumentsReviewedChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitSettingDetailsChanged(string? value) => VisitFactsChanged();
+        partial void OnVisitObservationDetailsChanged(string? value) => VisitFactsChanged();
+        partial void OnVisitAdditionalAttendeesChanged(string? value) => VisitFactsChanged();
 
         partial void OnSelectedFormTypeChanged(FormType? value)
         {
@@ -193,6 +286,252 @@ namespace Sati.ViewModels.Children
                 SelectedPerson = People.FirstOrDefault(p => p.Id == id);
         }
 
+        private async Task LoadVisitAttendeesAsync(Person? person)
+        {
+            var loadVersion = ++_attendeeLoadVersion;
+            var selectedIds = VisitAttendees
+                .Where(option => option.IsSelected)
+                .Select(option => option.ContactId)
+                .ToHashSet();
+
+            foreach (var option in VisitAttendees)
+                option.PropertyChanged -= OnVisitAttendeePropertyChanged;
+            VisitAttendees.Clear();
+
+            if (person is null)
+                return;
+
+            var contacts = await _personContactService.GetActiveByPersonAsync(person.Id);
+            if (loadVersion != _attendeeLoadVersion || SelectedPerson?.Id != person.Id)
+                return;
+
+            if (_pendingVisitDocumentation is not null)
+            {
+                selectedIds.UnionWith(_pendingVisitDocumentation.Attendees
+                    .Where(attendee => attendee.SourceContactId.HasValue)
+                    .Select(attendee => attendee.SourceContactId!.Value));
+            }
+
+            foreach (var contact in contacts)
+            {
+                var option = new VisitAttendeeOptionViewModel(contact)
+                {
+                    IsSelected = selectedIds.Contains(contact.Id)
+                };
+                option.PropertyChanged += OnVisitAttendeePropertyChanged;
+                VisitAttendees.Add(option);
+            }
+        }
+
+        private void OnVisitAttendeePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(VisitAttendeeOptionViewModel.IsSelected))
+                VisitFactsChanged();
+        }
+
+        private void VisitFactsChanged()
+        {
+            if (_suppressVisitChangeNotifications)
+                return;
+
+            if (IsAiReviewVisible)
+            {
+                ClearAiReview();
+                AiStatusMessage = "The meeting details changed, so the previous AI draft was discarded.";
+            }
+            else if (!string.IsNullOrWhiteSpace(Narrative) && IsVisitNote)
+            {
+                AiStatusMessage = "Meeting details changed. Format again if you want them reflected in the narrative.";
+            }
+        }
+
+        private void ResetVisitDocumentation(bool clearAttendees)
+        {
+            _suppressVisitChangeNotifications = true;
+            try
+            {
+                VisitSetting = VisitSetting.NotDocumented;
+                VisitAppearance = VisitAppearance.NotDocumented;
+                VisitParticipation = VisitParticipation.NotDocumented;
+                VisitSafetyObservation = VisitSafetyObservation.NotDocumented;
+                VisitConsumerPresent = true;
+                VisitExpressedPreferences = false;
+                VisitAskedQuestions = false;
+                VisitMadeChoices = false;
+                VisitCommunicationSupportUsed = false;
+                VisitGoalsReviewed = false;
+                VisitServicesDiscussed = false;
+                VisitDocumentsReviewed = false;
+                VisitSettingDetails = string.Empty;
+                VisitObservationDetails = string.Empty;
+                VisitAdditionalAttendees = string.Empty;
+
+                if (clearAttendees)
+                {
+                    foreach (var option in VisitAttendees)
+                        option.IsSelected = false;
+                }
+            }
+            finally
+            {
+                _suppressVisitChangeNotifications = false;
+            }
+        }
+
+        private void ApplyVisitDocumentation(VisitDocumentation? documentation)
+        {
+            _pendingVisitDocumentation = documentation;
+            ResetVisitDocumentation(clearAttendees: true);
+            if (documentation is null)
+                return;
+
+            _suppressVisitChangeNotifications = true;
+            try
+            {
+                VisitSetting = documentation.Setting;
+                VisitAppearance = documentation.Appearance;
+                VisitParticipation = documentation.Participation;
+                VisitSafetyObservation = documentation.SafetyObservation;
+                VisitConsumerPresent = documentation.ConsumerPresent;
+                VisitExpressedPreferences = documentation.ExpressedPreferences;
+                VisitAskedQuestions = documentation.AskedQuestions;
+                VisitMadeChoices = documentation.MadeChoices;
+                VisitCommunicationSupportUsed = documentation.CommunicationSupportUsed;
+                VisitGoalsReviewed = documentation.GoalsReviewed;
+                VisitServicesDiscussed = documentation.ServicesDiscussed;
+                VisitDocumentsReviewed = documentation.DocumentsReviewed;
+                VisitSettingDetails = documentation.SettingDetails;
+                VisitObservationDetails = documentation.ObservationDetails;
+                VisitAdditionalAttendees = documentation.AdditionalAttendees;
+
+                var selectedIds = documentation.Attendees
+                    .Where(attendee => attendee.SourceContactId.HasValue)
+                    .Select(attendee => attendee.SourceContactId!.Value)
+                    .ToHashSet();
+                foreach (var option in VisitAttendees)
+                    option.IsSelected = selectedIds.Contains(option.ContactId);
+            }
+            finally
+            {
+                _suppressVisitChangeNotifications = false;
+            }
+        }
+
+        private VisitDocumentation? BuildVisitDocumentation()
+        {
+            if (!IsVisitNote)
+                return null;
+
+            var selected = VisitAttendees
+                .Where(option => option.IsSelected)
+                .Select(option => new VisitAttendeeSnapshot
+                {
+                    SourceContactId = option.ContactId,
+                    FullName = option.FullName,
+                    Role = option.Role,
+                    Organization = option.Organization
+                })
+                .ToList();
+
+            // Preserve snapshots for contacts that have since been archived. They
+            // are no longer selectable, but editing unrelated note text must not
+            // erase their historical attendance.
+            var currentContactIds = VisitAttendees.Select(option => option.ContactId).ToHashSet();
+            if (_pendingVisitDocumentation is not null)
+            {
+                selected.AddRange(_pendingVisitDocumentation.Attendees.Where(attendee =>
+                    !attendee.SourceContactId.HasValue ||
+                    !currentContactIds.Contains(attendee.SourceContactId.Value)));
+            }
+
+            return new VisitDocumentation
+            {
+                Setting = VisitSetting,
+                Appearance = VisitAppearance,
+                Participation = VisitParticipation,
+                SafetyObservation = VisitSafetyObservation,
+                ConsumerPresent = VisitConsumerPresent,
+                ExpressedPreferences = VisitExpressedPreferences,
+                AskedQuestions = VisitAskedQuestions,
+                MadeChoices = VisitMadeChoices,
+                CommunicationSupportUsed = VisitCommunicationSupportUsed,
+                GoalsReviewed = VisitGoalsReviewed,
+                ServicesDiscussed = VisitServicesDiscussed,
+                DocumentsReviewed = VisitDocumentsReviewed,
+                SettingDetails = Normalize(VisitSettingDetails),
+                ObservationDetails = Normalize(VisitObservationDetails),
+                AdditionalAttendees = Normalize(VisitAdditionalAttendees),
+                Attendees = selected
+            };
+        }
+
+        private string BuildStructuredVisitFacts()
+        {
+            var documentation = BuildVisitDocumentation();
+            if (documentation is null)
+                return "Not a Visit note; no structured in-person observations were selected.";
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Case manager present: {_sessionService.CurrentUser?.DisplayName ?? "Signed-in case manager"}");
+            builder.AppendLine($"Consumer present: {(documentation.ConsumerPresent ? "Yes" : "No")}");
+            builder.AppendLine($"Meeting setting: {GetDescription(documentation.Setting)}");
+            builder.AppendLine($"Appearance: {GetDescription(documentation.Appearance)}");
+            builder.AppendLine($"Participation: {GetDescription(documentation.Participation)}");
+            builder.AppendLine($"Health/safety observation: {GetDescription(documentation.SafetyObservation)}");
+
+            if (!string.IsNullOrWhiteSpace(documentation.SettingDetails))
+                builder.AppendLine($"Setting details: {documentation.SettingDetails}");
+
+            if (documentation.Attendees.Count == 0)
+                builder.AppendLine("Selected profile contacts in attendance: None");
+            else
+            {
+                builder.AppendLine("Selected profile contacts in attendance:");
+                foreach (var attendee in documentation.Attendees)
+                {
+                    var role = string.IsNullOrWhiteSpace(attendee.Role) ? string.Empty : $", {attendee.Role}";
+                    var organization = string.IsNullOrWhiteSpace(attendee.Organization)
+                        ? string.Empty
+                        : $" ({attendee.Organization})";
+                    builder.AppendLine($"- {attendee.FullName}{role}{organization}");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(documentation.AdditionalAttendees))
+                builder.AppendLine($"Additional attendees entered by the case manager: {documentation.AdditionalAttendees}");
+
+            AppendSelectedFact(builder, documentation.ExpressedPreferences, "Consumer expressed preferences");
+            AppendSelectedFact(builder, documentation.AskedQuestions, "Consumer asked questions");
+            AppendSelectedFact(builder, documentation.MadeChoices, "Consumer made choices");
+            AppendSelectedFact(builder, documentation.CommunicationSupportUsed, "Communication support was used");
+            AppendSelectedFact(builder, documentation.GoalsReviewed, "Goals were reviewed");
+            AppendSelectedFact(builder, documentation.ServicesDiscussed, "Services were discussed");
+            AppendSelectedFact(builder, documentation.DocumentsReviewed, "Documents were reviewed");
+
+            if (!string.IsNullOrWhiteSpace(documentation.ObservationDetails))
+                builder.AppendLine($"Case-manager observation details: {documentation.ObservationDetails}");
+
+            return builder.ToString().Trim();
+        }
+
+        private static void AppendSelectedFact(StringBuilder builder, bool selected, string fact)
+        {
+            if (selected)
+                builder.AppendLine($"Selected fact: {fact}");
+        }
+
+        private static string GetDescription<T>(T value) where T : struct, Enum
+        {
+            var member = typeof(T).GetMember(value.ToString()).FirstOrDefault();
+            return member?.GetCustomAttributes(typeof(DescriptionAttribute), false)
+                       .OfType<DescriptionAttribute>()
+                       .FirstOrDefault()?.Description
+                   ?? value.ToString();
+        }
+
+        private static string? Normalize(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
         // -------------------------------------------------------------------------
         // Edit mode
         // -------------------------------------------------------------------------
@@ -212,6 +551,8 @@ namespace Sati.ViewModels.Children
             Status = note.Status;
             SelectedNoteType = note.NoteType;
             SelectedFormType = note.FormType;
+            ApplyVisitDocumentation(note.VisitDocumentation);
+            _ = LoadVisitAttendeesAsync(SelectedPerson);
         }
 
         // -------------------------------------------------------------------------
@@ -220,6 +561,107 @@ namespace Sati.ViewModels.Children
 
         [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
         [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
+
+        private bool CanFormatNarrativeWithAi() =>
+            IsLocalAiEnabled && !IsAiBusy && SelectedPerson is not null &&
+            !string.IsNullOrWhiteSpace(Narrative);
+
+        [RelayCommand(CanExecute = nameof(CanFormatNarrativeWithAi))]
+        private async Task FormatNarrativeWithAi()
+        {
+            if (string.IsNullOrWhiteSpace(Narrative))
+                return;
+
+            var source = Narrative.Trim();
+            IsAiBusy = true;
+            ClearAiReview();
+            AiStatusMessage = "Preparing the local case-note assistant…";
+
+            var progress = new Progress<CaseNoteFormattingProgress>(update =>
+            {
+                AiStatusMessage = update.Message;
+                AiDownloadProgress = update.Percent;
+            });
+
+            try
+            {
+                var currentUser = _sessionService.CurrentUser
+                    ?? throw new InvalidOperationException("A signed-in user is required to use client-aware local AI.");
+                var selectedPerson = SelectedPerson
+                    ?? throw new InvalidOperationException("Select a client before formatting a note.");
+
+                AiStatusMessage = "Gathering permitted client context locally…";
+                var clientContext = await _clientAiContextService.BuildAsync(
+                    selectedPerson.Id,
+                    currentUser.Id,
+                    source,
+                    IsEditing ? _editingNote?.Id : null);
+
+                AiContextSources = clientContext.Sources;
+                AiContextSummary = $"Context used ({clientContext.Sources.Count} sources)";
+
+                var result = await _caseNoteFormatter.FormatAsync(
+                    new CaseNoteFormattingRequest(
+                        source,
+                        SelectedNoteType,
+                        SelectedFormType,
+                        currentUser.DisplayName,
+                        selectedPerson.FirstName,
+                        BuildFallbackFollowUp(selectedPerson),
+                        clientContext.PromptText,
+                        BuildStructuredVisitFacts()),
+                    progress);
+
+                _aiSourceNarrative = source;
+                AiDraftNarrative = result.DraftNarrative;
+                AiWarnings = result.Warnings;
+                IsAiReviewVisible = true;
+                AiStatusMessage = "Compare the draft with your original. Nothing changes until you accept it.";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Local case-note formatting failed: {ex}");
+                AiStatusMessage = "The local assistant could not create a draft.";
+
+                var dialog = _validationDialog(
+                    "Sati could not create a local AI draft. Your original narrative has not changed.\n\n" +
+                    GetFriendlyAiError(ex));
+                dialog.Owner = Application.Current.MainWindow;
+                dialog.ShowDialog();
+            }
+            finally
+            {
+                IsAiBusy = false;
+                AiDownloadProgress = null;
+            }
+        }
+
+        [RelayCommand]
+        private void AcceptAiDraft()
+        {
+            if (!IsAiReviewVisible || string.IsNullOrWhiteSpace(AiDraftNarrative))
+                return;
+
+            _applyingAiDraft = true;
+            try
+            {
+                Narrative = AiDraftNarrative;
+            }
+            finally
+            {
+                _applyingAiDraft = false;
+            }
+
+            ClearAiReview();
+            AiStatusMessage = "AI draft accepted. Review and edit the narrative before submitting the note.";
+        }
+
+        [RelayCommand]
+        private void DiscardAiDraft()
+        {
+            ClearAiReview();
+            AiStatusMessage = "AI draft discarded. Your original narrative was preserved.";
+        }
 
         [RelayCommand]
         private void Clear()
@@ -240,6 +682,13 @@ namespace Sati.ViewModels.Children
             if (EventDate is null) errors.Add("• Please enter a date.");
             if (string.IsNullOrWhiteSpace(Narrative)) errors.Add("• Please enter a narrative.");
             if (SelectedNoteType is null) errors.Add("• Please select a note type.");
+            if (SelectedNoteType == NoteType.Visit &&
+                (VisitAppearance == VisitAppearance.ConcernObserved ||
+                 VisitSafetyObservation == VisitSafetyObservation.ConcernObserved) &&
+                string.IsNullOrWhiteSpace(VisitObservationDetails))
+            {
+                errors.Add("• Describe the appearance, health, or safety concern selected for this visit.");
+            }
 
             if (errors.Count > 0)
             {
@@ -333,6 +782,7 @@ namespace Sati.ViewModels.Children
                 note.Status = Status;
                 note.NoteType = SelectedNoteType;
                 note.FormType = SelectedFormType;
+                note.VisitDocumentation = BuildVisitDocumentation();
                 if (caseManagerJustification is not null)
                     note.CaseManagerJustification = caseManagerJustification;
 
@@ -343,6 +793,7 @@ namespace Sati.ViewModels.Children
             {
                 var note = Note.Create(Narrative!, EventDate, Status, Minutes,
                     SelectedPerson!.Id, SelectedFormType, SelectedNoteType);
+                note.VisitDocumentation = BuildVisitDocumentation();
                 if (caseManagerJustification is not null)
                     note.CaseManagerJustification = caseManagerJustification;
 
@@ -374,12 +825,89 @@ namespace Sati.ViewModels.Children
             SelectedFormType = null;
             SelectedNoteType = null;
             Minutes = null;
+            _pendingVisitDocumentation = null;
+            ResetVisitDocumentation(clearAttendees: true);
+            ClearAiReview();
+            AiStatusMessage = string.Empty;
+        }
+
+        private void ClearAiReview()
+        {
+            _aiSourceNarrative = null;
+            IsAiReviewVisible = false;
+            AiDraftNarrative = string.Empty;
+            AiWarnings = [];
+            AiContextSources = [];
+            AiContextSummary = "Context used";
+            AiDownloadProgress = null;
+        }
+
+        private static string GetFriendlyAiError(Exception exception)
+        {
+            var root = exception;
+            while (root.InnerException is not null)
+                root = root.InnerException;
+
+            return root switch
+            {
+                ArgumentException => root.Message,
+                UnauthorizedAccessException => root.Message,
+                OperationCanceledException => "The operation was canceled.",
+                _ => "The model may still need to be downloaded, or the configured model may not be available. " +
+                     "Check the development configuration and try again."
+            };
+        }
+
+        private static string BuildFallbackFollowUp(Person? person)
+        {
+            if (person is null)
+                return "review the consumer's upcoming case-management deadlines";
+
+            var majorTypes = new[]
+            {
+                FormType.Q1R, FormType.Q2R, FormType.Q3R, FormType.Q4R,
+                FormType.ComprehensiveAssessment,
+                FormType.PCP,
+                FormType.Reclassification
+            };
+
+            var incomplete = person.Forms
+                .Where(form => majorTypes.Contains(form.Type) && !form.IsCompliant)
+                .ToList();
+
+            var today = DateTime.Today;
+            var target = incomplete
+                .Where(form => form.DueDate.Date < today)
+                .OrderByDescending(form => form.DueDate)
+                .FirstOrDefault()
+                ?? incomplete
+                    .Where(form => form.DueDate.Date >= today)
+                    .OrderBy(form => form.DueDate)
+                    .FirstOrDefault();
+
+            if (target is null)
+                return "review the consumer's upcoming case-management deadlines";
+
+            var formName = target.Type switch
+            {
+                FormType.Q1R => "Q1 90-Day Review",
+                FormType.Q2R => "Q2 90-Day Review",
+                FormType.Q3R => "Q3 90-Day Review",
+                FormType.Q4R => "Q4 90-Day Review",
+                FormType.PCP => "Person-Centered Plan",
+                _ => Person.FormDisplayName(target.Type)
+            };
+
+            return target.DueDate.Date < today
+                ? $"complete the overdue {formName}, which was due {target.DueDate:MMMM d, yyyy}"
+                : $"prepare for the {formName} due {target.DueDate:MMMM d, yyyy}";
         }
 
         public void Reset()
         {
             SelectedPerson = null;
             _editingNote = null;
+            _pendingVisitDocumentation = null;
             IsEditing = false;
             ClearNoteFields();
             People.Clear();

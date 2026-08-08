@@ -31,6 +31,7 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public event EventHandler<User>? SwitchSucceeded;
+        public event EventHandler? IncorrectPasswordRequested;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -72,7 +73,7 @@ namespace Sati.ViewModels
                 var user = await _authService.AuthenticateAsync(SelectedUser.Username, Password);
                 if (user is null)
                 {
-                    ErrorMessage = "Incorrect password. Please try again.";
+                    IncorrectPasswordRequested?.Invoke(this, EventArgs.Empty);
                     return;
                 }
 

@@ -1,9 +1,9 @@
-﻿<UserControl x:Class="Sati.Views.ReviewsView"
+<UserControl x:Class="Sati.Views.ReviewsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:Sati.Converters"
              xmlns:local="clr-namespace:Sati"
-             Background="#FDF6EC">
+             Background="{DynamicResource WindowBackgroundBrush}">
 
     <UserControl.Resources>
         <converters:ReviewStageToBrushConverter x:Key="StageToBrush" />
@@ -36,7 +36,7 @@
             <Setter Property="FontWeight"
                     Value="SemiBold" />
             <Setter Property="Foreground"
-                    Value="#9C7A5C" />
+                    Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,5" />
         </Style>
@@ -48,7 +48,7 @@
             <Setter Property="FontWeight"
                     Value="Bold" />
             <Setter Property="Foreground"
-                    Value="#3D2B1F" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,8" />
         </Style>
@@ -71,17 +71,17 @@
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Foreground"
-                                    Value="#6B4E2E" />
+                                    Value="{DynamicResource NarrativeTextBrush}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Stage}"
                                              Value="Received">
                                     <Setter Property="Foreground"
-                                            Value="#FDF6EC" />
+                                            Value="{DynamicResource WindowBackgroundBrush}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Stage}"
                                              Value="Logged">
                                     <Setter Property="Foreground"
-                                            Value="#FDF6EC" />
+                                            Value="{DynamicResource WindowBackgroundBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -115,7 +115,7 @@
                 <DataTrigger Binding="{Binding IsQ1Current}"
                              Value="True">
                     <Setter Property="BorderBrush"
-                            Value="#C87941" />
+                            Value="{DynamicResource AccentBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -127,7 +127,7 @@
                 <DataTrigger Binding="{Binding IsQ2Current}"
                              Value="True">
                     <Setter Property="BorderBrush"
-                            Value="#C87941" />
+                            Value="{DynamicResource AccentBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -139,7 +139,7 @@
                 <DataTrigger Binding="{Binding IsQ3Current}"
                              Value="True">
                     <Setter Property="BorderBrush"
-                            Value="#C87941" />
+                            Value="{DynamicResource AccentBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -151,7 +151,7 @@
                 <DataTrigger Binding="{Binding IsQ4Current}"
                              Value="True">
                     <Setter Property="BorderBrush"
-                            Value="#C87941" />
+                            Value="{DynamicResource AccentBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -183,7 +183,7 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#F5E6D3" />
+                                        Value="{DynamicResource SurfaceAltBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -207,11 +207,12 @@
             <TextBlock Text="REVIEWS"
                        FontSize="13"
                        FontWeight="Bold"
-                       Foreground="#3D2B1F"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        VerticalAlignment="Center"
                        Margin="0,0,12,0" />
 
-            <Button Command="{Binding RefreshCommand}"
+                <Button Command="{Binding RefreshCommand}"
+                        AutomationProperties.Name="Refresh reviews"
                     ToolTip="Reload and generate any missing review items"
                     Width="32"
                     Height="32"
@@ -221,7 +222,7 @@
                 <TextBlock Text="&#xE72C;"
                            FontFamily="Segoe MDL2 Assets"
                            FontSize="14"
-                           Foreground="#9C7A5C" />
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
             </Button>
 
             <!-- View toggle. Unchecked = relative (current quarter only, with the
@@ -254,7 +255,7 @@
                                 CornerRadius="4">
                             <TextBlock FontFamily="Segoe MDL2 Assets"
                                        FontSize="14"
-                                       Foreground="#9C7A5C"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -279,7 +280,7 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#F5E6D3" />
+                                        Value="{DynamicResource SurfaceAltBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -287,7 +288,7 @@
             </ToggleButton>
 
             <TextBlock Text="Loading…"
-                       Foreground="#9C7A5C"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        FontSize="12"
                        VerticalAlignment="Center"
                        Margin="8,0,0,0"
@@ -296,30 +297,30 @@
 
         <!-- ═══ CASELOAD GRID — ABSOLUTE (all four quarters) ═══ -->
         <Border Grid.Row="1"
-                Background="White"
-                BorderBrush="#E8D0B8"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Visibility="{Binding ShowAllQuarters, Converter={StaticResource BoolToVisibilityConverter}}">
-            <DataGrid ItemsSource="{Binding Rows}"
+            <DataGrid AutomationProperties.Name="Review rows" ItemsSource="{Binding Rows}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
                       CanUserSortColumns="False"
                       HeadersVisibility="Column"
                       Background="Transparent"
                       BorderThickness="0"
-                      RowBackground="White"
-                      AlternatingRowBackground="#FDF6EC"
+                      RowBackground="{DynamicResource SurfaceBrush}"
+                      AlternatingRowBackground="{DynamicResource WindowBackgroundBrush}"
                       GridLinesVisibility="All"
-                      HorizontalGridLinesBrush="#F0E0D0"
-                      VerticalGridLinesBrush="#F0E0D0">
+                      HorizontalGridLinesBrush="{DynamicResource DividerBrush}"
+                      VerticalGridLinesBrush="{DynamicResource DividerBrush}">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="Client"
                                             Width="180">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding DisplayName}"
-                                           Foreground="#3D2B1F"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            FontSize="13"
                                            VerticalAlignment="Center"
                                            Margin="8,4"
@@ -333,7 +334,8 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border Style="{StaticResource Q1Outline}">
-                                    <Button Style="{StaticResource QuarterCellButton}"
+                                <Button Style="{StaticResource QuarterCellButton}"
+                                        AutomationProperties.Name="{Binding DisplayName, StringFormat={}Quarter 1 reviews for {0}}"
                                             Command="{Binding DataContext.SelectCellCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding Q1Selection}">
@@ -356,7 +358,8 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border Style="{StaticResource Q2Outline}">
-                                    <Button Style="{StaticResource QuarterCellButton}"
+                                <Button Style="{StaticResource QuarterCellButton}"
+                                        AutomationProperties.Name="{Binding DisplayName, StringFormat={}Quarter 2 reviews for {0}}"
                                             Command="{Binding DataContext.SelectCellCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding Q2Selection}">
@@ -379,7 +382,8 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border Style="{StaticResource Q3Outline}">
-                                    <Button Style="{StaticResource QuarterCellButton}"
+                                <Button Style="{StaticResource QuarterCellButton}"
+                                        AutomationProperties.Name="{Binding DisplayName, StringFormat={}Quarter 3 reviews for {0}}"
                                             Command="{Binding DataContext.SelectCellCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding Q3Selection}">
@@ -402,7 +406,8 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border Style="{StaticResource Q4Outline}">
-                                    <Button Style="{StaticResource QuarterCellButton}"
+                                <Button Style="{StaticResource QuarterCellButton}"
+                                        AutomationProperties.Name="{Binding DisplayName, StringFormat={}Quarter 4 reviews for {0}}"
                                             Command="{Binding DataContext.SelectCellCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding Q4Selection}">
@@ -437,30 +442,30 @@
 
             <!-- Single-column grid -->
             <Border Grid.Column="0"
-                    Background="White"
-                    BorderBrush="#E8D0B8"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Margin="0,0,12,0">
-                <DataGrid ItemsSource="{Binding Rows}"
+                <DataGrid AutomationProperties.Name="Review rows" ItemsSource="{Binding Rows}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           CanUserSortColumns="False"
                           HeadersVisibility="Column"
                           Background="Transparent"
                           BorderThickness="0"
-                          RowBackground="White"
-                          AlternatingRowBackground="#FDF6EC"
+                          RowBackground="{DynamicResource SurfaceBrush}"
+                          AlternatingRowBackground="{DynamicResource WindowBackgroundBrush}"
                           GridLinesVisibility="All"
-                          HorizontalGridLinesBrush="#F0E0D0"
-                          VerticalGridLinesBrush="#F0E0D0">
+                          HorizontalGridLinesBrush="{DynamicResource DividerBrush}"
+                          VerticalGridLinesBrush="{DynamicResource DividerBrush}">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Client"
                                                 Width="180">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding DisplayName}"
-                                               Foreground="#3D2B1F"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                FontSize="13"
                                                VerticalAlignment="Center"
                                                Margin="8,4"
@@ -487,24 +492,24 @@
                                                 <!-- Default covers the no-cycle case,
                                                      where all three flags are false. -->
                                                 <Setter Property="Foreground"
-                                                        Value="#9C7A5C" />
+                                                        Value="{DynamicResource TextSecondaryBrush}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsWindowUpcoming}"
                                                                  Value="True">
                                                         <Setter Property="Foreground"
-                                                                Value="#C87941" />
+                                                                Value="{DynamicResource AccentBrush}" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsWindowOpen}"
                                                                  Value="True">
                                                         <Setter Property="Foreground"
-                                                                Value="#2F6FA8" />
+                                                                Value="{DynamicResource InfoBrush}" />
                                                         <Setter Property="FontWeight"
                                                                 Value="SemiBold" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsWindowClosed}"
                                                                  Value="True">
                                                         <Setter Property="Foreground"
-                                                                Value="#A33" />
+                                                                Value="{DynamicResource OverdueBrush}" />
                                                         <Setter Property="FontWeight"
                                                                 Value="SemiBold" />
                                                     </DataTrigger>
@@ -523,7 +528,8 @@
                                                 Width="*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource QuarterCellButton}"
+                            <Button Style="{StaticResource QuarterCellButton}"
+                                    AutomationProperties.Name="{Binding DisplayName, StringFormat={}Current quarter reviews for {0}}"
                                             Command="{Binding DataContext.SelectCellCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding CurrentQuarterSelection}">
@@ -547,7 +553,7 @@
             <Border Grid.Column="1"
                     CornerRadius="6"
                     ClipToBounds="True"
-                    BorderBrush="#E8D0B8"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1">
                 <Grid>
                     <!-- Geometry backdrop: palette gradient + soft off-edge rings.
@@ -556,9 +562,9 @@
                         <Rectangle.Fill>
                             <LinearGradientBrush StartPoint="0,0"
                                                  EndPoint="1,1">
-                                <GradientStop Color="#FBF3E8"
+                                <GradientStop Color="{DynamicResource SurfaceRaisedColor}"
                                               Offset="0" />
-                                <GradientStop Color="#F3E4CF"
+                                <GradientStop Color="{DynamicResource SurfaceAltColor}"
                                               Offset="1" />
                             </LinearGradientBrush>
                         </Rectangle.Fill>
@@ -568,21 +574,21 @@
                                  Canvas.Top="-90"
                                  Width="280"
                                  Height="280"
-                                 Stroke="#E8D0B8"
+                                 Stroke="{DynamicResource BorderBrush}"
                                  StrokeThickness="18"
                                  Opacity="0.35" />
                         <Ellipse Canvas.Left="230"
                                  Canvas.Top="-40"
                                  Width="180"
                                  Height="180"
-                                 Stroke="#D9B48F"
+                                 Stroke="{DynamicResource InputBorderBrush}"
                                  StrokeThickness="14"
                                  Opacity="0.30" />
                         <Ellipse Canvas.Left="-70"
                                  Canvas.Top="420"
                                  Width="260"
                                  Height="260"
-                                 Stroke="#C9B79C"
+                                 Stroke="{DynamicResource InputBorderBrush}"
                                  StrokeThickness="16"
                                  Opacity="0.25" />
                     </Canvas>
@@ -592,10 +598,10 @@
                         <TextBlock Text="90-Day Reviews"
                                    FontSize="18"
                                    FontWeight="Bold"
-                                   Foreground="#3D2B1F" />
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
                         <TextBlock Text="Each client's quarterly reviews, tracked from request to completion."
                                    FontSize="12.5"
-                                   Foreground="#6B4E2E"
+                                   Foreground="{DynamicResource NarrativeTextBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,6,0,18" />
 
@@ -608,16 +614,16 @@
                                 <Border Width="26"
                                         Height="18"
                                         CornerRadius="3"
-                                        Background="#F5E6D3"
+                                        Background="{DynamicResource SurfaceAltBrush}"
                                         Margin="0,0,10,0" />
                                 <StackPanel>
                                     <TextBlock Text="Not Started"
                                                FontSize="12"
                                                FontWeight="SemiBold"
-                                               Foreground="#3D2B1F" />
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="Nothing recorded yet for this item."
                                                FontSize="11"
-                                               Foreground="#6B4E2E" />
+                                               Foreground="{DynamicResource NarrativeTextBrush}" />
                                 </StackPanel>
                             </StackPanel>
 
@@ -626,16 +632,16 @@
                                 <Border Width="26"
                                         Height="18"
                                         CornerRadius="3"
-                                        Background="#B08553"
+                                        Background="{DynamicResource AccentBrush}"
                                         Margin="0,0,10,0" />
                                 <StackPanel>
                                     <TextBlock Text="Requested"
                                                FontSize="12"
                                                FontWeight="SemiBold"
-                                               Foreground="#3D2B1F" />
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="You've asked the provider for the documentation."
                                                FontSize="11"
-                                               Foreground="#6B4E2E"
+                                               Foreground="{DynamicResource NarrativeTextBrush}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </StackPanel>
@@ -645,16 +651,16 @@
                                 <Border Width="26"
                                         Height="18"
                                         CornerRadius="3"
-                                        Background="#A8C5D6"
+                                        Background="{DynamicResource InfoFillBrush}"
                                         Margin="0,0,10,0" />
                                 <StackPanel>
                                     <TextBlock Text="Received"
                                                FontSize="12"
                                                FontWeight="SemiBold"
-                                               Foreground="#3D2B1F" />
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="The documentation has come back."
                                                FontSize="11"
-                                               Foreground="#6B4E2E" />
+                                               Foreground="{DynamicResource NarrativeTextBrush}" />
                                 </StackPanel>
                             </StackPanel>
 
@@ -663,27 +669,27 @@
                                 <Border Width="26"
                                         Height="18"
                                         CornerRadius="3"
-                                        Background="#6B8E6B"
+                                        Background="{DynamicResource CompliantBrush}"
                                         Margin="0,0,10,0" />
                                 <StackPanel>
                                     <TextBlock Text="Logged"
                                                FontSize="12"
                                                FontWeight="SemiBold"
-                                               Foreground="#3D2B1F" />
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="The date is entered; this quarter's 90-day review is complete."
                                                FontSize="11"
-                                               Foreground="#6B4E2E"
+                                               Foreground="{DynamicResource NarrativeTextBrush}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
 
                         <Border Height="1"
-                                Background="#E8D0B8"
+                                Background="{DynamicResource BorderBrush}"
                                 Margin="0,18,0,14" />
 
                         <TextBlock FontSize="11"
-                                   Foreground="#6B4E2E"
+                                   Foreground="{DynamicResource NarrativeTextBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10">
                             <Run Text="By default, each client shows only their " />
@@ -693,7 +699,7 @@
                         </TextBlock>
 
                         <TextBlock FontSize="11"
-                                   Foreground="#6B4E2E"
+                                   Foreground="{DynamicResource NarrativeTextBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10">
                             <Run Text="The items shown per client adjust with the services on that client's record, under the " />
@@ -703,7 +709,7 @@
                         </TextBlock>
                         
                         <TextBlock FontSize="11"
-                                   Foreground="#6B4E2E"
+                                   Foreground="{DynamicResource NarrativeTextBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10">
     <Run Text="The Medical tile signifies doctor appointment dates.  The Dental tile, dentist appointments.  The Goals tile represents the Goals portion of a PCP revised for the 90-day review.  The Employment tab represents documentation required for consumers who work without work supports.  Additional tiles are for service provider notes required for quarterly reviews. " />
@@ -711,7 +717,7 @@
                         </TextBlock>
 
                         <TextBlock FontSize="11"
-                                   Foreground="#6B4E2E"
+                                   Foreground="{DynamicResource NarrativeTextBrush}"
                                    TextWrapping="Wrap">
 <Run Text="When you select a row within the Current Quarter column, you'll be able to enter dates for when the items were requested, received, and logged." />
 
@@ -723,8 +729,8 @@
 
         <!-- ═══ DETAIL PANE ═══ -->
         <Border Grid.Row="3"
-                Background="White"
-                BorderBrush="#E8D0B8"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="16"
@@ -766,17 +772,17 @@
 
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding DisplayName}"
-                                           Foreground="#3D2B1F"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            FontSize="13"
                                            VerticalAlignment="Center" />
 
-                                <DatePicker Grid.Column="1"
+                                <DatePicker AutomationProperties.Name="Requested date" Grid.Column="1"
                                             SelectedDate="{Binding RequestedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Margin="0,0,8,0" />
-                                <DatePicker Grid.Column="2"
+                                <DatePicker AutomationProperties.Name="Received date" Grid.Column="2"
                                             SelectedDate="{Binding ReceivedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Margin="0,0,8,0" />
-                                <DatePicker Grid.Column="3"
+                                <DatePicker AutomationProperties.Name="Logged date" Grid.Column="3"
                                             SelectedDate="{Binding LoggedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                                 <!-- Appointment capture — Medical and Dental only, now on
@@ -794,18 +800,18 @@
                                     <TextBlock Text="Appointment"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Foreground="#9C7A5C"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0" />
-                                    <DatePicker Width="120"
+                                    <DatePicker AutomationProperties.Name="Appointment date" Width="120"
                                                 SelectedDate="{Binding AppointmentDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Margin="0,0,10,0" />
                                     <TextBlock Text="with"
                                                FontSize="11"
-                                               Foreground="#9C7A5C"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0" />
-                                    <TextBox Width="180"
+                                    <TextBox AutomationProperties.Name="Provider Name" Width="180"
                                              VerticalAlignment="Center"
                                              Text="{Binding ProviderName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                 </StackPanel>

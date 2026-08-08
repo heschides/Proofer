@@ -41,12 +41,12 @@ namespace Sati.Data
                     ReleaseMedicalDaysAfterDue = 30,
                     // Anniversary offsets (anniversary − N days = due date).
                     // PCP, Safety Plan, Privacy Practices, and Releases are due
-                    // on the anniversary itself. Comp Assessment is due 120 days
+                    // on the anniversary itself. Comp Assessment is due 60 days
                     // earlier so the next year's PCP can be informed by it.
                     // Reclassification is due 30 days earlier (Evergreen workflow).
                     Q4RDaysBeforeAnniversary = 5,
                     PcpDaysBeforeAnniversary = 0,
-                    CompAssessmentDaysBeforeAnniversary = 120,
+                    CompAssessmentDaysBeforeAnniversary = 60,
                     ReclassificationDaysBeforeAnniversary = 30,
                     SafetyPlanDaysBeforeAnniversary = 0,
                     PrivacyPracticesDaysBeforeAnniversary = 0,

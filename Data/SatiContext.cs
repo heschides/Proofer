@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
 using Sati.Models.Billing;
+using Sati.Models.Assessments;
 
 namespace Sati.Data
 {
@@ -22,6 +23,8 @@ namespace Sati.Data
         public DbSet<ATRequest> ATRequests { get; set; }
         public DbSet<ATRequestItem> ATRequestItems { get; set; }
         public DbSet<Provider> Providers { get; set; }
+        public DbSet<PersonContact> PersonContacts { get; set; }
+        public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -79,6 +82,17 @@ namespace Sati.Data
                 });
             });
 
+            modelBuilder.Entity<ComprehensiveAssessment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Status).HasConversion<string>().HasMaxLength(30);
+                entity.Property(a => a.DocumentJson).IsRequired();
+                entity.HasIndex(a => new { a.PersonId, a.Version }).IsUnique();
+                entity.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(a => a.AuthorUser).WithMany().HasForeignKey(a => a.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>().WithMany().HasForeignKey(a => a.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasKey(u => u.Id);
@@ -126,11 +140,29 @@ namespace Sati.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<PersonContact>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.FirstName).IsRequired().HasMaxLength(75);
+                entity.Property(c => c.LastName).IsRequired().HasMaxLength(75);
+                entity.Property(c => c.Kind).HasConversion<string>().HasMaxLength(30);
+                entity.Property(c => c.Relationship).HasMaxLength(100);
+                entity.Property(c => c.Organization).HasMaxLength(150);
+                entity.Property(c => c.Phone).HasMaxLength(30);
+                entity.Property(c => c.Email).HasMaxLength(254);
+                entity.HasIndex(c => new { c.PersonId, c.IsActive });
+                entity.HasOne(c => c.Person)
+                      .WithMany(p => p.Contacts)
+                      .HasForeignKey(c => c.PersonId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<Note>(entity =>
             {
                 entity.HasKey(n => n.Id);
                 entity.Property(n => n.Narrative)
                       .IsRequired();
+                entity.Property(n => n.VisitDocumentationJson);
                 entity.HasOne(n => n.Person)
                       .WithMany(p => p.Notes)
                       .HasForeignKey(n => n.PersonId)

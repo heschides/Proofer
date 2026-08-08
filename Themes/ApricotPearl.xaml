@@ -1,0 +1,52 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- APRICOT PEARL: warm ivory with a quiet apricot glow. -->
+    <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFFFFCF6" Offset="0" />
+        <GradientStop Color="#FFFFF3E8" Offset="0.46" />
+        <GradientStop Color="#FFF8F2EF" Offset="0.76" />
+        <GradientStop Color="#FFFFF8F1" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="NavBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFFFF0E1" Offset="0" />
+        <GradientStop Color="#FFF4E8E3" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="SurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFFFFFFF" Offset="0" />
+        <GradientStop Color="#FFFFFAF5" Offset="0.5" />
+        <GradientStop Color="#FFF8EFEB" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#F8EDE4" />
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F0E2D8" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FFFCF8" />
+    <SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B3FFFAF4" />
+    <SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#40FFFAF4" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#E7D4C8" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#D1B9AA" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#EEE0D7" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#C77D62" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#AB6650" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#8E5140" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFF9F3" />
+    <!-- Local AI: a muted mauve counterpoint to the apricot accent. -->
+    <Color x:Key="AiGlowColor">#FFAA7EA2</Color>
+    <SolidColorBrush x:Key="AiAccentBrush" Color="#8B5E83" />
+    <SolidColorBrush x:Key="AiAccentHoverBrush" Color="#9D7195" />
+    <SolidColorBrush x:Key="AiAccentPressedBrush" Color="#704766" />
+    <SolidColorBrush x:Key="AiAccentSoftBrush" Color="#F3E5EF" />
+    <SolidColorBrush x:Key="AiAccentBorderBrush" Color="#D4B4CC" />
+    <SolidColorBrush x:Key="OnAiAccentBrush" Color="#FFF9FC" />
+    <SolidColorBrush x:Key="AiPanelTextBrush" Color="#603E59" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#F2E2D8" />
+    <SolidColorBrush x:Key="HoverStrongBrush" Color="#DEC7BA" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#433733" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#7F6B63" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#99877F" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#B6A299" />
+    <SolidColorBrush x:Key="NarrativeTextBrush" Color="#67534C" />
+    <SolidColorBrush x:Key="PersonGroupBrush" Color="#FFF9F2" />
+    <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#F8ECE5" />
+    <Color x:Key="SurfaceAltColor">#FFF8EDE4</Color>
+    <Color x:Key="SurfaceRaisedColor">#FFFFFCF8</Color>
+    <Color x:Key="TextSubtleColor">#FFB6A299</Color>
+</ResourceDictionary>

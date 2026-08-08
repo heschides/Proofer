@@ -17,7 +17,7 @@ namespace Sati.Data
     ///   - Annual documents (PCP, ComprehensiveAssessment, Reclassification,
     ///     SafetyPlan, PrivacyPractices, all Releases) count BACKWARD from
     ///     cycleEnd by their own Settings.*DaysBeforeAnniversary offset. A
-    ///     form set to 0 is due ON the anniversary (cycleEnd); Comp is 120
+    ///     form set to 0 is due ON the anniversary (cycleEnd); Comp is 60
     ///     days earlier, Reclassification 30, the rest currently 0. Each form
     ///     reads its OWN setting — nothing is hardcoded — so a different
     ///     agency can retune any deadline from Settings without code changes.

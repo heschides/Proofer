@@ -207,6 +207,46 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 ---
 
 ## Future Roadmap
+
+### Local AI case-note drafting
+
+Development slice shipped 2026-08-07: lazy in-process Foundry Local integration, `phi-4-mini`,
+500-word input cap, editable rules file, progress state, separate preview, explicit accept/discard,
+and deterministic warnings for omitted numeric details and placeholders. The original narrative is
+not changed unless the user accepts the draft. `LocalAi:Enabled=false` disables the feature.
+
+First approved style rule added 2026-08-07: required `Community Case Manager (CCM)
+[full name]` opening, required final `Follow-up:` section, actual form-record fallback
+when no follow-up is evident, SLP/SLC role expansion, and trailing whole-number unit
+shorthand. One rough-note/desired-note pair is now embedded in `AI_CASE_NOTE_RULES.md`.
+
+Structured visit slice shipped 2026-08-07: consumer-profile contacts/support-team editor,
+separately loaded contact service, visit attendee selection, constrained setting/appearance/
+participation/safety choices, independent verified-fact checkboxes, additional-attendee and
+observation detail fields, and a persisted note-owned JSON snapshot. The local formatter receives
+these selections in a trusted current-visit block; historical AI context remains background-only.
+Concern selections require descriptive text, while `Not documented` never becomes a default
+normal observation.
+
+Before any shared or production release:
+
+- Obtain the authoritative agency case-note policy and replace/refine `AI_CASE_NOTE_RULES.md`.
+- Assemble at least 50-100 de-identified rough-note/approved-note examples spanning visits,
+  contacts, forms, sparse notes, ambiguity, quotations, negative statements, and safety content.
+- Define and pass acceptance thresholds for zero invented facts, retained attribution/negation,
+  required formatting, latency, memory use, and accessibility.
+- Add regression tests with a fake formatter plus a separately run local-model evaluation suite.
+- Persist an audit record for accepted AI drafts: source, draft, final user-edited text, rule-set
+  version, model alias/version/hash, user, timestamps, and explicit acceptance. Decide retention and
+  access rules before adding this to the database.
+- Add cancellation and model-download/retry controls; test first-run, cached/offline, low-disk,
+  unavailable-model, corrupt-cache, and runtime-unload behavior.
+- Complete privacy, security, clinical/documentation, labor, and records-retention review. Confirm
+  runtime telemetry is disabled or contains no PHI and that no cloud fallback can occur.
+- Pin the approved model variant and license terms; prevent an unreviewed catalog update from
+  changing production output.
+- Add an administrative release gate so production builds default to disabled until formally
+  approved, even if a development `appsettings.json` is copied accidentally.
 *Parked for post-OADS or v2.0+*
 
 - [ ] **Historical productivity viewer** — query past Incentive rows paired with monthly
@@ -223,6 +263,268 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [ ] reMarkable integration — push visit PDFs, pull annotated docs
 
 ---
+
+## Comprehensive Assessment, PCP, and OADS Workflow
+*Goal: Replace Evergreen with a person-centered, waiver-agnostic assessment and plan workflow that is practical for case managers, reviewable by supervisors and OADS, and safe for billing.*
+
+### Comprehensive Assessment — first functional slice shipped 2026-08-07
+
+- [x] Replace the client-workspace placeholder with a desktop-oriented assessment editor.
+- [x] Add eight navigable domains with an initial set of practical questions.
+- [x] Add expandable guidance to every question: why it is asked, what a complete
+  answer includes, and what to avoid.
+- [x] Persist drafts in `ComprehensiveAssessments` and auto-save after edits.
+- [x] Store the assessment body as one versioned JSON aggregate while workflow and
+  ownership fields remain relational/queryable.
+- [x] Record report contributors separately from the assigned case-manager author.
+- [x] Use one team assessment by default with optional dissenting perspectives.
+- [x] Model support as combinable characteristics, not a false linear scale.
+- [x] Enforce logical exclusions: "No support currently needed" clears active support
+  selections; `Varies` requires at least one concrete support and an explanation.
+- [x] Require every question to be addressed before submission; follow-up-required
+  answers do not count as complete.
+- [x] Add structured identified needs with type, desired result, and optional provider
+  association.
+- [x] Enforce authoring by caseload ownership. Supervisor status alone does not grant
+  permission to rewrite another case manager's answers.
+- [x] Add submission to supervisor review and immutable approved/superseded states in
+  the domain model.
+- [x] Change the new/default Comprehensive Assessment deadline from 120 to 60 days
+  before the PCP anniversary.
+- [x] Add migration `20260807120000_AddComprehensiveAssessments`.
+
+### Comprehensive Assessment — content and usability follow-up
+
+- [ ] Flesh out the assessment with the additional specific questions identified by
+  case-manager and OADS review; keep questions waiver-agnostic.
+- [ ] Add a realistic good-answer example to every question, alongside the existing
+  inclusion and avoidance guidance.
+- [ ] Review every question for plain language, practical answerability, duplication,
+  trauma-informed wording, dignity, and relevance to authorization.
+- [ ] Decide which questions are conditional and implement branching without hiding
+  previously entered answers.
+- [ ] Add question-level comments, supervisor flags, resolution state, and return reason.
+- [ ] Add a visible validation summary with links that move focus directly to every
+  incomplete or contradictory answer.
+- [ ] Validate contributor rows, identified needs, provider associations, and dissenting
+  opinions—not only the core question set—before submission.
+- [ ] Add need urgency, current supports, unmet component, health/safety implication,
+  responsible next action, status, and resolution history.
+- [ ] Replace the temporary provider-name entry with selection from the future
+  consumer/provider association model while retaining a document snapshot.
+- [ ] Add `Not assessed` follow-up ownership and due date; permit completion only through
+  an explicitly documented supervisor exception where policy allows.
+- [ ] Add autosave retry/recovery, unsaved-change shutdown flush, concurrency handling,
+  and protection against two sessions editing the same draft.
+- [ ] Remove the service-locator construction in
+  `ComprehensiveAssessmentWorkspace.xaml.cs`; inject/factory-create the workspace and
+  ViewModel consistently with Sati's DI rule.
+- [ ] Perform keyboard-only, JAWS, high-contrast, 200% scaling, and 1280x768 layout QA.
+- [ ] Add unit tests for completion rules, support-selection exclusions, ownership,
+  version immutability, serialization compatibility, and submission transitions.
+
+### Supervisor assessment workflow
+
+- [ ] Add a supervisor review queue for Comprehensive Assessments.
+- [ ] Allow supervisors to flag individual sections/questions, comment, and return a
+  submission without rewriting the author's answers.
+- [ ] Make supervisor approval wholesale, with all unresolved flags blocking approval.
+- [ ] Permit supervisors who carry a caseload to author only their own assigned clients'
+  assessments; keep the author and reviewer capabilities separate.
+- [ ] Record submission, return, resubmission, approval, actor, timestamps, reason, and
+  exact version in append-only audit history.
+- [ ] On approval, lock the version and mark the matching legacy `Form` complete through
+  the existing `Form` invariant rather than writing compliance fields directly.
+
+### Documents, signatures, and versions
+
+- [ ] Publish a version-identified Comprehensive Assessment PDF.
+- [ ] Retain both the generated unsigned PDF and uploaded physically signed scan.
+- [ ] Record signer, role, signature method, upload actor, and timestamps against the
+  exact frozen version.
+- [ ] Add the same publish/print/upload workflow to the PCP.
+- [ ] Ensure any post-publication edit creates a new version and signature cycle; never
+  replace or silently mutate a signed or approved version.
+- [ ] Establish secure document storage, malware scanning, retention, download/export
+  authorization, and accessible PDF generation.
+
+### Electronic signature portal — vetted direction
+
+The signature feature should be a secure Sati web portal reached from an email
+notification—not a Sati-operated mail server and not an email reply treated as the
+authoritative signature. Email is the delivery channel; Sati owns the identity check,
+review, intent-to-sign action, immutable evidence, and resulting signed artifact.
+
+#### Policy gates before implementation
+
+- [ ] Obtain written OADS/OMS confirmation that the MaineCare electronic-signature
+  notice supersedes the OADS PCP manual's physical-signature instructions for the PCP
+  Face Sheet and for annual/reversioned plans.
+- [ ] Confirm separately whether electronic signing is accepted for provider/team
+  Agreement Sheet signatures; the current MaineCare notice expressly discusses member
+  signatures, while the published OADS manual still says implementing Team Members must
+  physically sign the Agreement Sheet.
+- [ ] Confirm what exact evidence Resource Coordinators must receive and whether a
+  generated signed PDF plus audit certificate qualifies as the retained original.
+- [ ] Confirm the required signers and signature meaning for the Comprehensive Assessment
+  independently from the PCP workflow.
+- [ ] Document the authority and identity-proofing rules for a Person, guardian,
+  authorized representative, case manager, provider implementer, supervisor, and OADS
+  Resource Coordinator. A proxy must sign in the proxy's own name and capacity, never as
+  though they were the Person.
+- [ ] Preserve a paper, in-person, and accessible assisted-signature path. Electronic
+  transactions must be consensual and must not become a condition of receiving services.
+
+Policy basis reviewed 2026-08-07:
+
+- [MaineCare's electronic-signature notice](https://www1.maine.gov/dhhs/oms/providers/provider-bulletins/notice-regarding-electronic-signatures-2024-09-16)
+  permits member electronic signatures under enforcement discretion when the system
+  authenticates the signer, prevents signing an incomplete document, complies with
+  privacy/security requirements including HIPAA, and retains proof plus the signed record.
+- [Maine UETA](https://legislature.maine.gov/statutes/10/title10ch1051sec0.html)
+  recognizes an electronic process adopted with intent to sign, requires agreement to
+  transact electronically, permits codes/security procedures as attribution evidence,
+  and requires an accurate record that remains accessible for later reference.
+- [42 CFR 441.301(c)(2)(ix)](https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-C/part-441/subpart-G/section-441.301)
+  requires the PCP to be finalized with the individual's informed written consent and
+  signed by the individual and all people/providers responsible for implementation.
+- The [published OADS PCP manual](https://www.maine.gov/dafs/bablo/sites/maine.gov.dhhs/files/documents/PCPManualpdf.pdf)
+  still instructs case managers to obtain physical signatures and maintain originals;
+  this unresolved conflict is why written OADS/OMS direction is a release gate.
+
+#### Signature workflow and domain model
+
+- [ ] Freeze a complete, version-identified document before creating any signature
+  request. Store the final PDF, document version, cryptographic hash, and publication
+  timestamp; never allow the published content to mutate in place.
+- [ ] Model `SignatureEnvelope`, `SignatureRequest`, `RequiredSigner`, and append-only
+  `SignatureEvent` records separately from document approval and authorization state.
+- [ ] Create one uniquely addressed request per required signer. Do not treat a shared
+  family email, provider group mailbox, meeting attendance, or document contribution as
+  proof that a particular person signed.
+- [ ] Track signer name, role/capacity, organization, required/optional status, delivery
+  status, authentication method, signed/declined/requested-changes state, and timestamps.
+- [ ] Give the signer three explicit outcomes after reviewing the exact frozen document:
+  sign/agree, decline, or request changes. Capture the exact intent and consent language
+  displayed at the moment of signature.
+- [ ] Keep signature completion, supervisor approval, OADS wholesale approval,
+  Classification, service authorization, and billability as distinct states. One must
+  never silently imply another.
+- [ ] Require a new document version and signature cycle after any substantive change.
+  Retain the prior version, its signatures, and the reason for supersession.
+- [ ] Generate a signed PDF or audit certificate logically associated with the frozen
+  PDF, and retain both the original final artifact and complete signature evidence.
+- [ ] Distribute a downloadable/printable copy to the Person/guardian and other entitled
+  participants after completion, using the same access controls as the signing portal.
+
+#### Email delivery and authentication
+
+- [ ] Use a managed outbound transactional-email service under the required HIPAA
+  agreement and configure domain authentication/deliverability. Do not operate inbound
+  SMTP or require the signer to reply to an email.
+- [ ] Keep notification emails generic and free of assessment/PCP content and unnecessary
+  identifiers. Do not automatically attach PHI; the opaque, random, single-use link opens
+  the protected portal where the document is shown after authentication.
+- [ ] Confirm the email address and preferred confidential communication method during
+  enrollment, and support correction/revocation without silently retargeting an existing
+  signature request.
+- [ ] Make link tokens high-entropy, single-use, short-lived, revocable, rate-limited,
+  and stored only as hashes. Never place a person ID, document ID, MaineCare ID, or other
+  meaningful identifier in a URL.
+- [ ] If a pre-established signing code is retained, establish it only after verified
+  enrollment, hash it using the password-storage standard, never reveal it to staff, and
+  rate-limit/lock failed attempts. Do not send the code through the same email as the link.
+- [ ] Prefer an existing authenticated provider account, passkey, or short-lived code
+  delivered through an independent verified channel. NIST does not treat email as an
+  acceptable independent out-of-band authentication channel.
+- [ ] Design a verified recovery and assisted-signing process for people who forget a
+  code, share an email account, lack a mobile phone, use supported decision making, or
+  cannot independently operate the portal. Recovery must not be easier to exploit than
+  the normal signature flow.
+
+#### Security, evidence, operations, and accessibility
+
+- [ ] Put the public signing surface behind a trusted web application/API boundary;
+  the WPF client and direct database access cannot serve as the Internet-facing security
+  boundary. Authorize every request by capability, organization, signer, document version,
+  and workflow state.
+- [ ] Record append-only evidence including document hash/version, signer identity and
+  capacity, authentication method, consent/intent text, issuance/view/sign timestamps,
+  delivery events, failed attempts, revocation/expiration, and administrative actions.
+- [ ] Decide through privacy/security review whether IP address and user-agent evidence is
+  necessary and proportionate; document retention and access rules for that metadata.
+- [ ] Encrypt PHI in transit and at rest, segregate signing secrets from document storage,
+  prevent replay, scan uploaded physical-signature fallbacks for malware, and include the
+  portal/vendor in risk analysis, incident response, breach response, and business-
+  associate agreements.
+- [ ] Add reminders, expiration, resend, email-bounce handling, signer replacement,
+  revocation, and escalation without changing the frozen document or losing history.
+- [ ] Make the signing page work at common mobile and desktop sizes with keyboard-only
+  navigation, screen readers, magnification, high contrast, plain language, limited-
+  English support, and an accessible downloadable document.
+- [ ] Add automated tests for incomplete-document blocking, wrong signer, shared email,
+  expired/replayed links, brute-force limits, version mismatch, signer replacement,
+  decline/request-changes, partial multi-signer completion, post-signature mutation,
+  audit immutability, and separation from OADS approval/authorization.
+
+This is a medium-to-large architecture feature despite its intentionally simple signer
+experience. The email sender is a small component; the public portal, trusted API,
+identity and authority proof, immutable document/version handling, multi-signer state,
+audit evidence, accessibility, and policy acceptance are the substantive work.
+
+### Person-Centered Plan
+
+- [ ] Build the PCP at intake and annually, using the approved assessment and live
+  consumer profile as sources without silently mutating approved plan versions.
+- [ ] Record all PCP meeting participants, roles/relationships, invitation/attendance
+  status, attendance method, and signature/acknowledgment state.
+- [ ] Default the assigned case manager as meeting organizer, with an audited override.
+- [ ] Add profile-to-PCP change rules: informational, potentially material, material,
+  and authorization-affecting.
+- [ ] Generate a reviewable PCP change set or amendment from material profile changes;
+  require case-manager confirmation and supervisor review for important changes.
+- [ ] Add OADS Resource Coordinator review with section flags/comments but wholesale
+  approval/return of the PCP.
+- [ ] Add authorized services as a deliberately unfinished section boundary now; later
+  connect it to Providers, authorization periods, units, frequency, duration, funding,
+  assessed needs, and goals using immutable snapshots.
+- [ ] Preserve the distinction between assessment facts, supervisor attestation, PCP,
+  OADS decision, classification, and authorization.
+
+### Classification and future OADS access
+
+- [ ] Keep Comprehensive Assessment and PCP waiver-agnostic.
+- [ ] Implement waiver/level-of-care determination in Classification, including future
+  Lifespan Waiver support.
+- [ ] Add the OADS Resource Coordinator role and narrow capabilities rather than relying
+  on menu visibility or broad job-title permissions.
+- [ ] Record approval, denial, return, effective/expiration dates, cited evidence,
+  decision-maker, and immutable decision history.
+- [ ] Add assignment, delegation, temporary coverage, reassignment, and recusal workflows.
+
+### Deadlines, reminders, reviews, and billing
+
+- [ ] Reconcile already-generated Comprehensive Assessment `Form.DueDate` values from
+  the legacy 120-day offset to the agreed 60-day-before-PCP rule through an inspected
+  dry run; the migration changes the setting/default but deliberately does not guess at
+  existing records.
+- [ ] Continue using the existing Form/ReviewItem reminder calculations as the canonical
+  deadline source; do not create parallel assessment date arithmetic.
+- [ ] Block PCP submission when its Comprehensive Assessment is overdue, with a documented
+  supervisor-or-higher override containing reason, actor, timestamp, expiration, and
+  affected version.
+- [ ] At midnight after PCP expiration, mark subsequently submitted case notes permanently
+  unbillable; there is no grace period and later PCP completion is not retroactive.
+- [ ] Apply the same permanent billing-gap rule to overdue 90-day reviews, using Sati's
+  existing review due-date calculations.
+- [ ] Preserve all concurrent unbillable reasons on the note and show them before note
+  submission as well as in billing exports.
+- [ ] Define and implement the exact instant at which billability resumes after a late
+  PCP or 90-day review is completed.
+- [ ] Prevent unbillable notes from entering MIHMS claim generation while retaining them
+  as valid service documentation.
+- [ ] Add regression tests around midnight boundaries, back-entered notes, multiple
+  simultaneous compliance failures, overrides, and permanent non-retroactivity.
 
 ## Session Log
 
@@ -241,6 +543,9 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 | 3/29 | Ph6 | MarkFormCompleteRequested wired end to end, compliance checklist bound to real data, GetCurrentCycleForm added, ComplianceReviewWindow on client creation |
 | 3/29 | Ph7 | Note workflow fixes — IsEditing reset, form clears, NoteType persistence, scheduled visits/contacts in Upcoming Tasks |
 | 4/8  | Bug | Diagnosed productivity threshold bug — hardcoded * 19, stale _incentive after scheduler closes. Fix plan: UnitsPerDay snapshot field, OnIsSchedulerOpenChanged refresh, GetOrCreateAsync wasCreated fix. Historical productivity viewer scoped as future feature. |
+| 8/6  | AT | AT Request item entry (slice 1c) — item cards with Name/URL/Cost/Qty on the editor left pane, live subtotal/passthrough/total readout, `ATRequestItemEditorViewModel` write-through with parent total-change callback. Added `Url` field to `ATRequestItem` (+migration). Provider slice 1: `Provider` model, `ProviderType`/`WaiverService` enums, `Settings.SalesTaxRate` + `DefaultPassthroughProviderId`, migration `AddProviderAndSalesTax`, Maine AT Solutions seeded. |
+| 8/7  | AT | Provider slice 2: `IProviderService`/`ProviderService`, `ProviderEditorViewModel` (bit-per-checkbox flags + passthrough reveal), `ProvidersViewModel` master-detail, `ProvidersView`, Providers tab grafted into CM sub-nav, DI wired. Settings window gained sales-tax-rate box + default-passthrough-provider dropdown (SelectedValue→int? FK). |
+| 8/7  | Assessment | First functional Comprehensive Assessment slice: versioned JSON-backed draft, autosave, eight-domain desktop editor, practical per-question guidance, contributors, dissent, combinable support characteristics, structured needs, caseload ownership, completion gate, supervisor submission state, migration, and 60-day default offset. |
 
 
 
@@ -290,3 +595,161 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
       but the base load is unchanged. Still the `RESOURCE_SEMAPHORE` culprit; now
       with one more unbounded column riding along. Projection-to-summary-DTO remains
       the fix.
+
+## From AT Requests + Provider Directory session (2026-08-07)
+
+### Shipped
+- [x] **AT Request item entry (slice 1c).** Editor left pane now has an "Items or
+      Services" section: one card per line item with Name, URL, Cost, and Quantity,
+      plus an Add Item button and per-card Remove. `ATRequestItemEditorViewModel`
+      is the write-through row wrapper; cost/qty edits fire a parent callback that
+      re-raises the request totals. Live subtotal / 15% passthrough / total readout
+      under the sales-tax box mirrors the form preview.
+- [x] **`ATRequestItem.Url`.** Nullable string, stored on the item now, destined for
+      the future screenshots-with-clickable-links page 2. NOT rendered on the page-1
+      OADS form. URL extraction from retailer pages was scoped and **rejected** —
+      scraping is fragile and out of place in a case-management app. (+migration)
+- [x] **Provider directory (slices 1-2).** New `Provider` model (structured address,
+      `[Flags] WaiverService OfferedServices`, `ProvidesPassthroughService` bool,
+      flat passthrough billing strings). `ProviderType`/`WaiverService` enums.
+      Providers tab under CM sub-nav - master-detail CRUD, passthrough checkbox
+      reveals the three billing fields. Maine AT Solutions seeded as the passthrough
+      default. `IProviderService`/`ProviderService`, `ProviderEditorViewModel`,
+      `ProvidersViewModel`, `ProvidersView`, DI, migration `AddProviderAndSalesTax`.
+- [x] **Settings: sales tax + default passthrough provider.** `Settings.SalesTaxRate`
+      (0.055 default, a rate not an amount) and nullable `DefaultPassthroughProviderId`
+      FK. Settings window gained a tax-rate box and a provider dropdown
+      (`SelectedValue`->int? FK, `SelectedValuePath=Id`).
+
+### Remaining on this feature (slices 3-4)
+- [ ] **AT page passthrough dropdown (slice 3).** Dropdown of passthrough providers,
+      pre-selected to `Settings.DefaultPassthroughProviderId`. On select, snapshot-copy
+      the provider's Name/BillingLocationEis/ProgramContact/BillingContact onto the
+      request's `Vendor*` fields (same freeze-at-select semantics as client/CM). Keep
+      a nullable `ProviderId` FK on `ATRequest` alongside the snapshot.
+- [ ] **Item numbers on the OADS form.** 1, 2, 3... in the form's Item # column via
+      WPF `AlternationIndex` + a +1 converter. No data change.
+- [ ] **Sales-tax freeze (slice 4).** Auto-compute tax = subtotal x `SalesTaxRate` and
+      freeze the amount onto the request at save. Bundle with the deferred Save + PDF
+      export batch (both are the same trip to disk).
+- [ ] **AT request Save + Publish PDF.** Still unbuilt by design. `NewRequest` builds
+      in memory; `CloseEditor` discards; nothing calls `AddAsync`/`UpdateAsync` yet.
+      Save lands with PDF export as one batch.
+
+### Deferred (needs a later slice)
+- [ ] **Client<->provider association.** The AT dropdown can only list *all* passthrough
+      providers - Sati has no link from a consumer to *their* home/community-support
+      provider, so it can't pre-select "this client's agency." That association is its
+      own model + slice. `OfferedServices` (the four waiver flags) is inert until it lands.
+- [ ] **AT Assessments as a waiver service.** Maine AT Solutions actually offers it;
+      left out of `WaiverService` until something consumes the offering data.
+- [ ] **Providers tab governance.** Provider directory is agency-level shared reference
+      data but currently lives under CM sub-nav. In the multi-user future it should be
+      admin-curated to prevent duplicate provider rows across CMs.
+
+### Tech debt confirmed against disk this session
+- [ ] **Dead files still present:** `ViewModels/SchedulerViewModel.cs` and
+      `Models/WorkdayTile.cs` - delete together. (`Models/Event.cs` already removed.)
+- [ ] **Filename typo:** `Data/Billing/IdeService.cs` should be `EdiService.cs`
+      (class name is fine; only the file is misnamed).
+
+## From MVVM / SOLID architecture audit (2026-08-07)
+
+The current architecture has a sound base: ViewModels do not access EF directly,
+services generally use injected interfaces and per-method `IDbContextFactory` contexts,
+the composition root is centralized in `App.xaml.cs`, and important compliance behavior
+already lives in `Person` and `Form`. The items below are targeted refactors, not grounds
+for a rewrite.
+
+### P1 — security and active correctness
+
+- [ ] **Enforce assessment authorship on every write at the service boundary.**
+      `ComprehensiveAssessmentService.SaveDocumentAsync` accepts only an assessment ID
+      and document, so it can update another author's editable draft if invoked outside
+      the current UI path. Require a trusted authenticated actor/capability and verify
+      ownership, assignment, organization, and workflow status before saving. Apply the
+      same rule to submission instead of treating a caller-supplied user ID as identity.
+- [ ] **Enforce supervisory authorization inside `SupervisorService`.**
+      `ApproveNoteAsync`, `ApproveWithOverrideAsync`, and `ReturnNoteAsync` trust the
+      supplied `supervisorId`; the queue also accepts an `allSupervisees` switch. Verify
+      the authenticated actor's role/capabilities, agency scope, and actual supervisory
+      relationship before reading or changing a note. Before OADS or other external users
+      enter Sati, place these checks behind a trusted application/API boundary rather than
+      relying on a desktop UI with direct database access.
+- [ ] **Fix the new-account `AssignedAgency` null path.** `NewUserViewModel.CreateUser`
+      dereferences `AssignedAgency.Id`, but `AssignedAgency` is never initialized and
+      `NewUserWindow` has no agency selector. Add the intended agency source/selection,
+      validate it before user creation, and cover the flow with a test. This is the
+      nullable warning currently emitted at `NewUserViewModel.cs:70`.
+
+### P2 — MVVM boundaries and maintainability
+
+- [ ] **Remove the Comprehensive Assessment service locator.**
+      `ComprehensiveAssessmentWorkspace` constructs its own ViewModel through
+      `Application.Current.Services`. Create the workspace/ViewModel through the
+      composition root or a typed injected factory so dependencies are explicit and the
+      workspace is testable.
+- [ ] **Move concrete dialogs and WPF application access out of ViewModels.** Several
+      ViewModels directly call `MessageBox.Show`, `Application.Current`, `ShowDialog`, or
+      depend on a concrete `UserMessageDialog`. Replace these with narrow interaction,
+      navigation, notification, and dispatcher/scheduler abstractions—or events handled
+      by the View. Keep purely visual window ownership in code-behind.
+- [ ] **Make View event subscriptions detachable.** `ClientsView.OnDataContextChanged`
+      attaches an anonymous `ComplianceReviewRequested` handler without removing it from
+      the previous ViewModel. Use a named handler or
+      an explicit attach/detach lifecycle. On unload, also detach
+      `ComprehensiveAssessmentWorkspace` from its parent ViewModel. Verify that view
+      recreation or user switching cannot produce duplicate dialogs or retained views.
+- [ ] **Split `CaseManagerDashboardViewModel` by feature responsibility.** It is roughly
+      900 lines with about sixteen constructor dependencies and currently coordinates
+      notes, forms, upcoming work, incentives, clients, statistics, reviews, providers,
+      calendar, and compliance effects. Retain it as a thin dashboard/module coordinator
+      while moving feature state and commands into focused child ViewModels/application
+      services.
+- [ ] **Split `NewClientViewModel` by feature responsibility.** It is roughly 830 lines
+      and owns client CRUD/editing, notes loading, forms, reviews, appointments,
+      healthcare reference data, and journal autosave. Extract focused client-profile,
+      journal, appointment, and compliance/document components while preserving the
+      current single Overview experience.
+- [ ] **Extract a versioned Comprehensive Assessment definition catalog.**
+      `ComprehensiveAssessmentViewModel.BuildSections` currently owns question text,
+      guidance, support applicability, validation, navigation, mapping, persistence, and
+      autosave. Move the content/schema into a dedicated, versioned definition provider
+      so questions can grow or branch without modifying the editor and so existing JSON
+      answers remain reproducible against the definition version that created them.
+- [ ] **Add an automated domain/workflow test project.** Prioritize
+      `EvaluateComplianceGate`, `EvaluateBillingWindow`, midnight and back-entry rules,
+      permanent unbillability, override separation, assessment support exclusions,
+      completion rules, ownership, serialization compatibility, and workflow transitions.
+      No test project was found during this audit.
+
+### P3 — cleanup and consistency
+
+- [ ] **Inject `IPasswordHasher` into `AuthService`.** It is already registered, but
+      `AuthService.AuthenticateAsync` constructs `PasswordHasher` directly.
+- [ ] **Align DI registrations with effective lifetimes.** `ScratchpadViewModel`,
+      `NewClientViewModel`, `UserManagementViewModel`, and `PendingApprovalsViewModel` are
+      registered transient but captured by singleton parents. Decide whether each is
+      intentionally session-long; register it accordingly or create it through an
+      explicit scope/factory.
+- [ ] **Delete the hidden legacy client-entry panel and stale state.** `ClientsView.xaml`
+      still contains the old entry form and chevron in two zero-width columns, while
+      `NewClientViewModel` retains `IsEntryPanelOpen`, `ToggleEntryPanel`, and legacy
+      naming. Remove the duplicate markup/commands after confirming the inline Overview
+      editor covers add, edit, cancel, and delete.
+- [ ] **Resolve the disabled cycle-form feature switch.** The constant-false
+      `EnableEnsureCycleFormsOnLoad` makes code in `PersonService` unreachable and emits
+      the current `CS0162` warning. Either remove the obsolete path or replace it with a
+      deliberate supported configuration after the duplicate-form reconciliation is
+      settled.
+- [ ] **Make the README architectural claim accurate.** It currently says ViewModels
+      have no knowledge of Views and window creation uses factories throughout. Update it
+      after the boundary work above, or describe the remaining pragmatic exceptions until
+      they are removed.
+
+### Audit verification
+
+- [x] Rebuilt the current working tree successfully to an isolated output directory while
+      the running Sati process held the normal output DLL. The rebuild completed with no
+      errors and two distinct warnings: the `AssignedAgency` nullable dereference and the
+      constant-false unreachable code described above.

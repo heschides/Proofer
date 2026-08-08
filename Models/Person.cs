@@ -110,6 +110,7 @@ namespace Sati
 
         public List<Form> Forms { get; set; } = [];
         public List<Note> Notes { get; set; } = [];
+        public List<PersonContact> Contacts { get; set; } = [];
 
         // Explicit interface implementation: exposes the entity's Notes as the
         // read-only INoteInfo surface IEventSource requires. List<Note> doesn't

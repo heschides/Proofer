@@ -1,0 +1,25 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.ClassificationWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent"
+             AutomationProperties.Name="Classification workspace">
+    <StackPanel>
+        <TextBlock Text="CLASSIFICATION"
+                   FontSize="15"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+        <TextBlock Text="{Binding SelectedPerson.FullName}"
+                   FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Margin="0,3,0,18" />
+        <Border Background="{DynamicResource PersonGroupBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="7"
+                Padding="18">
+            <TextBlock Text="Classification tools will be added in a later phase."
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,248 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.ComprehensiveAssessmentWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Sati.Converters"
+             x:Name="AssessmentControl"
+             Background="Transparent"
+             AutomationProperties.Name="Comprehensive assessment workspace">
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InverseBoolConverter x:Key="InverseBool" />
+        <Style x:Key="Card" TargetType="Border">
+            <!-- A raised surface and the input-strength border create quiet separation
+                 in every theme without introducing a new hard-coded color. -->
+            <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="Margin" Value="0,0,12,16" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+        <Style x:Key="GuideLabel" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,8,0,2" />
+        </Style>
+        <Style x:Key="GuideText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid DataContext="{Binding Workspace, ElementName=AssessmentControl}" IsEnabled="{Binding HasPerson}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="COMPREHENSIVE ASSESSMENT" FontSize="15" FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="{Binding PersonName}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,0" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                <TextBlock Text="{Binding CompletionText}" HorizontalAlignment="Right" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="{Binding SaveStatus}" HorizontalAlignment="Right"
+                           Foreground="{DynamicResource TextMutedBrush}" AutomationProperties.LiveSetting="Polite" />
+                <Button Content="Submit for supervisor review" Command="{Binding SubmitForReviewCommand}"
+                        IsEnabled="{Binding CanEdit}" Margin="0,7,0,0" Padding="12,5" HorizontalAlignment="Right" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="7" Padding="8">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="8,12,8,6">
+                        <TextBlock Text="Drafts save automatically" Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="11" TextWrapping="Wrap" />
+                        <TextBlock Text="Completion requires every question to be addressed."
+                                   Foreground="{DynamicResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}"
+                             Background="Transparent" BorderThickness="0" AutomationProperties.Name="Assessment sections">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="4,7" Width="184">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Margin="8,0,0,0"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Border Style="{StaticResource Card}" IsEnabled="{Binding CanEdit}">
+                        <StackPanel>
+                            <TextBlock Text="Assessment contributors" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="Add everyone who contributed information to this report. The assigned case manager is recorded automatically as the author."
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,10" />
+                            <ItemsControl ItemsSource="{Binding Contributors}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor name" />
+                                            <TextBox Grid.Column="2" Text="{Binding Relationship, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor role or relationship" />
+                                            <Button Grid.Column="4" Content="Remove" Command="{Binding RemoveCommand}" Padding="10,4" AutomationProperties.Name="Remove contributor" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Add contributor" Command="{Binding AddContributorCommand}" HorizontalAlignment="Left" Padding="12,5" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding SelectedSection.Title}" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SelectedSection.Subtitle}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,14" />
+
+                    <ItemsControl ItemsSource="{Binding SelectedSection.Questions}" IsEnabled="{Binding CanEdit}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- A narrow, partially transparent theme accent makes
+                                             the start and end of each question easy to scan. -->
+                                        <Border Grid.Column="0"
+                                                Background="{DynamicResource AccentBrush}"
+                                                CornerRadius="2"
+                                                Opacity="0.45" />
+
+                                        <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{Binding Prompt}" FontSize="16.8" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"
+                                                   AutomationProperties.HeadingLevel="Level3" />
+
+                                        <Expander Header="How to answer this" Margin="0,10,0,10" AutomationProperties.Name="Practical answer guidance">
+                                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="5" Padding="12" Margin="0,5,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="Why we ask" Style="{StaticResource GuideLabel}" Margin="0,0,0,2" />
+                                                    <TextBlock Text="{Binding WhyAsked}" Style="{StaticResource GuideText}" />
+                                                    <TextBlock Text="A complete answer includes" Style="{StaticResource GuideLabel}" />
+                                                    <TextBlock Text="{Binding CompleteAnswerIncludes}" Style="{StaticResource GuideText}" />
+                                                    <TextBlock Text="Avoid" Style="{StaticResource GuideLabel}" />
+                                                    <TextBlock Text="{Binding Avoid}" Style="{StaticResource GuideText}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Expander>
+
+                                        <TextBlock Text="Answer status" Style="{StaticResource GuideLabel}" />
+                                        <ComboBox ItemsSource="{Binding Workspace.AnswerStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  SelectedItem="{Binding Status}" Width="220" HorizontalAlignment="Left"
+                                                  AutomationProperties.Name="Answer status" />
+
+                                        <TextBlock Text="Team assessment" Style="{StaticResource GuideLabel}" />
+                                        <TextBox Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                                 MinHeight="90" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                                 SpellCheck.IsEnabled="True" AutomationProperties.Name="Team assessment answer" />
+
+                                        <StackPanel Visibility="{Binding UsesSupports, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Support currently used — select all that apply" Style="{StaticResource GuideLabel}" />
+                                            <WrapPanel>
+                                                <CheckBox Content="No support currently needed" IsChecked="{Binding NoSupportCurrentlyNeeded}" Margin="0,3,18,5" />
+                                                <CheckBox Content="Setup or environmental support" IsChecked="{Binding SetupOrEnvironmental}" Margin="0,3,18,5" />
+                                                <CheckBox Content="Prompting or coaching" IsChecked="{Binding PromptingOrCoaching}" Margin="0,3,18,5" />
+                                                <CheckBox Content="Hands-on assistance" IsChecked="{Binding HandsOnAssistance}" Margin="0,3,18,5" />
+                                                <CheckBox Content="Another person completes some or all" IsChecked="{Binding AnotherPersonCompletes}" Margin="0,3,18,5" />
+                                                <CheckBox Content="Varies by situation" IsChecked="{Binding Varies}" Margin="0,3,18,5" />
+                                            </WrapPanel>
+                                            <TextBlock Text="Explain which support applies to which part, situation, or setting. Required when support varies."
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,3,0,4" />
+                                            <TextBox Text="{Binding SupportDetails, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                                     MinHeight="55" TextWrapping="Wrap" AutomationProperties.Name="Support details" />
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding ShowExceptionReason, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding ExceptionReasonPrompt}" Style="{StaticResource GuideLabel}" />
+                                            <TextBox Text="{Binding ExceptionReason, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                                     MinHeight="50" TextWrapping="Wrap"
+                                                     AutomationProperties.Name="{Binding ExceptionReasonPrompt}" />
+                                        </StackPanel>
+
+                                        <Expander Header="Add a differing perspective" Margin="0,12,0,0">
+                                            <StackPanel Margin="0,6,0,0">
+                                                <TextBlock Text="Record who disagrees, their view, whether it was discussed, and whether it remains unresolved."
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,5" />
+                                                <TextBox Text="{Binding DissentingOpinion, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                                         MinHeight="60" TextWrapping="Wrap" AutomationProperties.Name="Differing perspective" />
+                                            </StackPanel>
+                                        </Expander>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Style="{StaticResource Card}"
+                            Visibility="{Binding IsSummarySelected, Converter={StaticResource BoolToVisibility}}"
+                            IsEnabled="{Binding CanEdit}">
+                        <StackPanel>
+                            <TextBlock Text="Identified needs" FontSize="16" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="Record material needs and broader support, access, autonomy, health, relationship, or planning needs separately so they can feed the PCP."
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,12" />
+                            <ItemsControl ItemsSource="{Binding Needs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="5" Padding="12" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <ComboBox ItemsSource="{Binding Workspace.NeedTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                              SelectedItem="{Binding Type}" Width="270" HorizontalAlignment="Left"
+                                                              AutomationProperties.Name="Need type" />
+                                                    <Button Grid.Column="1" Content="Remove need" Command="{Binding RemoveCommand}" Padding="10,4" />
+                                                </Grid>
+                                                <TextBlock Text="What is needed?" Style="{StaticResource GuideLabel}" />
+                                                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="55" TextWrapping="Wrap" />
+                                                <TextBlock Text="What result is wanted?" Style="{StaticResource GuideLabel}" />
+                                                <TextBox Text="{Binding DesiredResult, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="45" TextWrapping="Wrap" />
+                                                <CheckBox Content="Associate a service provider with this need" IsChecked="{Binding AssociateProvider}" Margin="0,10,0,4" />
+                                                <TextBox Text="{Binding ProviderNameSnapshot, UpdateSourceTrigger=PropertyChanged}"
+                                                         AutomationProperties.Name="Current or proposed provider">
+                                                    <TextBox.Style>
+                                                        <Style TargetType="TextBox">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Style.Triggers><DataTrigger Binding="{Binding AssociateProvider}" Value="True"><Setter Property="IsEnabled" Value="True" /></DataTrigger></Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Style>
+                                                </TextBox>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Add identified need" Command="{Binding AddNeedCommand}" HorizontalAlignment="Left" Padding="12,5" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

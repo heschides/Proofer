@@ -1,8 +1,8 @@
-﻿<UserControl x:Class="Sati.Views.ScratchpadView"
+<UserControl x:Class="Sati.Views.ScratchpadView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Border Background="White"
-            BorderBrush="#E8D0B8"
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="6"
             Padding="14">
@@ -19,9 +19,10 @@
                 <TextBlock Text="TODAY'S WORK"
                            FontSize="13"
                            FontWeight="Bold"
-                           Foreground="#3D2B1F"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            VerticalAlignment="Center" />
-                <Button Command="{Binding OpenScratchpadHistoryCommand}"
+            <Button Command="{Binding OpenScratchpadHistoryCommand}"
+                    AutomationProperties.Name="Open scratchpad history"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"
@@ -31,9 +32,10 @@
                     <TextBlock Text="&#xE721;"
                                FontFamily="Segoe MDL2 Assets"
                                FontSize="14"
-                               Foreground="#9C7A5C" />
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Button>
-                <Button Command="{Binding DecreaseScratchpadFontCommand}"
+            <Button Command="{Binding DecreaseScratchpadFontCommand}"
+                    AutomationProperties.Name="Decrease scratchpad text size"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"
@@ -41,22 +43,23 @@
                         Margin="8,0,0,0">
                     <TextBlock Text="A"
                                FontSize="11"
-                               Foreground="#9C7A5C" />
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Button>
-                <Button Command="{Binding IncreaseScratchpadFontCommand}"
+            <Button Command="{Binding IncreaseScratchpadFontCommand}"
+                    AutomationProperties.Name="Increase scratchpad text size"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"
                         Padding="4,0">
                     <TextBlock Text="A"
                                FontSize="16"
-                               Foreground="#9C7A5C"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                FontWeight="SemiBold" />
                 </Button>
             </StackPanel>
 
             <!-- Scratchpad text area -->
-            <TextBox x:Name="TodaysWorkBox"
+            <TextBox AutomationProperties.Name="Today's scratchpad" x:Name="TodaysWorkBox"
                      Grid.Row="1"
                      FontFamily="{StaticResource NarrativeFont}"
                      FontSize="{Binding ScratchpadFontSize}"

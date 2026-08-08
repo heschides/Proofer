@@ -196,6 +196,7 @@ StatisticsViewModel statisticsViewModel,
         partial void OnSelectedTabChanged(BoardTab value)
         {
             OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(BoardGroups));
             OnPropertyChanged(nameof(IsTaskListTab));
             OnPropertyChanged(nameof(IsEffectiveDatesTab));
             OnPropertyChanged(nameof(TabHasOverdue));
@@ -206,6 +207,7 @@ StatisticsViewModel statisticsViewModel,
         partial void OnDateFilterChanged(BoardDateFilter value)
         {
             OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(BoardGroups));
             OnPropertyChanged(nameof(DateFilterLabel));
         }
 
@@ -275,6 +277,31 @@ StatisticsViewModel statisticsViewModel,
 
         public IEnumerable<object> BoardItems =>
             UnfilteredBoardItems().Where(i => PassesDateFilter(BoardItemDate(i), DateTime.Today));
+
+        // Preserve urgency at the group level: the person with the earliest item
+        // appears first, while each person's own rows remain date-ordered.
+        public IReadOnlyList<BoardPersonGroup> BoardGroups => BoardItems
+            .GroupBy(BoardItemClientName, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Name = group.Key,
+                Items = group.OrderBy(BoardItemDate).ToList(),
+                EarliestDate = group.Min(BoardItemDate)
+            })
+            .OrderBy(group => group.EarliestDate)
+            .ThenBy(group => group.Name)
+            .Select((group, index) => new BoardPersonGroup(
+                group.Name,
+                group.Items,
+                IsAlternate: index % 2 == 1))
+            .ToList();
+
+        private static string BoardItemClientName(object item) => item switch
+        {
+            FormTaskRow row => row.ClientName,
+            UpcomingEvent e => e.ClientName,
+            _ => "Other"
+        };
 
         // The board is heterogeneous, so the filter needs one date per item regardless
         // of type. Type pattern in a switch expression; the discard arm returns
@@ -675,6 +702,7 @@ StatisticsViewModel statisticsViewModel,
                 NoteEntry.SetPeople(People);
 
                 OnPropertyChanged(nameof(BoardItems));
+                OnPropertyChanged(nameof(BoardGroups));
                 OnPropertyChanged(nameof(TabHasOverdue));
                 OnPropertyChanged(nameof(EffectiveDateGroups));
             }
@@ -724,6 +752,7 @@ StatisticsViewModel statisticsViewModel,
             OnPropertyChanged(nameof(OverdueCount));
             OnPropertyChanged(nameof(HasOverdueEvents));
             OnPropertyChanged(nameof(BoardItems));
+            OnPropertyChanged(nameof(BoardGroups));
             OnPropertyChanged(nameof(TabHasOverdue));
         }
 

@@ -6,6 +6,8 @@ using Sati.Data;
 using Sati.Data.Billing;
 using Sati.Edi;
 using Sati.Services.Billing;
+using Sati.Services;
+using Sati.Services.LocalAi;
 using Sati.ViewModels;
 using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
@@ -37,10 +39,21 @@ namespace Sati
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
                 _host = Host.CreateDefaultBuilder()
+                    .UseDefaultServiceProvider((_, options) =>
+                    {
+#if DEBUG
+                        options.ValidateOnBuild = true;
+                        options.ValidateScopes = true;
+#endif
+                    })
                     .ConfigureServices((context, services) =>
                     {
+                        services.Configure<LocalAiOptions>(
+                            context.Configuration.GetSection(LocalAiOptions.SectionName));
+
                         // Services
                         services.AddTransient<IPersonService, PersonService>();
+                        services.AddTransient<IPersonContactService, PersonContactService>();
                         services.AddTransient<INoteService, NoteService>();
                         services.AddTransient<IAuthService, AuthService>();
                         services.AddTransient<IUserService, UserService>();
@@ -58,8 +71,12 @@ namespace Sati
                         services.AddTransient<IEdiService, EdiService>();
                         services.AddTransient<IExemptDateService, ExemptDateService>();
                         services.AddTransient<IReviewItemService, ReviewItemService>();
+                        services.AddSingleton<ThemeService>();
+                        services.AddSingleton<IClientAiContextService, ClientAiContextService>();
+                        services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
                         services.AddTransient<IATRequestService, ATRequestService>();
                         services.AddTransient<IProviderService, ProviderService>();
+                        services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
                         // Shell
                         services.AddSingleton<ShellViewModel>();
                         services.AddSingleton<ShellWindow>();
@@ -126,6 +143,10 @@ namespace Sati
 
                 _host.Start();
 
+                // Resolve before splash/login so the user's saved appearance is
+                // applied to every window created during this session.
+                _host.Services.GetRequiredService<ThemeService>();
+
                 // Migrate database
                 using var scope = _host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<SatiContext>();
@@ -182,5 +203,6 @@ namespace Sati
 
             base.OnExit(e);
         }
+
     }
 }

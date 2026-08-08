@@ -1,4 +1,4 @@
-﻿<Window x:Class="Sati.Views.SplashScreenWindow"
+<Window x:Class="Sati.Views.SplashScreenWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
@@ -8,7 +8,7 @@
         SizeToContent="WidthAndHeight"
         ShowInTaskbar="False">
 
-    <Border Background="#FDF6EC"
+    <Border Background="{DynamicResource WindowBackgroundBrush}"
             CornerRadius="8">
         <Grid>
             <Image Source="pack://application:,,,/images/satisplash.png"
@@ -24,27 +24,27 @@
                          Width="10"
                          Height="10"
                          Margin="6,0"
-                         Fill="#C87941" />
+                         Fill="{DynamicResource AccentBrush}" />
                 <Ellipse x:Name="Dot2"
                          Width="10"
                          Height="10"
                          Margin="6,0"
-                         Fill="#D4A882" />
+                         Fill="{DynamicResource HoverStrongBrush}" />
                 <Ellipse x:Name="Dot3"
                          Width="10"
                          Height="10"
                          Margin="6,0"
-                         Fill="#D4A882" />
+                         Fill="{DynamicResource HoverStrongBrush}" />
                 <Ellipse x:Name="Dot4"
                          Width="10"
                          Height="10"
                          Margin="6,0"
-                         Fill="#D4A882" />
+                         Fill="{DynamicResource HoverStrongBrush}" />
                 <Ellipse x:Name="Dot5"
                          Width="10"
                          Height="10"
                          Margin="6,0"
-                         Fill="#D4A882" />
+                         Fill="{DynamicResource HoverStrongBrush}" />
             </StackPanel>
         </Grid>
     </Border>

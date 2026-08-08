@@ -1,0 +1,39 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.PersonCenteredPlanWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent"
+             AutomationProperties.Name="Person-centered plan workspace">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <TextBlock Text="PERSON-CENTERED PLAN"
+                       FontSize="15"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding SelectedPerson.FullName}"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,3,0,18" />
+
+            <Border Background="{DynamicResource PersonGroupAltBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="7"
+                    Padding="18">
+                <StackPanel>
+                    <TextBlock Text="Planning workspace"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="The plan sections, outcomes, supports, signatures, review history, and approval actions will live here."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,6,0,14" />
+                    <TextBlock Text="No person-centered plan workflow has been connected yet."
+                               AutomationProperties.Name="Person-centered plan workflow is not connected yet"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontStyle="Italic" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -25,13 +25,6 @@ namespace Sati.Data
             return person;
         }
 
-        public async Task DeletePersonAsync(Person person)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            context.People.Remove(person);
-            await context.SaveChangesAsync();
-        }
-
         public async Task<Person> EditPersonAsync(Person person)
         {
             await using var context = _contextFactory.CreateDbContext();

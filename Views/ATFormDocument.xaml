@@ -1,15 +1,15 @@
-﻿<UserControl x:Class="Sati.Views.ATFormDocument"
+<UserControl x:Class="Sati.Views.ATFormDocument"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="816"
-             Background="White"
-             TextElement.Foreground="#111111"
+             Background="{DynamicResource SurfaceBrush}"
+             TextElement.Foreground="{DynamicResource TextPrimaryBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
     <UserControl.Resources>
         <Style x:Key="Cell"
                TargetType="Border">
             <Setter Property="BorderBrush"
-                    Value="#000000" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="BorderThickness"
                     Value="1" />
             <Setter Property="Padding"
@@ -27,7 +27,7 @@
             <Setter Property="FontSize"
                     Value="12" />
             <Setter Property="Foreground"
-                    Value="#222222" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
         <Style x:Key="ColHead"
                TargetType="TextBlock">
@@ -43,7 +43,7 @@
         <!-- HEADER -->
         <TextBlock Text="Department of Health &amp; Human Services – Office of Aging &amp; Disability Services"
                    FontSize="13"
-                   Foreground="#555555"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    TextWrapping="Wrap" />
@@ -54,7 +54,7 @@
                    Margin="0,4,0,10" />
         <TextBlock TextWrapping="Wrap"
                    FontSize="10"
-                   Foreground="#333333"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    Margin="0,0,0,12"
                    Text="This form is to accompany any request for service that will require payment to a vendor, or pass through agency for the purchasing of devices, goods, services or other items in Section 21 and 29 if authorized." />
 
@@ -152,7 +152,7 @@
 
         <!-- CRT / RC — blank on the submission copy -->
         <Border Style="{StaticResource Cell}"
-                Background="#EEEEEE">
+                Background="{DynamicResource SurfaceMutedBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -190,11 +190,11 @@
                    FontWeight="Bold"
                    FontSize="12"
                    Margin="0,14,0,6" />
-        <Border BorderBrush="#000000"
+        <Border BorderBrush="{DynamicResource TextPrimaryBrush}"
                 BorderThickness="1">
             <StackPanel>
                 <!-- Column headers -->
-                <Grid Background="#F2F2F2">
+                <Grid Background="{DynamicResource SurfaceMutedBrush}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="60" />
                         <ColumnDefinition Width="*" />
@@ -356,7 +356,7 @@
         <StackPanel Orientation="Horizontal"
                     Margin="0,28,0,0">
             <StackPanel Margin="0,0,40,0">
-                <Border BorderBrush="#000000"
+                <Border BorderBrush="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0,0,0,1"
                         Width="200"
                         Height="18" />
@@ -366,7 +366,7 @@
                            Margin="0,2,0,0" />
             </StackPanel>
             <StackPanel>
-                <Border BorderBrush="#000000"
+                <Border BorderBrush="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0,0,0,1"
                         Width="100"
                         Height="18" />

@@ -23,6 +23,14 @@ namespace Sati.Views
                 Close();
             };
 
+            viewModel.IncorrectPasswordRequested += (s, e) =>
+            {
+                var dialog = new IncorrectPasswordDialog { Owner = this };
+                dialog.ShowDialog();
+                PasswordBox.Clear();
+                PasswordBox.Focus();
+            };
+
             Loaded += async (s, e) => await viewModel.InitializeAsync();
         }
 

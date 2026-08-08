@@ -1,15 +1,17 @@
-﻿<Window x:Class="Sati.Views.SettingsWindow"
+<Window x:Class="Sati.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Settings"
-        Height="620"
-        Width="500"
+        Height="720"
+        Width="1060"
+        MinHeight="620"
+        MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize"
-        Background="#FDF6EC">
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource WindowBackgroundBrush}">
 
     <Window.Resources>
         <Style x:Key="LabelStyle"
@@ -19,7 +21,7 @@
             <Setter Property="FontWeight"
                     Value="SemiBold" />
             <Setter Property="Foreground"
-                    Value="#9C7A5C" />
+                    Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,5" />
         </Style>
@@ -31,7 +33,7 @@
             <Setter Property="FontWeight"
                     Value="Bold" />
             <Setter Property="Foreground"
-                    Value="#3D2B1F" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,8" />
         </Style>
@@ -46,20 +48,20 @@
             <Setter Property="HorizontalAlignment"
                     Value="Left" />
             <Setter Property="Background"
-                    Value="White" />
+                    Value="{DynamicResource SurfaceBrush}" />
             <Setter Property="BorderBrush"
-                    Value="#D4A882" />
+                    Value="{DynamicResource HoverStrongBrush}" />
             <Setter Property="BorderThickness"
                     Value="1" />
             <Setter Property="Foreground"
-                    Value="#3D2B1F" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,12" />
         </Style>
 
         <Style TargetType="Separator">
             <Setter Property="Background"
-                    Value="#E8D0B8" />
+                    Value="{DynamicResource BorderBrush}" />
             <Setter Property="Margin"
                     Value="0,4,0,16" />
         </Style>
@@ -69,9 +71,9 @@
             <Setter Property="Height"
                     Value="36" />
             <Setter Property="Background"
-                    Value="#C87941" />
+                    Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground"
-                    Value="White" />
+                    Value="{DynamicResource SurfaceBrush}" />
             <Setter Property="FontSize"
                     Value="13" />
             <Setter Property="FontWeight"
@@ -92,23 +94,151 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#A85E28" />
+                                        Value="{DynamicResource AccentHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed"
                                      Value="True">
                                 <Setter Property="Background"
-                                        Value="#8A4D20" />
+                                        Value="{DynamicResource AccentPressedBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="SettingsTabItemStyle"
+               TargetType="TabItem">
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="FontSize"
+                    Value="13" />
+            <Setter Property="Margin"
+                    Value="0,0,0,4" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBackground"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="14,11">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Left" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="TabBackground"
+                                        Property="Background"
+                                        Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected"
+                                     Value="True">
+                                <Setter TargetName="TabBackground"
+                                        Property="Background"
+                                        Value="{DynamicResource SurfaceAltBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource AccentPressedBrush}" />
+                                <Setter Property="FontWeight"
+                                        Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsTabControlStyle"
+               TargetType="TabControl">
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <StackPanel IsItemsHost="True" />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Background="{DynamicResource NavBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,1,0"
+                                    Padding="18,24">
+                                <StackPanel>
+                                    <TextBlock Text="SETTINGS"
+                                               FontSize="18"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="12,0,0,6" />
+                                    <TextBlock Text="Choose a category"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               Margin="12,0,0,22" />
+                                    <ItemsPresenter />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1"
+                                    Background="{DynamicResource WindowBackgroundBrush}">
+                                <ContentPresenter ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <Border Padding="32">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl Style="{StaticResource SettingsTabControlStyle}">
+            <TabItem Header="Appearance"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
+
+                <!-- APPEARANCE -->
+                <TextBlock Text="APPEARANCE"
+                           Style="{StaticResource SectionHeader}" />
+                <Separator />
+
+                <TextBlock Text="THEME"
+                           Style="{StaticResource LabelStyle}" />
+                <ComboBox AutomationProperties.Name="Theme" ItemsSource="{Binding ThemeOptions}"
+                          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                          DisplayMemberPath="DisplayName"
+                          Width="250"
+                          HorizontalAlignment="Left"
+                          Margin="0,0,0,16" />
+
+                <TextBlock Text="Changes are previewed immediately and remembered for this Windows user."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Billing &amp; Requests"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
 
                 <!-- BILLING -->
                 <TextBlock Text="BILLING"
@@ -117,19 +247,19 @@
 
                 <TextBlock Text="DAYS BEFORE NOTE IS ABANDONED"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding AbandonedAfterDays, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox AutomationProperties.Name="Days before note is abandoned" Text="{Binding AbandonedAfterDays, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Text="PRODUCTIVITY THRESHOLD (UNITS/DAY)"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding ProductivityThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox AutomationProperties.Name="Productivity threshold" Text="{Binding ProductivityThreshold, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Text="BASE INCENTIVE ($)"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding BaseIncentive, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox AutomationProperties.Name="Base incentive" Text="{Binding BaseIncentive, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Text="PER-UNIT INCENTIVE ($)"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding PerUnitIncentive, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox AutomationProperties.Name="Per-unit incentive" Text="{Binding PerUnitIncentive, UpdateSourceTrigger=PropertyChanged}" />
 
                 <!-- AT / PAYMENT REQUESTS -->
                 <TextBlock Text="AT / PAYMENT REQUESTS"
@@ -139,19 +269,28 @@
 
                 <TextBlock Text="SALES TAX RATE (e.g. 0.055 = 5.5%)"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding SalesTaxRate, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox AutomationProperties.Name="Sales tax rate" Text="{Binding SalesTaxRate, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Text="DEFAULT PASSTHROUGH PROVIDER"
                            Style="{StaticResource LabelStyle}" />
                 <!-- SelectedValue round-trips the int? FK: SelectedValuePath=Id maps
                      the chosen Provider to DefaultPassthroughProviderId without needing
                      the bound value to be the same object instance the list holds. -->
-                <ComboBox ItemsSource="{Binding PassthroughProviders}"
+                <ComboBox AutomationProperties.Name="Default passthrough provider" ItemsSource="{Binding PassthroughProviders}"
                           SelectedValue="{Binding DefaultPassthroughProviderId}"
                           SelectedValuePath="Id"
                           DisplayMemberPath="Name"
                           Width="250"
                           HorizontalAlignment="Left" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Schedule"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
 
                 <!-- SCHEDULE EXCLUSIONS -->
                 <TextBlock Text="EXCLUDED WEEKDAYS"
@@ -164,22 +303,22 @@
                     <CheckBox Content="Monday"
                               IsChecked="{Binding ExcludeMonday}"
                               Margin="0,0,16,0"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Tuesday"
                               IsChecked="{Binding ExcludeTuesday}"
                               Margin="0,0,16,0"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Wednesday"
                               IsChecked="{Binding ExcludeWednesday}"
                               Margin="0,0,16,0"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Thursday"
                               IsChecked="{Binding ExcludeThursday}"
                               Margin="0,0,16,0"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Friday"
                               IsChecked="{Binding ExcludeFriday}"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                 </StackPanel>
 
                 <!-- FEDERAL HOLIDAYS -->
@@ -192,52 +331,61 @@
                     <CheckBox Content="New Year's Day"
                               IsChecked="{Binding ExcludeNewYearsDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="MLK Day"
                               IsChecked="{Binding ExcludeMLKDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Presidents Day"
                               IsChecked="{Binding ExcludePresidentsDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Memorial Day"
                               IsChecked="{Binding ExcludeMemorialDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Juneteenth"
                               IsChecked="{Binding ExcludeJuneteenth}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Independence Day"
                               IsChecked="{Binding ExcludeIndependenceDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Labor Day"
                               IsChecked="{Binding ExcludeLaborDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Indigenous Peoples Day"
                               IsChecked="{Binding ExcludeIndigenousPeoplesDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Veterans Day"
                               IsChecked="{Binding ExcludeVeteransDay}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Thanksgiving"
                               IsChecked="{Binding ExcludeThanksgiving}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Day After Thanksgiving"
                               IsChecked="{Binding ExcludeDayAfterThanksgiving}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                     <CheckBox Content="Christmas"
                               IsChecked="{Binding ExcludeChristmas}"
                               Margin="0,0,16,8"
-                              Foreground="#3D2B1F" />
+                              Foreground="{DynamicResource TextPrimaryBrush}" />
                 </WrapPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Templates &amp; Forms"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
 
                 <!-- NOTE TEMPLATES -->
                 <TextBlock Text="NOTE TEMPLATES"
@@ -247,7 +395,7 @@
 
                 <TextBlock Text="VISIT TEMPLATE"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding VisitTemplate, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox AutomationProperties.Name="Visit Template" Text="{Binding VisitTemplate, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="190"
@@ -256,7 +404,7 @@
 
                 <TextBlock Text="CONTACT TEMPLATE"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding ContactTemplate, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox AutomationProperties.Name="Contact Template" Text="{Binding ContactTemplate, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="247"
@@ -265,7 +413,7 @@
 
                 <TextBlock Text="DOCUMENTATION TEMPLATE"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding DocumentationTemplate, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox AutomationProperties.Name="Documentation Template" Text="{Binding DocumentationTemplate, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="294"
@@ -312,10 +460,10 @@
                Text="Reviews"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="1" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Reviews open days before due" Grid.Row="1" Grid.Column="1"
              Text="{Binding ReviewOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="1" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Reviews days after due" Grid.Row="1" Grid.Column="2"
              Text="{Binding ReviewDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -324,10 +472,10 @@
                Text="PCP"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="2" Grid.Column="1"
+    <TextBox AutomationProperties.Name="PCP open days before due" Grid.Row="2" Grid.Column="1"
              Text="{Binding PcpOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="2" Grid.Column="2"
+    <TextBox AutomationProperties.Name="PCP days after due" Grid.Row="2" Grid.Column="2"
              Text="{Binding PcpDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -336,10 +484,10 @@
                Text="Comp. Assessment"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="3" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Comprehensive assessment open days before due" Grid.Row="3" Grid.Column="1"
              Text="{Binding CompAssessmentOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="3" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Comprehensive assessment days after due" Grid.Row="3" Grid.Column="2"
              Text="{Binding CompAssessmentDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -348,10 +496,10 @@
                Text="Reclassification"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="4" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Reclassification open days before due" Grid.Row="4" Grid.Column="1"
              Text="{Binding ReclassificationOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="4" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Reclassification days after due" Grid.Row="4" Grid.Column="2"
              Text="{Binding ReclassificationDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -360,10 +508,10 @@
                Text="Safety Plan"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="5" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Safety plan open days before due" Grid.Row="5" Grid.Column="1"
              Text="{Binding SafetyPlanOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="5" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Safety plan days after due" Grid.Row="5" Grid.Column="2"
              Text="{Binding SafetyPlanDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -372,10 +520,10 @@
                Text="Privacy Practices"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="6" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Privacy practices open days before due" Grid.Row="6" Grid.Column="1"
              Text="{Binding PrivacyPracticesOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="6" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Privacy practices days after due" Grid.Row="6" Grid.Column="2"
              Text="{Binding PrivacyPracticesDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -384,10 +532,10 @@
                Text="Release — Agency"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="7" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Agency release open days before due" Grid.Row="7" Grid.Column="1"
              Text="{Binding ReleaseAgencyOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="7" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Agency release days after due" Grid.Row="7" Grid.Column="2"
              Text="{Binding ReleaseAgencyDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -396,10 +544,10 @@
                Text="Release — DHHS"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="8" Grid.Column="1"
+    <TextBox AutomationProperties.Name="DHHS release open days before due" Grid.Row="8" Grid.Column="1"
              Text="{Binding ReleaseDhhsOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="8" Grid.Column="2"
+    <TextBox AutomationProperties.Name="DHHS release days after due" Grid.Row="8" Grid.Column="2"
              Text="{Binding ReleaseDhhsDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 
@@ -408,13 +556,22 @@
                Text="Release — Medical"
                Style="{StaticResource LabelStyle}"
                VerticalAlignment="Center"/>
-    <TextBox Grid.Row="9" Grid.Column="1"
+    <TextBox AutomationProperties.Name="Medical release open days before due" Grid.Row="9" Grid.Column="1"
              Text="{Binding ReleaseMedicalOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,4,8"/>
-    <TextBox Grid.Row="10" Grid.Column="2"
+    <TextBox AutomationProperties.Name="Medical release days after due" Grid.Row="9" Grid.Column="2"
              Text="{Binding ReleaseMedicalDaysAfterDue, UpdateSourceTrigger=PropertyChanged}"
              Margin="4,0,0,8"/>
 </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Reference Data"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
 
                 <!-- HEALTHCARE SYSTEMS -->
                 <TextBlock Text="HEALTHCARE SYSTEMS"
@@ -422,23 +579,23 @@
                            Margin="0,16,0,8" />
                 <Separator />
 
-                <ListBox ItemsSource="{Binding HealthcareSystems}"
+                <ListBox AutomationProperties.Name="Healthcare System" ItemsSource="{Binding HealthcareSystems}"
                          SelectedItem="{Binding SelectedHealthcareSystem, Mode=TwoWay}"
                          Height="140"
                          Width="361"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,8"
-                         Background="White"
-                         BorderBrush="#D4A882"
+                         Background="{DynamicResource SurfaceBrush}"
+                         BorderBrush="{DynamicResource HoverStrongBrush}"
                          BorderThickness="1"
-                         Foreground="#3D2B1F" />
+                         Foreground="{DynamicResource TextPrimaryBrush}" />
 
                 <!-- Add row. Width is set locally to override the implicit TextBox
                      style's 100px default; everything else (padding, border, colors)
                      is inherited from that style. -->
                 <StackPanel Orientation="Horizontal"
                             Margin="0,0,0,8">
-                    <TextBox Text="{Binding NewHealthcareSystem, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox AutomationProperties.Name="New healthcare system" Text="{Binding NewHealthcareSystem, UpdateSourceTrigger=PropertyChanged}"
                              Width="250"
                              Margin="0,0,8,0"
                              VerticalAlignment="Center" />
@@ -462,11 +619,14 @@
                             Width="200" />
                 </StackPanel>
 
-                <!-- SAVE -->
-                <Button Content="Save Settings"
-                        Style="{StaticResource PrimaryButton}"
-                        Command="{Binding SaveSettingsCommand}"
-                        Margin="0,16,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Maintenance"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
 
                 <!-- ============================================================ -->
                 <!-- TEMPORARY MAINTENANCE — DUE-DATE BACKFILL                    -->
@@ -481,7 +641,7 @@
                 <TextBlock Text="Run the dry run first. It writes a full report to your Desktop and changes nothing. Read it, then type the exact 'forms changed' count below and press Commit to apply."
                            TextWrapping="Wrap"
                            FontSize="11"
-                           Foreground="#9C7A5C"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,0,0,12" />
 
                 <Button Content="Dry Run (safe — writes report only)"
@@ -493,7 +653,7 @@
 
                 <StackPanel Orientation="Horizontal"
                             Margin="0,0,0,12">
-                    <TextBox Text="{Binding BackfillConfirmCount, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox AutomationProperties.Name="Backfill confirmation count" Text="{Binding BackfillConfirmCount, UpdateSourceTrigger=PropertyChanged}"
                              Width="120"
                              VerticalAlignment="Center"
                              Margin="0,0,8,0" />
@@ -504,9 +664,10 @@
                 </StackPanel>
 
                 <TextBlock Text="{Binding BackfillStatus}"
+                           AutomationProperties.LiveSetting="Assertive"
                            TextWrapping="Wrap"
                            FontSize="11"
-                           Foreground="#3D2B1F"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,8" />
 
                 <!-- ============================================================ -->
@@ -522,12 +683,12 @@
                 <TextBlock Text="Marks every form due on or before the cutoff (and not already compliant) as complete, stamping the due date. Dry run first — it writes a report to your Desktop and changes nothing — then type the exact count and press Commit."
                            TextWrapping="Wrap"
                            FontSize="11"
-                           Foreground="#9C7A5C"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,0,0,12" />
 
                 <TextBlock Text="CUTOFF DATE (inclusive, yyyy-MM-dd)"
                            Style="{StaticResource LabelStyle}" />
-                <TextBox Text="{Binding BulkCompleteCutoff, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox AutomationProperties.Name="Bulk completion cutoff date" Text="{Binding BulkCompleteCutoff, UpdateSourceTrigger=PropertyChanged}"
                          Width="140"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,12" />
@@ -541,7 +702,7 @@
 
                 <StackPanel Orientation="Horizontal"
                             Margin="0,0,0,12">
-                    <TextBox Text="{Binding BulkCompleteConfirmCount, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox AutomationProperties.Name="Bulk completion confirmation count" Text="{Binding BulkCompleteConfirmCount, UpdateSourceTrigger=PropertyChanged}"
                              Width="120"
                              VerticalAlignment="Center"
                              Margin="0,0,8,0" />
@@ -552,12 +713,34 @@
                 </StackPanel>
 
                 <TextBlock Text="{Binding BulkCompleteStatus}"
+                           AutomationProperties.LiveSetting="Assertive"
                            TextWrapping="Wrap"
                            FontSize="11"
-                           Foreground="#3D2B1F"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,8" />
 
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="18,12">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <TextBlock Text="Changes to operational settings are saved when this window closes."
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,18,0" />
+                <Button Content="Save Settings"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SaveSettingsCommand}"
+                        Width="150" />
             </StackPanel>
-        </ScrollViewer>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

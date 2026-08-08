@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace Sati.Models
 {
@@ -23,6 +24,21 @@ namespace Sati.Models
         public DateTime? ApprovedAt { get; set; }
         public DateTime? ReturnedAt { get; set; }
         public string? CaseManagerJustification { get; set; }
+
+        // Visit-only, user-verified facts. JSON keeps this small historical
+        // snapshot owned by the note; PersonContact remains the live profile.
+        public string? VisitDocumentationJson { get; set; }
+
+        [NotMapped]
+        public VisitDocumentation? VisitDocumentation
+        {
+            get => string.IsNullOrWhiteSpace(VisitDocumentationJson)
+                ? null
+                : JsonSerializer.Deserialize<VisitDocumentation>(VisitDocumentationJson);
+            set => VisitDocumentationJson = value is null
+                ? null
+                : JsonSerializer.Serialize(value);
+        }
 
         public bool ComplianceOverride { get; set; }
         public string? OverrideReason { get; set; }

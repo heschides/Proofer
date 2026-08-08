@@ -35,29 +35,10 @@ namespace Sati.Views
 
                     return confirmed;
                 };
-
-                vm.DeleteConfirmationRequested += () =>
-                {
-                    var person = vm.SelectedPerson;
-                    if (person is null)
-                        return false;
-
-                    var dialog = new ConfirmationDialog(
-                        title: "Delete Client",
-                        message: $"Delete {person.FullName}? This permanently removes the client "
-                               + "and all their notes and forms. This cannot be undone.",
-                        confirmText: "Delete",
-                        isDestructive: true)
-                    {
-                        Owner = Application.Current.MainWindow
-                    };
-
-                    return dialog.ShowDialog() == true;
-                };
             }
         }
 
-        private void DataGrid_MouseDoubleClick(object sender, MouseEventArgs e)
+        private void ClientList_MouseDoubleClick(object sender, MouseEventArgs e)
         {
             if (DataContext is NewClientViewModel vm && vm.SelectedPerson is Person person)
             {

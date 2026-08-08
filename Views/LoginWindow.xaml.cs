@@ -35,6 +35,14 @@ namespace Sati.Views
                 DialogResult = success;
                 Close();
             };
+
+            vm.IncorrectPasswordRequested += (s, e) =>
+            {
+                var dialog = new IncorrectPasswordDialog { Owner = this };
+                dialog.ShowDialog();
+                PasswordInput.Clear();
+                PasswordInput.Focus();
+            };
         }
         public User? LoggedInUser =>
             (DataContext as LoginWindowViewModel)?.SelectedUser;

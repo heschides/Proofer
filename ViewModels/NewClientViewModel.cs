@@ -24,6 +24,7 @@ namespace Sati.ViewModels
         private readonly IFormService _formService;
         private readonly ISettingsService _settingsService;
         private readonly IReviewItemService _reviewItemService;
+        private readonly IPersonContactService _personContactService;
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
         // keystroke — Stop()+Start() on every edit means it fires once typing pauses,
@@ -44,12 +45,6 @@ namespace Sati.ViewModels
 
         public event Func<List<Form>, bool>? ComplianceReviewRequested;
         public event EventHandler? FormComplianceChanged;
-
-        // Raised before a client is deleted. The view answers true to proceed, false
-        // to abort — same View-less pattern as ComplianceReviewRequested. Null-coalesced
-        // to false at the call site, so if no handler is wired the delete does NOT
-        // happen — fail safe, not fail open: a missing handler can't cause silent loss.
-        public event Func<bool>? DeleteConfirmationRequested;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -92,6 +87,10 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private bool isEditMode;
         [ObservableProperty]
+        private bool isClientEditorOpen;
+        [ObservableProperty]
+        private int clientWorkspaceTabIndex;
+        [ObservableProperty]
         private bool openWithVR;
 
         [ObservableProperty]
@@ -112,6 +111,22 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string? healthcareSystemName;
+
+        // Support-network editor. The list is persisted separately from Person so
+        // client edits cannot accidentally replace or delete the contact graph.
+        [ObservableProperty] private PersonContact? selectedContact;
+        [ObservableProperty] private bool isContactEditorOpen;
+        [ObservableProperty] private bool isEditingContact;
+        [ObservableProperty] private string contactFirstName = string.Empty;
+        [ObservableProperty] private string contactLastName = string.Empty;
+        [ObservableProperty] private PersonContactKind contactKind;
+        [ObservableProperty] private string? contactRelationship;
+        [ObservableProperty] private string? contactOrganization;
+        [ObservableProperty] private string? contactPhone;
+        [ObservableProperty] private string? contactEmail;
+        [ObservableProperty] private bool contactIsEmergencyContact;
+        [ObservableProperty] private bool contactHasActiveRelease;
+        [ObservableProperty] private string contactStatusMessage = string.Empty;
 
         // Waiver services & employment
         [ObservableProperty]
@@ -168,6 +183,7 @@ namespace Sati.ViewModels
         partial void OnSelectedPersonChanged(Person? value)
         {
             OnPropertyChanged(nameof(HasSelectedPerson));
+            OnPropertyChanged(nameof(ShowClientWorkspace));
             OnPropertyChanged(nameof(SelectedPersonServices));
             OnPropertyChanged(nameof(HasSelectedPersonServices));
             OnPropertyChanged(nameof(ShowsEmploymentTracking));
@@ -185,6 +201,7 @@ namespace Sati.ViewModels
             RefreshComplianceFlags();
             _ = LoadSelectedPersonNotesAsync(value);
             _ = LoadAppointmentsAsync(value);
+            _ = LoadContactsAsync(value);
 
             // The panel is persistent now, so it can't be left showing one client's
             // data while another is selected — Submit's edit branch writes to
@@ -198,6 +215,8 @@ namespace Sati.ViewModels
             else
             {
                 PopulateFrom(value);
+                if (!IsClientEditorOpen)
+                    IsEditMode = false;
             }
         }
 
@@ -207,6 +226,25 @@ namespace Sati.ViewModels
         {
             OnPropertyChanged(nameof(SubmitButtonLabel));
             OnPropertyChanged(nameof(EntryPanelHeader));
+            OnPropertyChanged(nameof(IsAddingClient));
+        }
+
+        partial void OnIsClientEditorOpenChanged(bool value)
+        {
+            OnPropertyChanged(nameof(ShowClientWorkspace));
+            OnPropertyChanged(nameof(IsAddingClient));
+        }
+
+        partial void OnIsContactEditorOpenChanged(bool value)
+        {
+            OnPropertyChanged(nameof(ContactEditorHeader));
+            OnPropertyChanged(nameof(ContactSaveButtonLabel));
+        }
+
+        partial void OnIsEditingContactChanged(bool value)
+        {
+            OnPropertyChanged(nameof(ContactEditorHeader));
+            OnPropertyChanged(nameof(ContactSaveButtonLabel));
         }
 
         // A day-program client always has at least one program. Clamping here rather
@@ -244,6 +282,8 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public bool HasSelectedPerson => SelectedPerson is not null;
+        public bool ShowClientWorkspace => HasSelectedPerson || IsClientEditorOpen;
+        public bool IsAddingClient => IsClientEditorOpen && !IsEditMode;
 
         // Comma-joined list of the selected client's active waiver services, for
         // display only. Empty string when none are set, which the detail panel
@@ -286,6 +326,10 @@ namespace Sati.ViewModels
         public ObservableCollection<Note> SelectedPersonNotes { get; } = [];
         public ObservableCollection<Person> People { get; } = [];
         public ObservableCollection<HealthcareSystemOption> HealthcareSystems { get; } = [];
+        public ObservableCollection<PersonContact> Contacts { get; } = [];
+        public Array ContactKinds => Enum.GetValues(typeof(PersonContactKind));
+        public string ContactEditorHeader => IsEditingContact ? "EDIT CONTACT" : "ADD CONTACT";
+        public string ContactSaveButtonLabel => IsEditingContact ? "Save Contact" : "Add Contact";
 
         // Derived, read-only: the most recent Contact-type note's date for the selected
         // client. A window over the already-loaded notes, not a stored field. Selecting
@@ -349,7 +393,8 @@ namespace Sati.ViewModels
 
         public NewClientViewModel(IPersonService personService, ISessionService session,
                            INoteService noteService, IFormService formService, ISettingsService settingsService,
-                           IReviewItemService reviewItemService)
+                           IReviewItemService reviewItemService,
+                           IPersonContactService personContactService)
         {
             _personService = personService;
             _sessionService = session;
@@ -357,6 +402,7 @@ namespace Sati.ViewModels
             _formService = formService;
             _settingsService = settingsService;
             _reviewItemService = reviewItemService;
+            _personContactService = personContactService;
             _ = LoadHealthcareOptionsAsync();
         }
 
@@ -372,11 +418,111 @@ namespace Sati.ViewModels
         private void OpenEntryPanel()
         {
             SelectedPerson = null;
-            IsEntryPanelOpen = true;
+            IsEditMode = false;
+            IsClientEditorOpen = true;
+            ClientWorkspaceTabIndex = 0;
+        }
+
+        [RelayCommand]
+        private void BeginClientEdit()
+        {
+            if (SelectedPerson is not Person person) return;
+            PopulateFrom(person);
+            IsClientEditorOpen = true;
+            ClientWorkspaceTabIndex = 0;
+        }
+
+        [RelayCommand]
+        private void CancelClientEdit()
+        {
+            if (SelectedPerson is Person person)
+                PopulateFrom(person);
+            else
+                ClearFields();
+            IsClientEditorOpen = false;
+            IsEditMode = false;
         }
 
         [RelayCommand]
         private void ToggleEntryPanel() => IsEntryPanelOpen = !IsEntryPanelOpen;
+
+        [RelayCommand]
+        private void BeginAddContact()
+        {
+            if (SelectedPerson is null)
+                return;
+
+            SelectedContact = null;
+            IsEditingContact = false;
+            ClearContactEditor();
+            IsContactEditorOpen = true;
+        }
+
+        [RelayCommand]
+        private void BeginEditContact(PersonContact? contact)
+        {
+            if (contact is null)
+                return;
+
+            SelectedContact = contact;
+            IsEditingContact = true;
+            ContactFirstName = contact.FirstName;
+            ContactLastName = contact.LastName;
+            ContactKind = contact.Kind;
+            ContactRelationship = contact.Relationship;
+            ContactOrganization = contact.Organization;
+            ContactPhone = contact.Phone;
+            ContactEmail = contact.Email;
+            ContactIsEmergencyContact = contact.IsEmergencyContact;
+            ContactHasActiveRelease = contact.HasActiveRelease;
+            ContactStatusMessage = string.Empty;
+            IsContactEditorOpen = true;
+        }
+
+        [RelayCommand]
+        private void CancelContactEdit()
+        {
+            IsContactEditorOpen = false;
+            IsEditingContact = false;
+            SelectedContact = null;
+            ClearContactEditor();
+        }
+
+        [RelayCommand]
+        private async Task SaveContact()
+        {
+            if (SelectedPerson is null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(ContactFirstName) ||
+                string.IsNullOrWhiteSpace(ContactLastName))
+            {
+                ContactStatusMessage = "First and last name are required.";
+                return;
+            }
+
+            var contact = IsEditingContact && SelectedContact is not null
+                ? SelectedContact
+                : new PersonContact { PersonId = SelectedPerson.Id };
+
+            contact.FirstName = ContactFirstName;
+            contact.LastName = ContactLastName;
+            contact.Kind = ContactKind;
+            contact.Relationship = ContactRelationship;
+            contact.Organization = ContactOrganization;
+            contact.Phone = ContactPhone;
+            contact.Email = ContactEmail;
+            contact.IsEmergencyContact = ContactIsEmergencyContact;
+            contact.HasActiveRelease = ContactHasActiveRelease;
+
+            await _personContactService.SaveAsync(contact);
+            await LoadContactsAsync(SelectedPerson);
+
+            IsContactEditorOpen = false;
+            IsEditingContact = false;
+            SelectedContact = null;
+            ClearContactEditor();
+        }
 
         [RelayCommand]
         private async Task Submit()
@@ -437,6 +583,7 @@ namespace Sati.ViewModels
                 }
 
                 SelectedPerson = null;
+                SelectedPerson = existing;
             }
             else
             {
@@ -465,31 +612,11 @@ namespace Sati.ViewModels
                     return;
                 await _personService.AddPersonAsync(person);
                 People.Add(person);
-                ClearFields();
+                SelectedPerson = person;
             }
-        }
 
-        [RelayCommand]
-        private async Task RemoveSelectedPerson()
-        {
-            if (SelectedPerson is null)
-                return;
-
-            // No handler wired => false => no delete. The guard fails safe: the only
-            // way past this line is an explicit true from the confirmation dialog.
-            var confirmed = DeleteConfirmationRequested?.Invoke() ?? false;
-            if (!confirmed)
-                return;
-
-            // Drop journal tracking before the delete so the selection-change flush
-            // (triggered by SelectedPerson = null below) can't write a journal back to
-            // the row we're removing.
-            _journalSaveTimer?.Stop();
-            _journalPersonId = null;
-
-            await _personService.DeletePersonAsync(SelectedPerson);
-            People.Remove(SelectedPerson);
-            SelectedPerson = null;
+            IsClientEditorOpen = false;
+            IsEditMode = false;
         }
 
         [RelayCommand]
@@ -527,7 +654,8 @@ namespace Sati.ViewModels
         public void LoadPersonForEdit(Person person)
         {
             PopulateFrom(person);
-            IsEntryPanelOpen = true;
+            IsClientEditorOpen = true;
+            ClientWorkspaceTabIndex = 0;
         }
 
         // Fills the form without touching panel visibility. Split from
@@ -631,6 +759,42 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(DentistName));
             OnPropertyChanged(nameof(IsDentistOverdue));
         }
+
+        private async Task LoadContactsAsync(Person? person)
+        {
+            Contacts.Clear();
+            IsContactEditorOpen = false;
+            IsEditingContact = false;
+            SelectedContact = null;
+
+            if (person is null)
+                return;
+
+            var personId = person.Id;
+            var contacts = await _personContactService.GetActiveByPersonAsync(personId);
+
+            // The selection can change while the query is in flight. Never show the
+            // outgoing consumer's support network under the incoming consumer.
+            if (SelectedPerson?.Id != personId)
+                return;
+
+            foreach (var contact in contacts)
+                Contacts.Add(contact);
+        }
+
+        private void ClearContactEditor()
+        {
+            ContactFirstName = string.Empty;
+            ContactLastName = string.Empty;
+            ContactKind = PersonContactKind.Personal;
+            ContactRelationship = string.Empty;
+            ContactOrganization = string.Empty;
+            ContactPhone = string.Empty;
+            ContactEmail = string.Empty;
+            ContactIsEmergencyContact = false;
+            ContactHasActiveRelease = false;
+            ContactStatusMessage = string.Empty;
+        }
         
 
         // Every keystroke restarts the 2s countdown; it elapses only after typing
@@ -723,7 +887,7 @@ namespace Sati.ViewModels
         {
             FirstName = string.Empty;
             LastName = string.Empty;
-            BirthDate = default;
+            BirthDate = null;
             EffectiveDateText = string.Empty;
             Waiver = default;
             Bio = string.Empty;

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
+using Sati.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -17,16 +18,31 @@ namespace Sati.ViewModels
         private readonly IProviderService _providerService;
         private readonly FormDueDateBackfill _backfill;
         private readonly FormBulkCompletion _bulkCompletion;
+        private readonly ThemeService _themeService;
         private Settings? _settings;
 
         public SettingsViewModel(ISettingsService settingsService, IProviderService providerService,
-                                 FormDueDateBackfill backfill, FormBulkCompletion bulkCompletion)
+                                 FormDueDateBackfill backfill, FormBulkCompletion bulkCompletion,
+                                 ThemeService themeService)
         {
             _settingsService = settingsService;
             _providerService = providerService;
             _backfill = backfill;
             _bulkCompletion = bulkCompletion;
+            _themeService = themeService;
+            selectedTheme = _themeService.CurrentTheme;
             _ = LoadAsync();
+        }
+
+        public IReadOnlyList<ThemeOption> ThemeOptions => _themeService.Themes;
+
+        [ObservableProperty]
+        private ThemeOption? selectedTheme;
+
+        partial void OnSelectedThemeChanged(ThemeOption? value)
+        {
+            if (value is not null)
+                _themeService.ApplyTheme(value.ResourceName);
         }
 
         // Sales tax as a rate (0.055 = 5.5%), adjustable. Frozen onto AT requests

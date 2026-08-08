@@ -1,8 +1,8 @@
-﻿<!-- BillingOverviewView.xaml -->
+<!-- BillingOverviewView.xaml -->
 <UserControl x:Class="Sati.Views.Billing.BillingAlertsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="#FDF6EC"
+             Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
     <StackPanel HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -10,12 +10,12 @@
         <TextBlock Text="ALERTS"
                    FontSize="11"
                    FontWeight="SemiBold"
-                   Foreground="#9C7A5C"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,8" />
         <TextBlock Text="{Binding StubMessage}"
                    FontSize="13"
-                   Foreground="#3D2B1F"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    TextWrapping="Wrap"
                    TextAlignment="Center" />
     </StackPanel>
