@@ -1,0 +1,27 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Sati.slnx
+
+      - name: Build
+        run: dotnet build Sati.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Sati.Tests/Sati.Tests.csproj --configuration Release --no-build --no-restore

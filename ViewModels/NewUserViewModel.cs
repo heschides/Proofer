@@ -4,18 +4,19 @@ using Sati.Data;
 using Sati.Models;
 using System.Collections.ObjectModel;
 using System.Security;
+using System.Runtime.InteropServices;
 
 namespace Sati.ViewModels
 {
     public partial class NewUserViewModel : ObservableObject
     {
-        private readonly IPasswordHasher _hasher;
         private readonly IUserService _userService;
+        private readonly ISessionService _sessionService;
 
-        public NewUserViewModel(IPasswordHasher hasher, IUserService userService)
+        public NewUserViewModel(IUserService userService, ISessionService sessionService)
         {
             _userService = userService;
-            _hasher = hasher;
+            _sessionService = sessionService;
         }
 
         public event EventHandler<bool>? CloseWindowRequested;
@@ -47,29 +48,29 @@ namespace Sati.ViewModels
             if (PasswordInit == null || PasswordConfirm == null)
                 throw new InvalidOperationException("Password fields are required.");
 
-            if (PasswordInit.Length == 0)
-                throw new InvalidOperationException("Password cannot be empty.");
+            if (PasswordInit.Length is < 8 or > 128)
+                throw new InvalidOperationException("Password must be between 8 and 128 characters.");
 
-            if (PasswordInit.Length != PasswordConfirm.Length)
+            if (!SecureStringsMatch(PasswordInit, PasswordConfirm))
                 throw new InvalidOperationException("Passwords do not match.");
 
             var all = await _userService.GetAllAsync();
             if (all.Any(u => string.Equals(u.Username, Username, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("A user with that username already exists.");
 
-            var (hash, salt) = _hasher.HashPassword(PasswordInit);
-
+            var agencyId = AssignedAgency?.Id ?? SelectedSupervisor?.AgencyId ?? _sessionService.CurrentUser?.AgencyId
+                ?? throw new InvalidOperationException("An agency assignment is required.");
             var user = User.Create(
                 0,
                 Username!,
                 DisplayName ?? string.Empty,
-                hash,
-                salt,
+                string.Empty,
+                string.Empty,
                 UserRole.CaseManager,
                 SelectedSupervisor?.Id,
-                AssignedAgency.Id);
+                agencyId);
 
-            CreatedUser = await _userService.CreateAsync(user);
+            CreatedUser = await _userService.CreateAsync(user, PasswordInit);
 
             PasswordInit.Dispose();
             PasswordConfirm.Dispose();
@@ -77,6 +78,32 @@ namespace Sati.ViewModels
             PasswordConfirm = null;
 
             CloseWindowRequested?.Invoke(this, true);
+        }
+
+        private static bool SecureStringsMatch(SecureString first, SecureString second)
+        {
+            if (first.Length != second.Length)
+                return false;
+
+            var firstPtr = IntPtr.Zero;
+            var secondPtr = IntPtr.Zero;
+            try
+            {
+                firstPtr = Marshal.SecureStringToGlobalAllocUnicode(first);
+                secondPtr = Marshal.SecureStringToGlobalAllocUnicode(second);
+                for (var index = 0; index < first.Length; index++)
+                {
+                    if (Marshal.ReadInt16(firstPtr, index * sizeof(char)) !=
+                        Marshal.ReadInt16(secondPtr, index * sizeof(char)))
+                        return false;
+                }
+                return true;
+            }
+            finally
+            {
+                if (firstPtr != IntPtr.Zero) Marshal.ZeroFreeGlobalAllocUnicode(firstPtr);
+                if (secondPtr != IntPtr.Zero) Marshal.ZeroFreeGlobalAllocUnicode(secondPtr);
+            }
         }
     }
 }

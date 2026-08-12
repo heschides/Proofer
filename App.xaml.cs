@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Sati.Data;
 using Sati.Data.Billing;
+using Sati.Data.Cloud;
 using Sati.Edi;
 using Sati.Services.Billing;
 using Sati.Services;
@@ -13,6 +14,8 @@ using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
 using Sati.ViewModels.Supervisor;
 using Sati.Views;
+using System.Diagnostics;
+using System.Net.Http;
 using System.Windows;
 
 namespace Sati
@@ -20,25 +23,69 @@ namespace Sati
     public partial class App : Application
     {
         private IHost? _host;
+        private bool _isShowingUnhandledException;
         public IServiceProvider Services => _host!.Services;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
             DispatcherUnhandledException += (sender, args) =>
             {
-                MessageBox.Show(
-                    $"Unhandled exception:\n\n{args.Exception}",
-                    "Sati Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
                 args.Handled = true;
+
+                // A WPF binding/layout exception can be raised again while its error
+                // dialog is activating. Never recursively open another dialog from
+                // inside the first exception handler.
+                if (_isShowingUnhandledException)
+                {
+                    Debug.WriteLine($"Suppressed reentrant UI exception: {args.Exception}");
+                    return;
+                }
+
+                _isShowingUnhandledException = true;
+                try
+                {
+                    MessageBox.Show(
+                        $"Unhandled exception:\n\n{args.Exception}",
+                        "Sati Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+                finally
+                {
+                    _isShowingUnhandledException = false;
+                }
             };
 
             try
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+                // The distributable Demo build is intentionally cloud-only: it never
+                // offers or resolves a direct SQL/LocalDB environment. Developer builds
+                // retain the explicit environment chooser.
+#if SATI_DEMO
+                var selectedEnvironment = SatiDataEnvironment.Demo;
+#else
+                var environmentWindow = new DataEnvironmentWindow();
+                if (environmentWindow.ShowDialog() != true ||
+                    environmentWindow.SelectedEnvironment is not SatiDataEnvironment selectedEnvironment)
+                {
+                    Shutdown();
+                    return;
+                }
+#endif
+
                 _host = Host.CreateDefaultBuilder()
+                    .ConfigureAppConfiguration((_, configuration) =>
+                    {
+                        // Non-secret deployment endpoints are tracked separately
+                        // from appsettings.json, which can contain a local Production
+                        // connection string and is intentionally git-ignored.
+                        configuration.AddJsonFile(
+                            "appsettings.Public.json",
+                            optional: false,
+                            reloadOnChange: false);
+                    })
                     .UseDefaultServiceProvider((_, options) =>
                     {
 #if DEBUG
@@ -48,35 +95,26 @@ namespace Sati
                     })
                     .ConfigureServices((context, services) =>
                     {
+                        var dataEnvironment = DataEnvironmentResolver.Resolve(
+                            context.Configuration,
+                            selectedEnvironment);
+                        services.AddSingleton(dataEnvironment);
+
                         services.Configure<LocalAiOptions>(
                             context.Configuration.GetSection(LocalAiOptions.SectionName));
 
-                        // Services
-                        services.AddTransient<IPersonService, PersonService>();
-                        services.AddTransient<IPersonContactService, PersonContactService>();
-                        services.AddTransient<INoteService, NoteService>();
-                        services.AddTransient<IAuthService, AuthService>();
-                        services.AddTransient<IUserService, UserService>();
-                        services.AddTransient<IScratchpadService, ScratchpadService>();
+                        // Services shared by both environments. Demo persistence is
+                        // registered separately below and has no EF/SQL fallback.
                         services.AddTransient<IPasswordHasher, PasswordHasher>();
-                        services.AddTransient<IIncentiveService, IncentiveService>();
                         services.AddSingleton<ISessionService, SessionService>();
-                        services.AddTransient<ISettingsService, SettingsService>();
-                        services.AddTransient<FormDueDateBackfill>();
-                        services.AddTransient<FormBulkCompletion>();
-                        services.AddTransient<IUpcomingEventService, UpcomingEventService>(); 
-                        services.AddTransient<IFormService, FormService>();
-                        services.AddTransient<ISupervisorService, SupervisorService>();
-                        services.AddTransient<IBillingService, BillingService>();
-                        services.AddTransient<IEdiService, EdiService>();
-                        services.AddTransient<IExemptDateService, ExemptDateService>();
-                        services.AddTransient<IReviewItemService, ReviewItemService>();
+                        services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddSingleton<ThemeService>();
-                        services.AddSingleton<IClientAiContextService, ClientAiContextService>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
-                        services.AddTransient<IATRequestService, ATRequestService>();
-                        services.AddTransient<IProviderService, ProviderService>();
-                        services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
+
+                        if (dataEnvironment.UsesCloudApi)
+                            AddCloudDataServices(services, dataEnvironment);
+                        else
+                            AddLocalDataServices(services, dataEnvironment);
                         // Shell
                         services.AddSingleton<ShellViewModel>();
                         services.AddSingleton<ShellWindow>();
@@ -134,23 +172,29 @@ namespace Sati
                         services.AddTransient<Func<SwitchUserWindow>>(sp => () => sp.GetRequiredService<SwitchUserWindow>());
                         services.AddTransient<Func<MyAccountWindow>>(sp => () => sp.GetRequiredService<MyAccountWindow>());
                         services.AddTransient<Func<MyAccountViewModel>>(sp => () => sp.GetRequiredService<MyAccountViewModel>());
-                        // EF Core
-                        services.AddDbContextFactory<SatiContext>(options =>
-                            options.UseSqlServer(context.Configuration.GetConnectionString("SatiDb")),
-                            ServiceLifetime.Singleton);
                     })
                     .Build();
 
                 _host.Start();
 
+                // Validate the database identity before migrations, authentication,
+                // or any application query. A mismatched selection fails closed.
+                var dataEnvironment = _host.Services.GetRequiredService<DataEnvironmentInfo>();
+                if (!dataEnvironment.UsesCloudApi)
+                    await _host.Services.GetRequiredService<DatabaseIdentityValidator>().ValidateAsync();
+
                 // Resolve before splash/login so the user's saved appearance is
                 // applied to every window created during this session.
                 _host.Services.GetRequiredService<ThemeService>();
 
-                // Migrate database
-                using var scope = _host.Services.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<SatiContext>();
-                db.Database.Migrate();
+                // The desktop owns Local Production migrations. The deployed API
+                // validates Azure Demo and never lets the client mutate its schema.
+                if (!dataEnvironment.UsesCloudApi)
+                {
+                    using var scope = _host.Services.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<SatiContext>();
+                    db.Database.Migrate();
+                }
 
                 // Login sequence
                 var splash = new SplashScreenWindow();
@@ -159,6 +203,7 @@ namespace Sati
                 splash.Close();
 
                 var loginWindow = _host.Services.GetRequiredService<LoginWindow>();
+                loginWindow.Title = $"{dataEnvironment.WindowTitle} — Sign in";
                 bool? result = loginWindow.ShowDialog();
 
                 if (result == true)
@@ -173,6 +218,7 @@ namespace Sati
                     await shellVm.InitializeAsync();
 
                     var shellWindow = _host.Services.GetRequiredService<ShellWindow>();
+                    shellWindow.Title = dataEnvironment.WindowTitle;
                     shellWindow.Show();
                 }
                 else
@@ -202,6 +248,67 @@ namespace Sati
             }
 
             base.OnExit(e);
+        }
+
+        private static void AddLocalDataServices(IServiceCollection services, DataEnvironmentInfo environment)
+        {
+            services.AddSingleton<DatabaseIdentityValidator>();
+            services.AddTransient<IPersonService, PersonService>();
+            services.AddTransient<IPersonContactService, PersonContactService>();
+            services.AddTransient<INoteService, NoteService>();
+            services.AddTransient<IAuthService, AuthService>();
+            services.AddTransient<IUserService, UserService>();
+            services.AddTransient<IScratchpadService, ScratchpadService>();
+            services.AddTransient<IIncentiveService, IncentiveService>();
+            services.AddTransient<ISettingsService, SettingsService>();
+            services.AddTransient<FormDueDateBackfill>();
+            services.AddTransient<FormBulkCompletion>();
+            services.AddTransient<IFormService, FormService>();
+            services.AddTransient<ISupervisorService, SupervisorService>();
+            services.AddTransient<IBillingService, BillingService>();
+            services.AddTransient<IEdiService, EdiService>();
+            services.AddTransient<IExemptDateService, ExemptDateService>();
+            services.AddTransient<IConsumerBillingLossReportService, ConsumerBillingLossReportService>();
+            services.AddTransient<IReviewItemService, ReviewItemService>();
+            services.AddSingleton<IClientAiContextService, ClientAiContextService>();
+            services.AddTransient<IATRequestService, ATRequestService>();
+            services.AddTransient<IProviderService, ProviderService>();
+            services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
+            services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
+            services.AddDbContextFactory<SatiContext>(options =>
+                options.UseSqlServer(environment.ConnectionString!),
+                ServiceLifetime.Singleton);
+        }
+
+        private static void AddCloudDataServices(IServiceCollection services, DataEnvironmentInfo environment)
+        {
+            services.AddHttpClient("SatiDemo", client =>
+            {
+                client.BaseAddress = environment.ApiBaseAddress;
+                client.Timeout = TimeSpan.FromSeconds(90);
+            });
+            services.AddSingleton(sp => new CloudApiClient(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
+            services.AddTransient<IAuthService, CloudAuthService>();
+            services.AddTransient<IPersonService, CloudPersonService>();
+            services.AddTransient<INoteService, CloudNoteService>();
+            services.AddTransient<ISettingsService, CloudSettingsService>();
+            services.AddTransient<IScratchpadService, CloudScratchpadService>();
+            services.AddTransient<IExemptDateService, CloudExemptDateService>();
+            services.AddTransient<IIncentiveService, CloudIncentiveService>();
+            services.AddTransient<IFormService, CloudFormService>();
+            services.AddTransient<IUserService, CloudUserService>();
+            services.AddTransient<IPersonContactService, CloudPersonContactService>();
+            services.AddTransient<ISupervisorService, CloudSupervisorService>();
+            services.AddTransient<IReviewItemService, CloudReviewItemService>();
+            services.AddTransient<IATRequestService, CloudAtRequestService>();
+            services.AddTransient<IProviderService, CloudProviderService>();
+            services.AddTransient<IComprehensiveAssessmentService, CloudComprehensiveAssessmentService>();
+            services.AddTransient<IPersonCenteredPlanSourceService, CloudPersonCenteredPlanSourceService>();
+            services.AddTransient<IConsumerBillingLossReportService, CloudConsumerBillingLossReportService>();
+            services.AddTransient<IBillingService, CloudBillingService>();
+            services.AddTransient<IEdiService, CloudEdiService>();
+            services.AddSingleton<IClientAiContextService, CloudClientAiContextService>();
         }
 
     }

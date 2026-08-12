@@ -83,19 +83,128 @@
                         Value="0,0,0,10" />
             </Style>
 
+            <!-- Global icon-free date entry. DatePickerTextBox keeps the parsing,
+                 selection, validation, and keyboard behavior of DatePicker while
+                 replacing the framework's white editor and calendar glyph. -->
+            <Style TargetType="DatePickerTextBox">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="9,5" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DatePickerTextBox">
+                            <Grid Background="Transparent">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center" />
+                                <TextBlock x:Name="DatePlaceholder"
+                                           Text="MM/DD/YYYY"
+                                           Margin="{TemplateBinding Padding}"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           FontStyle="Italic"
+                                           Opacity="0.48"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter TargetName="DatePlaceholder" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.55" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style TargetType="DatePicker">
-                <Setter Property="FontSize"
-                        Value="13" />
-                <Setter Property="Background"
-                        Value="{DynamicResource SurfaceBrush}" />
-                <Setter Property="BorderBrush"
-                        Value="{DynamicResource InputBorderBrush}" />
-                <Setter Property="BorderThickness"
-                        Value="1" />
-                <Setter Property="Foreground"
-                        Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="Margin"
-                        Value="0,0,0,10" />
+                <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DatePicker">
+                            <Grid x:Name="PART_Root">
+                                <Border x:Name="DateBorder"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4">
+                                    <DatePickerTextBox x:Name="PART_TextBox"
+                                                       Background="Transparent"
+                                                       Foreground="{TemplateBinding Foreground}"
+                                                       FontFamily="{TemplateBinding FontFamily}"
+                                                       FontSize="{TemplateBinding FontSize}"
+                                                       HorizontalContentAlignment="Stretch"
+                                                       VerticalContentAlignment="Center" />
+                                </Border>
+
+                                <!-- Preserve the required part for keyboard behavior,
+                                     but remove its mouse target and calendar chrome. -->
+                                <Button x:Name="PART_Button"
+                                        Width="0"
+                                        Height="0"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Opacity="0"
+                                        Focusable="False"
+                                        IsHitTestVisible="False"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom" />
+
+                                <Popup x:Name="PART_Popup"
+                                       Placement="Bottom"
+                                       PlacementTarget="{Binding ElementName=DateBorder}"
+                                       AllowsTransparency="True"
+                                       StaysOpen="False"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource InputBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="4">
+                                        <Calendar x:Name="PART_Calendar"
+                                                  Background="{DynamicResource SurfaceBrush}"
+                                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                                  BorderThickness="0"
+                                                  SelectedDate="{Binding SelectedDate, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                  DisplayDate="{Binding DisplayDate, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                  DisplayDateStart="{TemplateBinding DisplayDateStart}"
+                                                  DisplayDateEnd="{TemplateBinding DisplayDateEnd}"
+                                                  FirstDayOfWeek="{TemplateBinding FirstDayOfWeek}"
+                                                  IsTodayHighlighted="{TemplateBinding IsTodayHighlighted}" />
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="DateBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="DateBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    <Setter TargetName="DateBorder" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="Validation.HasError" Value="True">
+                                    <Setter TargetName="DateBorder" Property="BorderBrush" Value="{DynamicResource OverdueBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="DateBorder" Property="Opacity" Value="0.55" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <Style TargetType="Separator">
@@ -105,8 +214,21 @@
                         Value="0,4,0,12" />
             </Style>
 
-            <Style x:Key="PrimaryButton"
+            <!-- Base spacing for all text buttons. New button styles should use
+                 BasedOn="{StaticResource ButtonBaseStyle}" so their content
+                 never sits against the left and right edges. -->
+            <Style x:Key="ButtonBaseStyle"
                    TargetType="Button">
+                <Setter Property="Padding"
+                        Value="18,6" />
+            </Style>
+
+            <Style TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}" />
+
+            <Style x:Key="PrimaryButton"
+                   TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}">
                 <Setter Property="Height"
                         Value="36" />
                 <Setter Property="Background"
@@ -125,6 +247,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
                                     CornerRadius="4">
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center" />
@@ -147,7 +270,8 @@
             </Style>
 
             <Style x:Key="LocalAiButton"
-                   TargetType="Button">
+                   TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}">
                 <Setter Property="Height"
                         Value="34" />
                 <Setter Property="Padding"
@@ -198,7 +322,8 @@
             </Style>
 
             <Style x:Key="DangerButton"
-                   TargetType="Button">
+                   TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}">
                 <Setter Property="Height"
                         Value="36" />
                 <Setter Property="Background"
@@ -217,6 +342,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
                                     CornerRadius="4">
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center" />
@@ -233,11 +359,14 @@
                 </Setter>
             </Style>
             <Style x:Key="IconButton"
-                   TargetType="Button">
+                   TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}">
                 <Setter Property="Width"
                         Value="32" />
                 <Setter Property="Height"
                         Value="32" />
+                <Setter Property="Padding"
+                        Value="0" />
                 <Setter Property="Background"
                         Value="Transparent" />
                 <Setter Property="BorderThickness"
@@ -264,7 +393,8 @@
                 </Setter>
             </Style>
             <Style x:Key="SmallButton"
-                   TargetType="Button">
+                   TargetType="Button"
+                   BasedOn="{StaticResource ButtonBaseStyle}">
                 <Setter Property="Height"
                         Value="28" />
                 <Setter Property="Padding"
@@ -283,6 +413,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
                                     CornerRadius="4">
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center" />

@@ -46,6 +46,8 @@ namespace Sati.Models
         public bool HasActiveRelease { get; set; }
         public bool IsActive { get; set; } = true;
 
+        public static PersonContact Rehydrate(int id) => new() { Id = id };
+
         [NotMapped]
         public string FullName => $"{FirstName} {LastName}".Trim();
 

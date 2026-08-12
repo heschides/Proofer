@@ -7,6 +7,7 @@
     public class Provider
     {
         public int Id { get; set; }
+        public int AgencyId { get; set; }
 
         public ProviderType Type { get; set; } = ProviderType.Waiver;
 

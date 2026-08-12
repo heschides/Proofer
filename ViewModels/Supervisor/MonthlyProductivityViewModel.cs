@@ -3,6 +3,7 @@ using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Legends;
 using OxyPlot.Series;
+using Sati.Helpers;
 
 namespace Sati.ViewModels.Supervisor
 {
@@ -33,11 +34,14 @@ namespace Sati.ViewModels.Supervisor
 
         private static PlotModel BuildStatusChart(IReadOnlyList<CaseManagerSummaryViewModel> managers)
         {
+            var textColor = PlotTheme.Color(
+                "TextPrimaryBrush", OxyColor.FromRgb(0x3D, 0x2B, 0x1F));
+
             var model = new PlotModel
             {
                 Background = OxyColors.Transparent,
                 PlotAreaBackground = OxyColors.Transparent,
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                TextColor = textColor,
             };
 
             model.Legends.Add(new Legend
@@ -45,7 +49,7 @@ namespace Sati.ViewModels.Supervisor
                 LegendPlacement = LegendPlacement.Outside,
                 LegendPosition = LegendPosition.BottomCenter,
                 LegendOrientation = LegendOrientation.Horizontal,
-                LegendTextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                LegendTextColor = textColor,
                 LegendBackground = OxyColors.Transparent,
                 LegendBorder = OxyColors.Transparent,
             });
@@ -53,7 +57,7 @@ namespace Sati.ViewModels.Supervisor
             var categoryAxis = new CategoryAxis
             {
                 Position = AxisPosition.Left,
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                TextColor = textColor,
                 TicklineColor = OxyColors.Transparent,
             };
 
@@ -65,20 +69,21 @@ namespace Sati.ViewModels.Supervisor
                 Position = AxisPosition.Bottom,
                 Minimum = 0,
                 Title = "Notes",
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                TextColor = textColor,
                 MajorGridlineStyle = LineStyle.Dot,
-                MajorGridlineColor = OxyColor.FromArgb(80, 0x3D, 0x2B, 0x1F),
+                MajorGridlineColor = PlotTheme.ColorWithAlpha(
+                    "TextPrimaryBrush", 80, textColor),
             };
 
             // Each status is a stacked bar series. Order matters visually.
             var statusSeries = new (string Label, OxyColor Color, Func<CaseManagerSummaryViewModel, int> Getter)[]
             {
-                ("Logged",    OxyColor.FromRgb(0x5A, 0x8A, 0x5A), cm => cm.LoggedCount),
-                ("Scheduled", OxyColor.FromRgb(0x5B, 0x7F, 0xA6), cm => cm.ScheduledCount),
-                ("Pending",   OxyColor.FromRgb(0xC8, 0x79, 0x41), cm => cm.PendingCount),
-                ("Delayed",   OxyColor.FromRgb(0xD4, 0xA0, 0x60), cm => cm.DelayedCount),
-                ("Cancelled", OxyColor.FromRgb(0x8A, 0x7A, 0x6A), cm => cm.CancelledCount),
-                ("Abandoned", OxyColor.FromRgb(0xA6, 0x60, 0x7A), cm => cm.AbandonedCount),
+                ("Logged",    PlotTheme.Color("CompliantBrush", OxyColor.FromRgb(0x5A, 0x8A, 0x5A)), cm => cm.LoggedCount),
+                ("Scheduled", PlotTheme.Color("InfoBrush", OxyColor.FromRgb(0x5B, 0x7F, 0xA6)), cm => cm.ScheduledCount),
+                ("Pending",   PlotTheme.Color("WarningBrush", OxyColor.FromRgb(0xC8, 0x79, 0x41)), cm => cm.PendingCount),
+                ("Delayed",   PlotTheme.Color("OpenedFormBrush", OxyColor.FromRgb(0xD4, 0xA0, 0x60)), cm => cm.DelayedCount),
+                ("Cancelled", PlotTheme.Color("TextMutedBrush", OxyColor.FromRgb(0x8A, 0x7A, 0x6A)), cm => cm.CancelledCount),
+                ("Abandoned", PlotTheme.Color("OverdueBrush", OxyColor.FromRgb(0xA6, 0x60, 0x7A)), cm => cm.AbandonedCount),
             };
 
             foreach (var (label, color, getter) in statusSeries)

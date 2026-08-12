@@ -15,9 +15,11 @@ namespace Sati.Data
             _hasher = hasher;
         }
 
-        public async Task<User> CreateAsync(User user)
+        public async Task<User> CreateAsync(User user, SecureString initialPassword)
         {
             await using var context = _contextFactory.CreateDbContext();
+            var (hash, salt) = _hasher.HashPassword(initialPassword);
+            user.SetPassword(hash, salt);
             context.Users.Add(user);
             await context.SaveChangesAsync();
             return user;
@@ -46,7 +48,7 @@ namespace Sati.Data
             await context.SaveChangesAsync();
         }
 
-        public async Task ResetPasswordAsync(User user, string newPassword)
+        public async Task ResetPasswordAsync(User user, SecureString newPassword)
         {
             await using var context = _contextFactory.CreateDbContext();
             var (hash, salt) = _hasher.HashPassword(newPassword);
@@ -60,12 +62,16 @@ namespace Sati.Data
         // user's chosen password is a secret worth protecting in transit, unlike
         // the reset's known literal. Assumes the caller has already verified
         // identity (via AuthenticateAsync); this only hashes and saves.
-        public async Task ChangePasswordAsync(User user, SecureString newPassword)
+        public async Task ChangePasswordAsync(User user, SecureString currentPassword, SecureString newPassword)
         {
             await using var context = _contextFactory.CreateDbContext();
+            var tracked = await context.Users.FindAsync(user.Id)
+                ?? throw new InvalidOperationException("The current user no longer exists.");
+            if (!_hasher.Verify(currentPassword, tracked.PasswordHash, tracked.Salt))
+                throw new UnauthorizedAccessException("The current password is incorrect.");
             var (hash, salt) = _hasher.HashPassword(newPassword);
+            tracked.SetPassword(hash, salt);
             user.SetPassword(hash, salt);
-            context.Users.Update(user);
             await context.SaveChangesAsync();
         }
 

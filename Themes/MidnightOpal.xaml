@@ -8,9 +8,20 @@
     <SolidColorBrush x:Key="AccentBrush" Color="#A990C8"/><SolidColorBrush x:Key="AccentHoverBrush" Color="#BBA4D6"/><SolidColorBrush x:Key="AccentPressedBrush" Color="#8972A8"/><SolidColorBrush x:Key="OnAccentBrush" Color="#19161E"/>
     <!-- Local AI: luminous teal against the dark opal surfaces. -->
     <Color x:Key="AiGlowColor">#FF63A6B1</Color>
-    <SolidColorBrush x:Key="AiAccentBrush" Color="#4F8791"/><SolidColorBrush x:Key="AiAccentHoverBrush" Color="#66A1AA"/><SolidColorBrush x:Key="AiAccentPressedBrush" Color="#376A73"/><SolidColorBrush x:Key="AiAccentSoftBrush" Color="#263F45"/><SolidColorBrush x:Key="AiAccentBorderBrush" Color="#5E919A"/><SolidColorBrush x:Key="OnAiAccentBrush" Color="#F4FBFC"/><SolidColorBrush x:Key="AiPanelTextBrush" Color="#C8E9ED"/>
+    <SolidColorBrush x:Key="AiAccentBrush" Color="#4F8791"/><SolidColorBrush x:Key="AiAccentHoverBrush" Color="#66A1AA"/><SolidColorBrush x:Key="AiAccentPressedBrush" Color="#376A73"/><SolidColorBrush x:Key="AiAccentSoftBrush" Color="#263F45"/><SolidColorBrush x:Key="AiAccentBorderBrush" Color="#5E919A"/><SolidColorBrush x:Key="OnAiAccentBrush" Color="#0B1214"/><SolidColorBrush x:Key="AiPanelTextBrush" Color="#C8E9ED"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#343B45"/><SolidColorBrush x:Key="HoverStrongBrush" Color="#46515D"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F1F3F5"/><SolidColorBrush x:Key="TextSecondaryBrush" Color="#BEC6CE"/><SolidColorBrush x:Key="TextMutedBrush" Color="#929CA7"/><SolidColorBrush x:Key="TextSubtleBrush" Color="#78838E"/><SolidColorBrush x:Key="NarrativeTextBrush" Color="#D0C5D6"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F1F3F5"/><SolidColorBrush x:Key="TextSecondaryBrush" Color="#BEC6CE"/><SolidColorBrush x:Key="TextMutedBrush" Color="#A5AFB9"/><SolidColorBrush x:Key="TextSubtleBrush" Color="#9DA7B1"/><SolidColorBrush x:Key="NarrativeTextBrush" Color="#D0C5D6"/>
     <SolidColorBrush x:Key="PersonGroupBrush" Color="#292E36"/><SolidColorBrush x:Key="PersonGroupAltBrush" Color="#302C38"/>
-    <Color x:Key="SurfaceAltColor">#FF303640</Color><Color x:Key="SurfaceRaisedColor">#FF323740</Color><Color x:Key="TextSubtleColor">#FF78838E</Color>
+    <Color x:Key="SurfaceAltColor">#FF303640</Color><Color x:Key="SurfaceRaisedColor">#FF323740</Color><Color x:Key="TextSubtleColor">#FF9DA7B1</Color>
+    <!-- Dark-surface semantic variants. -->
+    <SolidColorBrush x:Key="OverdueBrush" Color="#FFADA3"/><SolidColorBrush x:Key="OverdueBorderBrush" Color="#94575E"/><SolidColorBrush x:Key="OverdueFillBrush" Color="#493034"/>
+    <SolidColorBrush x:Key="CompliantBrush" Color="#A8DDA6"/><SolidColorBrush x:Key="CompliantFillBrush" Color="#29432F"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#F0D07B"/><SolidColorBrush x:Key="WarningFillBrush" Color="#493D22"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="#9BCDF5"/><SolidColorBrush x:Key="InfoFillBrush" Color="#263E52"/>
+    <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A6D69C"/><SolidColorBrush x:Key="SuccessDarkBrush" Color="#B7E0AE"/><SolidColorBrush x:Key="SuccessBorderBrush" Color="#648967"/><SolidColorBrush x:Key="SuccessSoftBrush" Color="#304834"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA"/><SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0"/><SolidColorBrush x:Key="DangerSoftBrush" Color="#4B3034"/>
+    <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#D8C2F0"/><SolidColorBrush x:Key="WorkflowPurpleFillBrush" Color="#40334F"/><SolidColorBrush x:Key="WorkflowPurpleBorderBrush" Color="#78638D"/>
+    <SolidColorBrush x:Key="OpenedFormBrush" Color="#FFB36B"/><SolidColorBrush x:Key="OpenedFormFillBrush" Color="#493522"/>
+    <SolidColorBrush x:Key="MatrixGoodBrush" Color="#2D4933"/><SolidColorBrush x:Key="MatrixWatchBrush" Color="#514622"/><SolidColorBrush x:Key="MatrixConcernBrush" Color="#563B28"/><SolidColorBrush x:Key="MatrixUrgentBrush" Color="#533034"/><SolidColorBrush x:Key="MatrixEmptyBrush" Color="#343B43"/>
+    <Color x:Key="MatrixGoodColor">#FF2D4933</Color><Color x:Key="MatrixWatchColor">#FF514622</Color><Color x:Key="MatrixUrgentColor">#FF533034</Color><Color x:Key="MatrixEmptyColor">#FF343B43</Color>
 </ResourceDictionary>

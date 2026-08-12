@@ -8,11 +8,30 @@
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:InverseBoolConverter x:Key="InverseBool" />
+        <converters:NullableBoolChoiceConverter x:Key="NullableBoolChoice" />
+        <converters:EnumChoiceConverter x:Key="EnumChoice" />
         <Style x:Key="Card" TargetType="Border">
-            <!-- A raised surface and the input-strength border create quiet separation
-                 in every theme without introducing a new hard-coded color. -->
-            <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <!-- The card face slopes from the raised surface into the slightly
+                 darker alternate surface. The diagonal translucent border adds
+                 a restrained highlight/shadow bevel in both light and dark themes. -->
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,-0.5" EndPoint="0,1.5">
+                        <GradientStop Color="{DynamicResource SurfaceRaisedColor}" Offset="0" />
+                        <GradientStop Color="{DynamicResource SurfaceRaisedColor}" Offset="0.38" />
+                        <GradientStop Color="{DynamicResource SurfaceAltColor}" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="-0.5,-0.5" EndPoint="1.5,1.5">
+                        <GradientStop Color="#4CFFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.48" />
+                        <GradientStop Color="#42000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="18" />
@@ -89,25 +108,29 @@
             <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
                     <Border Style="{StaticResource Card}" IsEnabled="{Binding CanEdit}">
-                        <StackPanel>
-                            <TextBlock Text="Assessment contributors" FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="Add everyone who contributed information to this report. The assigned case manager is recorded automatically as the author."
-                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,10" />
-                            <ItemsControl ItemsSource="{Binding Contributors}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor name" />
-                                            <TextBox Grid.Column="2" Text="{Binding Relationship, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor role or relationship" />
-                                            <Button Grid.Column="4" Content="Remove" Command="{Binding RemoveCommand}" Padding="10,4" AutomationProperties.Name="Remove contributor" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="Add contributor" Command="{Binding AddContributorCommand}" HorizontalAlignment="Left" Padding="12,5" />
-                        </StackPanel>
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock Text="Assessment contributors" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,10,0,0">
+                                <TextBlock Text="Add everyone who contributed information to this report. The assigned case manager is recorded automatically as the author."
+                                           TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                <ItemsControl ItemsSource="{Binding Contributors}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor name" />
+                                                <TextBox Grid.Column="2" Text="{Binding Relationship, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Contributor role or relationship" />
+                                                <Button Grid.Column="4" Content="Remove" Command="{Binding RemoveCommand}" Padding="10,4" AutomationProperties.Name="Remove contributor" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="Add contributor" Command="{Binding AddContributorCommand}" HorizontalAlignment="Left" Padding="12,5" />
+                            </StackPanel>
+                        </Expander>
                     </Border>
 
                     <TextBlock Text="{Binding SelectedSection.Title}" FontSize="20" FontWeight="SemiBold"
@@ -118,12 +141,18 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Style="{StaticResource Card}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="3" />
-                                            <ColumnDefinition Width="14" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <TextBlock Text="{Binding Prompt}" FontSize="16.8" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"
+                                                       AutomationProperties.HeadingLevel="Level3" />
+                                        </Expander.Header>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
 
                                         <!-- A narrow, partially transparent theme accent makes
                                              the start and end of each question easy to scan. -->
@@ -133,11 +162,9 @@
                                                 Opacity="0.45" />
 
                                         <StackPanel Grid.Column="2">
-                                        <TextBlock Text="{Binding Prompt}" FontSize="16.8" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"
-                                                   AutomationProperties.HeadingLevel="Level3" />
-
-                                        <Expander Header="How to answer this" Margin="0,10,0,10" AutomationProperties.Name="Practical answer guidance">
+                                        <Expander Header="How to answer this" Margin="0,10,0,10"
+                                                  Visibility="{Binding HasGuidance, Converter={StaticResource BoolToVisibility}}"
+                                                  AutomationProperties.Name="Practical answer guidance">
                                             <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="5" Padding="12" Margin="0,5,0,0">
                                                 <StackPanel>
                                                     <TextBlock Text="Why we ask" Style="{StaticResource GuideLabel}" Margin="0,0,0,2" />
@@ -150,15 +177,148 @@
                                             </Border>
                                         </Expander>
 
-                                        <TextBlock Text="Answer status" Style="{StaticResource GuideLabel}" />
-                                        <ComboBox ItemsSource="{Binding Workspace.AnswerStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                  SelectedItem="{Binding Status}" Width="220" HorizontalAlignment="Left"
-                                                  AutomationProperties.Name="Answer status" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="220" />
+                                                <ColumnDefinition Width="16" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Answer status" Style="{StaticResource GuideLabel}" />
+                                                <ComboBox ItemsSource="{Binding Workspace.AnswerStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          SelectedItem="{Binding Status}"
+                                                          AutomationProperties.Name="Answer status">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2"
+                                                        Visibility="{Binding ShowExceptionReason, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="{Binding ExceptionReasonPrompt}" Style="{StaticResource GuideLabel}" />
+                                                <TextBox Text="{Binding ExceptionReason, UpdateSourceTrigger=PropertyChanged}"
+                                                         AcceptsReturn="True" MinHeight="50" TextWrapping="Wrap"
+                                                         AutomationProperties.Name="{Binding ExceptionReasonPrompt}" />
+                                            </StackPanel>
+                                        </Grid>
 
-                                        <TextBlock Text="Team assessment" Style="{StaticResource GuideLabel}" />
-                                        <TextBox Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
-                                                 MinHeight="90" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                                 SpellCheck.IsEnabled="True" AutomationProperties.Name="Team assessment answer" />
+                                        <StackPanel Visibility="{Binding IsNarrative, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Team assessment" Style="{StaticResource GuideLabel}" />
+                                            <TextBox Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                                     MinHeight="90" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                                     SpellCheck.IsEnabled="True" AutomationProperties.Name="Team assessment answer" />
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding UsesYesNo, Converter={StaticResource BoolToVisibility}}"
+                                                    Margin="0,10,0,4">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Yes" Margin="0,0,22,0"
+                                                             IsChecked="{Binding YesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=True, Mode=TwoWay}" />
+                                                <RadioButton Content="No"
+                                                             IsChecked="{Binding YesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=False, Mode=TwoWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding ShowHealthConcernDetails, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Please describe" Style="{StaticResource GuideLabel}" />
+                                            <TextBox Text="{Binding Details, UpdateSourceTrigger=PropertyChanged}"
+                                                     AcceptsReturn="True" MinHeight="70" TextWrapping="Wrap"
+                                                     AutomationProperties.Name="Please describe monitored health and wellness concerns" />
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding ShowTherapyRequestedFollowUp, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding WouldLikeTherapistPrompt}" Style="{StaticResource GuideLabel}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Yes" Margin="0,0,22,0"
+                                                             IsChecked="{Binding FollowUpYesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=True, Mode=TwoWay}" />
+                                                <RadioButton Content="No"
+                                                             IsChecked="{Binding FollowUpYesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=False, Mode=TwoWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding ShowTherapyCurrentFollowUps, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding TherapistSatisfactionPrompt}" Style="{StaticResource GuideLabel}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Yes" Margin="0,0,22,0"
+                                                             IsChecked="{Binding FollowUpYesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=True, Mode=TwoWay}" />
+                                                <RadioButton Content="No"
+                                                             IsChecked="{Binding FollowUpYesNoResponse, Converter={StaticResource NullableBoolChoice}, ConverterParameter=False, Mode=TwoWay}" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="{Binding SessionFormatPrompt}" Style="{StaticResource GuideLabel}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="In person" Margin="0,0,22,0"
+                                                             IsChecked="{Binding TherapySessionFormat, Converter={StaticResource EnumChoice}, ConverterParameter=InPerson, Mode=TwoWay}" />
+                                                <RadioButton Content="Telehealth"
+                                                             IsChecked="{Binding TherapySessionFormat, Converter={StaticResource EnumChoice}, ConverterParameter=Telehealth, Mode=TwoWay}" />
+                                            </StackPanel>
+
+                                            <StackPanel Visibility="{Binding ShowOtherSessionFormatQuestion, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="{Binding OtherSessionFormatPrompt}" Style="{StaticResource GuideLabel}" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Content="Yes" Margin="0,0,22,0"
+                                                                 IsChecked="{Binding WantsOtherSessionFormat, Converter={StaticResource NullableBoolChoice}, ConverterParameter=True, Mode=TwoWay}" />
+                                                    <RadioButton Content="No"
+                                                                 IsChecked="{Binding WantsOtherSessionFormat, Converter={StaticResource NullableBoolChoice}, ConverterParameter=False, Mode=TwoWay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <TextBlock Text="{Binding FrequencyChangePrompt}" Style="{StaticResource GuideLabel}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Yes" Margin="0,0,22,0"
+                                                             IsChecked="{Binding WantsFrequencyChange, Converter={StaticResource NullableBoolChoice}, ConverterParameter=True, Mode=TwoWay}" />
+                                                <RadioButton Content="No"
+                                                             IsChecked="{Binding WantsFrequencyChange, Converter={StaticResource NullableBoolChoice}, ConverterParameter=False, Mode=TwoWay}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Visibility="{Binding ShowFrequencyDirection, Converter={StaticResource BoolToVisibility}}"
+                                                        Margin="0,8,0,0">
+                                                <RadioButton Content="Increase" Margin="0,0,22,0"
+                                                             IsChecked="{Binding TherapyFrequencyDirection, Converter={StaticResource EnumChoice}, ConverterParameter=Increase, Mode=TwoWay}" />
+                                                <RadioButton Content="Decrease"
+                                                             IsChecked="{Binding TherapyFrequencyDirection, Converter={StaticResource EnumChoice}, ConverterParameter=Decrease, Mode=TwoWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Visibility="{Binding UsesActivitySupport, Converter={StaticResource BoolToVisibility}}"
+                                                    Margin="0,12,0,4">
+                                            <Grid Margin="170,0,0,8" Width="550" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="110" /><ColumnDefinition Width="110" /><ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="110" /><ColumnDefinition Width="110" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Independent" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="1" Text="Prompting" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="2" Text="Monitoring" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="3" Text="Physical Assistance" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="4" Text="Total Care" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Activities}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,3">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="160" />
+                                                                <ColumnDefinition Width="550" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                            <Slider Grid.Column="1" Minimum="0" Maximum="4"
+                                                                    Value="{Binding LevelValue, Mode=TwoWay}"
+                                                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                    TickPlacement="BottomRight"
+                                                                    AutomationProperties.Name="{Binding Name}" />
+                                                            <CheckBox Grid.Column="2" Content="Skills training"
+                                                                      IsChecked="{Binding SkillsTraining}"
+                                                                      VerticalAlignment="Center" Margin="18,0,0,0" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
 
                                         <StackPanel Visibility="{Binding UsesSupports, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Text="Support currently used — select all that apply" Style="{StaticResource GuideLabel}" />
@@ -176,13 +336,6 @@
                                                      MinHeight="55" TextWrapping="Wrap" AutomationProperties.Name="Support details" />
                                         </StackPanel>
 
-                                        <StackPanel Visibility="{Binding ShowExceptionReason, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="{Binding ExceptionReasonPrompt}" Style="{StaticResource GuideLabel}" />
-                                            <TextBox Text="{Binding ExceptionReason, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
-                                                     MinHeight="50" TextWrapping="Wrap"
-                                                     AutomationProperties.Name="{Binding ExceptionReasonPrompt}" />
-                                        </StackPanel>
-
                                         <Expander Header="Add a differing perspective" Margin="0,12,0,0">
                                             <StackPanel Margin="0,6,0,0">
                                                 <TextBlock Text="Record who disagrees, their view, whether it was discussed, and whether it remains unresolved."
@@ -192,7 +345,8 @@
                                             </StackPanel>
                                         </Expander>
                                         </StackPanel>
-                                    </Grid>
+                                        </Grid>
+                                    </Expander>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -201,11 +355,14 @@
                     <Border Style="{StaticResource Card}"
                             Visibility="{Binding IsSummarySelected, Converter={StaticResource BoolToVisibility}}"
                             IsEnabled="{Binding CanEdit}">
-                        <StackPanel>
-                            <TextBlock Text="Identified needs" FontSize="16" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock Text="Identified needs" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,10,0,0">
                             <TextBlock Text="Record material needs and broader support, access, autonomy, health, relationship, or planning needs separately so they can feed the PCP."
-                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,12" />
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,12" />
                             <ItemsControl ItemsSource="{Binding Needs}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -216,7 +373,13 @@
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                                     <ComboBox ItemsSource="{Binding Workspace.NeedTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                               SelectedItem="{Binding Type}" Width="270" HorizontalAlignment="Left"
-                                                              AutomationProperties.Name="Need type" />
+                                                              AutomationProperties.Name="Need type">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
                                                     <Button Grid.Column="1" Content="Remove need" Command="{Binding RemoveCommand}" Padding="10,4" />
                                                 </Grid>
                                                 <TextBlock Text="What is needed?" Style="{StaticResource GuideLabel}" />
@@ -238,8 +401,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <Button Content="Add identified need" Command="{Binding AddNeedCommand}" HorizontalAlignment="Left" Padding="12,5" />
-                        </StackPanel>
+                                <Button Content="Add identified need" Command="{Binding AddNeedCommand}" HorizontalAlignment="Left" Padding="12,5" />
+                            </StackPanel>
+                        </Expander>
                     </Border>
                 </StackPanel>
             </ScrollViewer>

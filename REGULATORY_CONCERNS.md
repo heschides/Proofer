@@ -20,6 +20,36 @@ A shared platform may reduce communication delays and strengthen oversight if it
 creates a complete, immutable chain from assessment through payment while enforcing
 real separation of duties.
 
+## Cloud product and SaaS obligations
+
+Moving Sati to Azure does not make it HIPAA compliant, and using HIPAA-eligible Azure services does
+not transfer Sati's responsibilities to Microsoft. A production platform must combine technical
+controls with documented administrative processes, risk analysis, workforce access procedures,
+incident response, contingency planning, vendor agreements, and continuing review.
+
+The target architecture places an authenticated API between every distributed client and protected
+cloud data. Installed applications must not contain shared Azure SQL credentials or execute schema
+migrations. Azure-hosted services should use managed identities and least-privilege permissions.
+Public database access should be disabled or narrowly constrained according to the approved network
+design.
+
+Before any real agency is provisioned, Sati needs evidence—not merely assertions—for:
+
+- tenant isolation and attempted cross-tenant access rejection;
+- unique user identification, authentication strength, session revocation, and emergency access;
+- authorization at record, workflow, export, and administrative-operation levels;
+- audit coverage for reads, changes, approvals, signatures, exports, impersonation, and overrides;
+- integrity controls, version history, concurrency conflict handling, and amendment procedures;
+- encryption in transit and at rest, key/secret management, and credential rotation;
+- backup restoration, disaster recovery, downtime procedures, and availability monitoring;
+- vulnerability management, dependency patching, secure deployment, and incident response;
+- retention, legal hold, deletion, member access, accounting of disclosures, and breach response;
+- BAAs and responsibility boundaries for every cloud, messaging, AI, support, and integration vendor.
+
+Demo deployment is not production authorization. The Azure Demo must contain only synthetic data,
+use a separate database and service identity, and reset from a canonical seed. No Demo pipeline,
+credential, managed identity, backup, log, or administrator role may grant access to Production.
+
 ## Governing conflict-of-interest principle
 
 Federal HCBS regulations generally prohibit an individual’s HCBS provider—or a party

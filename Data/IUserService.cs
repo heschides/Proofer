@@ -5,16 +5,16 @@ namespace Sati.Data
 {
     public interface IUserService
     {
-        Task<User> CreateAsync(User user);
+        Task<User> CreateAsync(User user, SecureString initialPassword);
         Task<List<User>> GetAllAsync();
         Task UpdateAsync(User user);
-        Task ResetPasswordAsync(User user, string newPassword);
+        Task ResetPasswordAsync(User user, SecureString newPassword);
 
-        // Self-service password change. Distinct from ResetPasswordAsync: takes a
-        // SecureString (a user-chosen secret worth protecting) and uses the
-        // SecureString hash overload. Identity is verified by the caller before
-        // this runs — this method only hashes and saves.
-        Task ChangePasswordAsync(User user, SecureString newPassword);
+        // Self-service password change. Distinct from ResetPasswordAsync: the
+        // current password must be verified before the replacement is persisted.
+        // Cloud implementations send both values only over the authenticated HTTPS
+        // API; local implementations verify and hash directly.
+        Task ChangePasswordAsync(User user, SecureString currentPassword, SecureString newPassword);
         Task<List<User>> GetSuperviseesAsync(int supervisorId);
 
     }

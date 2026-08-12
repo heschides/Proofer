@@ -18,7 +18,67 @@
                        FontSize="20"
                        FontWeight="Bold"
                        Foreground="{DynamicResource TextPrimaryBrush}"
-                       Margin="0,0,0,20" />
+                       Margin="0,0,0,12" />
+
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource HoverBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12"
+                    Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="REPORTING WINDOW"
+                               FontFamily="Inter"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,8" />
+                    <WrapPanel>
+                        <Button Content="This Month"
+                                Command="{Binding ShowThisMonthCommand}"
+                                AutomationProperties.Name="Show this month"
+                                Padding="12,6"
+                                Height="36"
+                                Margin="0,18,16,0" />
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Start"
+                                       FontFamily="Inter"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Margin="0,0,0,4" />
+                            <DatePicker SelectedDate="{Binding SelectedStartDate, Mode=TwoWay}"
+                                        AutomationProperties.Name="Statistics start date"
+                                        Height="36"
+                                        Margin="0"
+                                        Width="150" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="End"
+                                       FontFamily="Inter"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Margin="0,0,0,4" />
+                            <DatePicker SelectedDate="{Binding SelectedEndDate, Mode=TwoWay}"
+                                        AutomationProperties.Name="Statistics end date"
+                                        Height="36"
+                                        Margin="0"
+                                        Width="150" />
+                        </StackPanel>
+                        <Button Content="Apply"
+                                Command="{Binding ApplyDateWindowCommand}"
+                                Style="{StaticResource PrimaryButton}"
+                                AutomationProperties.Name="Apply statistics date window"
+                                Padding="14,6"
+                                Margin="0,18,0,0" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding DateFilterMessage}"
+                               FontFamily="Inter"
+                               FontSize="11"
+                               Foreground="{DynamicResource OverdueBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
 
             <!-- ── Summary cards ── -->
             <UniformGrid Columns="2"
@@ -35,7 +95,7 @@
                                    FontSize="36"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <TextBlock Text="Units logged + approved (12 mo)"
+                        <TextBlock Text="Units logged + approved (selected window)"
                                    FontFamily="Inter"
                                    FontSize="11"
                                    Foreground="{DynamicResource TextMutedBrush}"
@@ -49,12 +109,12 @@
                         CornerRadius="6"
                         Padding="16,14">
                     <StackPanel>
-                        <TextBlock Text="{Binding TotalIncentive, StringFormat=C0}"
+                        <TextBlock Text="{Binding TotalIncentive, StringFormat=C0, TargetNullValue=—}"
                                    FontFamily="Inter"
                                    FontSize="36"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource CompliantBrush}" />
-                        <TextBlock Text="Incentive earned (12 mo)"
+                        <TextBlock Text="Incentive earned (complete selected months)"
                                    FontFamily="Inter"
                                    FontSize="11"
                                    Foreground="{DynamicResource TextMutedBrush}"
@@ -64,6 +124,125 @@
             </UniformGrid>
 
             <!-- ── Empty state ── -->
+            <TextBlock Text="DOCUMENTATION BILLABILITY"
+                       FontFamily="Inter"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Calendar days and performed work units in the selected window. Non-billable days are days inside an overdue PCP, assessment, reclassification, or 90-day review gap; overlapping gaps count once."
+                       FontFamily="Inter"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <UniformGrid Columns="3" Margin="0,0,0,14">
+                <Border Margin="0,0,6,0" Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource HoverBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="14,12">
+                    <StackPanel>
+                        <TextBlock Text="{Binding TotalBillableWorkUnits}" FontFamily="Inter"
+                                   FontSize="28" FontWeight="Bold"
+                                   Foreground="{DynamicResource CompliantBrush}" />
+                        <TextBlock Text="Units on billable days" FontFamily="Inter" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="6,0" Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource HoverBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="14,12">
+                    <StackPanel>
+                        <TextBlock Text="{Binding TotalNonBillableWorkUnits}" FontFamily="Inter"
+                                   FontSize="28" FontWeight="Bold"
+                                   Foreground="{DynamicResource OverdueBrush}" />
+                        <TextBlock Text="Units lost to overdue documentation" FontFamily="Inter"
+                                   FontSize="11" Foreground="{DynamicResource TextMutedBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="6,0,0,0" Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource HoverBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="14,12">
+                    <StackPanel>
+                        <TextBlock Text="{Binding TotalLostWorkPercentageLabel}" FontFamily="Inter"
+                                   FontSize="28" FontWeight="Bold"
+                                   Foreground="{DynamicResource OverdueBrush}" />
+                        <TextBlock Text="Work lost" FontFamily="Inter" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource HoverBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="20"
+                    Margin="0,0,0,24"
+                    Visibility="{Binding HasConsumerBillingRows,
+                        Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <TextBlock Text="No consumers are available for this reporting window."
+                           FontFamily="Inter" FontSize="13"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap" HorizontalAlignment="Center" />
+            </Border>
+
+            <DataGrid AutomationProperties.Name="Consumer documentation billability statistics"
+                      ItemsSource="{Binding ConsumerBillingRows}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      CanUserAddRows="False" CanUserDeleteRows="False"
+                      CanUserReorderColumns="False" CanUserResizeRows="False"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      SelectionUnit="FullRow" SelectionMode="Single"
+                      Background="Transparent" BorderThickness="0"
+                      RowBackground="Transparent"
+                      AlternatingRowBackground="{DynamicResource SurfaceRaisedBrush}"
+                      HorizontalGridLinesBrush="{DynamicResource HoverBrush}"
+                      Margin="0,0,0,28"
+                      Visibility="{Binding HasConsumerBillingRows,
+                          Converter={StaticResource BoolToVisibilityConverter}}">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                        <Setter Property="FontFamily" Value="Inter" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Padding" Value="8" />
+                        <Setter Property="BorderThickness" Value="0,0,0,1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource HoverBrush}" />
+                        <Setter Property="SeparatorVisibility" Value="Collapsed" />
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Padding" Value="8,6" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Setter Property="FontFamily" Value="Inter" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Consumer" Binding="{Binding ConsumerName}" Width="2*" />
+                    <DataGridTextColumn Header="Billable days" Binding="{Binding BillableDays}" Width="110" />
+                    <DataGridTextColumn Header="Non-billable days" Binding="{Binding NonBillableDays}" Width="135" />
+                    <DataGridTextColumn Header="Billable units" Binding="{Binding BillableUnits}" Width="110" />
+                    <DataGridTextColumn Header="Lost units" Binding="{Binding NonBillableUnits}" Width="95" />
+                    <DataGridTextColumn Header="Work lost"
+                                        Binding="{Binding LostWorkPercentage, StringFormat={}{0:0.0}%, TargetNullValue=—}"
+                                        Width="95" />
+                </DataGrid.Columns>
+            </DataGrid>
+
             <Border Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource HoverBrush}"
                     BorderThickness="1"
@@ -83,7 +262,7 @@
             <StackPanel Visibility="{Binding HasData,
                             Converter={StaticResource BoolToVisibilityConverter}}">
 
-                <TextBlock Text="UNITS BY MONTH"
+                <TextBlock Text="UNITS BY PERIOD"
                            FontFamily="Inter"
                            FontSize="11"
                            FontWeight="SemiBold"
@@ -100,7 +279,7 @@
                                   Background="Transparent" />
                 </Border>
 
-                <TextBlock Text="MONTHLY DETAIL"
+                <TextBlock Text="PERIOD DETAIL"
                            FontFamily="Inter"
                            FontSize="11"
                            FontWeight="SemiBold"
@@ -183,7 +362,7 @@
                         </Style>
                     </DataGrid.RowStyle>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Month"
+                        <DataGridTextColumn Header="Period"
                                             Binding="{Binding MonthLabel}"
                                             Width="*" />
                         <DataGridTextColumn Header="Units"

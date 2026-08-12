@@ -8,27 +8,6 @@
     <UserControl.Resources>
         <converters:ReviewStageToBrushConverter x:Key="StageToBrush" />
 
-        <!-- Strips the built-in "Select a date" watermark. DatePicker renders it
-             from DatePickerTextBox's template, so the only way to remove it is to
-             supply a template without the watermark part. PART_ContentHost must
-             keep its name — DatePickerTextBox looks it up by name to host the
-             editable text. Scoped to this view's resources so app-wide DatePickers
-             keep their watermark. -->
-        <Style TargetType="DatePickerTextBox">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DatePickerTextBox">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <Style x:Key="LabelStyle"
                TargetType="TextBlock">
             <Setter Property="FontSize"

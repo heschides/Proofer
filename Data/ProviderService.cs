@@ -11,16 +11,19 @@ namespace Sati.Data
     public class ProviderService : IProviderService
     {
         private readonly IDbContextFactory<SatiContext> _contextFactory;
+        private readonly ISessionService _sessionService;
 
-        public ProviderService(IDbContextFactory<SatiContext> contextFactory)
+        public ProviderService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
         {
             _contextFactory = contextFactory;
+            _sessionService = sessionService;
         }
 
         public async Task<List<Provider>> GetAllAsync()
         {
             await using var context = _contextFactory.CreateDbContext();
             return await context.Providers
+                .Where(p => p.AgencyId == CurrentAgencyId())
                 .OrderBy(p => p.Name)
                 .ToListAsync();
         }
@@ -29,7 +32,7 @@ namespace Sati.Data
         {
             await using var context = _contextFactory.CreateDbContext();
             return await context.Providers
-                .Where(p => p.ProvidesPassthroughService)
+                .Where(p => p.AgencyId == CurrentAgencyId() && p.ProvidesPassthroughService)
                 .OrderBy(p => p.Name)
                 .ToListAsync();
         }
@@ -37,6 +40,7 @@ namespace Sati.Data
         public async Task<Provider> AddAsync(Provider provider)
         {
             await using var context = _contextFactory.CreateDbContext();
+            provider.AgencyId = CurrentAgencyId();
             context.Providers.Add(provider);
             await context.SaveChangesAsync();
             return provider;
@@ -45,9 +49,14 @@ namespace Sati.Data
         public async Task<Provider> UpdateAsync(Provider provider)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Providers.Update(provider);
+            var tracked = await context.Providers.SingleOrDefaultAsync(
+                x => x.Id == provider.Id && x.AgencyId == CurrentAgencyId())
+                ?? throw new InvalidOperationException("The provider is outside the current agency.");
+            context.Entry(tracked).CurrentValues.SetValues(provider);
+            tracked.Id = provider.Id;
+            tracked.AgencyId = CurrentAgencyId();
             await context.SaveChangesAsync();
-            return provider;
+            return tracked;
         }
 
         // No guard against deleting the Settings default: the FK is ON DELETE
@@ -57,8 +66,14 @@ namespace Sati.Data
         public async Task DeleteAsync(Provider provider)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Providers.Remove(provider);
+            var tracked = await context.Providers.SingleOrDefaultAsync(
+                x => x.Id == provider.Id && x.AgencyId == CurrentAgencyId())
+                ?? throw new InvalidOperationException("The provider is outside the current agency.");
+            context.Providers.Remove(tracked);
             await context.SaveChangesAsync();
         }
+
+        private int CurrentAgencyId() => _sessionService.CurrentUser?.AgencyId
+            ?? throw new InvalidOperationException("A signed-in user is required to access providers.");
     }
 }

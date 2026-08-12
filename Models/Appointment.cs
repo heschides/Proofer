@@ -31,6 +31,13 @@
         // EF materialization constructor.
         private Appointment() { }
 
+        public static Appointment Rehydrate(int id, int reviewItemId, DateTime date, string? providerName)
+        {
+            var appointment = new Appointment(reviewItemId, date, providerName);
+            appointment.Id = id;
+            return appointment;
+        }
+
         // The only birth path. Mirrors ReviewItem's generation constructor.
         public Appointment(int reviewItemId, DateTime date, string? providerName = null)
         {

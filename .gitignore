@@ -364,3 +364,9 @@ FodyWeavers.xsd
 
 # Local configuration with connection strings
 appsettings.json
+
+# Local Azure CLI/login state and deployment scratch directories
+.azure-cli-login-work/
+.api-deploy-*/
+.api-smoke-parity/
+.installer-test-*/

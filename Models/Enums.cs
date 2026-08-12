@@ -78,7 +78,8 @@ namespace Sati
     {
         Unknown,
         Male,
-        Female
+        Female,
+        NonBinary
     }
 
     public enum WaiverType

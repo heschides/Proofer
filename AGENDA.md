@@ -167,19 +167,136 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ---
 
-## Phase 9 — Azure / HIPAA Readiness
-*Goal: Production-ready deployment with audit logging and cloud hosting*
+## Phase 9 — Cloud Platform Foundation
+*Goal: establish the boundary on which every external deployment and future client depends.*
 
-- [ ] Migrate from LocalDB to Azure SQL (EF Core provider swap)
-- [ ] Implement a lightweight IQueryScopeService or similar — injected into services alongside the factory  
-- [ ] Audit logging — AuditLog table (user, action, entity type, entity ID, timestamp);
-  explicitly excludes note narrative content to avoid PHI in the log;
-  six-year HIPAA retention requirement
-- [ ] Microsoft Entra ID evaluation for authentication
-- [ ] MSIX packaging for deployment
-- [ ] Per-agency database isolation strategy
-- [ ] Connection string secret management (no plaintext in appsettings.json)
-- [ ] Settings per-user (currently global)
+### Architecture and solution structure
+
+- [x] Add `Sati.Api` ASP.NET Core project.
+- [x] Add shared, versioned request/response contracts that do not expose EF entities.
+- [ ] Move EF Core, migrations, password hashing, and authoritative domain operations behind the API.
+- [ ] Implement HTTP-backed desktop services behind the existing service interfaces where the
+  contracts remain appropriate.
+- [ ] Remove direct database connectivity and `Database.Migrate()` from distributed clients.
+- [ ] Add API health checks, structured logs, correlation IDs, metrics, and startup validation.
+
+### Identity and authorization
+
+- [x] Move Sati credential verification server-side; return a safe profile and short-lived token.
+- [x] Never return `PasswordHash` or `Salt` to a client.
+- [ ] Add token expiration, revocation, secure recovery, and brute-force/rate-limit controls.
+- [ ] Define capabilities independently from menu visibility and coarse job titles.
+- [ ] Derive actor, tenant, role, and caseload server-side instead of trusting supplied IDs.
+- [ ] Evaluate Microsoft Entra ID/External ID and MFA for production organizations.
+
+### Tenant model
+
+- [ ] Decide shared-database, database-per-tenant, or hybrid production isolation.
+- [ ] Define the authoritative tenant owner for every protected aggregate.
+- [ ] Replace global settings with tenant-scoped settings; add user overrides only where required.
+- [ ] Centralize tenant enforcement with query filters/interceptors and command authorization.
+- [ ] Add automated cross-tenant read/write/export rejection tests.
+- [ ] Add tenant provisioning, suspension, migration, export, and deletion/retention procedures.
+
+### Records, audit, and concurrency
+
+- [ ] Create append-only `AuditEvent` records for reads and protected actions without copying
+  unrestricted narrative PHI into log messages.
+- [ ] Add immutable document versions, amendments, attestations, and electronic signatures.
+- [ ] Define retention and legal-hold behavior by record class.
+- [ ] Add optimistic concurrency tokens and user-facing conflict resolution.
+- [ ] Make commands retry-safe and idempotent where duplicate execution would cause harm.
+- [ ] Move billing, approval, and submission transitions into explicit server transactions.
+
+### Testing and delivery
+
+- [ ] Add unit, API integration, authorization, migration, and end-to-end test projects.
+- [ ] Establish CI with build, test, migration validation, dependency scanning, and artifact creation.
+- [ ] Establish controlled database deployment and rollback; clients never migrate cloud schemas.
+- [ ] Add backup verification, point-in-time recovery exercises, disaster-recovery objectives, and
+  incident alerts.
+- [ ] Produce a signed self-contained Demo installer after API access is working.
+- [ ] Test installation, authentication, updates, and removal on a clean non-developer machine.
+
+### Azure Demo milestone
+
+- [x] Split local Production and Demo databases and add fail-closed identity markers.
+- [ ] Extract a versioned canonical superhero/sitcom Demo seed independent of migrations.
+- [x] Provision `SatiDemo` in Azure SQL without moving production data.
+- [x] Host the Demo API with managed identity and least-privilege SQL access.
+- [x] Restrict Azure SQL so tester devices do not connect directly.
+- [ ] Implement a nightly reset job with its own managed identity, validation, and failure alert.
+- [ ] Complete an API inventory and migrate all workflows included in the colleague Demo.
+- [ ] Run security, tenant-boundary, concurrency, reset, and clean-install acceptance tests.
+
+### Production readiness gate
+
+Production cloud migration is not authorized by completion of the Demo milestone. It requires a
+separate risk assessment, architecture review, operational runbook, BAA/vendor review, penetration
+testing plan, user-access process, incident-response process, and explicit approval to move real
+working data.
+
+## Mobile and Avalonia Strategy
+*Decision: no bottom-up Avalonia rewrite before the cloud platform boundary exists.*
+
+WPF remains Sati's full-power, data-dense Windows client. Cross-platform reach will come first from
+the shared API and portable contracts, not from forcing the current desktop shell onto phones.
+Avalonia remains a candidate for a focused mobile client and, only if real demand emerges, a future
+cross-platform desktop client.
+
+### Prerequisites
+
+- [ ] Complete the API foundation for authentication, people, notes, and upcoming work.
+- [ ] Extract portable projects that do not depend on WPF, EF Core, desktop dialogs, or local
+  filesystem paths. Initial target structure:
+  - `Sati.Contracts` — versioned API request/response DTOs
+  - `Sati.Domain` — portable domain concepts and authoritative pure calculations
+  - `Sati.Client` — authentication, HTTP transport, and shared client services
+  - `Sati.Api` — server authority, EF Core, authorization, audit, and integrations
+  - `Sati.Wpf` — existing Windows professional client
+- [ ] Keep platform-neutral service contracts free of `Window`, `Dispatcher`, `SecureString`,
+  EF entities, and other Windows/persistence-specific types.
+- [ ] Define mobile security, session, offline-storage, synchronization, and device-loss rules
+  before storing any protected data on a phone.
+
+### Define the first mobile product
+
+Do not treat the desktop application as the mobile specification. Validate the smallest useful
+field-work scope, likely:
+
+- secure login and session expiration;
+- today's work and upcoming deadlines;
+- client lookup and essential contact details;
+- quick visit/contact note capture;
+- interruption-safe local drafts and later synchronization;
+- optional camera/document capture; and
+- future EVV check-in/out if required.
+
+Billing administration, EDI, provider maintenance, system settings, dense compliance matrices,
+and broad supervisory analytics are not assumed to belong in the first mobile client.
+
+### One-week Avalonia spike — after API prerequisites
+
+- [ ] Create separate Avalonia core and Android projects; do not replace `Sati.Wpf`.
+- [ ] Implement login, client list, one client summary, and basic note capture against the API.
+- [ ] Approximate the Sati theme without attempting full WPF style parity.
+- [ ] Test touch targets, navigation, interruption recovery, slow/offline behavior, and session
+  expiration on a physical Android device—not only an emulator.
+- [ ] Record porting friction around XAML styles, converters, accessibility, dialogs, and shared
+  ViewModels.
+- [ ] Estimate iOS requirements separately, including macOS/Xcode, signing, provisioning, and
+  distribution.
+- [ ] Decide whether to proceed based on field usability and maintenance cost rather than the fact
+  that the sample compiles.
+
+### Explicit non-goals
+
+- No week-long attempt at whole-application Avalonia feature parity.
+- No mobile client that connects directly to SQL or embeds a database credential.
+- No virtualized desktop-window interface presented as a finished phone experience.
+- No parallel copy of authoritative business rules in WPF and Avalonia.
+- No abandonment of WPF unless cross-platform desktop demand and a measured migration case justify
+  it.
 ## Billing Pipeline (Next Dedicated Session)
 
 ### Data model changes needed

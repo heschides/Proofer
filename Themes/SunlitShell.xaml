@@ -24,10 +24,10 @@
     <SolidColorBrush x:Key="BorderBrush" Color="#E4CFC3" />
     <SolidColorBrush x:Key="InputBorderBrush" Color="#CDB2A5" />
     <SolidColorBrush x:Key="DividerBrush" Color="#EADBD2" />
-    <SolidColorBrush x:Key="AccentBrush" Color="#C47868" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#A96053" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#894C42" />
-    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFF9F3" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#A96053" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#894C42" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#703C35" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
     <!-- Local AI: muted plum against the coral and champagne shell. -->
     <Color x:Key="AiGlowColor">#FFA67A92</Color>
     <SolidColorBrush x:Key="AiAccentBrush" Color="#80536F" />
@@ -40,13 +40,13 @@
     <SolidColorBrush x:Key="HoverBrush" Color="#F0DED4" />
     <SolidColorBrush x:Key="HoverStrongBrush" Color="#D9BFB4" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#443632" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#806A63" />
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#9A857D" />
-    <SolidColorBrush x:Key="TextSubtleBrush" Color="#B6A097" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#65534D" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#6E5C56" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#725F59" />
     <SolidColorBrush x:Key="NarrativeTextBrush" Color="#695149" />
     <SolidColorBrush x:Key="PersonGroupBrush" Color="#FFF9F0" />
     <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#F5E8E2" />
     <Color x:Key="SurfaceAltColor">#FFF6E9DD</Color>
     <Color x:Key="SurfaceRaisedColor">#FFFFFDF7</Color>
-    <Color x:Key="TextSubtleColor">#FFB6A097</Color>
+    <Color x:Key="TextSubtleColor">#FF725F59</Color>
 </ResourceDictionary>

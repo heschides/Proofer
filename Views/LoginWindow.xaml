@@ -166,12 +166,21 @@
                     Style="{StaticResource PrimaryButton}"
                     Command="{Binding LoginCommand}" />
 
+            <TextBlock Text="{Binding SignInStatus}"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MinHeight="30"
+                       Margin="0,-8,0,8" />
+
             <!-- Divider -->
             <Separator Background="{DynamicResource BorderBrush}"
                        Margin="0,4,0,16" />
 
             <!-- Create account -->
             <StackPanel Orientation="Horizontal"
+                        Visibility="{Binding CanCreateAccount, Converter={StaticResource BoolToVisibilityConverter}}"
                         HorizontalAlignment="Center">
                 <TextBlock Text="New to Sati?   "
                            FontSize="13"

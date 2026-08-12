@@ -67,6 +67,14 @@
         // EF materialization constructor.
         private ReviewItem() { }
 
+        public static ReviewItem Rehydrate(int id, int personId, DateTime cycleAnchor,
+            int quarter, ReviewCategory category, int slotIndex)
+        {
+            var item = new ReviewItem(personId, cycleAnchor, quarter, category, slotIndex);
+            item.Id = id;
+            return item;
+        }
+
         // The only birth path. Mirrors Form's generation constructor.
         public ReviewItem(int personId, DateTime cycleAnchor, int quarter,
                           ReviewCategory category, int slotIndex = 0)

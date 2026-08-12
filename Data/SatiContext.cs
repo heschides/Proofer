@@ -14,6 +14,7 @@ namespace Sati.Data
         public DbSet<Note> Notes { get; set; }
         public DbSet<Settings> Settings { get; set; }
         public DbSet<Scratchpad> Scratchpad { get; set; }
+        public DbSet<ScratchpadComment> ScratchpadComments { get; set; }
         public DbSet<Incentive> Incentives { get; set; }
         public DbSet<BillingPeriod> BillingPeriods { get; set; }
         public DbSet<ClaimLine> ClaimLines { get; set; }
@@ -49,6 +50,11 @@ namespace Sati.Data
             modelBuilder.Entity<Provider>(entity =>
             {
                 entity.HasKey(p => p.Id);
+                entity.HasIndex(p => new { p.AgencyId, p.Name });
+                entity.HasOne<Agency>()
+                      .WithMany()
+                      .HasForeignKey(p => p.AgencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.Property(p => p.Name)
                       .IsRequired()
                       .HasMaxLength(150);
@@ -70,16 +76,9 @@ namespace Sati.Data
                 entity.Property(p => p.ProgramContact).HasMaxLength(150);
                 entity.Property(p => p.BillingContact).HasMaxLength(150);
 
-                // Seed the statewide passthrough default. OfferedServices left None:
-                // AT Assessments isn't modeled yet, and passthrough is a separate bool.
-                entity.HasData(new Provider
-                {
-                    Id = 1,
-                    Type = ProviderType.Waiver,
-                    Name = "Maine AT Solutions",
-                    ProvidesPassthroughService = true,
-                    OfferedServices = WaiverService.None
-                });
+                // The historical statewide default was seeded before providers
+                // became tenant-owned. The tenant-scope migration assigns that row
+                // to the active agency; tenant provisioning owns future defaults.
             });
 
             modelBuilder.Entity<ComprehensiveAssessment>(entity =>
@@ -266,6 +265,11 @@ namespace Sati.Data
             modelBuilder.Entity<Settings>(entity =>
             {
                 entity.HasKey(s => s.Id);
+                entity.HasIndex(s => s.AgencyId).IsUnique();
+                entity.HasOne<Agency>()
+                      .WithMany()
+                      .HasForeignKey(s => s.AgencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.Property(s => s.BaseIncentive).HasColumnType("decimal(18,2)");
                 entity.Property(s => s.PerUnitIncentive).HasColumnType("decimal(18,2)");
 
@@ -323,6 +327,21 @@ namespace Sati.Data
                 entity.HasKey(s => s.Id);
                 entity.HasIndex(s => new { s.UserId, s.Date })
                       .IsUnique();
+            });
+
+            modelBuilder.Entity<ScratchpadComment>(entity =>
+            {
+                entity.HasKey(comment => comment.Id);
+                entity.Property(comment => comment.AuthorDisplayName)
+                      .IsRequired()
+                      .HasMaxLength(200);
+                entity.Property(comment => comment.Content)
+                      .IsRequired();
+                entity.HasIndex(comment => new { comment.ScratchpadId, comment.CreatedAtUtc });
+                entity.HasOne(comment => comment.Scratchpad)
+                      .WithMany(scratchpad => scratchpad.Comments)
+                      .HasForeignKey(comment => comment.ScratchpadId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<BillingPeriod>(entity =>

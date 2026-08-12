@@ -25,6 +25,11 @@
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="12,14,12,10" />
 
+                <Button Content="+ Create User"
+                        Command="{Binding CreateUserCommand}"
+                        Style="{StaticResource SmallButton}"
+                        Margin="12,0,12,10" />
+
                 <ItemsControl ItemsSource="{Binding Users}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -141,11 +146,23 @@
                             <TextBlock Text="PASSWORD RESET"
                                        Style="{StaticResource LabelStyle}"
                                        Margin="0,0,0,8" />
-                            <TextBlock Text="Resets the user's password to 'defaultpassword'. The user should change it on next login."
+                            <TextBlock Text="Set a temporary password and communicate it through an approved channel. The user should change it after signing in."
                                        FontSize="12"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,12" />
+                            <TextBlock Text="NEW PASSWORD"
+                                       Style="{StaticResource LabelStyle}" />
+                            <PasswordBox x:Name="ResetPasswordInput"
+                                         AutomationProperties.Name="New temporary password"
+                                         PasswordChanged="ResetPasswordInput_PasswordChanged"
+                                         Margin="0,0,0,10" />
+                            <TextBlock Text="CONFIRM PASSWORD"
+                                       Style="{StaticResource LabelStyle}" />
+                            <PasswordBox x:Name="ResetPasswordConfirmationInput"
+                                         AutomationProperties.Name="Confirm temporary password"
+                                         PasswordChanged="ResetPasswordConfirmationInput_PasswordChanged"
+                                         Margin="0,0,0,12" />
                             <Button Content="Reset Password"
                                     Style="{StaticResource SmallButton}"
                                     Command="{Binding ResetPasswordCommand}"

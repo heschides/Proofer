@@ -1,9 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using OxyPlot;
+using CommunityToolkit.Mvvm.Input;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using Sati.Data;
+using Sati.Helpers;
 using Sati.Models;
+using Sati.Services;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels
@@ -24,43 +27,82 @@ namespace Sati.ViewModels
         private readonly INoteService _noteService;
         private readonly IIncentiveService _incentiveService;
         private readonly IExemptDateService _exemptDateService;
+        private readonly IConsumerBillingLossReportService _billingLossReportService;
 
         public StatisticsViewModel(
             ISessionService sessionService,
             INoteService noteService,
             IIncentiveService incentiveService,
-            IExemptDateService exemptDateService)
+            IExemptDateService exemptDateService,
+            IConsumerBillingLossReportService billingLossReportService,
+            ThemeService themeService)
         {
             _sessionService = sessionService;
             _noteService = noteService;
             _incentiveService = incentiveService;
             _exemptDateService = exemptDateService;
+            _billingLossReportService = billingLossReportService;
+            themeService.ThemeChanged += (_, _) =>
+            {
+                if (Months.Count > 0)
+                    UnitsChartModel = BuildUnitsChart(Months);
+            };
         }
 
         public ObservableCollection<ProductivityMonth> Months { get; } = [];
+        public ObservableCollection<ConsumerBillingLossRow> ConsumerBillingRows { get; } = [];
 
         [ObservableProperty] private PlotModel? unitsChartModel;
         [ObservableProperty] private string windowLabel = string.Empty;
         [ObservableProperty] private int totalUnits;
-        [ObservableProperty] private decimal totalIncentive;
+        [ObservableProperty] private decimal? totalIncentive;
         [ObservableProperty] private bool hasData;
+        [ObservableProperty] private bool hasConsumerBillingRows;
+        [ObservableProperty] private int totalBillableWorkUnits;
+        [ObservableProperty] private int totalNonBillableWorkUnits;
+        [ObservableProperty] private string totalLostWorkPercentageLabel = "—";
+        [ObservableProperty] private DateTime? selectedStartDate =
+            new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        [ObservableProperty] private DateTime? selectedEndDate = DateTime.Today;
+        [ObservableProperty] private string dateFilterMessage = string.Empty;
 
-        // Rebuilt on every navigate, so the history is current each visit.
+        [RelayCommand]
+        private async Task ShowThisMonthAsync()
+        {
+            SelectedStartDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            SelectedEndDate = DateTime.Today;
+            await LoadAsync();
+        }
+
+        [RelayCommand]
+        private async Task ApplyDateWindowAsync() => await LoadAsync();
+
+        // Rebuilt on every navigate and every filter application.
         public async Task LoadAsync()
         {
             var user = _sessionService.CurrentUser;
             if (user is null) return;
 
-            // The 12 completed months ending last month. The current (partial) month is
-            // live on Overview; a half-filled bar beside twelve finished ones reads as a dip.
-            var anchor = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-            var window = Enumerable.Range(1, 12)
-                .Select(i => anchor.AddMonths(-i))  // i = 1..12  → newest..oldest
-                .Reverse()                          // flip to oldest..newest for the chart
-                .ToList();
+            if (SelectedStartDate is not DateTime selectedStart
+                || SelectedEndDate is not DateTime selectedEnd)
+            {
+                DateFilterMessage = "Choose both a start date and an end date.";
+                return;
+            }
 
-            // Notes and exempt days both come back per calendar year; the window spans
-            // at most two years, so this is one or two round-trips each.
+            var windowStart = selectedStart.Date;
+            var windowEnd = selectedEnd.Date;
+            if (windowEnd < windowStart)
+            {
+                DateFilterMessage = "The end date must be on or after the start date.";
+                return;
+            }
+
+            DateFilterMessage = string.Empty;
+            var window = BuildMonthWindow(windowStart, windowEnd);
+            var billingLossTask = _billingLossReportService.GetAsync(
+                user.Id, windowStart, windowEnd);
+
             var years = window.Select(m => m.Year).Distinct().ToList();
 
             var notes = new List<Note>();
@@ -71,22 +113,18 @@ namespace Sati.ViewModels
             foreach (var year in years)
                 exempt.AddRange(await _exemptDateService.GetByYearAsync(user.Id, year));
 
-            // Exempt (non-productivity) days per month — the same source the live dashboard
-            // queries, keyed by (year, month) to line up with the snapshots.
-            var exemptCountByMonth = exempt
-                .GroupBy(e => (e.Date.Year, e.Date.Month))
-                .ToDictionary(g => g.Key, g => g.Count());
-
-            // Productive units = Logged + Approved (Approved is where logged notes land after
-            // supervisor sign-off, so excluding it would erase most of a closed month).
-            // Keyed by a (year, month) value tuple — cheap, structural-equality dictionary key.
+            // Productive units retain the page's established Logged + Approved definition,
+            // but are now clipped to the exact selected dates rather than whole months.
             var unitsByMonth = notes
                 .Where(n => n.Status is NoteStatus.Logged or NoteStatus.Approved
-                         && n.EventDate.HasValue)
+                         && n.EventDate.HasValue
+                         && n.EventDate.Value.Date >= windowStart
+                         && n.EventDate.Value.Date <= windowEnd)
                 .GroupBy(n => (n.EventDate!.Value.Year, n.EventDate.Value.Month))
                 .ToDictionary(g => g.Key, g => g.Sum(n => n.Units ?? 0));
 
-            // Read-only snapshots — GetHistoryAsync creates and mutates nothing.
+            // Detached history snapshots can be safely adjusted in memory for a partial
+            // first/last month; no report read creates or persists an Incentive row.
             var snapshots = (await _incentiveService.GetHistoryAsync(user.Id))
                 .ToDictionary(i => (i.Year, i.Month));
 
@@ -97,26 +135,30 @@ namespace Sati.ViewModels
                 var units = unitsByMonth.GetValueOrDefault(key, 0);
                 snapshots.TryGetValue(key, out var snapshot);
 
-                // Knock that month's exempt days off the scheduled days, mirroring the live
-                // dashboard's effective-days math. Safe to mutate: GetHistoryAsync hands back
-                // detached AsNoTracking copies and we never SaveChanges, so this can't persist.
-                // Both Threshold and Calculate(...) derive from DaysScheduled, so this single
-                // adjustment corrects the attainment and the incentive at once.
+                var periodStart = month > windowStart ? month : windowStart;
+                var monthEnd = month.AddMonths(1).AddDays(-1);
+                var periodEnd = monthEnd < windowEnd ? monthEnd : windowEnd;
+                var coversFullMonth = periodStart == month && periodEnd == monthEnd;
+
                 if (snapshot is not null)
                 {
-                    var exemptDays = exemptCountByMonth.GetValueOrDefault(key, 0);
-                    snapshot.DaysScheduled = Math.Max(0, snapshot.DaysScheduled - exemptDays);
+                    var exemptDays = exempt.Count(e => e.Date.Date >= periodStart
+                                                    && e.Date.Date <= periodEnd);
+                    var eligibleDays = coversFullMonth
+                        ? snapshot.DaysScheduled
+                        : await _incentiveService.GetEligibleDaysAsync(periodStart, periodEnd);
+                    snapshot.DaysScheduled = Math.Max(0, eligibleDays - exemptDays);
                 }
 
                 int? threshold = snapshot?.Threshold;
-
-                // Relational pattern: `is > 0` is false when threshold is null, so this guards
-                // both "no snapshot" and "zero threshold" (no divide-by-zero) in one test.
                 decimal? attainment = threshold is > 0
                     ? Math.Round(100m * units / threshold.Value, 0)
                     : null;
-
-                decimal? incentive = snapshot?.Calculate(units);
+                // Incentives are monthly awards. A partial date window can show
+                // prorated attainment, but must not claim a prorated award.
+                decimal? incentive = snapshot is not null && coversFullMonth
+                    ? snapshot.Calculate(units)
+                    : null;
 
                 var statusLevel = attainment switch
                 {
@@ -127,7 +169,7 @@ namespace Sati.ViewModels
                 };
 
                 Months.Add(new ProductivityMonth(
-                    MonthLabel: month.ToString("MMM yyyy"),
+                    MonthLabel: FormatPeriodLabel(periodStart, periodEnd, month, monthEnd),
                     Units: units,
                     Threshold: threshold,
                     AttainmentPercent: attainment,
@@ -135,21 +177,82 @@ namespace Sati.ViewModels
                     StatusLevel: statusLevel));
             }
 
-            WindowLabel = $"{window[0]:MMM yyyy} – {window[^1]:MMM yyyy}";
+            WindowLabel = FormatWindowLabel(windowStart, windowEnd);
             TotalUnits = Months.Sum(m => m.Units);
-            TotalIncentive = Months.Sum(m => m.Incentive ?? 0);
+            TotalIncentive = Months.All(m => m.Incentive.HasValue)
+                ? Months.Sum(m => m.Incentive!.Value)
+                : null;
             HasData = Months.Any(m => m.Units > 0);
-
             UnitsChartModel = BuildUnitsChart(Months);
+
+            var billingLossReport = await billingLossTask;
+            ConsumerBillingRows.Clear();
+            foreach (var row in billingLossReport.Consumers)
+                ConsumerBillingRows.Add(row);
+
+            TotalBillableWorkUnits = billingLossReport.TotalBillableUnits;
+            TotalNonBillableWorkUnits = billingLossReport.TotalNonBillableUnits;
+            TotalLostWorkPercentageLabel = billingLossReport.LostWorkPercentage is decimal percentage
+                ? $"{percentage:0.0}%"
+                : "—";
+            HasConsumerBillingRows = ConsumerBillingRows.Count > 0;
+        }
+
+        private static List<DateTime> BuildMonthWindow(DateTime start, DateTime end)
+        {
+            var months = new List<DateTime>();
+            for (var month = new DateTime(start.Year, start.Month, 1);
+                 month <= end;
+                 month = month.AddMonths(1))
+            {
+                months.Add(month);
+            }
+
+            return months;
+        }
+
+        private static string FormatPeriodLabel(
+            DateTime periodStart,
+            DateTime periodEnd,
+            DateTime monthStart,
+            DateTime monthEnd)
+        {
+            if (periodStart == monthStart && periodEnd == monthEnd)
+                return monthStart.ToString("MMM yyyy");
+            if (periodStart == periodEnd)
+                return periodStart.ToString("MMM d, yyyy");
+            if (periodStart.Month == periodEnd.Month && periodStart.Year == periodEnd.Year)
+                return $"{periodStart:MMM d}–{periodEnd:d, yyyy}";
+
+            return $"{periodStart:MMM d, yyyy}–{periodEnd:MMM d, yyyy}";
+        }
+
+        private static string FormatWindowLabel(DateTime start, DateTime end)
+        {
+            if (start == end)
+                return start.ToString("MMMM d, yyyy");
+            if (start.Month == end.Month && start.Year == end.Year)
+                return $"{start:MMMM d}–{end:d, yyyy}";
+            if (start.Year == end.Year)
+                return $"{start:MMM d}–{end:MMM d, yyyy}";
+
+            return $"{start:MMM d, yyyy}–{end:MMM d, yyyy}";
         }
 
         private static PlotModel BuildUnitsChart(IReadOnlyList<ProductivityMonth> months)
         {
+            var textColor = PlotTheme.Color(
+                "TextPrimaryBrush", OxyColor.FromRgb(0x3D, 0x2B, 0x1F));
+            var mutedColor = PlotTheme.Color(
+                "TextMutedBrush", OxyColor.FromRgb(0x8A, 0x7A, 0x6A));
+            var inputBorderColor = PlotTheme.Color(
+                "InputBorderBrush", OxyColor.FromRgb(0xED, 0xD9, 0xC0));
+
             var model = new PlotModel
             {
                 Background = OxyColors.Transparent,
                 PlotAreaBackground = OxyColors.Transparent,
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                TextColor = textColor,
                 PlotMargins = new OxyThickness(60, 10, 16, 30),
             };
 
@@ -158,7 +261,7 @@ namespace Sati.ViewModels
             var categoryAxis = new CategoryAxis
             {
                 Position = AxisPosition.Left,
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
+                TextColor = textColor,
                 TicklineColor = OxyColors.Transparent,
                 MajorGridlineStyle = LineStyle.None,
                 GapWidth = 0.4,
@@ -169,11 +272,12 @@ namespace Sati.ViewModels
                 Position = AxisPosition.Bottom,
                 Minimum = 0,
                 Title = "Units (Logged + Approved)",
-                TitleColor = OxyColor.FromRgb(0x8A, 0x7A, 0x6A),
-                TextColor = OxyColor.FromRgb(0x3D, 0x2B, 0x1F),
-                TicklineColor = OxyColor.FromRgb(0xED, 0xD9, 0xC0),
+                TitleColor = mutedColor,
+                TextColor = textColor,
+                TicklineColor = inputBorderColor,
                 MajorGridlineStyle = LineStyle.Dot,
-                MajorGridlineColor = OxyColor.FromArgb(80, 0x3D, 0x2B, 0x1F),
+                MajorGridlineColor = PlotTheme.ColorWithAlpha(
+                    "TextPrimaryBrush", 80, textColor),
             };
 
             var series = new BarSeries
@@ -192,10 +296,10 @@ namespace Sati.ViewModels
                     // no threshold snapshot (we can't judge attainment, so we don't pretend to).
                     Color = m.StatusLevel switch
                     {
-                        "Ok" => OxyColor.FromRgb(0x5A, 0x8A, 0x5A),
-                        "Warning" => OxyColor.FromRgb(0xC8, 0x79, 0x41),
-                        "Danger" => OxyColor.FromRgb(0xA6, 0x60, 0x7A),
-                        _ => OxyColor.FromRgb(0xD4, 0xA8, 0x82),
+                        "Ok" => PlotTheme.Color("CompliantBrush", OxyColor.FromRgb(0x5A, 0x8A, 0x5A)),
+                        "Warning" => PlotTheme.Color("WarningBrush", OxyColor.FromRgb(0xC8, 0x79, 0x41)),
+                        "Danger" => PlotTheme.Color("OverdueBrush", OxyColor.FromRgb(0xA6, 0x60, 0x7A)),
+                        _ => PlotTheme.Color("AccentBrush", OxyColor.FromRgb(0xD4, 0xA8, 0x82)),
                     },
                 });
             }

@@ -21,18 +21,47 @@ namespace Sati.ViewModels.Children
         // Settings and its TotalCost/PassthroughFee methods take the rate as an arg.
         private readonly decimal _rate;
 
-        public ATRequestEditorViewModel(ATRequest request, decimal passthroughRate)
+        public ATRequestEditorViewModel(
+            ATRequest request,
+            decimal passthroughRate,
+            IEnumerable<Provider> providers,
+            Provider? defaultProvider)
         {
             _request = request;
             _rate = passthroughRate;
+
+            foreach (var provider in providers)
+                AvailableProviders.Add(provider);
 
             // Wrap existing rows (present when 1d opens a saved request; empty for a
             // new one). Each row gets RaiseTotalsChanged as its change callback.
             foreach (var item in _request.Items)
                 Items.Add(new ATRequestItemEditorViewModel(item, RaiseTotalsChanged));
+
+            SelectedProvider = defaultProvider;
         }
 
         public ATRequest Request => _request;
+
+        // Provider is live directory data; Vendor* fields below are the immutable
+        // request snapshot once saved. Selecting a provider copies its current AT
+        // billing contacts into that snapshot, while leaving the copied fields
+        // editable for one-off request corrections.
+        public ObservableCollection<Provider> AvailableProviders { get; } = [];
+
+        [ObservableProperty]
+        private Provider? selectedProvider;
+
+        partial void OnSelectedProviderChanged(Provider? value)
+        {
+            if (value is null)
+                return;
+
+            VendorName = value.Name;
+            VendorBillingLocation = value.BillingLocationEis;
+            VendorProgramContact = value.ProgramContact;
+            VendorBillingContact = value.BillingContact;
+        }
 
         // ---- Read-only snapshot fields (for the preview pane) ----
         public string? ClientName => _request.ClientName;

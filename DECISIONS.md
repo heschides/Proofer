@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-07.*
+sections at the bottom. Last updated: 2026-08-08.*
 
 ---
 
@@ -13,6 +13,70 @@ invisible in the code - you see the `[Flags]` enum, not the join table it delibe
 isn't. This file records the fork: what was chosen, what was rejected, and why. If a
 decision here stops making sense, that's the signal to revisit it - not to quietly work
 around it.
+
+---
+
+## Platform direction
+
+### Sati is a cloud platform with a WPF client, not a cloud-attached desktop database
+
+The existing WPF application remains a first-class staff client and the current product-development
+surface. The target system, however, is an API-mediated platform that can support Windows, web, and
+mobile clients. Distributed clients do not connect directly to Azure SQL.
+
+**Rejected:** embedding a shared SQL credential in an installer. Trusted testers and synthetic data
+reduce immediate harm but do not make an extractable credential a sound product boundary.
+
+### The API is the authority
+
+Authentication, authorization, tenant isolation, workflow transitions, transactions, audits,
+migrations, and integrations are server responsibilities. UI visibility is never an authorization
+control. Caller-supplied user or agency IDs are hints at most; authoritative identity comes from the
+validated server session.
+
+### Managed identity is service-to-service identity
+
+Azure-hosted API and background-job identities receive least-privilege access to Azure SQL without
+stored passwords. Managed identity does not replace a Sati user's login and is not distributed to
+desktop installations.
+
+### Tenant isolation is structural
+
+`AgencyId` alone does not establish safe multi-tenancy. Every protected aggregate must have an
+unambiguous tenant owner, and enforcement must occur centrally with automated cross-tenant tests.
+Whether production ultimately uses a shared database, database-per-tenant, or a hybrid remains an
+explicit design decision; no feature may assume that a forgotten query predicate is adequate
+isolation.
+
+### Network contracts use DTOs, not EF entities
+
+EF entities are persistence models and may contain navigation graphs, internal fields, password
+material, or properties callers must not set. API request and response contracts are deliberately
+small, versionable DTOs. In particular, `PasswordHash` and `Salt` never leave the server.
+
+### Submitted healthcare records are amended, not overwritten
+
+Drafts may remain mutable. Submission, approval, signature, claim generation, or other defined
+record-finalization events create immutable versions. Later corrections produce amendments or new
+versions with a linked reason and actor. Audit events are append-only.
+
+### Clients do not migrate cloud databases
+
+`Database.Migrate()` remains acceptable during local development while the transition is underway.
+Production and distributed Demo schema changes run as controlled deployment operations before the
+new application version is admitted.
+
+### Demo schema and Demo seed are separate assets
+
+Migrations define structure. A versioned canonical seed defines the synthetic superhero/sitcom
+dataset and stored demonstration logins. A scheduled Azure job restores that baseline nightly under
+a reset-specific managed identity.
+
+### Automated tests are a platform prerequisite
+
+Further feature work may continue, but production expansion requires tests for tenant isolation,
+authorization, workflow transitions, concurrency, billing rules, audit completeness, migrations,
+and reset/recovery. Manual verification is not sufficient evidence for a healthcare SaaS platform.
 
 ---
 

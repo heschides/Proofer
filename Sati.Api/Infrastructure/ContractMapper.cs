@@ -1,0 +1,268 @@
+using Sati.Api.Data;
+using Sati.Contracts.V1;
+
+namespace Sati.Api.Infrastructure;
+
+internal static class ContractMapper
+{
+    private static readonly string[] GenderNames = ["Unknown", "Male", "Female", "NonBinary"];
+    private static readonly string[] WaiverNames = ["None", "Section21", "Section29"];
+    private static readonly string[] NoteStatusNames =
+    [
+        "Scheduled", "Pending", "Logged", "HeldForCompliance", "Cancelled", "Delayed",
+        "Approved", "Returned", "Abandoned", "ComplianceBlocked"
+    ];
+    private static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other"];
+    private static readonly string[] FormTypeNames =
+    [
+        "Q1R", "Q2R", "Q3R", "Q4R", "PCP", "ComprehensiveAssessment", "Reclassification",
+        "SafetyPlan", "PrivacyPractices", "Release_Agency", "Release_DHHS", "Release_Medical"
+    ];
+
+    public static UserProfileDto ToProfile(ServerUser user) => new(
+        user.Id,
+        user.Username,
+        user.DisplayName,
+        user.Role,
+        user.SupervisorId,
+        user.AgencyId,
+        user.Email,
+        user.Phone);
+
+    public static PersonDto ToPerson(
+        ServerPerson person,
+        IReadOnlyList<ServerForm> forms,
+        IReadOnlyList<ServerNote> notes) => new(
+        person.Id,
+        person.UserId,
+        person.FirstName,
+        person.LastName,
+        person.BirthDate,
+        NameAt(GenderNames, person.Gender, "Unknown"),
+        person.EffectiveDate,
+        person.Bio,
+        NameAt(WaiverNames, person.Waiver, "None"),
+        person.AgencyId,
+        person.MaineCareId,
+        person.DiagnosisCode,
+        person.PlaceOfService,
+        person.EvergreenId,
+        person.OpenWithVR,
+        person.HasGuardian,
+        person.GuardianName,
+        person.PhoneNumber,
+        person.Address,
+        person.PrimaryCareProvider,
+        person.HealthcareSystemName,
+        person.HasHomeSupport,
+        person.HasSelfDirectedHomeSupport,
+        person.HasSharedLiving,
+        person.HasCommunitySupport1To1,
+        person.HasCommunitySupportSelfDirected,
+        person.HasCommunitySupportDayProgram,
+        person.DayProgramCount,
+        person.HasEmploymentSpecialist,
+        person.HasWorkSupports,
+        person.IsEmployed,
+        forms.Select(ToForm).ToList(),
+        notes.Select(ToNoteSummary).ToList());
+
+    public static FormDto ToForm(ServerForm form) => new(
+        form.Id,
+        form.Type,
+        form.DueDate,
+        form.IsCompliant,
+        form.PersonId,
+        form.CompletedDate,
+        form.OpenedDate);
+
+    public static NoteSummaryDto ToNoteSummary(ServerNote note) => new(
+        NullableNameAt(NoteStatusNames, note.Status),
+        note.EventDate,
+        NullableNameAt(NoteTypeNames, note.NoteType));
+
+    public static NoteDto ToNote(ServerNote note, ServerPerson? person = null) => new(
+        note.Id,
+        note.Narrative,
+        note.EventDate,
+        NullableNameAt(NoteStatusNames, note.Status),
+        note.Minutes,
+        note.StartTime,
+        note.PersonId,
+        NullableNameAt(FormTypeNames, note.FormType),
+        NullableNameAt(NoteTypeNames, note.NoteType),
+        note.AgencyId,
+        note.ReturnReason,
+        note.ReturnedById,
+        note.ApprovedById,
+        note.ApprovedAt,
+        note.ReturnedAt,
+        note.CaseManagerJustification,
+        note.VisitDocumentationJson,
+        note.ComplianceOverride,
+        note.OverrideReason,
+        note.OverrideApprovedById,
+        note.OverrideApprovedAt,
+        person is null ? null : new PersonReferenceDto(person.Id, person.UserId, person.FirstName, person.LastName));
+
+    public static PersonContactDto ToPersonContact(ServerPersonContact contact) => new(
+        contact.Id,
+        contact.PersonId,
+        contact.FirstName,
+        contact.LastName,
+        contact.Kind,
+        contact.Relationship,
+        contact.Organization,
+        contact.Phone,
+        contact.Email,
+        contact.IsEmergencyContact,
+        contact.HasActiveRelease,
+        contact.IsActive);
+
+    public static BillingPeriodDto ToBillingPeriod(ServerBillingPeriod period) => new(
+        period.Id,
+        period.UserId,
+        period.Month,
+        period.Year,
+        NameAt(["Draft", "Submitted", "Accepted", "Rejected"], period.Status, "Draft"),
+        period.SubmittedAt,
+        period.Lines.Select(ToClaimLine).ToList());
+
+    public static ClaimLineDto ToClaimLine(ServerClaimLine line) => new(
+        line.Id,
+        line.NoteId,
+        line.BillingPeriodId,
+        line.DateOfService,
+        line.ProcedureCode,
+        line.Units,
+        line.ClientMaineCareId,
+        line.RenderingProviderNpi,
+        line.DiagnosisCode,
+        line.PlaceOfService,
+        line.IsComplianceException,
+        line.ComplianceExceptionReason);
+
+    public static ScratchpadDto ToScratchpad(
+        ServerScratchpad scratchpad,
+        IReadOnlyList<ServerScratchpadComment> comments) => new(
+        scratchpad.Id,
+        scratchpad.UserId,
+        scratchpad.Date,
+        scratchpad.Content,
+        comments.Select(ToScratchpadComment).ToList());
+
+    public static ScratchpadCommentDto ToScratchpadComment(ServerScratchpadComment comment) => new(
+        comment.Id,
+        comment.ScratchpadId,
+        comment.AuthorUserId,
+        comment.AuthorDisplayName,
+        comment.CreatedAtUtc,
+        comment.Content);
+
+    public static IncentiveDto ToIncentive(ServerIncentive incentive) => new(
+        incentive.Id,
+        incentive.UserId,
+        incentive.Month,
+        incentive.Year,
+        incentive.DaysScheduled,
+        incentive.BaseIncentive,
+        incentive.PerUnitIncentive,
+        incentive.UnitsPerDay,
+        incentive.ExcludedDatesJson);
+
+    public static ReviewItemDto ToReviewItem(ServerReviewItem item) => new(
+        item.Id, item.PersonId, item.CycleAnchor, item.Quarter, item.Category,
+        item.SlotIndex, item.RequestedDate, item.ReceivedDate, item.LoggedDate,
+        item.Appointment is null ? null : ToAppointment(item.Appointment));
+
+    public static AppointmentDto ToAppointment(ServerAppointment appointment) => new(
+        appointment.Id, appointment.ReviewItemId, appointment.Date, appointment.ProviderName);
+
+    public static ComprehensiveAssessmentDto ToAssessment(ServerComprehensiveAssessment assessment) => new(
+        assessment.Id, assessment.PersonId, assessment.AuthorUserId, assessment.Status,
+        assessment.Version, assessment.CreatedAt, assessment.UpdatedAt, assessment.SubmittedAt,
+        assessment.ApprovedAt, assessment.ApprovedByUserId, assessment.DocumentJson);
+
+    public static ProviderDto ToProvider(ServerProvider p) => new(
+        p.Id, p.Type, p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,
+        p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact);
+
+    public static AtRequestDto ToAtRequest(ServerAtRequest a) => new(
+        a.Id, a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,
+        a.CaseManagerPhone, a.CaseManagerAgency, a.VendorName, a.VendorBillingLocation,
+        a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SubmittedDate, a.DecisionDate,
+        a.Status, a.Items.Select(i => new AtRequestItemDto(i.Id, i.ATRequestId, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList());
+
+    public static SettingsDto ToSettings(ServerSettings s) => new(
+        s.Id, s.AbandonedAfterDays, s.ProductivityThreshold, s.BaseIncentive, s.PerUnitIncentive,
+        s.PassthroughRate, s.SalesTaxRate, s.DefaultPassthroughProviderId, s.VisitTemplate,
+        s.ContactTemplate, s.DocumentationTemplate, s.HealthcareSystemsJson, s.ExcludeMonday,
+        s.ExcludeTuesday, s.ExcludeWednesday, s.ExcludeThursday, s.ExcludeFriday,
+        s.ExcludeNewYearsDay, s.ExcludeMLKDay, s.ExcludePresidentsDay, s.ExcludeMemorialDay,
+        s.ExcludeJuneteenth, s.ExcludeIndependenceDay, s.ExcludeLaborDay,
+        s.ExcludeIndigenousPeoplesDay, s.ExcludeVeteransDay, s.ExcludeThanksgiving,
+        s.ExcludeDayAfterThanksgiving, s.ExcludeChristmas, s.ReviewOpenDaysBefore,
+        s.ReviewDaysAfterDue, s.PcpOpenDaysBefore, s.PcpDaysAfterDue,
+        s.CompAssessmentOpenDaysBefore, s.CompAssessmentDaysAfterDue,
+        s.ReclassificationOpenDaysBefore, s.ReclassificationDaysAfterDue,
+        s.SafetyPlanOpenDaysBefore, s.SafetyPlanDaysAfterDue,
+        s.PrivacyPracticesOpenDaysBefore, s.PrivacyPracticesDaysAfterDue,
+        s.ReleaseAgencyOpenDaysBefore, s.ReleaseAgencyDaysAfterDue,
+        s.ReleaseDhhsOpenDaysBefore, s.ReleaseDhhsDaysAfterDue,
+        s.ReleaseMedicalOpenDaysBefore, s.ReleaseMedicalDaysAfterDue,
+        s.Q4RDaysBeforeAnniversary, s.PcpDaysBeforeAnniversary,
+        s.CompAssessmentDaysBeforeAnniversary, s.ReclassificationDaysBeforeAnniversary,
+        s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
+        s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
+        s.ReleaseMedicalDaysBeforeAnniversary);
+
+    public static bool TryParseNoteStatus(string? value, out int? parsed) =>
+        TryParseNullableOrdinal(NoteStatusNames, value, out parsed);
+
+    public static bool TryParseNoteType(string? value, out int? parsed) =>
+        TryParseNullableOrdinal(NoteTypeNames, value, out parsed);
+
+    public static bool TryParseFormType(string? value, out int? parsed) =>
+        TryParseNullableOrdinal(FormTypeNames, value, out parsed);
+
+    public static bool TryParseGender(string? value, out int parsed) =>
+        TryParseOrdinal(GenderNames, value, out parsed);
+
+    public static bool TryParseWaiver(string? value, out int parsed) =>
+        TryParseOrdinal(WaiverNames, value, out parsed);
+
+    public static int FormTypeCount => FormTypeNames.Length;
+
+    public static string FormTypeName(int index) => NameAt(FormTypeNames, index, string.Empty);
+    public static string FormTypeNameSafe(string value) =>
+        int.TryParse(value, out var ordinal) ? NameAt(FormTypeNames, ordinal, value) : value;
+
+    private static bool TryParseNullableOrdinal(string[] names, string? value, out int? parsed)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            parsed = null;
+            return true;
+        }
+
+        var index = Array.FindIndex(names, x => string.Equals(x, value, StringComparison.Ordinal));
+        parsed = index >= 0 ? index : null;
+        return index >= 0;
+    }
+
+    private static bool TryParseOrdinal(string[] names, string? value, out int parsed)
+    {
+        parsed = Array.FindIndex(names, x => string.Equals(x, value, StringComparison.Ordinal));
+        return parsed >= 0;
+    }
+
+    public static int ParseNoteStatus(string? value) => Array.IndexOf(NoteStatusNames, value);
+    public static int ParseNoteType(string? value) => Array.IndexOf(NoteTypeNames, value);
+    public static int ParseFormType(string? value) => Array.IndexOf(FormTypeNames, value);
+
+    private static string NameAt(string[] names, int index, string fallback) =>
+        index >= 0 && index < names.Length ? names[index] : fallback;
+
+    private static string? NullableNameAt(string[] names, int? index) =>
+        index.HasValue && index.Value >= 0 && index.Value < names.Length ? names[index.Value] : null;
+}

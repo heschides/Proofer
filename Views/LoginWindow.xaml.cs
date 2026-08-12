@@ -43,6 +43,17 @@ namespace Sati.Views
                 PasswordInput.Clear();
                 PasswordInput.Focus();
             };
+
+            vm.SignInUnavailableRequested += (s, e) =>
+            {
+                MessageBox.Show(
+                    this,
+                    e.Message,
+                    e.Title,
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                PasswordInput.Focus();
+            };
         }
         public User? LoggedInUser =>
             (DataContext as LoginWindowViewModel)?.SelectedUser;

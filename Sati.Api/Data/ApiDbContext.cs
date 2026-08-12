@@ -1,0 +1,514 @@
+using Microsoft.EntityFrameworkCore;
+
+namespace Sati.Api.Data;
+
+internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(options)
+{
+    public DbSet<ServerUser> Users => Set<ServerUser>();
+    public DbSet<ServerPerson> People => Set<ServerPerson>();
+    public DbSet<ServerForm> Forms => Set<ServerForm>();
+    public DbSet<ServerNote> Notes => Set<ServerNote>();
+    public DbSet<ServerSettings> Settings => Set<ServerSettings>();
+    public DbSet<ServerScratchpad> Scratchpads => Set<ServerScratchpad>();
+    public DbSet<ServerScratchpadComment> ScratchpadComments => Set<ServerScratchpadComment>();
+    public DbSet<ServerExemptDate> ExemptDates => Set<ServerExemptDate>();
+    public DbSet<ServerIncentive> Incentives => Set<ServerIncentive>();
+    public DbSet<ServerPersonContact> PersonContacts => Set<ServerPersonContact>();
+    public DbSet<ServerAgency> Agencies => Set<ServerAgency>();
+    public DbSet<ServerBillingPeriod> BillingPeriods => Set<ServerBillingPeriod>();
+    public DbSet<ServerClaimLine> ClaimLines => Set<ServerClaimLine>();
+    public DbSet<ServerReviewItem> ReviewItems => Set<ServerReviewItem>();
+    public DbSet<ServerAppointment> Appointments => Set<ServerAppointment>();
+    public DbSet<ServerComprehensiveAssessment> ComprehensiveAssessments => Set<ServerComprehensiveAssessment>();
+    public DbSet<ServerProvider> Providers => Set<ServerProvider>();
+    public DbSet<ServerAtRequest> AtRequests => Set<ServerAtRequest>();
+    public DbSet<ServerAtRequestItem> AtRequestItems => Set<ServerAtRequestItem>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ServerUser>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Username).HasMaxLength(50);
+            entity.Property(x => x.Role).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<ServerPerson>(entity =>
+        {
+            entity.ToTable("People");
+            entity.HasKey(x => x.Id);
+            entity.HasMany(x => x.Forms)
+                .WithOne()
+                .HasForeignKey(x => x.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerForm>(entity =>
+        {
+            entity.ToTable("Forms");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<ServerNote>(entity =>
+        {
+            entity.ToTable("Notes");
+            entity.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<ServerSettings>(entity =>
+        {
+            entity.ToTable("Settings");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.AgencyId).IsUnique();
+            entity.Property(x => x.BaseIncentive).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.PerUnitIncentive).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.PassthroughRate).HasColumnType("decimal(5,4)");
+            entity.Property(x => x.SalesTaxRate).HasColumnType("decimal(5,4)");
+        });
+
+        modelBuilder.Entity<ServerScratchpad>(entity =>
+        {
+            entity.ToTable("Scratchpad");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.Date }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServerScratchpadComment>(entity =>
+        {
+            entity.ToTable("ScratchpadComments");
+            entity.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<ServerExemptDate>(entity =>
+        {
+            entity.ToTable("ExemptDates");
+            entity.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<ServerIncentive>(entity =>
+        {
+            entity.ToTable("Incentives");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.BaseIncentive).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.PerUnitIncentive).HasColumnType("decimal(18,2)");
+            entity.HasIndex(x => new { x.UserId, x.Month, x.Year }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServerPersonContact>(entity =>
+        {
+            entity.ToTable("PersonContacts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.FirstName).HasMaxLength(75);
+            entity.Property(x => x.LastName).HasMaxLength(75);
+            entity.Property(x => x.Kind).HasMaxLength(30);
+            entity.Property(x => x.Relationship).HasMaxLength(100);
+            entity.Property(x => x.Organization).HasMaxLength(150);
+            entity.Property(x => x.Phone).HasMaxLength(30);
+            entity.Property(x => x.Email).HasMaxLength(254);
+            entity.HasIndex(x => new { x.PersonId, x.IsActive });
+        });
+
+        modelBuilder.Entity<ServerAgency>(entity =>
+        {
+            entity.ToTable("Agencies");
+            entity.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<ServerBillingPeriod>(entity =>
+        {
+            entity.ToTable("BillingPeriods");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.Month, x.Year }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServerClaimLine>(entity =>
+        {
+            entity.ToTable("ClaimLines");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Units).HasColumnType("decimal(18,2)");
+            entity.HasOne<ServerBillingPeriod>()
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.BillingPeriodId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerReviewItem>(entity =>
+        {
+            entity.ToTable("ReviewItems");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Category).HasMaxLength(30);
+            entity.HasIndex(x => new { x.PersonId, x.CycleAnchor, x.Quarter, x.Category, x.SlotIndex }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServerAppointment>(entity =>
+        {
+            entity.ToTable("Appointments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ProviderName).HasMaxLength(100);
+            entity.HasOne<ServerReviewItem>()
+                .WithOne(x => x.Appointment)
+                .HasForeignKey<ServerAppointment>(x => x.ReviewItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerComprehensiveAssessment>(entity =>
+        {
+            entity.ToTable("ComprehensiveAssessments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Status).HasMaxLength(30);
+            entity.Property(x => x.DocumentJson).IsRequired();
+            entity.HasIndex(x => new { x.PersonId, x.Version }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServerProvider>(entity =>
+        {
+            entity.ToTable("Providers"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.AgencyId, x.Name });
+            entity.Property(x => x.Type).HasMaxLength(20);
+        });
+        modelBuilder.Entity<ServerAtRequest>(entity =>
+        {
+            entity.ToTable("ATRequests"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Status).HasMaxLength(20);
+            entity.Property(x => x.SalesTax).HasColumnType("decimal(18,2)");
+            entity.HasMany(x => x.Items).WithOne().HasForeignKey(x => x.ATRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ServerAtRequestItem>(entity =>
+        {
+            entity.ToTable("ATRequestItems"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.ItemCost).HasColumnType("decimal(18,2)");
+        });
+    }
+}
+
+internal sealed class ServerUser
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string Salt { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public int? SupervisorId { get; set; }
+    public int AgencyId { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+}
+
+internal sealed class ServerPerson
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public DateTime BirthDate { get; set; }
+    public int Gender { get; set; }
+    public DateTime? EffectiveDate { get; set; }
+    public string? Bio { get; set; }
+    public string? Journal { get; set; }
+    public int Waiver { get; set; }
+    public int? AgencyId { get; set; }
+    public string? MaineCareId { get; set; }
+    public string? DiagnosisCode { get; set; }
+    public int? PlaceOfService { get; set; }
+    public string? EvergreenId { get; set; }
+    public bool OpenWithVR { get; set; }
+    public bool HasGuardian { get; set; }
+    public string? GuardianName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Address { get; set; }
+    public string? PrimaryCareProvider { get; set; }
+    public string? HealthcareSystemName { get; set; }
+    public bool HasHomeSupport { get; set; }
+    public bool HasSelfDirectedHomeSupport { get; set; }
+    public bool HasSharedLiving { get; set; }
+    public bool HasCommunitySupport1To1 { get; set; }
+    public bool HasCommunitySupportSelfDirected { get; set; }
+    public bool HasCommunitySupportDayProgram { get; set; }
+    public int DayProgramCount { get; set; }
+    public bool HasEmploymentSpecialist { get; set; }
+    public bool HasWorkSupports { get; set; }
+    public bool IsEmployed { get; set; }
+    public List<ServerForm> Forms { get; set; } = [];
+}
+
+internal sealed class ServerForm
+{
+    public int Id { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public DateTime DueDate { get; set; }
+    public bool IsCompliant { get; set; }
+    public int PersonId { get; set; }
+    public DateTime? CompletedDate { get; set; }
+    public DateTime? OpenedDate { get; set; }
+}
+
+internal sealed class ServerNote
+{
+    public int Id { get; set; }
+    public string Narrative { get; set; } = string.Empty;
+    public DateTime? EventDate { get; set; }
+    public int? Status { get; set; }
+    public int? Minutes { get; set; }
+    public int? StartTime { get; set; }
+    public int PersonId { get; set; }
+    public int? FormType { get; set; }
+    public int? NoteType { get; set; }
+    public int? AgencyId { get; set; }
+    public string? ReturnReason { get; set; }
+    public int? ReturnedById { get; set; }
+    public int? ApprovedById { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public DateTime? ReturnedAt { get; set; }
+    public string? CaseManagerJustification { get; set; }
+    public string? VisitDocumentationJson { get; set; }
+    public bool ComplianceOverride { get; set; }
+    public string? OverrideReason { get; set; }
+    public int? OverrideApprovedById { get; set; }
+    public DateTime? OverrideApprovedAt { get; set; }
+}
+
+internal sealed class ServerSettings
+{
+    public int Id { get; set; }
+    public int AgencyId { get; set; }
+    public int AbandonedAfterDays { get; set; } = 7;
+    public int ProductivityThreshold { get; set; } = 100;
+    public decimal BaseIncentive { get; set; }
+    public decimal PerUnitIncentive { get; set; }
+    public decimal PassthroughRate { get; set; } = 0.15m;
+    public decimal SalesTaxRate { get; set; } = 0.055m;
+    public int? DefaultPassthroughProviderId { get; set; }
+    public string VisitTemplate { get; set; } = string.Empty;
+    public string ContactTemplate { get; set; } = string.Empty;
+    public string DocumentationTemplate { get; set; } = string.Empty;
+    public string HealthcareSystemsJson { get; set; } = "[\"Other\"]";
+    public bool ExcludeMonday { get; set; }
+    public bool ExcludeTuesday { get; set; }
+    public bool ExcludeWednesday { get; set; }
+    public bool ExcludeThursday { get; set; }
+    public bool ExcludeFriday { get; set; }
+    public bool ExcludeNewYearsDay { get; set; } = true;
+    public bool ExcludeMLKDay { get; set; }
+    public bool ExcludePresidentsDay { get; set; }
+    public bool ExcludeMemorialDay { get; set; } = true;
+    public bool ExcludeJuneteenth { get; set; }
+    public bool ExcludeIndependenceDay { get; set; } = true;
+    public bool ExcludeLaborDay { get; set; } = true;
+    public bool ExcludeIndigenousPeoplesDay { get; set; }
+    public bool ExcludeVeteransDay { get; set; }
+    public bool ExcludeThanksgiving { get; set; } = true;
+    public bool ExcludeDayAfterThanksgiving { get; set; } = true;
+    public bool ExcludeChristmas { get; set; } = true;
+    public int ReviewOpenDaysBefore { get; set; } = 10;
+    public int ReviewDaysAfterDue { get; set; } = 10;
+    public int PcpOpenDaysBefore { get; set; } = 90;
+    public int PcpDaysAfterDue { get; set; } = 30;
+    public int CompAssessmentOpenDaysBefore { get; set; } = 30;
+    public int CompAssessmentDaysAfterDue { get; set; } = 30;
+    public int ReclassificationOpenDaysBefore { get; set; } = 15;
+    public int ReclassificationDaysAfterDue { get; set; }
+    public int SafetyPlanOpenDaysBefore { get; set; } = 60;
+    public int SafetyPlanDaysAfterDue { get; set; } = 30;
+    public int PrivacyPracticesOpenDaysBefore { get; set; } = 30;
+    public int PrivacyPracticesDaysAfterDue { get; set; } = 30;
+    public int ReleaseAgencyOpenDaysBefore { get; set; } = 30;
+    public int ReleaseAgencyDaysAfterDue { get; set; } = 30;
+    public int ReleaseDhhsOpenDaysBefore { get; set; } = 30;
+    public int ReleaseDhhsDaysAfterDue { get; set; } = 30;
+    public int ReleaseMedicalOpenDaysBefore { get; set; } = 30;
+    public int ReleaseMedicalDaysAfterDue { get; set; } = 30;
+    public int Q4RDaysBeforeAnniversary { get; set; } = 5;
+    public int PcpDaysBeforeAnniversary { get; set; }
+    public int CompAssessmentDaysBeforeAnniversary { get; set; } = 60;
+    public int ReclassificationDaysBeforeAnniversary { get; set; } = 30;
+    public int SafetyPlanDaysBeforeAnniversary { get; set; }
+    public int PrivacyPracticesDaysBeforeAnniversary { get; set; }
+    public int ReleaseAgencyDaysBeforeAnniversary { get; set; }
+    public int ReleaseDhhsDaysBeforeAnniversary { get; set; }
+    public int ReleaseMedicalDaysBeforeAnniversary { get; set; }
+}
+
+internal sealed class ServerScratchpad
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public DateTime Date { get; set; }
+    public string Content { get; set; } = string.Empty;
+}
+
+internal sealed class ServerScratchpadComment
+{
+    public int Id { get; set; }
+    public int ScratchpadId { get; set; }
+    public int AuthorUserId { get; set; }
+    public string AuthorDisplayName { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public string Content { get; set; } = string.Empty;
+}
+
+internal sealed class ServerExemptDate
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public DateTime Date { get; set; }
+    public string? Reason { get; set; }
+}
+
+internal sealed class ServerIncentive
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public int Month { get; set; }
+    public int Year { get; set; }
+    public int DaysScheduled { get; set; }
+    public decimal BaseIncentive { get; set; }
+    public decimal PerUnitIncentive { get; set; }
+    public int UnitsPerDay { get; set; }
+    public string ExcludedDatesJson { get; set; } = "[]";
+}
+
+internal sealed class ServerPersonContact
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Kind { get; set; } = "Personal";
+    public string? Relationship { get; set; }
+    public string? Organization { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public bool IsEmergencyContact { get; set; }
+    public bool HasActiveRelease { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+internal sealed class ServerAgency
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Npi { get; set; }
+    public string? TaxId { get; set; }
+    public string? Street { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Zip { get; set; }
+}
+
+internal sealed class ServerBillingPeriod
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public int Month { get; set; }
+    public int Year { get; set; }
+    public int Status { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public List<ServerClaimLine> Lines { get; set; } = [];
+}
+
+internal sealed class ServerClaimLine
+{
+    public int Id { get; set; }
+    public int NoteId { get; set; }
+    public int BillingPeriodId { get; set; }
+    public DateTime DateOfService { get; set; }
+    public string ProcedureCode { get; set; } = string.Empty;
+    public decimal? Units { get; set; }
+    public string ClientMaineCareId { get; set; } = string.Empty;
+    public string RenderingProviderNpi { get; set; } = string.Empty;
+    public string DiagnosisCode { get; set; } = string.Empty;
+    public int PlaceOfService { get; set; }
+    public bool IsComplianceException { get; set; }
+    public string? ComplianceExceptionReason { get; set; }
+}
+
+internal sealed class ServerReviewItem
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public DateTime CycleAnchor { get; set; }
+    public int Quarter { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public DateTime? RequestedDate { get; set; }
+    public DateTime? ReceivedDate { get; set; }
+    public DateTime? LoggedDate { get; set; }
+    public int SlotIndex { get; set; }
+    public ServerAppointment? Appointment { get; set; }
+}
+
+internal sealed class ServerAppointment
+{
+    public int Id { get; set; }
+    public int ReviewItemId { get; set; }
+    public DateTime Date { get; set; }
+    public string? ProviderName { get; set; }
+}
+
+internal sealed class ServerComprehensiveAssessment
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public int AuthorUserId { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int Version { get; set; } = 1;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public int? ApprovedByUserId { get; set; }
+    public string DocumentJson { get; set; } = "{}";
+}
+
+internal sealed class ServerProvider
+{
+    public int Id { get; set; }
+    public int AgencyId { get; set; }
+    public string Type { get; set; } = "Waiver";
+    public string Name { get; set; } = string.Empty;
+    public string? Street { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Zip { get; set; }
+    public string? PrimaryContact { get; set; }
+    public string? Phone { get; set; }
+    public int OfferedServices { get; set; }
+    public bool ProvidesPassthroughService { get; set; }
+    public string? BillingLocationEis { get; set; }
+    public string? ProgramContact { get; set; }
+    public string? BillingContact { get; set; }
+}
+
+internal sealed class ServerAtRequest
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public string? ClientName { get; set; }
+    public string? ClientEvergreenId { get; set; }
+    public string? CaseManagerName { get; set; }
+    public string? CaseManagerEmail { get; set; }
+    public string? CaseManagerPhone { get; set; }
+    public string? CaseManagerAgency { get; set; }
+    public string? VendorName { get; set; }
+    public string? VendorBillingLocation { get; set; }
+    public string? VendorProgramContact { get; set; }
+    public string? VendorBillingContact { get; set; }
+    public decimal SalesTax { get; set; }
+    public DateTime? SubmittedDate { get; set; }
+    public DateTime? DecisionDate { get; set; }
+    public string Status { get; set; } = "Development";
+    public byte[]? SnapshotPng { get; set; }
+    public List<ServerAtRequestItem> Items { get; set; } = [];
+}
+
+internal sealed class ServerAtRequestItem
+{
+    public int Id { get; set; }
+    public int ATRequestId { get; set; }
+    public string? Name { get; set; }
+    public decimal ItemCost { get; set; }
+    public int Quantity { get; set; }
+    public string? Url { get; set; }
+}

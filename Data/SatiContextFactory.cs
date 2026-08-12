@@ -18,7 +18,7 @@ namespace Sati.Data
                 .Build();
 
             var optionsBuilder = new DbContextOptionsBuilder<SatiContext>();
-            optionsBuilder.UseSqlServer(config.GetConnectionString("SatiDb"));
+            optionsBuilder.UseSqlServer(config.GetConnectionString("SatiProduction"));
 
             return new SatiContext(optionsBuilder.Options);
 

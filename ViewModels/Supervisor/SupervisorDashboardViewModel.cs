@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection.Metadata;
@@ -44,6 +45,7 @@ namespace Sati.ViewModels.Supervisor
             ISettingsService settingsService,
             IUpcomingEventService upcomingEventService,
             IUserService userService,
+            ThemeService themeService,
             UserManagementViewModel userManagementViewModel,
             PendingApprovalsViewModel pendingApprovalsViewModel)
         {
@@ -69,6 +71,14 @@ namespace Sati.ViewModels.Supervisor
             _teamOverviewViewModel = new TeamOverviewViewModel();
             _overdueItemsViewModel = new OverdueItemsViewModel();
             _monthlyProductivityViewModel = new MonthlyProductivityViewModel();
+
+            // OxyPlot colors are resolved in code rather than DynamicResource.
+            // Rebuild both chart models immediately when the active palette changes.
+            themeService.ThemeChanged += (_, _) =>
+            {
+                _teamOverviewViewModel.Refresh(CaseManagers);
+                _monthlyProductivityViewModel.Refresh(CaseManagers);
+            };
 
             // Start on team overview
             CurrentSubView = _teamOverviewViewModel;

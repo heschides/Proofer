@@ -134,7 +134,14 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string? visitObservationDetails;
         [ObservableProperty] private string? visitAdditionalAttendees;
 
-        public static Array NoteStatusOptions => Enum.GetValues(typeof(NoteStatus));
+        public static IReadOnlyList<NoteStatus> NoteStatusOptions { get; } =
+        [
+            NoteStatus.Scheduled,
+            NoteStatus.Pending,
+            NoteStatus.Logged,
+            NoteStatus.Cancelled,
+            NoteStatus.Delayed
+        ];
         public Array FormTypes => Enum.GetValues(typeof(FormType));
         public bool IsFormNote => SelectedNoteType == NoteType.Form;
         public bool IsVisitNote => SelectedNoteType == NoteType.Visit;

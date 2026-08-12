@@ -10,7 +10,7 @@ namespace Sati.Data
 {
     /// <summary>
     /// TEMPORARY one-time maintenance. Marks every form whose DueDate is on or before
-    /// a cutoff, and which is not already compliant, as complete — stamping the form's
+    /// a cutoff, and which has no completion date, as complete — stamping the form's
     /// own DueDate as the completion date (the on-time assumption, approved for this
     /// one-time reconciliation against an external tracking sheet that shows the work
     /// done through the cutoff).
@@ -18,6 +18,10 @@ namespace Sati.Data
     /// Writes compliance state through the sanctioned door (Form.MarkComplete), so the
     /// IsCompliant/CompletedDate invariant is preserved. Only touches forms that are
     /// NOT already compliant, so existing recorded completions are never overwritten.
+    ///
+    /// This includes legacy rows that say IsCompliant=true but have no CompletedDate;
+    /// those rows cannot support historical billing-window evaluation until reconciled.
+    /// Existing recorded completion dates are never overwritten.
     ///
     /// Two-phase with the same latch as FormDueDateBackfill: DryRunAsync reports what
     /// it would mark and arms the latch with the count AND the cutoff; CommitAsync
@@ -41,7 +45,8 @@ namespace Sati.Data
 
         public record BulkCompletionReport(
             bool Committed, DateTime Cutoff, int FormsMarked,
-            int AlreadyCompliant, string ReportFilePath);
+            int AlreadyCompleted, int LegacyCompliantMissingDate,
+            string ReportFilePath);
 
         public async Task<BulkCompletionReport> DryRunAsync(DateTime cutoffInclusive)
         {
@@ -87,16 +92,18 @@ namespace Sati.Data
         }
 
         // The selection rule, in one place so dry run and commit can't diverge:
-        // due on or before the cutoff, and not already compliant.
+        // due on or before the cutoff, and missing its historical completion date.
         private static IEnumerable<Form> Eligible(IEnumerable<Form> forms, DateTime cutoffInclusive)
-            => forms.Where(f => f.DueDate.Date <= cutoffInclusive.Date && !f.IsCompliant);
+            => forms.Where(f => f.DueDate.Date <= cutoffInclusive.Date
+                             && f.CompletedDate is null);
 
         private static BulkCompletionReport WriteReport(
             List<Form> forms, DateTime cutoffInclusive, bool committed)
         {
             var eligible = Eligible(forms, cutoffInclusive).ToList();
-            var alreadyCompliant = forms.Count(f =>
-                f.DueDate.Date <= cutoffInclusive.Date && f.IsCompliant);
+            var alreadyCompleted = forms.Count(f =>
+                f.DueDate.Date <= cutoffInclusive.Date && f.CompletedDate.HasValue);
+            var legacyCompliantMissingDate = eligible.Count(f => f.IsCompliant);
 
             var sb = new StringBuilder();
             sb.AppendLine("================================================================");
@@ -106,7 +113,8 @@ namespace Sati.Data
             sb.AppendLine("================================================================");
             sb.AppendLine();
             sb.AppendLine($"  Forms marked complete .......... {eligible.Count}");
-            sb.AppendLine($"  Already compliant (untouched) .. {alreadyCompliant}");
+            sb.AppendLine($"  Already completed (untouched) .. {alreadyCompleted}");
+            sb.AppendLine($"  Legacy compliant/missing date .. {legacyCompliantMissingDate}");
             sb.AppendLine();
             sb.AppendLine("---- FORMS MARKED COMPLETE (completion date = due date) ----");
             foreach (var f in eligible
@@ -123,7 +131,8 @@ namespace Sati.Data
             File.WriteAllText(path, sb.ToString());
 
             return new BulkCompletionReport(
-                committed, cutoffInclusive.Date, eligible.Count, alreadyCompliant, path);
+                committed, cutoffInclusive.Date, eligible.Count, alreadyCompleted,
+                legacyCompliantMissingDate, path);
         }
     }
 }

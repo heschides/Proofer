@@ -1,4 +1,6 @@
 <Solution>
-  <Project Path="../Sati.Tests/Sati.Tests.csproj" Id="ee0642a3-d6a8-4420-b1e1-5ea1da9ddf37" />
+  <Project Path="Sati.Api/Sati.Api.csproj" />
+  <Project Path="Sati.Contracts/Sati.Contracts.csproj" />
+  <Project Path="Sati.Tests/Sati.Tests.csproj" />
   <Project Path="Sati.csproj" />
 </Solution>

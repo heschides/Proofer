@@ -24,9 +24,9 @@
     <SolidColorBrush x:Key="BorderBrush" Color="#E2D2D5" />
     <SolidColorBrush x:Key="InputBorderBrush" Color="#CCB8BD" />
     <SolidColorBrush x:Key="DividerBrush" Color="#EBDDE0" />
-    <SolidColorBrush x:Key="AccentBrush" Color="#B87482" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#9D5E6C" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#814B58" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#9D5E6C" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#814B58" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#693C47" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FFF9FA" />
     <!-- Local AI: soft aubergine, distinct but harmonious with rosewater. -->
     <Color x:Key="AiGlowColor">#FF9B7BA8</Color>
@@ -40,13 +40,13 @@
     <SolidColorBrush x:Key="HoverBrush" Color="#EFE1E3" />
     <SolidColorBrush x:Key="HoverStrongBrush" Color="#D8C3C8" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#403638" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#79696D" />
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#95858A" />
-    <SolidColorBrush x:Key="TextSubtleBrush" Color="#B09FA4" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#635459" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#6C5D61" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#706166" />
     <SolidColorBrush x:Key="NarrativeTextBrush" Color="#625257" />
     <SolidColorBrush x:Key="PersonGroupBrush" Color="#FFF9F9" />
     <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#F3E9ED" />
     <Color x:Key="SurfaceAltColor">#FFF5E9EA</Color>
     <Color x:Key="SurfaceRaisedColor">#FFFFFBFA</Color>
-    <Color x:Key="TextSubtleColor">#FFB09FA4</Color>
+    <Color x:Key="TextSubtleColor">#FF706166</Color>
 </ResourceDictionary>

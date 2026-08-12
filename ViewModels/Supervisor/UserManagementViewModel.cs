@@ -4,6 +4,9 @@ using Sati.Data;
 using Sati.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using Sati.Views;
+using System.Security;
+using System.Runtime.InteropServices;
 
 namespace Sati.ViewModels.Supervisor
 {
@@ -15,15 +18,18 @@ namespace Sati.ViewModels.Supervisor
 
         private readonly IUserService _userService;
         private readonly ISessionService _sessionService;
+        private readonly Func<NewUserWindow> _newUserWindowFactory;
 
         // -------------------------------------------------------------------------
         // Constructor
         // -------------------------------------------------------------------------
 
-        public UserManagementViewModel(IUserService userService, ISessionService sessionService)
+        public UserManagementViewModel(IUserService userService, ISessionService sessionService,
+            Func<NewUserWindow> newUserWindowFactory)
         {
             _userService = userService;
             _sessionService = sessionService;
+            _newUserWindowFactory = newUserWindowFactory;
         }
 
         // -------------------------------------------------------------------------
@@ -41,6 +47,10 @@ namespace Sati.ViewModels.Supervisor
         [ObservableProperty] private User? selectedSupervisor;
         [ObservableProperty] private UserRole selectedRole;
         [ObservableProperty] private string statusMessage = string.Empty;
+        [ObservableProperty] private SecureString? resetPasswordValue;
+        [ObservableProperty] private SecureString? resetPasswordConfirmation;
+
+        public event Action? ResetPasswordInputsCleared;
 
         // -------------------------------------------------------------------------
         // Collections
@@ -64,6 +74,7 @@ namespace Sati.ViewModels.Supervisor
         {
             OnPropertyChanged(nameof(HasSelectedUser));
             StatusMessage = string.Empty;
+            ClearResetPasswordInputs();
 
             if (value is null)
                 return;
@@ -75,6 +86,17 @@ namespace Sati.ViewModels.Supervisor
         // -------------------------------------------------------------------------
         // Commands
         // -------------------------------------------------------------------------
+
+        [RelayCommand]
+        private async Task CreateUser()
+        {
+            var window = _newUserWindowFactory();
+            if (window.ShowDialog() == true)
+            {
+                await RefreshAsync();
+                UsersChanged?.Invoke();
+            }
+        }
 
         [RelayCommand]
         private async Task SaveChanges()
@@ -106,13 +128,61 @@ namespace Sati.ViewModels.Supervisor
 
             try
             {
-                await _userService.ResetPasswordAsync(SelectedUser, "defaultpassword");
-                StatusMessage = $"Password reset to 'defaultpassword' for {SelectedUser.DisplayName}.";
+                if (ResetPasswordValue is null || ResetPasswordValue.Length is < 8 or > 128)
+                {
+                    StatusMessage = "Enter a new password between 8 and 128 characters.";
+                    return;
+                }
+                if (ResetPasswordConfirmation is null ||
+                    !SecureStringsMatch(ResetPasswordValue, ResetPasswordConfirmation))
+                {
+                    StatusMessage = "The new passwords do not match.";
+                    return;
+                }
+
+                await _userService.ResetPasswordAsync(SelectedUser, ResetPasswordValue);
+                StatusMessage = $"Password reset for {SelectedUser.DisplayName}.";
+                ClearResetPasswordInputs();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"ResetPassword failed: {ex.Message}");
                 StatusMessage = "Failed to reset password.";
+            }
+        }
+
+        private void ClearResetPasswordInputs()
+        {
+            ResetPasswordValue?.Dispose();
+            ResetPasswordConfirmation?.Dispose();
+            ResetPasswordValue = null;
+            ResetPasswordConfirmation = null;
+            ResetPasswordInputsCleared?.Invoke();
+        }
+
+        private static bool SecureStringsMatch(SecureString first, SecureString second)
+        {
+            if (first.Length != second.Length)
+                return false;
+
+            var firstPtr = IntPtr.Zero;
+            var secondPtr = IntPtr.Zero;
+            try
+            {
+                firstPtr = Marshal.SecureStringToGlobalAllocUnicode(first);
+                secondPtr = Marshal.SecureStringToGlobalAllocUnicode(second);
+                for (var index = 0; index < first.Length; index++)
+                {
+                    if (Marshal.ReadInt16(firstPtr, index * sizeof(char)) !=
+                        Marshal.ReadInt16(secondPtr, index * sizeof(char)))
+                        return false;
+                }
+                return true;
+            }
+            finally
+            {
+                if (firstPtr != IntPtr.Zero) Marshal.ZeroFreeGlobalAllocUnicode(firstPtr);
+                if (secondPtr != IntPtr.Zero) Marshal.ZeroFreeGlobalAllocUnicode(secondPtr);
             }
         }
 

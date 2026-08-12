@@ -1,10 +1,37 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace Sati.Models.Assessments;
 
 public enum AssessmentStatus { Draft, ReadyForReview, Returned, Approved, Superseded }
 
-public enum AssessmentAnswerStatus { Answered, NotApplicable, Declined, UnableToAssess, FollowUpRequired }
+public enum AssessmentAnswerStatus
+{
+    [Description("Answered")] Answered = 0,
+    [Description("Not Applicable")] NotApplicable = 1,
+    [Description("Declined")] Declined = 2,
+    [Description("Unable to Assess")] UnableToAssess = 3,
+    [Description("Follow-Up Required")] FollowUpRequired = 4,
+    [Description("Not Yet Answered")] NotYetAnswered = 5
+}
+
+public enum AssessmentQuestionKind { Narrative, YesNo, HealthConcern, Therapy, ActivitySupport }
+
+public enum ActivitySupportLevel
+{
+    Independent = 0,
+    Prompting = 1,
+    // Retained only to read drafts saved before skills training became a
+    // separate checkbox. New responses never write this value.
+    SkillsTraining = 2,
+    Monitoring = 3,
+    PhysicalAssistance = 4,
+    TotalCare = 5
+}
+
+public enum TherapySessionFormat { NotSelected, InPerson, Telehealth }
+
+public enum TherapyFrequencyDirection { NotSelected, Increase, Decrease }
 
 [Flags]
 public enum SupportMethod
@@ -51,19 +78,33 @@ public sealed class AssessmentContributor
 
 public sealed class AssessmentAnswer
 {
-    public AssessmentAnswerStatus Status { get; set; } = AssessmentAnswerStatus.FollowUpRequired;
+    public AssessmentAnswerStatus Status { get; set; } = AssessmentAnswerStatus.NotYetAnswered;
     public string Narrative { get; set; } = string.Empty;
     public SupportMethod Supports { get; set; }
     public string SupportDetails { get; set; } = string.Empty;
     public string ExceptionReason { get; set; } = string.Empty;
     public string DissentingOpinion { get; set; } = string.Empty;
+    public bool? YesNoResponse { get; set; }
+    public bool? FollowUpYesNoResponse { get; set; }
+    public string Details { get; set; } = string.Empty;
+    public TherapySessionFormat TherapySessionFormat { get; set; }
+    public bool? WantsOtherSessionFormat { get; set; }
+    public bool? WantsFrequencyChange { get; set; }
+    public TherapyFrequencyDirection TherapyFrequencyDirection { get; set; }
+    public Dictionary<string, ActivitySupportLevel> ActivitySupportLevels { get; set; } = [];
+    public Dictionary<string, bool> ActivitySkillsTraining { get; set; } = [];
 }
 
 public enum AssessmentNeedType
 {
-    Material, Support, SkillDevelopment, AccessOrAccommodation,
-    HealthOrSafety, RelationshipOrCommunity, ChoiceAutonomyOrRights,
-    InformationPlanningOrDecisionSupport
+    [Description("Material")] Material,
+    [Description("Support")] Support,
+    [Description("Skill Development")] SkillDevelopment,
+    [Description("Access or Accommodation")] AccessOrAccommodation,
+    [Description("Health or Safety")] HealthOrSafety,
+    [Description("Relationship or Community")] RelationshipOrCommunity,
+    [Description("Choice, Autonomy, or Rights")] ChoiceAutonomyOrRights,
+    [Description("Information, Planning, or Decision Support")] InformationPlanningOrDecisionSupport
 }
 
 public sealed class AssessmentNeed

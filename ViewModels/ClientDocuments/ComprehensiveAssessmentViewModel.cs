@@ -30,6 +30,10 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
     public ObservableCollection<AssessmentNeedViewModel> Needs { get; } = [];
     public Array AnswerStatuses => Enum.GetValues<AssessmentAnswerStatus>();
     public Array NeedTypes => Enum.GetValues<AssessmentNeedType>();
+    public Array TherapySessionFormats => Enum.GetValues<TherapySessionFormat>().Cast<TherapySessionFormat>()
+        .Where(value => value != TherapySessionFormat.NotSelected).ToArray();
+    public Array TherapyFrequencyDirections => Enum.GetValues<TherapyFrequencyDirection>().Cast<TherapyFrequencyDirection>()
+        .Where(value => value != TherapyFrequencyDirection.NotSelected).ToArray();
 
     public ComprehensiveAssessmentViewModel(IComprehensiveAssessmentService service, ISessionService session)
     {
@@ -62,6 +66,8 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
                 _record = null;
                 _document = new();
                 PersonName = person?.FullName ?? "Select a consumer to begin.";
+                foreach (var question in Sections.SelectMany(section => section.Questions))
+                    question.SetPerson(person);
                 HasPerson = person is not null;
                 var user = _session.CurrentUser;
                 CanEdit = person is not null && user is not null && person.UserId == user.Id;
@@ -224,28 +230,52 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
     private void BuildSections()
     {
         AddSection("Getting started", "People & context",
-            Q("good-life", "What does a good life look like to this person?",
+            Q("self-view", "How {Name} sees {reflexive}",
+              "Center the assessment in the person’s own understanding of who they are.",
+              "Strengths, identity, interests, values, and anything the person wants others to understand.", "A diagnostic or service-based description written only by others."),
+            Q("what-people-like", "What do people like about {object}?",
+              "Capture strengths that other people experience in their relationship with the person.",
+              "Specific qualities, contributions, examples, and perspectives from people who know the person.", "Generic compliments without an example."),
+            Q("good-life", "What does a good life look like to {object}?",
               "Describe the person’s own priorities, routines, relationships, places, and experiences that make life meaningful.",
-              "Concrete preferences and examples in everyday language.", "Happy, appropriate, doing well, or generic service goals without examples."),
-            Q("communication", "What must others know to communicate successfully with the person?",
-              "Explain how the person expresses choices, agreement, refusal, discomfort, and the need for a break.",
-              "Methods that work, signs others may miss, processing time, and useful accommodations.", "Nonverbal, poor communicator, or guardian speaks for them without describing the person."));
+              "Concrete preferences and examples in everyday language.", "Happy, appropriate, doing well, or generic service goals without examples."));
+
+        AddSection("Communication", "Understanding & expression",
+            Q("communication-overview", "What should people know about communicating with {Name}?",
+              "Explain how the person communicates choices, agreement, refusal, discomfort, and a need for a break.",
+              "Methods that work, signs others may miss, processing time, and useful accommodations.", "Labels without describing how communication works."),
+            Q("receptive-communication", "What support {does} {subject} need with receptive communication?",
+              "Describe what helps the person understand information from other people.",
+              "Language, pacing, visual supports, repetition, environment, and how understanding is confirmed.", "Understands or does not understand without examples."),
+            Q("expressive-communication", "What support {does} {subject} need with expressive communication?",
+              "Describe what helps the person communicate thoughts, needs, preferences, and decisions.",
+              "Speech, gestures, devices, behavior, time, prompting, and how others confirm meaning.", "Verbal or nonverbal as a complete description."),
+            YN("communication-assessment-received", "{Has} {subject} received a communication assessment?"),
+            YN("communication-assessment-schedule", "Should a communication assessment be scheduled for the coming year?"));
 
         AddSection("Home & daily life", "Home, routines & personal activities",
-            SQ("home-routines", "How does the person manage daily routines at home?",
-               "Describe what the person does, where support enters the routine, and what happens when it is unavailable.",
-               "Morning/evening routines, meals, household tasks, privacy, and differences between settings.", "Needs help with ADLs without naming the activities or support."),
-            SQ("personal-care", "What support is used for personal care?",
-               "Include only relevant activities and describe support in respectful, observable terms.",
-               "Bathing, dressing, toileting, grooming, menstrual care, and how choice and privacy are protected.", "Independent/dependent alone, or unnecessary intimate detail."));
+            Q("home-independent", "What activities does {Name} do at home independently?",
+              "Identify existing independence before describing support needs.",
+              "Specific household, personal, and routine activities completed independently.", "Independent as a general label without examples."),
+            Q("home-supports", "What supports {does} {subject} need in the home with daily activities?",
+              "Describe how support helps while preserving choice, privacy, and existing skills.",
+              "Who helps, what they do, when support is needed, and what the person still does.", "Needs help with ADLs without naming the activity or support."),
+            AS("home-support-levels", "Indicate the level of support needed for each home and daily-life activity.",
+               "Meal preparation", "Eating and drinking", "Household cleaning", "Laundry", "Shopping and errands",
+               "Personal hygiene", "Dressing", "Toileting", "Medication routines", "Mobility and transfers"));
 
         AddSection("Health & wellness", "Physical, behavioral & emotional health",
-            SQ("health-management", "How are healthcare and medications managed?",
-               "Describe the person’s role and the actual supports used to access care and follow recommendations.",
-               "Appointments, decisions, medications, communication with clinicians, preventive care, and barriers.", "List diagnoses without explaining their practical effect."),
-            Q("wellness", "What helps the person remain emotionally and physically well?",
-              "Describe known protective routines, early signs of distress, and responses that actually help.",
-              "Sleep, movement, food, sensory regulation, trusted people, coping strategies, and seasonal patterns.", "Calm down, redirect, or monitor behavior without saying how."));
+            Q("physical-health-view", "How does {Name} feel about {possessive} physical health?",
+              "Capture the person’s view of their health, comfort, energy, and access to care.",
+              "What feels well, what does not, and the person’s own priorities.", "A diagnosis list without the person’s perspective."),
+            Q("physical-health-change", "Is there anything {subject} {wants} to change about {possessive} physical health?",
+              "Identify changes the person wants rather than assuming clinical priorities are shared.",
+              "Desired change, motivation, barriers, and support requested.", "Provider goals without the person’s view."),
+            HC("health-concerns", "Are there health and wellness concerns being actively monitored by healthcare providers?"),
+            Q("mental-health-view", "How does {Name} feel about {possessive} mental health?",
+              "Capture the person’s view of emotional well-being and any support they value.",
+              "Mood, stress, coping, relationships, routines, and what helps.", "A diagnosis or behavior list without the person’s perspective."),
+            TH("therapy", "{Is} {subject} seeing a therapist?"));
 
         AddSection("Safety & rights", "Risk, safeguards, autonomy & restrictions",
             Q("risks", "What current risks require planning or support?",
@@ -286,9 +316,17 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
     }
 
     private AssessmentQuestionViewModel Q(string key, string prompt, string why, string include, string avoid) =>
-        new(key, prompt, why, include, avoid, false, ScheduleSave);
+        new(key, prompt, why, include, avoid, false, AssessmentQuestionKind.Narrative, [], ScheduleSave);
     private AssessmentQuestionViewModel SQ(string key, string prompt, string why, string include, string avoid) =>
-        new(key, prompt, why, include, avoid, true, ScheduleSave);
+        new(key, prompt, why, include, avoid, true, AssessmentQuestionKind.Narrative, [], ScheduleSave);
+    private AssessmentQuestionViewModel YN(string key, string prompt) =>
+        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.YesNo, [], ScheduleSave);
+    private AssessmentQuestionViewModel HC(string key, string prompt) =>
+        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.HealthConcern, [], ScheduleSave);
+    private AssessmentQuestionViewModel TH(string key, string prompt) =>
+        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.Therapy, [], ScheduleSave);
+    private AssessmentQuestionViewModel AS(string key, string prompt, params string[] activities) =>
+        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.ActivitySupport, activities, ScheduleSave);
     private void AddSection(string title, string subtitle, params AssessmentQuestionViewModel[] questions) =>
         Sections.Add(new AssessmentSectionViewModel(title, subtitle, questions));
 }
@@ -306,14 +344,30 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
 {
     private readonly Action _changed;
     private bool _loading;
+    private readonly string _promptTemplate;
+    private string _subjectPronoun = "they";
+    private bool _usesPluralAgreement = true;
     public string Key { get; }
-    public string Prompt { get; }
+    public string Prompt { get; private set; }
     public string WhyAsked { get; }
     public string CompleteAnswerIncludes { get; }
     public string Avoid { get; }
     public bool UsesSupports { get; }
+    public AssessmentQuestionKind Kind { get; }
+    public bool IsNarrative => Kind == AssessmentQuestionKind.Narrative;
+    public bool HasGuidance => !string.IsNullOrWhiteSpace(WhyAsked);
+    public bool UsesYesNo => Kind is AssessmentQuestionKind.YesNo or AssessmentQuestionKind.HealthConcern or AssessmentQuestionKind.Therapy;
+    public bool IsHealthConcern => Kind == AssessmentQuestionKind.HealthConcern;
+    public bool IsTherapy => Kind == AssessmentQuestionKind.Therapy;
+    public bool UsesActivitySupport => Kind == AssessmentQuestionKind.ActivitySupport;
+    public string WouldLikeTherapistPrompt => $"Would {_subjectPronoun} like to see a therapist?";
+    public string TherapistSatisfactionPrompt => $"{(_usesPluralAgreement ? "Are" : "Is")} {_subjectPronoun} satisfied with the therapist?";
+    public string SessionFormatPrompt => "Are therapy sessions attended in person or via Telehealth?";
+    public string OtherSessionFormatPrompt => $"Would {_subjectPronoun} like to switch to {(TherapySessionFormat == TherapySessionFormat.InPerson ? "Telehealth" : "in-person")} sessions?";
+    public string FrequencyChangePrompt => $"Would {_subjectPronoun} like to change the frequency of their therapy sessions?";
+    public ObservableCollection<ActivitySupportViewModel> Activities { get; } = [];
 
-    [ObservableProperty] private AssessmentAnswerStatus status = AssessmentAnswerStatus.FollowUpRequired;
+    [ObservableProperty] private AssessmentAnswerStatus status = AssessmentAnswerStatus.NotYetAnswered;
     [ObservableProperty] private string narrative = string.Empty;
     [ObservableProperty] private string supportDetails = string.Empty;
     [ObservableProperty] private string exceptionReason = string.Empty;
@@ -324,9 +378,44 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
     [ObservableProperty] private bool anotherPersonCompletes;
     [ObservableProperty] private bool varies;
     [ObservableProperty] private bool noSupportCurrentlyNeeded;
+    [ObservableProperty] private bool? yesNoResponse;
+    [ObservableProperty] private bool? followUpYesNoResponse;
+    [ObservableProperty] private string details = string.Empty;
+    [ObservableProperty] private TherapySessionFormat therapySessionFormat;
+    [ObservableProperty] private bool? wantsOtherSessionFormat;
+    [ObservableProperty] private bool? wantsFrequencyChange;
+    [ObservableProperty] private TherapyFrequencyDirection therapyFrequencyDirection;
 
-    public AssessmentQuestionViewModel(string key, string prompt, string why, string include, string avoid, bool usesSupports, Action changed)
-    { Key = key; Prompt = prompt; WhyAsked = why; CompleteAnswerIncludes = include; Avoid = avoid; UsesSupports = usesSupports; _changed = changed; }
+    public AssessmentQuestionViewModel(string key, string prompt, string why, string include, string avoid,
+        bool usesSupports, AssessmentQuestionKind kind, IEnumerable<string> activities, Action changed)
+    {
+        Key = key; _promptTemplate = prompt; Prompt = prompt; WhyAsked = why;
+        CompleteAnswerIncludes = include; Avoid = avoid; UsesSupports = usesSupports; Kind = kind; _changed = changed;
+        foreach (var activity in activities)
+            Activities.Add(new ActivitySupportViewModel(activity, ActivitySupportLevel.Independent, Changed));
+    }
+
+    public void SetPerson(Person? person)
+    {
+        var name = person?.FirstName ?? "the person";
+        _subjectPronoun = person?.SubjectPronoun ?? "they";
+        _usesPluralAgreement = string.Equals(_subjectPronoun, "they", StringComparison.OrdinalIgnoreCase);
+        Prompt = _promptTemplate
+            .Replace("{Name}", name)
+            .Replace("{subject}", person?.SubjectPronoun ?? "they")
+            .Replace("{object}", person?.ObjectPronoun ?? "them")
+            .Replace("{possessive}", person?.PossessivePronoun ?? "their")
+            .Replace("{reflexive}", person?.ReflexivePronoun ?? "themselves")
+            .Replace("{does}", _usesPluralAgreement ? "do" : "does")
+            .Replace("{Has}", _usesPluralAgreement ? "Have" : "Has")
+            .Replace("{Is}", _usesPluralAgreement ? "Are" : "Is")
+            .Replace("{wants}", _usesPluralAgreement ? "want" : "wants");
+        OnPropertyChanged(nameof(Prompt));
+        OnPropertyChanged(nameof(WouldLikeTherapistPrompt));
+        OnPropertyChanged(nameof(TherapistSatisfactionPrompt));
+        OnPropertyChanged(nameof(OtherSessionFormatPrompt));
+        OnPropertyChanged(nameof(FrequencyChangePrompt));
+    }
 
     partial void OnStatusChanged(AssessmentAnswerStatus value)
     {
@@ -351,13 +440,42 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
         }
         Changed();
     }
+    partial void OnYesNoResponseChanged(bool? value)
+    {
+        OnPropertyChanged(nameof(ShowHealthConcernDetails));
+        OnPropertyChanged(nameof(ShowTherapyCurrentFollowUps));
+        OnPropertyChanged(nameof(ShowTherapyRequestedFollowUp));
+        Changed();
+    }
+    partial void OnFollowUpYesNoResponseChanged(bool? value) => Changed();
+    partial void OnDetailsChanged(string value) => Changed();
+    partial void OnTherapySessionFormatChanged(TherapySessionFormat value)
+    {
+        OnPropertyChanged(nameof(ShowOtherSessionFormatQuestion));
+        OnPropertyChanged(nameof(OtherSessionFormatPrompt));
+        Changed();
+    }
+    partial void OnWantsOtherSessionFormatChanged(bool? value) => Changed();
+    partial void OnWantsFrequencyChangeChanged(bool? value)
+    {
+        OnPropertyChanged(nameof(ShowFrequencyDirection));
+        Changed();
+    }
+    partial void OnTherapyFrequencyDirectionChanged(TherapyFrequencyDirection value) => Changed();
     private void ClearNoSupport(bool selected) { if (selected) NoSupportCurrentlyNeeded = false; }
     private void Changed() { if (!_loading) { OnPropertyChanged(nameof(IsAddressed)); OnPropertyChanged(nameof(ShowExceptionReason)); _changed(); } }
 
-    public bool ShowExceptionReason => Status != AssessmentAnswerStatus.Answered;
+    public bool ShowExceptionReason => Status is not AssessmentAnswerStatus.Answered
+        and not AssessmentAnswerStatus.NotYetAnswered;
+    public bool ShowHealthConcernDetails => IsHealthConcern && YesNoResponse == true;
+    public bool ShowTherapyCurrentFollowUps => IsTherapy && YesNoResponse == true;
+    public bool ShowTherapyRequestedFollowUp => IsTherapy && YesNoResponse == false;
+    public bool ShowOtherSessionFormatQuestion => ShowTherapyCurrentFollowUps && TherapySessionFormat != TherapySessionFormat.NotSelected;
+    public bool ShowFrequencyDirection => ShowTherapyCurrentFollowUps && WantsFrequencyChange == true;
     public string ExceptionReasonPrompt => Status switch
     {
         AssessmentAnswerStatus.FollowUpRequired => "Explain why follow-up is required.",
+        AssessmentAnswerStatus.NotYetAnswered => string.Empty,
         AssessmentAnswerStatus.UnableToAssess => "Explain why this item could not be assessed.",
         AssessmentAnswerStatus.Declined => "Explain why an answer was declined.",
         AssessmentAnswerStatus.NotApplicable => "Explain why this item is not applicable.",
@@ -366,11 +484,32 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
     public bool HasConcreteSupport => SetupOrEnvironmental || PromptingOrCoaching || HandsOnAssistance || AnotherPersonCompletes;
     public bool IsAddressed => Status switch
     {
-        AssessmentAnswerStatus.Answered => !string.IsNullOrWhiteSpace(Narrative)
-            && (!UsesSupports || NoSupportCurrentlyNeeded || HasConcreteSupport)
-            && (!Varies || (HasConcreteSupport && !string.IsNullOrWhiteSpace(SupportDetails))),
+        AssessmentAnswerStatus.Answered => Kind switch
+        {
+            AssessmentQuestionKind.Narrative => !string.IsNullOrWhiteSpace(Narrative)
+                && (!UsesSupports || NoSupportCurrentlyNeeded || HasConcreteSupport)
+                && (!Varies || (HasConcreteSupport && !string.IsNullOrWhiteSpace(SupportDetails))),
+            AssessmentQuestionKind.YesNo => YesNoResponse.HasValue,
+            AssessmentQuestionKind.HealthConcern => YesNoResponse.HasValue
+                && (YesNoResponse == false || !string.IsNullOrWhiteSpace(Details)),
+            AssessmentQuestionKind.Therapy => TherapyResponseComplete,
+            AssessmentQuestionKind.ActivitySupport => Activities.Count > 0,
+            _ => false
+        },
         AssessmentAnswerStatus.FollowUpRequired => false,
+        AssessmentAnswerStatus.NotYetAnswered => false,
         _ => !string.IsNullOrWhiteSpace(ExceptionReason)
+    };
+
+    private bool TherapyResponseComplete => YesNoResponse switch
+    {
+        false => FollowUpYesNoResponse.HasValue,
+        true => FollowUpYesNoResponse.HasValue
+            && TherapySessionFormat != TherapySessionFormat.NotSelected
+            && WantsOtherSessionFormat.HasValue
+            && WantsFrequencyChange.HasValue
+            && (WantsFrequencyChange == false || TherapyFrequencyDirection != TherapyFrequencyDirection.NotSelected),
+        _ => false
     };
 
     public void Load(AssessmentAnswer answer)
@@ -384,6 +523,22 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
         AnotherPersonCompletes = answer.Supports.HasFlag(SupportMethod.AnotherPersonCompletes);
         Varies = answer.Supports.HasFlag(SupportMethod.Varies);
         NoSupportCurrentlyNeeded = answer.Supports.HasFlag(SupportMethod.NoSupportCurrentlyNeeded);
+        YesNoResponse = answer.YesNoResponse;
+        FollowUpYesNoResponse = answer.FollowUpYesNoResponse;
+        Details = answer.Details;
+        TherapySessionFormat = answer.TherapySessionFormat;
+        WantsOtherSessionFormat = answer.WantsOtherSessionFormat;
+        WantsFrequencyChange = answer.WantsFrequencyChange;
+        TherapyFrequencyDirection = answer.TherapyFrequencyDirection;
+        var savedActivityLevels = answer.ActivitySupportLevels ?? [];
+        var savedSkillsTraining = answer.ActivitySkillsTraining ?? [];
+        foreach (var activity in Activities)
+        {
+            var level = savedActivityLevels.TryGetValue(activity.Name, out var savedLevel)
+                ? savedLevel : ActivitySupportLevel.Independent;
+            var skillsTraining = savedSkillsTraining.TryGetValue(activity.Name, out var savedTraining) && savedTraining;
+            activity.Load(level, skillsTraining);
+        }
         _loading = false; OnPropertyChanged(string.Empty);
     }
 
@@ -396,7 +551,61 @@ public sealed partial class AssessmentQuestionViewModel : ObservableObject
         if (AnotherPersonCompletes) supports |= SupportMethod.AnotherPersonCompletes;
         if (Varies) supports |= SupportMethod.Varies;
         if (NoSupportCurrentlyNeeded) supports |= SupportMethod.NoSupportCurrentlyNeeded;
-        return new() { Status = Status, Narrative = Narrative, Supports = supports, SupportDetails = SupportDetails, ExceptionReason = ExceptionReason, DissentingOpinion = DissentingOpinion };
+        return new()
+        {
+            Status = Status, Narrative = Narrative, Supports = supports, SupportDetails = SupportDetails,
+            ExceptionReason = ExceptionReason, DissentingOpinion = DissentingOpinion,
+            YesNoResponse = YesNoResponse, FollowUpYesNoResponse = FollowUpYesNoResponse, Details = Details,
+            TherapySessionFormat = TherapySessionFormat, WantsOtherSessionFormat = WantsOtherSessionFormat,
+            WantsFrequencyChange = WantsFrequencyChange, TherapyFrequencyDirection = TherapyFrequencyDirection,
+            ActivitySupportLevels = Activities.ToDictionary(activity => activity.Name, activity => activity.Level),
+            ActivitySkillsTraining = Activities.ToDictionary(activity => activity.Name, activity => activity.SkillsTraining)
+        };
+    }
+}
+
+public sealed partial class ActivitySupportViewModel : ObservableObject
+{
+    private readonly Action _changed;
+    private bool _loading;
+    public string Name { get; }
+    [ObservableProperty] private int levelValue;
+    [ObservableProperty] private bool skillsTraining;
+    public ActivitySupportLevel Level => LevelValue switch
+    {
+        0 => ActivitySupportLevel.Independent,
+        1 => ActivitySupportLevel.Prompting,
+        2 => ActivitySupportLevel.Monitoring,
+        3 => ActivitySupportLevel.PhysicalAssistance,
+        _ => ActivitySupportLevel.TotalCare
+    };
+
+    public ActivitySupportViewModel(string name, ActivitySupportLevel level, Action changed)
+    { Name = name; levelValue = (int)level; _changed = changed; }
+
+    partial void OnLevelValueChanged(int value)
+    {
+        OnPropertyChanged(nameof(Level));
+        if (!_loading) _changed();
+    }
+    partial void OnSkillsTrainingChanged(bool value)
+    {
+        if (!_loading) _changed();
+    }
+
+    public void Load(ActivitySupportLevel level, bool savedSkillsTraining)
+    {
+        _loading = true;
+        SkillsTraining = savedSkillsTraining || level == ActivitySupportLevel.SkillsTraining;
+        LevelValue = level switch
+        {
+            ActivitySupportLevel.Prompting => 1,
+            ActivitySupportLevel.Monitoring => 2,
+            ActivitySupportLevel.PhysicalAssistance => 3,
+            ActivitySupportLevel.TotalCare => 4,
+            _ => 0
+        };
+        _loading = false;
     }
 }
 

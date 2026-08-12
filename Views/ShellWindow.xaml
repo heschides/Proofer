@@ -40,6 +40,32 @@
                 <!-- Tab navigation — left side -->
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal">
+                    <Border Background="#FFFFF6D8"
+                            BorderBrush="#FFE2C94B"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="5,2"
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            Visibility="{DynamicResource BrandLogoVisibility}">
+                        <Image Source="pack://application:,,,/Images/woodfords-logo.png"
+                               Width="104"
+                               Height="40"
+                               Stretch="Uniform"
+                               AutomationProperties.Name="Woodfords Family Services" />
+                    </Border>
+                    <Border Background="#FF7A2E8E"
+                            BorderBrush="#FFE5B8F0"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="9,4"
+                            Margin="0,0,8,0"
+                            Visibility="{Binding IsDemoEnvironment, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="DEMO"
+                                   Foreground="White"
+                                   FontSize="12"
+                                   FontWeight="Bold" />
+                    </Border>
                     <Border Cursor="Hand"
                             CornerRadius="4"
                             Padding="10,4"

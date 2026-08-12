@@ -23,12 +23,16 @@ namespace Sati.Services
             new("Apricot Pearl", "ApricotPearl"),
             new("Rosewater Pearl", "RosewaterPearl"),
             new("Pearlescent Cream", "PearlescentCream"),
+            new("Lilly's Theme", "LillysTheme"),
+            new("Woodfords", "Woodfords"),
             new("Warm Earth", "WarmEarth"),
             new("Moonlit Pearl", "MoonlitPearl"),
+            new("Iridescent Jewel", "IridescentJewel"),
             new("Midnight Opal", "MidnightOpal")
         ];
 
         public ThemeOption CurrentTheme { get; private set; }
+        public event EventHandler? ThemeChanged;
 
         public ThemeService()
         {
@@ -57,6 +61,7 @@ namespace Sati.Services
                 dictionaries[dictionaries.IndexOf(currentDictionary)] = newDictionary;
 
             CurrentTheme = theme;
+            ThemeChanged?.Invoke(this, EventArgs.Empty);
 
             if (persist)
                 SaveTheme(theme.ResourceName);

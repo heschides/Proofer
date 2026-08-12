@@ -108,6 +108,13 @@
                         <TextBlock Text="VENDOR / PROVIDER"
                                    Style="{StaticResource SectionHeader}" />
 
+                        <TextBlock Text="Provider"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ComboBox AutomationProperties.Name="AT provider"
+                                  ItemsSource="{Binding CurrentEditor.AvailableProviders}"
+                                  SelectedItem="{Binding CurrentEditor.SelectedProvider, Mode=TwoWay}"
+                                  DisplayMemberPath="Name" />
+
                         <TextBlock Text="Name (not program name)"
                                    Style="{StaticResource LabelStyle}" />
                         <TextBox AutomationProperties.Name="Vendor name" Text="{Binding CurrentEditor.VendorName, UpdateSourceTrigger=PropertyChanged}" />

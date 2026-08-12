@@ -540,6 +540,9 @@ namespace Sati.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
                     b.Property<string>("BillingContact")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -594,17 +597,9 @@ namespace Sati.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Providers");
+                    b.HasIndex("AgencyId", "Name");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Maine AT Solutions",
-                            OfferedServices = 0,
-                            ProvidesPassthroughService = true,
-                            Type = "Waiver"
-                        });
+                    b.ToTable("Providers");
                 });
 
             modelBuilder.Entity("Sati.Models.Scratchpad", b =>
@@ -633,6 +628,39 @@ namespace Sati.Migrations
                     b.ToTable("Scratchpad");
                 });
 
+            modelBuilder.Entity("Sati.Models.ScratchpadComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ScratchpadId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScratchpadId", "CreatedAtUtc");
+
+                    b.ToTable("ScratchpadComments");
+                });
+
             modelBuilder.Entity("Sati.Models.Settings", b =>
                 {
                     b.Property<int>("Id")
@@ -642,6 +670,9 @@ namespace Sati.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("AbandonedAfterDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AgencyId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("BaseIncentive")
@@ -819,6 +850,9 @@ namespace Sati.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DefaultPassthroughProviderId");
+
+                    b.HasIndex("AgencyId")
+                        .IsUnique();
 
                     b.ToTable("Settings");
                 });
@@ -1173,10 +1207,36 @@ namespace Sati.Migrations
 
             modelBuilder.Entity("Sati.Models.Settings", b =>
                 {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Sati.Models.Provider", null)
                         .WithMany()
                         .HasForeignKey("DefaultPassthroughProviderId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Sati.Models.Provider", b =>
+                {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sati.Models.ScratchpadComment", b =>
+                {
+                    b.HasOne("Sati.Models.Scratchpad", "Scratchpad")
+                        .WithMany("Comments")
+                        .HasForeignKey("ScratchpadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scratchpad");
                 });
 
             modelBuilder.Entity("Sati.Models.User", b =>
@@ -1239,6 +1299,11 @@ namespace Sati.Migrations
             modelBuilder.Entity("Sati.Models.User", b =>
                 {
                     b.Navigation("Supervisees");
+                });
+
+            modelBuilder.Entity("Sati.Models.Scratchpad", b =>
+                {
+                    b.Navigation("Comments");
                 });
 
             modelBuilder.Entity("Sati.Person", b =>

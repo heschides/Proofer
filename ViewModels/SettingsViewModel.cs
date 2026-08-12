@@ -16,14 +16,17 @@ namespace Sati.ViewModels
     {
         private readonly ISettingsService _settingsService;
         private readonly IProviderService _providerService;
-        private readonly FormDueDateBackfill _backfill;
-        private readonly FormBulkCompletion _bulkCompletion;
+        private readonly FormDueDateBackfill? _backfill;
+        private readonly FormBulkCompletion? _bulkCompletion;
         private readonly ThemeService _themeService;
         private Settings? _settings;
 
-        public SettingsViewModel(ISettingsService settingsService, IProviderService providerService,
-                                 FormDueDateBackfill backfill, FormBulkCompletion bulkCompletion,
-                                 ThemeService themeService)
+        public SettingsViewModel(
+            ISettingsService settingsService,
+            IProviderService providerService,
+            ThemeService themeService,
+            FormDueDateBackfill? backfill = null,
+            FormBulkCompletion? bulkCompletion = null)
         {
             _settingsService = settingsService;
             _providerService = providerService;
@@ -80,6 +83,12 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task BackfillDryRunAsync()
         {
+            if (_backfill is null)
+            {
+                BackfillStatus = "This LocalDB maintenance tool is not available in the Azure Demo.";
+                return;
+            }
+
             try
             {
                 var report = await _backfill.DryRunAsync();
@@ -100,6 +109,12 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task BackfillCommitAsync()
         {
+            if (_backfill is null)
+            {
+                BackfillStatus = "This LocalDB maintenance tool is not available in the Azure Demo.";
+                return;
+            }
+
             if (!int.TryParse(BackfillConfirmCount, out var typed))
             {
                 BackfillStatus = "Enter the exact change count from the dry run to commit.";
@@ -126,14 +141,14 @@ namespace Sati.ViewModels
 
         // ====================================================================
         // TEMPORARY MAINTENANCE — BULK FORM COMPLETION
-        // One-time: mark every form due on/before the cutoff (and not already
-        // compliant) as complete, stamping the due date. Remove this region and
+        // One-time: mark every form due on/before the cutoff with no completion
+        // date as complete, stamping the due date. Remove this region and
         // its controls in SettingsWindow.xaml with the rest of the scaffolding.
         // ====================================================================
 
         // Cutoff, editable in the maintenance UI. Defaults to the agreed value;
         // bound as text so the box starts populated but you can change it.
-        [ObservableProperty] private string bulkCompleteCutoff = "2026-06-10";
+        [ObservableProperty] private string bulkCompleteCutoff = "2026-08-01";
 
         [ObservableProperty] private string bulkCompleteConfirmCount = string.Empty;
         [ObservableProperty] private string bulkCompleteStatus = string.Empty;
@@ -141,6 +156,12 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task BulkCompleteDryRunAsync()
         {
+            if (_bulkCompletion is null)
+            {
+                BulkCompleteStatus = "This LocalDB maintenance tool is not available in the Azure Demo.";
+                return;
+            }
+
             if (!DateTime.TryParse(BulkCompleteCutoff, out var cutoff))
             {
                 BulkCompleteStatus = "Cutoff date is not a valid date (use yyyy-MM-dd).";
@@ -153,7 +174,8 @@ namespace Sati.ViewModels
                 BulkCompleteStatus =
                     $"Dry run complete. {report.FormsMarked} forms would be marked complete "
                     + $"(cutoff {report.Cutoff:yyyy-MM-dd}, inclusive); "
-                    + $"{report.AlreadyCompliant} already compliant and untouched. "
+                    + $"{report.AlreadyCompleted} already have completion dates and are untouched; "
+                    + $"{report.LegacyCompliantMissingDate} legacy compliant rows need dates. "
                     + $"To commit, type {report.FormsMarked} in the box and press Commit.\n"
                     + $"Full report: {report.ReportFilePath}";
             }
@@ -166,6 +188,12 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task BulkCompleteCommitAsync()
         {
+            if (_bulkCompletion is null)
+            {
+                BulkCompleteStatus = "This LocalDB maintenance tool is not available in the Azure Demo.";
+                return;
+            }
+
             if (!DateTime.TryParse(BulkCompleteCutoff, out var cutoff))
             {
                 BulkCompleteStatus = "Cutoff date is not a valid date (use yyyy-MM-dd).";
@@ -262,8 +290,16 @@ namespace Sati.ViewModels
             DefaultPassthroughProviderId = _settings.DefaultPassthroughProviderId;
 
             PassthroughProviders.Clear();
-            foreach (var p in await _providerService.GetPassthroughProvidersAsync())
-                PassthroughProviders.Add(p);
+            try
+            {
+                foreach (var p in await _providerService.GetPassthroughProvidersAsync())
+                    PassthroughProviders.Add(p);
+            }
+            catch (NotSupportedException)
+            {
+                // The provider directory is not part of the initial Azure Demo
+                // surface. Settings can still load; no local/SQL fallback occurs.
+            }
 
             AbandonedAfterDays = _settings.AbandonedAfterDays;
             ProductivityThreshold = _settings.ProductivityThreshold;

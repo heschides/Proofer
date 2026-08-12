@@ -23,7 +23,6 @@ namespace Sati.Data
             if (scratchpad is null)
             {
                 scratchpad = new Scratchpad { UserId = userId, Date = today };
-                Debug.WriteLine($"SERVICE SaveAsync called with: '{scratchpad.Content}'");
                 context.Scratchpad.Add(scratchpad);
                 await context.SaveChangesAsync();
             }
@@ -36,9 +35,46 @@ namespace Sati.Data
             await using var context = _contextFactory.CreateDbContext();
             var today = DateTime.Today;
             return await context.Scratchpad
+                .AsNoTracking()
+                .Include(s => s.Comments.OrderBy(comment => comment.CreatedAtUtc))
                 .Where(s => s.UserId == userId && s.Date < today)
                 .OrderByDescending(s => s.Date)
                 .ToListAsync();
+        }
+
+        public async Task<ScratchpadComment> AddCommentAsync(
+            int scratchpadId,
+            int userId,
+            string authorDisplayName,
+            string content)
+        {
+            var normalizedContent = content.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedContent))
+                throw new ArgumentException("A retrospective comment cannot be empty.", nameof(content));
+
+            await using var context = _contextFactory.CreateDbContext();
+            var scratchpadExists = await context.Scratchpad.AnyAsync(s =>
+                s.Id == scratchpadId &&
+                s.UserId == userId &&
+                s.Date < DateTime.Today);
+
+            if (!scratchpadExists)
+                throw new InvalidOperationException("Comments can only be added to your own past scratchpad entries.");
+
+            var comment = new ScratchpadComment
+            {
+                ScratchpadId = scratchpadId,
+                AuthorUserId = userId,
+                AuthorDisplayName = string.IsNullOrWhiteSpace(authorDisplayName)
+                    ? "Unknown user"
+                    : authorDisplayName.Trim(),
+                CreatedAtUtc = DateTime.UtcNow,
+                Content = normalizedContent
+            };
+
+            context.ScratchpadComments.Add(comment);
+            await context.SaveChangesAsync();
+            return comment;
         }
 
         public async Task SaveAsync(Scratchpad scratchpad)

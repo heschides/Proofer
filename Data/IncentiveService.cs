@@ -105,6 +105,28 @@ namespace Sati.Data
             return CalculateDaysScheduled(month, year, settings, cap: asOf ?? DateTime.Today);
         }
 
+        public async Task<int> GetEligibleDaysAsync(DateTime startInclusive, DateTime endInclusive)
+        {
+            var start = startInclusive.Date;
+            var end = endInclusive.Date;
+            if (end < start)
+                return 0;
+
+            var settings = await _settingsService.LoadAsync();
+            var count = 0;
+            for (var date = start; date <= end; date = date.AddDays(1))
+            {
+                if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                    continue;
+                if (WorkdayHelper.IsAlwaysExcludedWorkday(date, settings))
+                    continue;
+
+                count++;
+            }
+
+            return count;
+        }
+
         public async Task<int> GetRemainingEligibleDaysAsync(int month, int year, HashSet<DateTime> daysAlreadyWorked, HashSet<DateTime> exemptDates)
         {
             var settings = await _settingsService.LoadAsync();

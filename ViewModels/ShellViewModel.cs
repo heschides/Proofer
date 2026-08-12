@@ -21,6 +21,7 @@ namespace Sati.ViewModels
         private readonly HelpersViewModel _helpersViewModel;
         private readonly ISessionService _sessionService;
         private readonly BillingDashboardViewModel _billingDashboardViewModel;
+        private readonly DataEnvironmentInfo _dataEnvironment;
 
 
         // -------------------------------------------------------------------------
@@ -34,7 +35,8 @@ namespace Sati.ViewModels
             GuidanceViewModel guidanceViewModel,
             HelpersViewModel helpersViewModel,
             ISessionService sessionService,
-            BillingDashboardViewModel billingDashboardViewModel)
+            BillingDashboardViewModel billingDashboardViewModel,
+            DataEnvironmentInfo dataEnvironment)
         {
             _notesViewModel = notesViewModel;
             _supervisorDashboardViewModel = supervisorViewModel;
@@ -43,6 +45,7 @@ namespace Sati.ViewModels
             _sessionService = sessionService;
             Scratchpad = scratchpadViewModel;
             _billingDashboardViewModel = billingDashboardViewModel;
+            _dataEnvironment = dataEnvironment;
         }
 
         // -------------------------------------------------------------------------
@@ -75,6 +78,8 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
         public bool IsBillingAvailable =>
     _sessionService.CurrentUser?.Role is UserRole.Admin;
+        public bool IsDemoEnvironment => _dataEnvironment.IsDemo;
+        public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
 
@@ -170,10 +175,9 @@ namespace Sati.ViewModels
 
         public async Task ReinitializeAsync()
         {
-            await Scratchpad.SaveScratchpadAsync(Scratchpad.ScratchpadContent);
-            // Flush the outgoing user's open journal before Reset() clears the caseload
-            // and the journal's person-id tracking. Mirrors the Scratchpad save above.
-            await _notesViewModel.Clients.FlushJournalAsync();
+            // The switch flow saves the outgoing user's scratchpad and journal before
+            // authentication replaces the cloud API token. From this point onward every
+            // request must belong to the newly selected user.
             await Scratchpad.InitializeAsync();
             _notesViewModel.Reset();
             await _notesViewModel.InitializeAsync();

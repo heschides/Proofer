@@ -26,9 +26,9 @@
     <SolidColorBrush x:Key="InputBorderBrush" Color="#C8B8A4" />
     <SolidColorBrush x:Key="DividerBrush" Color="#F0E0D0" />
 
-    <SolidColorBrush x:Key="AccentBrush" Color="#C87941" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#A85E28" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#8A4D20" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#A85E28" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#8A4D20" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#703D18" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FDF6EC" />
 
     <!-- Local AI: deep mineral teal as a calm complement to terracotta. -->
@@ -45,9 +45,9 @@
     <SolidColorBrush x:Key="HoverStrongBrush" Color="#D4A882" />
 
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#3D2B1F" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9C7A5C" />
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#8A7A6A" />
-    <SolidColorBrush x:Key="TextSubtleBrush" Color="#C0A882" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#66503E" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#6E5846" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#6F5F55" />
     <SolidColorBrush x:Key="NarrativeTextBrush" Color="#6B4E2E" />
     <SolidColorBrush x:Key="PersonGroupBrush" Color="#FFFBF6" />
     <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#F7ECE1" />
@@ -55,5 +55,5 @@
     <!-- Colors used where WPF requires Color rather than Brush (e.g. GradientStop). -->
     <Color x:Key="SurfaceAltColor">#FFF5EAD8</Color>
     <Color x:Key="SurfaceRaisedColor">#FFFFFCF7</Color>
-    <Color x:Key="TextSubtleColor">#FFC0A882</Color>
+    <Color x:Key="TextSubtleColor">#FF6F5F55</Color>
 </ResourceDictionary>

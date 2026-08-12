@@ -6,21 +6,25 @@ namespace Sati.Data
     public class SettingsService : ISettingsService
     {
         private readonly IDbContextFactory<SatiContext> _contextFactory;
+        private readonly ISessionService _sessionService;
 
-        public SettingsService(IDbContextFactory<SatiContext> contextFactory)
+        public SettingsService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
         {
             _contextFactory = contextFactory;
+            _sessionService = sessionService;
         }
 
         public async Task<Settings> LoadAsync()
         {
             await using var context = _contextFactory.CreateDbContext();
-            var settings = await context.Settings.FirstOrDefaultAsync();
+            var agencyId = CurrentAgencyId();
+            var settings = await context.Settings.SingleOrDefaultAsync(x => x.AgencyId == agencyId);
 
             if (settings is null)
             {
                 settings = new Settings
                 {
+                    AgencyId = agencyId,
                     ReviewOpenDaysBefore = 10,
                     ReviewDaysAfterDue = 10,
                     PcpOpenDaysBefore = 90,
@@ -65,8 +69,16 @@ namespace Sati.Data
         public async Task SaveAsync(Settings settings)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Settings.Update(settings);
+            var agencyId = CurrentAgencyId();
+            var tracked = await context.Settings.SingleOrDefaultAsync(x => x.Id == settings.Id && x.AgencyId == agencyId)
+                ?? throw new InvalidOperationException("The settings record is outside the current agency.");
+            context.Entry(tracked).CurrentValues.SetValues(settings);
+            tracked.Id = settings.Id;
+            tracked.AgencyId = agencyId;
             await context.SaveChangesAsync();
         }
+
+        private int CurrentAgencyId() => _sessionService.CurrentUser?.AgencyId
+            ?? throw new InvalidOperationException("A signed-in user is required to access agency settings.");
     }
 }

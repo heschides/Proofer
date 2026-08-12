@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Text;
+using System.Linq;
 
 namespace Sati.Models
 {
@@ -11,6 +12,15 @@ namespace Sati.Models
         public int UserId { get; set; }
         public DateTime Date { get; set; }
         public string Content { get; set; } = string.Empty;
+        public ObservableCollection<ScratchpadComment> Comments { get; set; } = [];
+
+        [NotMapped]
+        public string DisplayContent => string.IsNullOrWhiteSpace(Content)
+            ? "No text was entered on this day."
+            : Content;
+
+        [NotMapped]
+        public bool HasComments => Comments.Count > 0;
 
         [NotMapped]
         public string ContentPreview

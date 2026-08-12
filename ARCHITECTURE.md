@@ -1,6 +1,6 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-07.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-08.*
 
 **Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
 `Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,
@@ -89,6 +89,73 @@ This document answers three questions that get harder to answer as the codebase 
 3. **Where are the seams?** What are the known rough edges, stale signatures, and deferred decisions?
 
 It is not aspirational. Every claim here should be verifiable in the current code.
+
+## Platform Direction and Architectural Boundary
+
+This reference primarily documents the application that exists today. The target architecture
+below is recorded separately so that transitional code is not mistaken for the intended cloud
+design.
+
+Sati is evolving from a WPF application that directly uses EF Core into a multi-client,
+API-mediated human-services platform:
+
+```text
+WPF client             future web/mobile clients
+     \                         /
+              HTTPS API
+                  |
+      application/domain services
+                  |
+     EF Core + Azure SQL + background jobs
+```
+
+### Authority boundary
+
+In the target architecture, the API is the sole authority for cloud data. It owns:
+
+- authentication, token issuance, and session revocation;
+- tenant resolution and record-level authorization;
+- workflow validation and state transitions;
+- database transactions and optimistic concurrency;
+- audit events, document versions, and electronic attestations;
+- schema migration and scheduled maintenance;
+- external integrations, protected exports, and generated files.
+
+Clients own presentation, local UI state, accessibility, and explicitly approved offline/local
+capabilities. A client may calculate display-only projections, but it may not be the final authority
+for permission, billability, approval, tenant ownership, or record integrity.
+
+### Migration seam
+
+The existing `I*Service` contracts are the primary migration seam. During transition:
+
+1. current EF implementations move behind an ASP.NET Core API;
+2. safe request/response DTOs replace EF entities at the network boundary;
+3. WPF receives `Http*Service` implementations of its existing contracts where practical;
+4. business rules move server-side when their result controls persistence or authorization; and
+5. direct `IDbContextFactory<SatiContext>` use is removed from distributed clients.
+
+The contracts will not be preserved blindly. Methods that accept caller-supplied `userId`, return
+password-bearing `User` entities, expose tracked graphs, or combine unrelated responsibilities must
+be redesigned at the boundary.
+
+### Required platform subsystems
+
+The cloud transition is incomplete until Sati has all of the following:
+
+- formal tenant ownership for every protected aggregate;
+- centralized tenant enforcement and cross-tenant rejection tests;
+- server-side RBAC/capabilities and separation of duties;
+- immutable audit events and versioned clinical/financial records;
+- concurrency tokens and explicit conflict handling;
+- automated unit, integration, authorization, migration, and end-to-end tests;
+- health checks, structured logs, metrics, alerts, backup verification, and disaster recovery;
+- controlled background jobs for reminders, reconciliation, imports, and Demo reset;
+- a deployment pipeline in which clients never execute production schema migrations.
+
+WPF remains a valid staff client. Replacing it is not a prerequisite for the API transition.
+Browser and mobile clients should be added when access, field work, installation, or offline needs
+justify them; they will consume the same API rather than inventing separate business rules.
 
 ---
 
@@ -250,6 +317,9 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
   billability-scope work).
 - Window is exclusive on both ends: a note ON the due date bills; a note ON or after completion
   date bills.
+- `Person.IsBillingWindowBlocked(...)` is the shared date predicate used by both note entry and
+  `ConsumerBillingLossReportService`; the Statistics report therefore cannot drift to a different
+  definition of an overdue billing gap.
 
 ### Form Display Names
 
@@ -612,14 +682,14 @@ Reclass offsets, add observable properties + XAML (the calculator already reads 
 `SupervisorDashboardViewModel`: N+1 load (3 calls/supervisee); dead commented line; `ClearCharts()`
 nulls OxyPlot models (correct). `PendingApprovalsViewModel`: delegates to `SupervisorService` (hard
 throw); `Debug.WriteLine`-only failures; `PendingNoteViewModel.IsComplianceException` hardcoded
-`false`. `UserManagementViewModel`: **`ResetPassword` hardcodes `"defaultpassword"` — pre-release
-security fix**; dirty-entity-on-throw; non-generic `Enum.GetValues`. Summary/overview VMs clean.
+`false`. `UserManagementViewModel`: password resets require an administrator-entered replacement
+and confirmation; the API owns hashing and salting. Summary/overview VMs clean.
 
 ### Children ViewModels
 `CalendarViewModel`: `ToggleExempt` fires `ExemptDateChanged` (correct cross-VM coordination);
 `BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: 10-min auto-save from
-`InitializeAsync`; explicit shutdown save; **`Debug.WriteLine` prints full scratchpad content —
-remove before shared deployment**. `GuidanceViewModel`/`HelpersViewModel`: static content.
+`InitializeAsync`; explicit shutdown save; diagnostics omit scratchpad content.
+`GuidanceViewModel`/`HelpersViewModel`: static content.
 
 ### Billing ViewModels
 `BillingDashboardViewModel`: `HasLoaded` guards; fire-and-forget `LoadAsync` (unobservable).

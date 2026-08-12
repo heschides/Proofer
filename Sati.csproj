@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Configurations>Debug;Release;Demo</Configurations>
     <OutputType>WinExe</OutputType>
 	  <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
@@ -10,7 +11,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-  </PropertyGroup>	
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Demo'">
+    <AssemblyName>Sati.Demo</AssemblyName>
+    <DefineConstants>$(DefineConstants);SATI_DEMO</DefineConstants>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <Product>Sati Demo</Product>
+    <Company>Satilogica</Company>
+  </PropertyGroup>
 	
 	<PropertyGroup>
 		<NoWarn>CA1416</NoWarn>
@@ -30,8 +41,32 @@
 	</ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Sati.Api\**\*.cs" />
+    <Compile Remove="Sati.Api.Tests\**\*.cs" />
+    <Compile Remove="Sati.Tests\**\*.cs" />
+    <Compile Remove="Sati.Contracts\**\*.cs" />
+    <EmbeddedResource Remove="Sati.Api\**\*" />
+    <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
+    <EmbeddedResource Remove="Sati.Tests\**\*" />
+    <EmbeddedResource Remove="Sati.Contracts\**\*" />
+    <None Remove="Sati.Api\**\*" />
+    <None Remove="Sati.Api.Tests\**\*" />
+    <None Remove="Sati.Tests\**\*" />
+    <None Remove="Sati.Contracts\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Sati.Contracts\Sati.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.Public.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="images\leaf.png" />
     <Resource Include="Images\satisplash.png" />
+    <Resource Include="Images\woodfords-logo.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,6 +80,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
     <PackageReference Include="Microsoft.AI.Foundry.Local.WinML" Version="1.2.3" />
     <PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
@@ -82,8 +118,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="appsettings.json">
+    <None Update="appsettings.json" Condition="'$(Configuration)' != 'Demo'">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.json" Condition="'$(Configuration)' == 'Demo'">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
     <None Update="AI_CASE_NOTE_RULES.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

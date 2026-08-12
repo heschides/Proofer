@@ -127,12 +127,13 @@ namespace Sati.Views
 
         // The switch-to-another-user flow, formerly inline in the greeting handler,
         // now reached from the My Account window's "Switch user" button. Preserved
-        // verbatim: save scratchpad, open the switch modal, and on success swap the
-        // session user and reinitialize the shell.
+        // Save the outgoing user's scratchpad and journal, open the switch modal,
+        // and on success swap the session user and reinitialize the shell.
         private async Task OpenSwitchUserFlowAsync()
         {
             var content = _shellViewModel.Scratchpad.ScratchpadContent;
             await _shellViewModel.Scratchpad.SaveScratchpadAsync(content);
+            await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
 
             var win = _switchUserWindowFactory();
             win.Owner = this;

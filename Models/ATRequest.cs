@@ -76,6 +76,18 @@ namespace Sati.Models
         // EF materialization ctor.
         protected ATRequest() { }
 
+        public static ATRequest Rehydrate(int id, int personId, string? clientName, string? clientEvergreenId,
+            string? caseManagerName, string? caseManagerEmail, string? caseManagerPhone, string? caseManagerAgency,
+            ATRequestStatus status)
+        {
+            return new ATRequest
+            {
+                Id = id, PersonId = personId, ClientName = clientName, ClientEvergreenId = clientEvergreenId,
+                CaseManagerName = caseManagerName, CaseManagerEmail = caseManagerEmail,
+                CaseManagerPhone = caseManagerPhone, CaseManagerAgency = caseManagerAgency, Status = status
+            };
+        }
+
         // Factory: takes the live client + CM and freezes their fields onto the
         // new request. This is the ONLY place snapshot columns are written — they
         // have private set precisely so nothing else can. New requests start in

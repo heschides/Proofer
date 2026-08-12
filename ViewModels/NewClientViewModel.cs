@@ -66,6 +66,9 @@ namespace Sati.ViewModels
         private DateTime? birthDate;
 
         [ObservableProperty]
+        private Gender gender = Gender.Unknown;
+
+        [ObservableProperty]
         [NotifyDataErrorInfo]
         [Required(ErrorMessage = "A short biographical description is required.")]
         private string? bio;
@@ -88,6 +91,8 @@ namespace Sati.ViewModels
         private bool isEditMode;
         [ObservableProperty]
         private bool isClientEditorOpen;
+        [ObservableProperty]
+        private bool isClientListCompact;
         [ObservableProperty]
         private int clientWorkspaceTabIndex;
         [ObservableProperty]
@@ -202,6 +207,7 @@ namespace Sati.ViewModels
             _ = LoadSelectedPersonNotesAsync(value);
             _ = LoadAppointmentsAsync(value);
             _ = LoadContactsAsync(value);
+            RefreshUpcomingItems(value);
 
             // The panel is persistent now, so it can't be left showing one client's
             // data while another is selected — Submit's edit branch writes to
@@ -322,11 +328,14 @@ namespace Sati.ViewModels
         public bool HasWaiver => Waiver != WaiverType.None;
         public string SubmitButtonLabel => IsEditMode ? "Save Changes" : "Add Client";
         public string EntryPanelHeader => IsEditMode ? "EDIT CLIENT" : "ADD CLIENT"; public Array Waivers => Enum.GetValues(typeof(WaiverType));
+        public Array Genders => Enum.GetValues(typeof(Gender));
 
         public ObservableCollection<Note> SelectedPersonNotes { get; } = [];
         public ObservableCollection<Person> People { get; } = [];
         public ObservableCollection<HealthcareSystemOption> HealthcareSystems { get; } = [];
         public ObservableCollection<PersonContact> Contacts { get; } = [];
+        public ObservableCollection<UpcomingEvent> SelectedPersonUpcomingItems { get; } = [];
+        public bool HasSelectedPersonUpcomingItems => SelectedPersonUpcomingItems.Count > 0;
         public Array ContactKinds => Enum.GetValues(typeof(PersonContactKind));
         public string ContactEditorHeader => IsEditingContact ? "EDIT CONTACT" : "ADD CONTACT";
         public string ContactSaveButtonLabel => IsEditingContact ? "Save Contact" : "Add Contact";
@@ -406,6 +415,59 @@ namespace Sati.ViewModels
             _ = LoadHealthcareOptionsAsync();
         }
 
+        private void RefreshUpcomingItems(Person? person)
+        {
+            SelectedPersonUpcomingItems.Clear();
+            OnPropertyChanged(nameof(HasSelectedPersonUpcomingItems));
+            if (person is null) return;
+
+            // The dashboard intentionally shows only items inside its configured
+            // action window. This compact preview serves a different purpose: show
+            // the selected person's next work even when it has not opened yet.
+            var formItems = person.Forms
+                .Where(form => !form.IsCompliant)
+                .Select(form => new UpcomingEvent
+                {
+                    ClientName = person.FullName,
+                    Title = Person.FormDisplayName(form.Type),
+                    Date = form.DueDate,
+                    Kind = form.DueDate.Date < DateTime.Today
+                        ? UpcomingEventKind.LateReview
+                        : UpcomingEventKind.OpenReview
+                });
+
+            var scheduledItems = SelectedPersonNotes
+                .Where(note => note.Status == NoteStatus.Scheduled &&
+                               note.EventDate.HasValue &&
+                               note.EventDate.Value.Date >= DateTime.Today)
+                .Select(note => new UpcomingEvent
+                {
+                    ClientName = person.FullName,
+                    Title = note.NoteType switch
+                    {
+                        NoteType.Contact => "Scheduled Contact",
+                        NoteType.Form => "Scheduled Form",
+                        _ => "Scheduled Visit"
+                    },
+                    Date = note.EventDate!.Value,
+                    Kind = note.NoteType switch
+                    {
+                        NoteType.Contact => UpcomingEventKind.ScheduledContact,
+                        NoteType.Form => UpcomingEventKind.ScheduledForm,
+                        _ => UpcomingEventKind.ScheduledVisit
+                    }
+                });
+
+            var items = formItems.Concat(scheduledItems)
+                .OrderBy(item => item.Date)
+                .Take(4)
+                .ToList();
+
+            foreach (var item in items)
+                SelectedPersonUpcomingItems.Add(item);
+            OnPropertyChanged(nameof(HasSelectedPersonUpcomingItems));
+        }
+
         // -------------------------------------------------------------------------
         // Commands
         // -------------------------------------------------------------------------
@@ -445,6 +507,9 @@ namespace Sati.ViewModels
 
         [RelayCommand]
         private void ToggleEntryPanel() => IsEntryPanelOpen = !IsEntryPanelOpen;
+
+        [RelayCommand]
+        private void ToggleClientList() => IsClientListCompact = !IsClientListCompact;
 
         [RelayCommand]
         private void BeginAddContact()
@@ -542,6 +607,7 @@ namespace Sati.ViewModels
                 existing.FirstName = FirstName!;
                 existing.LastName = LastName!;
                 existing.BirthDate = BirthDate!.Value;
+                existing.Gender = Gender;
                 existing.EffectiveDate = effectiveDate;
                 existing.Waiver = Waiver;
                 existing.Bio = Bio!;
@@ -589,6 +655,7 @@ namespace Sati.ViewModels
             {
                 var person = Person.CreatePerson(_sessionService.CurrentUser!.Id,
                                     FirstName!, LastName!, Bio!, BirthDate!.Value, effectiveDate, Waiver, settings);
+                person.Gender = Gender;
                 person.OpenWithVR = OpenWithVR;
                 person.HasGuardian = HasGuardian;
                 person.GuardianName = GuardianName;
@@ -644,6 +711,7 @@ namespace Sati.ViewModels
 
             await _formService.UpdateFormAsync(form);
             RefreshComplianceFlags();
+            RefreshUpcomingItems(SelectedPerson);
             FormComplianceChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -667,6 +735,7 @@ namespace Sati.ViewModels
             FirstName = person.FirstName; LastName = person.LastName;
             Bio = person.Bio;
             BirthDate = person.BirthDate;
+            Gender = person.Gender;
             EffectiveDateText = person.EffectiveDate?.ToString("MM/dd") ?? string.Empty;
             Waiver = person.Waiver;
             OpenWithVR = person.OpenWithVR;
@@ -725,8 +794,11 @@ namespace Sati.ViewModels
                 return;
             }
             var notes = await _noteService.GetAllByPersonAsync(person.Id);
+            if (SelectedPerson?.Id != person.Id)
+                return;
             foreach (var note in notes)
                 SelectedPersonNotes.Add(note);
+            RefreshUpcomingItems(person);
 
             // LastContact is computed from the notes just loaded, so it can't refresh
             // until they're here. (The notes arrive async after the selection changes,
@@ -888,6 +960,7 @@ namespace Sati.ViewModels
             FirstName = string.Empty;
             LastName = string.Empty;
             BirthDate = null;
+            Gender = Gender.Unknown;
             EffectiveDateText = string.Empty;
             Waiver = default;
             Bio = string.Empty;

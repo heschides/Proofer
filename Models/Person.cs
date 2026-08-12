@@ -16,6 +16,34 @@ namespace Sati
         public string? LastName { get; set; }
         public DateTime BirthDate { get; set; }
         public Gender Gender { get; set; } = Gender.Unknown;
+        public string SubjectPronoun => Gender switch
+        {
+            Gender.Male => "he",
+            Gender.Female => "she",
+            Gender.NonBinary => "they",
+            _ => "they"
+        };
+        public string ObjectPronoun => Gender switch
+        {
+            Gender.Male => "him",
+            Gender.Female => "her",
+            Gender.NonBinary => "them",
+            _ => "them"
+        };
+        public string PossessivePronoun => Gender switch
+        {
+            Gender.Male => "his",
+            Gender.Female => "her",
+            Gender.NonBinary => "their",
+            _ => "their"
+        };
+        public string ReflexivePronoun => Gender switch
+        {
+            Gender.Male => "himself",
+            Gender.Female => "herself",
+            Gender.NonBinary => "themselves",
+            _ => "themselves"
+        };
         public DateTime? EffectiveDate { get; set; }
         public string? Bio { get; set; }
 
@@ -439,27 +467,39 @@ namespace Sati
         //
         // Endpoints exclusive on both ends: a note ON the due date bills, a note
         // ON or after the completion date bills. Only strictly between blocks.
+        public static bool IsBillingWindowBlocked(
+            FormType formType,
+            DateTime dueDate,
+            DateTime? completedDate,
+            DateTime serviceDate)
+        {
+            var isGated = formType is
+                FormType.PCP or
+                FormType.ComprehensiveAssessment or
+                FormType.Reclassification or
+                FormType.Q1R or FormType.Q2R or FormType.Q3R or FormType.Q4R;
+
+            return isGated
+                && serviceDate.Date > dueDate.Date
+                && (completedDate is null || serviceDate.Date < completedDate.Value.Date);
+        }
+
+        // Network hydration seam for the HTTP-backed Demo client. Only identity is
+        // set here; CloudContractMapper applies the safe DTO fields afterward.
+        // This never accepts password, tenant, or persistence-only material.
+        public static Person Rehydrate(int id, int userId) => new()
+        {
+            Id = id,
+            UserId = userId
+        };
+
         public IReadOnlyList<string> EvaluateBillingWindow(DateTime noteDate)
         {
-            var gatedTypes = new[]
-            {
-                FormType.PCP,
-                FormType.ComprehensiveAssessment,
-                FormType.Reclassification,
-                FormType.Q1R, FormType.Q2R, FormType.Q3R, FormType.Q4R
-            };
-
             var blocking = new List<string>();
 
-            foreach (var form in Forms.Where(f => gatedTypes.Contains(f.Type)))
+            foreach (var form in Forms)
             {
-                var pastDue = noteDate.Date > form.DueDate.Date;
-                if (!pastDue)
-                    continue;
-
-                var notDoneAsOfNote = form.CompletedDate is null
-                    || noteDate.Date < form.CompletedDate.Value.Date;
-                if (notDoneAsOfNote)
+                if (IsBillingWindowBlocked(form.Type, form.DueDate, form.CompletedDate, noteDate))
                     blocking.Add($"{FormDisplayName(form.Type)} was due {form.DueDate:MMM d, yyyy} "
                                + "and was not completed as of this note's date.");
             }

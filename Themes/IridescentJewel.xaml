@@ -1,0 +1,91 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Saturated sapphire, amethyst and peacock tones with pale nacre-like
+         highlights. Diagonal color shifts suggest iridescence on a static screen. -->
+    <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF111B2D" Offset="0" />
+        <GradientStop Color="#FF172D38" Offset="0.32" />
+        <GradientStop Color="#FF29203B" Offset="0.68" />
+        <GradientStop Color="#FF132738" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="NavBackgroundBrush" StartPoint="0,1" EndPoint="1,0">
+        <GradientStop Color="#FF172D3A" Offset="0" />
+        <GradientStop Color="#FF292340" Offset="0.5" />
+        <GradientStop Color="#FF173643" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="SurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF25384A" Offset="0" />
+        <GradientStop Color="#FF2D304B" Offset="0.38" />
+        <GradientStop Color="#FF283F47" Offset="0.72" />
+        <GradientStop Color="#FF342B48" Offset="1" />
+    </LinearGradientBrush>
+
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#303A50" />
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#39475A" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#3B465B" />
+    <SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B32B354B" />
+    <SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#402B354B" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#65758E" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#8292AA" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#52647A" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#B58AD5" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#C8A3E2" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#8D68B0" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#191222" />
+
+    <Color x:Key="AiGlowColor">#FF6FD1C7</Color>
+    <SolidColorBrush x:Key="AiAccentBrush" Color="#3D9E98" />
+    <SolidColorBrush x:Key="AiAccentHoverBrush" Color="#58B8B0" />
+    <SolidColorBrush x:Key="AiAccentPressedBrush" Color="#287A76" />
+    <SolidColorBrush x:Key="AiAccentSoftBrush" Color="#264B55" />
+    <SolidColorBrush x:Key="AiAccentBorderBrush" Color="#69C3BC" />
+    <SolidColorBrush x:Key="OnAiAccentBrush" Color="#102A2A" />
+    <SolidColorBrush x:Key="AiPanelTextBrush" Color="#C6F4EF" />
+
+    <SolidColorBrush x:Key="HoverBrush" Color="#3C4961" />
+    <SolidColorBrush x:Key="HoverStrongBrush" Color="#51617A" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F6F2FA" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#D2CADC" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#B9B6CA" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#B5B2C6" />
+    <SolidColorBrush x:Key="NarrativeTextBrush" Color="#DDD4E5" />
+    <SolidColorBrush x:Key="PersonGroupBrush" Color="#2D3E50" />
+    <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#37334F" />
+
+    <Color x:Key="SurfaceAltColor">#FF303A50</Color>
+    <Color x:Key="SurfaceRaisedColor">#FF3B465B</Color>
+    <Color x:Key="TextSubtleColor">#FFB5B2C6</Color>
+
+    <!-- Dark-surface semantic variants. Meaning stays fixed; luminance changes. -->
+    <SolidColorBrush x:Key="OverdueBrush" Color="#FFADA3" />
+    <SolidColorBrush x:Key="OverdueBorderBrush" Color="#9E606A" />
+    <SolidColorBrush x:Key="OverdueFillBrush" Color="#49313E" />
+    <SolidColorBrush x:Key="CompliantBrush" Color="#A8DDA6" />
+    <SolidColorBrush x:Key="CompliantFillBrush" Color="#2D493F" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#F0D07B" />
+    <SolidColorBrush x:Key="WarningFillBrush" Color="#4B4029" />
+    <SolidColorBrush x:Key="InfoBrush" Color="#9BCDF5" />
+    <SolidColorBrush x:Key="InfoFillBrush" Color="#29445C" />
+    <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A6D69C" />
+    <SolidColorBrush x:Key="SuccessDarkBrush" Color="#B7E0AE" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#688F6C" />
+    <SolidColorBrush x:Key="SuccessSoftBrush" Color="#344F43" />
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA" />
+    <SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0" />
+    <SolidColorBrush x:Key="DangerSoftBrush" Color="#51343F" />
+    <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#D8C2F0" />
+    <SolidColorBrush x:Key="WorkflowPurpleFillBrush" Color="#453657" />
+    <SolidColorBrush x:Key="WorkflowPurpleBorderBrush" Color="#806A98" />
+    <SolidColorBrush x:Key="OpenedFormBrush" Color="#FFB36B" />
+    <SolidColorBrush x:Key="OpenedFormFillBrush" Color="#4C3828" />
+    <SolidColorBrush x:Key="MatrixGoodBrush" Color="#31513A" />
+    <SolidColorBrush x:Key="MatrixWatchBrush" Color="#584B28" />
+    <SolidColorBrush x:Key="MatrixConcernBrush" Color="#5C3F2B" />
+    <SolidColorBrush x:Key="MatrixUrgentBrush" Color="#593237" />
+    <SolidColorBrush x:Key="MatrixEmptyBrush" Color="#38404A" />
+    <Color x:Key="MatrixGoodColor">#FF31513A</Color>
+    <Color x:Key="MatrixWatchColor">#FF584B28</Color>
+    <Color x:Key="MatrixUrgentColor">#FF593237</Color>
+    <Color x:Key="MatrixEmptyColor">#FF38404A</Color>
+</ResourceDictionary>

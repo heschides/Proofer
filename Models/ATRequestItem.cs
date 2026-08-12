@@ -17,5 +17,12 @@
         public string? Url { get; set; }
 
         public decimal LineTotal => ItemCost * Quantity;
+
+        public static ATRequestItem Rehydrate(int id)
+        {
+            var item = new ATRequestItem();
+            item.Id = id;
+            return item;
+        }
     }
 }

@@ -84,7 +84,6 @@ namespace Sati.ViewModels.Children
                     return;
 
                 _scratchpad.Content = content;
-                Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SAVING SCRATCHPAD: '{content}'");
                 await _scratchpadService.SaveAsync(_scratchpad);
             }
             catch (Exception ex)

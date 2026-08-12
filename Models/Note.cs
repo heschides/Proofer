@@ -46,8 +46,10 @@ namespace Sati.Models
         public DateTime? OverrideApprovedAt { get; set; }
 
         [NotMapped]
-        public int? Units => Minutes.HasValue
-            ? Math.Max(1, (int)Math.Ceiling(Minutes.Value / 15.0))
+        public int? Units => CalculateUnits(Minutes);
+
+        public static int? CalculateUnits(int? minutes) => minutes.HasValue
+            ? Math.Max(1, (int)Math.Ceiling(minutes.Value / 15.0))
             : null;
 
         private protected Note() { }
@@ -65,5 +67,9 @@ namespace Sati.Models
                 NoteType = noteType
             };
         }
+
+        // Network hydration seam for safe API DTOs. Remaining public fields are
+        // applied by CloudContractMapper; EF-only navigation state is not required.
+        public static Note Rehydrate(int id) => new() { Id = id };
     }
 }

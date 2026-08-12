@@ -160,7 +160,7 @@ namespace Sati.ViewModels
                     return;
                 }
 
-                await _userService.ChangePasswordAsync(CurrentUser, NewPassword);
+                await _userService.ChangePasswordAsync(CurrentUser, CurrentPassword, NewPassword);
 
                 // Clear the secure inputs, then signal the view to clear the boxes.
                 CurrentPassword = null;

@@ -222,6 +222,11 @@
                            Style="{StaticResource LabelStyle}" />
                 <DatePicker AutomationProperties.Name="Date of birth" SelectedDate="{Binding BirthDate, Mode=TwoWay}" />
 
+                <TextBlock Text="GENDER / PRONOUNS"
+                           Style="{StaticResource LabelStyle}" />
+                <ComboBox AutomationProperties.Name="Gender and pronouns" ItemsSource="{Binding Genders}"
+                          SelectedItem="{Binding Gender, Mode=TwoWay}" />
+
                 <TextBlock Text="WAIVER"
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox AutomationProperties.Name="Waiver" ItemsSource="{Binding Waivers}"
@@ -395,18 +400,46 @@
 
         <!-- ═══ RIGHT PANEL ═══ -->
         <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
-                <ColumnDefinition Width="12" />
+                <ColumnDefinition>
+                    <ColumnDefinition.Style>
+                        <Style TargetType="ColumnDefinition">
+                            <Setter Property="Width" Value="250" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsClientListCompact}" Value="True">
+                                    <Setter Property="Width" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ColumnDefinition.Style>
+                </ColumnDefinition>
+                <ColumnDefinition>
+                    <ColumnDefinition.Style>
+                        <Style TargetType="ColumnDefinition">
+                            <Setter Property="Width" Value="12" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsClientListCompact}" Value="True">
+                                    <Setter Property="Width" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ColumnDefinition.Style>
+                </ColumnDefinition>
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- ═══ CLIENT ROSTER ═══ -->
             <Border Grid.Column="0"
+                    Grid.RowSpan="2"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="6">
+                    CornerRadius="6"
+                    Visibility="{Binding IsClientListCompact, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -428,16 +461,22 @@
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        Margin="0,2,0,0" />
                         </StackPanel>
-                        <Button Grid.Column="1"
-                                Style="{StaticResource IconButton}"
-                                AutomationProperties.Name="Add a new client"
-                                Command="{Binding OpenEntryPanelCommand}"
-                                ToolTip="Add a new client">
-                            <TextBlock Text="&#xE72C;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </Button>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Style="{StaticResource IconButton}"
+                                    AutomationProperties.Name="Collapse client list"
+                                    Command="{Binding ToggleClientListCommand}"
+                                    ToolTip="Use compact client selector">
+                                <TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Button>
+                            <Button Style="{StaticResource IconButton}"
+                                    AutomationProperties.Name="Add a new client"
+                                    Command="{Binding OpenEntryPanelCommand}"
+                                    ToolTip="Add a new client">
+                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
                     <ListBox AutomationProperties.Name="Clients"
@@ -521,7 +560,81 @@
             </Border>
 
             <!-- ═══ CLIENT DETAIL PANEL ═══ -->
+            <!-- Always-visible compact selector. It remains available even when
+                 no consumer workspace is currently shown. -->
             <Border Grid.Column="2"
+                    Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,8"
+                    Margin="0,0,0,10"
+                    Visibility="{Binding IsClientListCompact, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="4"
+                            Style="{StaticResource IconButton}"
+                            AutomationProperties.Name="Expand client list"
+                            Command="{Binding ToggleClientListCommand}"
+                            ToolTip="Show full client list">
+                        <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Button>
+                    <TextBlock Grid.Column="0" Text="CLIENT" FontSize="11" FontWeight="Bold"
+                               Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding People}"
+                              SelectedItem="{Binding SelectedPerson, Mode=TwoWay}"
+                              DisplayMemberPath="FullName"
+                              IsEnabled="{Binding IsClientEditorOpen, Converter={StaticResource InverseBoolConverter}}"
+                              AutomationProperties.Name="Select client" />
+                    <ItemsControl Grid.Column="3"
+                                  ItemsSource="{Binding SelectedPersonUpcomingItems}"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource DividerBrush}"
+                                        BorderThickness="1,0,0,0"
+                                        Padding="12,0"
+                                        Margin="0">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Date, StringFormat={}{0:MMM d}}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Grid.Column="3"
+                               Text="No upcoming items in the current work window"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasSelectedPersonUpcomingItems, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Grid.Row="1"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
@@ -901,8 +1014,9 @@
                                     <TextBox Text="{Binding EvergreenId, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Evergreen ID" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,10,14,0">
-                                    <TextBlock Text="PHONE" Style="{StaticResource LabelStyle}" />
-                                    <TextBox Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Phone number" />
+                                    <TextBlock Text="GENDER / PRONOUNS" Style="{StaticResource LabelStyle}" />
+                                    <ComboBox ItemsSource="{Binding Genders}" SelectedItem="{Binding Gender}"
+                                              AutomationProperties.Name="Gender and pronouns" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Grid.Column="3" Margin="0,10,0,0">
                                     <TextBlock Text="HEALTHCARE SYSTEM" Style="{StaticResource LabelStyle}" />
@@ -921,6 +1035,9 @@
                                              SpellCheck.IsEnabled="True" AutomationProperties.Name="Biography" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,10,14,0">
+                                    <TextBlock Text="PHONE" Style="{StaticResource LabelStyle}" />
+                                    <TextBox Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Phone number" />
                                     <TextBlock Text="PRIMARY CARE PROVIDER" Style="{StaticResource LabelStyle}" />
                                     <TextBox Text="{Binding PrimaryCareProvider, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Primary care provider" />
                                     <CheckBox Content="Has guardian" IsChecked="{Binding HasGuardian}" Margin="0,10,0,4" />

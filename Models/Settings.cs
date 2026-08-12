@@ -9,6 +9,7 @@ namespace Sati.Models
     public class Settings
     {
         public int Id { get; set; }
+        public int AgencyId { get; set; }
 
         // Abandonment
         public int AbandonedAfterDays { get; set; } = 7;

@@ -6,7 +6,7 @@ namespace Sati.Data
     public class PersonService : IPersonService
     {
 
-        private const bool EnableEnsureCycleFormsOnLoad = false;
+        private static readonly bool EnableEnsureCycleFormsOnLoad = false;
 
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISettingsService _settingsService;
