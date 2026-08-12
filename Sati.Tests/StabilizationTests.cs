@@ -3,6 +3,9 @@ using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
 using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
+using Sati.Reporting;
+using PdfSharp.Fonts;
 using Xunit;
 
 namespace Sati.Tests;
@@ -105,5 +108,59 @@ public sealed class StabilizationTests
         using var context = new SatiContext(options);
 
         Assert.False(context.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
+    {
+        GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+        var person = Person.CreatePerson(
+            12,
+            "Lifecycle",
+            "Example",
+            "Initial biography.",
+            new DateTime(1985, 5, 6),
+            new DateTime(2025, 5, 6),
+            WaiverType.Section21,
+            new Settings());
+        person.Revision = 2;
+        var requester = User.Create(
+            11,
+            "admin-one",
+            "Admin One",
+            "hash",
+            "salt",
+            UserRole.Admin,
+            null,
+            1);
+        var versions = new List<PersonVersionDto>
+        {
+            new(
+                1, 0, 1, "TrackingBaseline", 0, "Sati tracking baseline",
+                new DateTime(2026, 8, 12, 14, 0, 0, DateTimeKind.Utc),
+                "desktop-baseline",
+                [new("firstName", "First name", null, "Lifecycle")]),
+            new(
+                2, 0, 2, "Updated", 12, "Case Manager One",
+                new DateTime(2026, 8, 12, 15, 0, 0, DateTimeKind.Utc),
+                "desktop-update",
+                [new("firstName", "First name", "Lifecycle", "Updated")])
+        };
+
+        var pdf = new PersonAuditPdfExporter().Generate(
+            person,
+            versions,
+            new Agency { Id = 1, Name = "Agency One" },
+            requester,
+            new DateTime(2026, 8, 12, 16, 0, 0, DateTimeKind.Utc));
+
+        Assert.True(pdf.Length > 2_000);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        var qaOutput = Environment.GetEnvironmentVariable("SATI_LOCAL_ADMIN_PDF_QA_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(qaOutput))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(qaOutput)!);
+            await File.WriteAllBytesAsync(qaOutput, pdf);
+        }
     }
 }

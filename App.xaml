@@ -7,6 +7,7 @@
              xmlns:supervisor="clr-namespace:Sati.ViewModels.Supervisor"
              xmlns:supervisorVms="clr-namespace:Sati.ViewModels.Supervisor"
              xmlns:billingVms="clr-namespace:Sati.ViewModels.Billing"
+             xmlns:adminVms="clr-namespace:Sati.ViewModels.Admin"
              xmlns:views="clr-namespace:Sati.Views"
              xmlns:billingViews="clr-namespace:Sati.Views.Billing">
     <Application.Resources>
@@ -510,6 +511,9 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type supervisorVms:PendingApprovalsViewModel}">
                 <views:PendingApprovalsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVms:AdminDashboardViewModel}">
+                <views:AdminDashboardView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type billingVms:BillingDashboardViewModel}">
                 <billingViews:BillingDashboardView />

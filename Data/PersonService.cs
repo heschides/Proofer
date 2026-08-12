@@ -10,25 +10,50 @@ namespace Sati.Data
 
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISettingsService _settingsService;
+        private readonly ISessionService _sessionService;
 
-        public PersonService(IDbContextFactory<SatiContext> contextFactory, ISettingsService settingsService)
+        public PersonService(
+            IDbContextFactory<SatiContext> contextFactory,
+            ISettingsService settingsService,
+            ISessionService sessionService)
         {
             _contextFactory = contextFactory;
             _settingsService = settingsService;
+            _sessionService = sessionService;
         }
 
         public async Task<Person> AddPersonAsync(Person person)
         {
+            var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
+            person.AgencyId ??= actor.AgencyId;
+            person.Revision = 1;
             context.People.Add(person);
+            PersonLifecycleLedger.RecordCreated(context, actor, person);
+            LocalAuditTrail.Record(context, actor, LocalAuditActions.PersonCreated, "Person");
             await context.SaveChangesAsync();
             return person;
         }
 
         public async Task<Person> EditPersonAsync(Person person)
         {
+            var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
+            var stored = await context.People.AsNoTracking()
+                .SingleOrDefaultAsync(candidate => candidate.Id == person.Id &&
+                    candidate.AgencyId == actor.AgencyId);
+            if (stored is null)
+                throw new InvalidOperationException("This Person was not found in your agency.");
+            if (person.Revision != stored.Revision)
+                throw new InvalidOperationException(
+                    "This Person was changed after you opened it. Reload the Person before saving.");
+
+            var before = PersonLifecycleLedger.Capture(stored);
+            await PersonLifecycleLedger.EnsureBaselineAsync(context, stored);
             context.People.Update(person);
+            context.Entry(person).Property(candidate => candidate.Revision).OriginalValue = stored.Revision;
+            if (PersonLifecycleLedger.RecordChanged(context, actor, person, before, "Updated"))
+                LocalAuditTrail.Record(context, actor, LocalAuditActions.PersonUpdated, "Person", person.Id);
             await context.SaveChangesAsync();
             return person;
         }
@@ -47,19 +72,34 @@ namespace Sati.Data
                 .FirstOrDefaultAsync();
         }
 
-        // Writes a single column via a set-based UPDATE — no entity materialized, no
-        // change tracker, no risk of round-tripping stale values on the row's other
-        // columns (the reason we don't load-set-save here). ExecuteUpdateAsync bypasses
-        // SaveChanges entirely; safe because this service has no interceptors or
-        // SaveChanges override doing cross-cutting work. A no-match id updates zero
-        // rows silently, which is the correct outcome for a deleted person.
+        // Journal edits now load the authoritative Person row so the revision token,
+        // append-only lifecycle snapshot, and lightweight audit event commit together.
+        // Only Journal and Revision are changed on this freshly loaded entity, so stale
+        // values from the caller are never round-tripped onto the other profile fields.
         public async Task SaveJournalAsync(int personId, string? journal)
         {
+            var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
-            await context.People
-                .Where(p => p.Id == personId)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Journal, journal));
+            var person = await context.People.SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId);
+            if (person is null)
+                throw new InvalidOperationException("This Person was not found in your agency.");
+
+            var before = PersonLifecycleLedger.Capture(person);
+            await PersonLifecycleLedger.EnsureBaselineAsync(context, person);
+            person.Journal = journal;
+            if (PersonLifecycleLedger.RecordChanged(context, actor, person, before, "Journal updated"))
+                LocalAuditTrail.Record(
+                    context,
+                    actor,
+                    LocalAuditActions.PersonJournalUpdated,
+                    "Person",
+                    personId);
+            await context.SaveChangesAsync();
         }
+
+        private User CurrentActor() => _sessionService.CurrentUser
+            ?? throw new InvalidOperationException("A signed-in user is required for this operation.");
 
         public async Task<List<Person>> GetAllPeopleAsync(int userId)
         {

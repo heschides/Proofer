@@ -19,6 +19,9 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Profile | `GET /me` | User's `AgencyId` | Own user only. |
 | Profile | `GET /users/switchable` | User's `AgencyId` | Authenticated actor; response is restricted to the actor's agency. |
 | Audit | `GET /audit-events` | Audit event's `AgencyId` | Admin only; response is restricted to actor agency, a bounded date window, and at most 500 rows. |
+| Admin | `GET /admin/overview` | Actor's `AgencyId` | Admin only; every count is computed within the actor's agency. |
+| Admin | `GET /admin/people` | Person and assigned user's `AgencyId` | Admin only; both ownership markers must equal actor agency. |
+| Admin | `GET /admin/activity` | Audit event's `AgencyId` | Admin only; bounded activity feed with actor display names from the same agency. |
 | Users | `POST /users` | New user's `AgencyId` | Supervisor/Director/Admin; requested agency must equal actor agency, with role hierarchy checks. |
 | Users | `PUT /users/{userId}` | Target user's `AgencyId` | Supervisor/Director/Admin in the same agency; supervisors only manage assigned case managers. |
 | Users | `PUT /users/{userId}/password` | Target user's `AgencyId` | Same rule as user update. |

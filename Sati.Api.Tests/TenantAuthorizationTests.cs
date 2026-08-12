@@ -316,6 +316,42 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task AdministratorDashboardIsAgencyScoped()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var overview = await client.GetFromJsonAsync<AdminOverviewDto>("/api/v1/admin/overview");
+        var people = await client.GetFromJsonAsync<List<AdminPersonListItemDto>>("/api/v1/admin/people");
+        var activity = await client.GetFromJsonAsync<List<AdminActivityDto>>("/api/v1/admin/activity?days=30&take=500");
+
+        Assert.NotNull(overview);
+        Assert.Equal(1, overview.AgencyId);
+        Assert.Equal("Agency One", overview.AgencyName);
+        Assert.Equal(4, overview.UserCount);
+        Assert.Equal(2, overview.PersonCount);
+        Assert.Equal(1, overview.NotesThisMonth);
+        Assert.NotEmpty(people!);
+        Assert.All(people!, person => Assert.DoesNotContain("Two", person.DisplayName));
+        Assert.Contains(people!, person => person.PersonId == 101);
+        Assert.DoesNotContain(people!, person => person.PersonId == 201);
+        Assert.NotEmpty(activity!);
+        Assert.All(activity!, item => Assert.NotEqual(21, item.ActorUserId));
+    }
+
+    [Theory]
+    [InlineData("/api/v1/admin/overview")]
+    [InlineData("/api/v1/admin/people")]
+    [InlineData("/api/v1/admin/activity")]
+    public async Task CaseManagerCannotOpenAdministratorDashboard(string path)
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task PersonLifecyclePreservesChangesRejectsStaleWritesAndGeneratesAuditorPdf()
     {
         using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");

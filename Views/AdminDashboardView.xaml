@@ -1,0 +1,324 @@
+<UserControl x:Class="Sati.Views.AdminDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource WindowBackgroundBrush}"
+             TextElement.FontFamily="{StaticResource AppFont}">
+    <UserControl.Resources>
+        <Style x:Key="AdminMetricCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+        </Style>
+        <Style x:Key="AdminMetricLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="18,14,18,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Admin"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Overview.AgencyName, TargetNullValue=Agency overview}"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="  |  " Foreground="{DynamicResource TextMutedBrush}" />
+                    <TextBlock Text="{Binding LastRefreshedLabel}"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Content="Refresh"
+                    Command="{Binding RefreshCommand}"
+                    Style="{StaticResource SmallButton}"
+                    MinWidth="82"
+                    AutomationProperties.Name="Refresh Admin dashboard" />
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="#FFFFEFEF"
+                BorderBrush="#FFE8AAAA"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="10,7"
+                Margin="0,0,0,10">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap"
+                       Foreground="#FF8D2929" />
+        </Border>
+
+        <UniformGrid Grid.Row="2" Rows="2" Columns="4" Margin="0,0,0,4">
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="USERS" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.UserCount, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="CASE MANAGERS" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.CaseManagerCount, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="PEOPLE" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.PersonCount, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="NOTES THIS MONTH" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.NotesThisMonth, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="ACTIVE USERS / 30D" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.ActiveUsersLast30Days, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="SIGN-INS / 30D" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.SuccessfulSignInsLast30Days, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="PERSON CHANGES / 30D" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.PersonChangesLast30Days, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AdminMetricCard}">
+                <StackPanel>
+                    <TextBlock Text="AUDIT EVENTS TODAY" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Overview.AuditEventsToday, TargetNullValue=&#x2014;}"
+                               FontSize="21" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.05*" MinWidth="260" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="0.8*" MinWidth="210" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="1.35*" MinWidth="330" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Recent activity" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="Successful protected actions during the last 30 days"
+                                   FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding RecentActivity}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="0,0,0,1" Padding="0,7">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding ActionLabel}" FontWeight="SemiBold"
+                                                           FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding ActorDisplayName}" />
+                                                    <Run Text="  |  " />
+                                                    <Run Text="{Binding ResourceLabel}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding OccurredAtLocal, StringFormat={}{0:MMM d, h:mm tt}}"
+                                                       FontSize="9" Foreground="{DynamicResource TextMutedBrush}"
+                                                       Margin="8,1,0,0" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="People" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="Select a Person to inspect their lifecycle"
+                                   FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding People}"
+                             SelectedItem="{Binding SelectedPerson}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="2,5">
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
+                                        <Run Text="Revision " />
+                                        <Run Text="{Binding Revision}" />
+                                        <Run Text="  |  " />
+                                        <Run Text="{Binding AssignedUserDisplayName}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="4"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Person lifecycle" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding SelectedPerson.DisplayName, TargetNullValue=Select a Person}"
+                                       FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Download PDF"
+                                Command="{Binding ExportPersonAuditPdfCommand}"
+                                Style="{StaticResource SmallButton}"
+                                AutomationProperties.Name="Download Person lifecycle audit PDF" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding PersonHistory}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4"
+                                            Margin="0,0,0,9" Padding="9">
+                                        <StackPanel>
+                                            <Border Background="{DynamicResource TextPrimaryBrush}"
+                                                    CornerRadius="3" Padding="7,4" Margin="0,0,0,5">
+                                                <TextBlock Foreground="{DynamicResource WindowBackgroundBrush}"
+                                                           FontSize="11" FontWeight="SemiBold">
+                                                    <Run Text="Version " />
+                                                    <Run Text="{Binding Version}" />
+                                                    <Run Text="  &#x2014;  " />
+                                                    <Run Text="{Binding ChangeKind}" />
+                                                </TextBlock>
+                                            </Border>
+                                            <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="0,0,0,5">
+                                                <Run Text="{Binding ActorDisplayName}" />
+                                                <Run Text="  |  " />
+                                                <Run Text="{Binding ChangedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                                            </TextBlock>
+                                            <ItemsControl ItemsSource="{Binding Changes}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,3,0,4">
+                                                            <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource AccentBrush}" />
+                                                            <TextBlock FontSize="10" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}">
+                                                                <Run Text="Previous: " FontWeight="SemiBold" />
+                                                                <Run Text="{Binding PreviousValue, TargetNullValue=Not recorded}" />
+                                                            </TextBlock>
+                                                            <TextBlock FontSize="10" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}">
+                                                                <Run Text="New value: " FontWeight="SemiBold" />
+                                                                <Run Text="{Binding NewValue, TargetNullValue=Not recorded}" />
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

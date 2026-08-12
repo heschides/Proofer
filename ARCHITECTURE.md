@@ -188,18 +188,15 @@ and its assigned user's agency and record the access in the general audit envelo
 receive a labeled current-state baseline when tracking first touches them; the system does not claim
 to reconstruct changes made before the ledger existed.
 
-Person profile changes additionally use a purpose-built `PersonVersion` ledger. Unlike the
-PHI-minimized activity envelope, each immutable version intentionally contains a compressed full
-profile snapshot and a field-level before/after change set so an authorized auditor can reconstruct
-the Person over time. Person writes and their version row share one database save; a Person
-`Revision` token rejects stale overwrites. Admin-only history and PDF exports verify both the Person
-and its assigned user's agency and record the access in the general audit envelope. Legacy rows
-receive a labeled current-state baseline when tracking first touches them; the system does not claim
-to reconstruct changes made before the ledger existed.
-
 This is a workable transition structure, not a reason for a whole-repository move. The next
 structural changes should reduce real coupling: split the API endpoint monolith by feature and
 make server persistence/migrations authoritative so `SatiContext` and `ApiDbContext` cannot drift.
+
+The WPF shell exposes these server capabilities through an Admin-only dashboard. `IAdminService`
+is the client seam: `CloudAdminService` calls the protected API, while `AdminService` supports the
+transitional local-development database. The panel shows agency-scoped counts and activity,
+provides a Person history timeline, and saves the same protected lifecycle PDF. Menu visibility is
+only presentation; both service implementations and all API routes independently require Admin.
 
 ---
 

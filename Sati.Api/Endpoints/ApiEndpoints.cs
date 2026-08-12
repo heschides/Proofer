@@ -21,6 +21,7 @@ internal static class ApiEndpoints
             .AddEndpointFilter<ValidatedActorFilter>();
         MapProfile(api);
         MapAudit(api);
+        MapAdmin(api);
         MapUsers(api);
         MapSupervisor(api);
         MapCaseload(api);
@@ -89,6 +90,134 @@ internal static class ApiEndpoints
                     candidate.CorrelationId))
                 .ToListAsync(cancellationToken);
             return Results.Ok(events);
+        });
+    }
+
+    private static void MapAdmin(RouteGroupBuilder api)
+    {
+        api.MapGet("/admin/overview", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var now = DateTime.UtcNow;
+            var today = now.Date;
+            var thirtyDaysAgo = now.AddDays(-30);
+            var monthStart = new DateTime(now.Year, now.Month, 1);
+            var agencyName = await db.Agencies.AsNoTracking()
+                .Where(agency => agency.Id == actor.AgencyId)
+                .Select(agency => agency.Name)
+                .SingleAsync(cancellationToken);
+            var userCount = await db.Users.AsNoTracking()
+                .CountAsync(user => user.AgencyId == actor.AgencyId, cancellationToken);
+            var caseManagerCount = await db.Users.AsNoTracking()
+                .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role == "CaseManager", cancellationToken);
+            var personCount = await db.People.AsNoTracking()
+                .CountAsync(person => person.AgencyId == actor.AgencyId &&
+                    db.Users.Any(user => user.Id == person.UserId && user.AgencyId == actor.AgencyId),
+                    cancellationToken);
+            var notesThisMonth = await db.Notes.AsNoTracking()
+                .CountAsync(note => note.EventDate >= monthStart &&
+                    db.People.Any(person => person.Id == note.PersonId && person.AgencyId == actor.AgencyId &&
+                        db.Users.Any(user => user.Id == person.UserId && user.AgencyId == actor.AgencyId)),
+                    cancellationToken);
+            var activeUsers = await db.AuditEvents.AsNoTracking()
+                .Where(auditEvent => auditEvent.AgencyId == actor.AgencyId &&
+                    auditEvent.OccurredAtUtc >= thirtyDaysAgo)
+                .Select(auditEvent => auditEvent.ActorUserId)
+                .Distinct()
+                .CountAsync(cancellationToken);
+            var successfulSignIns = await db.AuditEvents.AsNoTracking()
+                .CountAsync(auditEvent => auditEvent.AgencyId == actor.AgencyId &&
+                    auditEvent.OccurredAtUtc >= thirtyDaysAgo &&
+                    auditEvent.Action == AuditActions.AuthenticationSucceeded,
+                    cancellationToken);
+            var personChanges = await db.PersonVersions.AsNoTracking()
+                .CountAsync(version => version.AgencyId == actor.AgencyId &&
+                    version.ChangedAtUtc >= thirtyDaysAgo && version.ChangeKind != "TrackingBaseline",
+                    cancellationToken);
+            var auditEventsToday = await db.AuditEvents.AsNoTracking()
+                .CountAsync(auditEvent => auditEvent.AgencyId == actor.AgencyId &&
+                    auditEvent.OccurredAtUtc >= today,
+                    cancellationToken);
+            var lastActivity = await db.AuditEvents.AsNoTracking()
+                .Where(auditEvent => auditEvent.AgencyId == actor.AgencyId)
+                .MaxAsync(auditEvent => (DateTime?)auditEvent.OccurredAtUtc, cancellationToken);
+
+            return Results.Ok(new AdminOverviewDto(
+                actor.AgencyId, agencyName, userCount, caseManagerCount, personCount,
+                notesThisMonth, activeUsers, successfulSignIns, personChanges,
+                auditEventsToday, lastActivity));
+        });
+
+        api.MapGet("/admin/people", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var people = await (
+                from person in db.People.AsNoTracking()
+                join user in db.Users.AsNoTracking() on person.UserId equals user.Id
+                where person.AgencyId == actor.AgencyId && user.AgencyId == actor.AgencyId
+                orderby person.LastName, person.FirstName, person.Id
+                select new AdminPersonListItemDto(
+                    person.Id,
+                    ((person.LastName ?? string.Empty) + ", " + (person.FirstName ?? string.Empty)).Trim(' ', ','),
+                    person.Revision,
+                    user.Id,
+                    user.DisplayName))
+                .ToListAsync(cancellationToken);
+            return Results.Ok(people);
+        });
+
+        api.MapGet("/admin/activity", async Task<IResult> (
+            int? days,
+            int? take,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var windowDays = days ?? 30;
+            var limit = take ?? 100;
+            if (windowDays is < 1 or > 366 || limit is < 1 or > 500)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["query"] = ["Use a day window from 1 to 366 and a take value from 1 to 500."]
+                });
+            }
+
+            var start = DateTime.UtcNow.AddDays(-windowDays);
+            var activity = await (
+                from auditEvent in db.AuditEvents.AsNoTracking()
+                join user in db.Users.AsNoTracking() on auditEvent.ActorUserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                where auditEvent.AgencyId == actor.AgencyId && auditEvent.OccurredAtUtc >= start
+                orderby auditEvent.OccurredAtUtc descending, auditEvent.Id descending
+                select new AdminActivityDto(
+                    auditEvent.Id,
+                    auditEvent.ActorUserId,
+                    user == null ? $"User {auditEvent.ActorUserId}" : user.DisplayName,
+                    auditEvent.Action,
+                    auditEvent.ResourceType,
+                    auditEvent.ResourceId,
+                    auditEvent.OccurredAtUtc,
+                    auditEvent.CorrelationId))
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(activity);
         });
     }
 

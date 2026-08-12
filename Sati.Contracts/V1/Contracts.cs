@@ -313,6 +313,36 @@ public sealed record PersonVersionDto(
     string CorrelationId,
     IReadOnlyList<PersonFieldChangeDto> Changes);
 
+public sealed record AdminOverviewDto(
+    int AgencyId,
+    string AgencyName,
+    int UserCount,
+    int CaseManagerCount,
+    int PersonCount,
+    int NotesThisMonth,
+    int ActiveUsersLast30Days,
+    int SuccessfulSignInsLast30Days,
+    int PersonChangesLast30Days,
+    int AuditEventsToday,
+    DateTime? LastActivityUtc);
+
+public sealed record AdminPersonListItemDto(
+    int PersonId,
+    string DisplayName,
+    int Revision,
+    int AssignedUserId,
+    string AssignedUserDisplayName);
+
+public sealed record AdminActivityDto(
+    long Id,
+    int ActorUserId,
+    string ActorDisplayName,
+    string Action,
+    string ResourceType,
+    string? ResourceId,
+    DateTime OccurredAtUtc,
+    string CorrelationId);
+
 public sealed record ConsumerBillingLossRowDto(
     int PersonId,
     string ConsumerName,

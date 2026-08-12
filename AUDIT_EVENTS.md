@@ -76,3 +76,8 @@ The PDF is an auditor-friendly rendering of the same append-only ledger. It incl
 handling language, record and revision identifiers, chronological actor/timestamp details, and
 the old and new value for every changed field. Related notes, contacts, forms, assessments, and
 billing items retain their own histories and are not silently folded into the Person profile ledger.
+
+The WPF client's Admin tab is the supported human-facing entry point. It summarizes agency usage,
+renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the
+protected PDF export. The UI does not broaden access: cloud requests remain subject to the API's
+Admin and tenant checks, and the transitional local service repeats the Admin/agency restrictions.

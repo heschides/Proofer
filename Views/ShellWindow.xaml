@@ -69,6 +69,42 @@
                     <Border Cursor="Hand"
                             CornerRadius="4"
                             Padding="10,4"
+                            Margin="0,0,4,0"
+                            Visibility="{Binding IsAdminAvailable,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding NavigateToAdminCommand}" />
+                        </Border.InputBindings>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAdminActive}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
+                                    </DataTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="Admin" FontSize="13">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAdminActive}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource WindowBackgroundBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <Border Cursor="Hand"
+                            CornerRadius="4"
+                            Padding="10,4"
                             Margin="0,0,4,0">
                         <Border.InputBindings>
                             <MouseBinding MouseAction="LeftClick"

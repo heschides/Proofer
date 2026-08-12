@@ -29,6 +29,14 @@ namespace Sati.Data
             if (!isValid)
                 return null;
 
+            LocalAuditTrail.Record(
+                context,
+                userEntity,
+                LocalAuditActions.AuthenticationSucceeded,
+                "User",
+                userEntity.Id);
+            await context.SaveChangesAsync();
+
             return User.Create(
                 userEntity.Id,
                 userEntity.Username,

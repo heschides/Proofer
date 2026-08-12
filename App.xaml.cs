@@ -13,7 +13,10 @@ using Sati.ViewModels;
 using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
 using Sati.ViewModels.Supervisor;
+using Sati.ViewModels.Admin;
 using Sati.Views;
+using Sati.Reporting;
+using PdfSharp.Fonts;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Windows;
@@ -59,6 +62,7 @@ namespace Sati
             try
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                GlobalFontSettings.UseWindowsFontsUnderWindows = true;
 
                 // The distributable Demo build is intentionally cloud-only: it never
                 // offers or resolves a direct SQL/LocalDB environment. Developer builds
@@ -130,6 +134,7 @@ namespace Sati
                         services.AddSingleton<ProvidersViewModel>();
                         services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
+                        services.AddSingleton<AdminDashboardViewModel>();
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();
 
@@ -254,6 +259,8 @@ namespace Sati
         {
             services.AddSingleton<DatabaseIdentityValidator>();
             services.AddTransient<IPersonService, PersonService>();
+            services.AddTransient<IAdminService, AdminService>();
+            services.AddSingleton<PersonAuditPdfExporter>();
             services.AddTransient<IPersonContactService, PersonContactService>();
             services.AddTransient<INoteService, NoteService>();
             services.AddTransient<IAuthService, AuthService>();
@@ -290,6 +297,7 @@ namespace Sati
             services.AddSingleton(sp => new CloudApiClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
             services.AddTransient<IAuthService, CloudAuthService>();
+            services.AddTransient<IAdminService, CloudAdminService>();
             services.AddTransient<IPersonService, CloudPersonService>();
             services.AddTransient<INoteService, CloudNoteService>();
             services.AddTransient<ISettingsService, CloudSettingsService>();

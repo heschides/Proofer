@@ -54,6 +54,7 @@ platform is being built.
 - Compliance forms, annual cycles, and 90-day reviews
 - Upcoming events and deadline monitoring
 - Supervisory queues, approvals, and team views
+- Admin-only agency usage, protected activity, and Person lifecycle audit dashboard
 - Productivity, incentives, scheduling, and workday exclusions
 - Comprehensive Assessment authoring
 - Provider directory and assistive-technology requests

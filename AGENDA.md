@@ -202,6 +202,17 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   changes can be reconstructed.
 - [x] Verify cross-agency denial, append-only enforcement, stale-write rejection, and rendered PDF output.
 
+### Completed 2026-08-12 — visible Admin dashboard
+
+- [x] Add a top-level Admin destination that is hidden for every non-Admin role.
+- [x] Show agency user, Person, active-user, sign-in, Person-change, and daily audit-event metrics
+  without requiring Azure Portal access.
+- [x] Add a readable 30-day activity feed with actor, action, resource, and local timestamp.
+- [x] Add an agency Person directory, lifecycle timeline, and protected PDF download workflow.
+- [x] Support both the cloud API and the transitional local-development database through
+  `IAdminService`; preserve server-side Admin and tenant enforcement.
+- [x] Add API integration coverage for dashboard scope and non-Admin rejection.
+
 ### Completed 2026-08-12 — tenant-enforcement breadth
 
 - [x] Inventory every protected API route and document its authoritative tenant owner in
