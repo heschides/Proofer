@@ -82,6 +82,15 @@ namespace Sati
                 _host = Host.CreateDefaultBuilder()
                     .ConfigureAppConfiguration((_, configuration) =>
                     {
+                        // Desktop launchers do not guarantee that the process working
+                        // directory is the folder containing Sati.exe. Anchor all
+                        // deployment configuration to the executable instead.
+                        configuration.SetBasePath(AppContext.BaseDirectory);
+                        configuration.AddJsonFile(
+                            "appsettings.json",
+                            optional: true,
+                            reloadOnChange: false);
+
                         // Non-secret deployment endpoints are tracked separately
                         // from appsettings.json, which can contain a local Production
                         // connection string and is intentionally git-ignored.
