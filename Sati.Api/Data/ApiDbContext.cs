@@ -23,6 +23,8 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerProvider> Providers => Set<ServerProvider>();
     public DbSet<ServerAtRequest> AtRequests => Set<ServerAtRequest>();
     public DbSet<ServerAtRequestItem> AtRequestItems => Set<ServerAtRequestItem>();
+    public DbSet<ServerAuditEvent> AuditEvents => Set<ServerAuditEvent>();
+    public DbSet<ServerPersonVersion> PersonVersions => Set<ServerPersonVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +40,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("People");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasMany(x => x.Forms)
                 .WithOne()
                 .HasForeignKey(x => x.PersonId)
@@ -127,6 +130,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("ClaimLines");
             entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.NoteId).IsUnique();
             entity.Property(x => x.Units).HasColumnType("decimal(18,2)");
             entity.HasOne<ServerBillingPeriod>()
                 .WithMany(x => x.Lines)
@@ -159,6 +163,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Status).HasMaxLength(30);
             entity.Property(x => x.DocumentJson).IsRequired();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasIndex(x => new { x.PersonId, x.Version }).IsUnique();
         });
 
@@ -180,6 +185,59 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("ATRequestItems"); entity.HasKey(x => x.Id);
             entity.Property(x => x.ItemCost).HasColumnType("decimal(18,2)");
         });
+        modelBuilder.Entity<ServerAuditEvent>(entity =>
+        {
+            entity.ToTable("AuditEvents");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.EventId).IsUnique();
+            entity.HasIndex(x => new { x.AgencyId, x.OccurredAtUtc });
+            entity.Property(x => x.Action).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ResourceType).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ResourceId).HasMaxLength(100);
+            entity.Property(x => x.CorrelationId).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.MetadataJson).IsRequired().HasMaxLength(4_000);
+        });
+        modelBuilder.Entity<ServerPersonVersion>(entity =>
+        {
+            entity.ToTable("PersonVersions");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.PersonId, x.Version }).IsUnique();
+            entity.HasIndex(x => new { x.AgencyId, x.ChangedAtUtc });
+            entity.Property(x => x.ActorDisplayName).IsRequired().HasMaxLength(150);
+            entity.Property(x => x.ChangeKind).IsRequired().HasMaxLength(30);
+            entity.Property(x => x.CorrelationId).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.SnapshotGzip).IsRequired();
+            entity.Property(x => x.ChangesGzip).IsRequired();
+            entity.HasOne(x => x.Person)
+                .WithMany()
+                .HasForeignKey(x => x.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EnsureAuditEventsAreAppendOnly();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureAuditEventsAreAppendOnly();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnsureAuditEventsAreAppendOnly()
+    {
+        if (ChangeTracker.Entries<ServerAuditEvent>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerPersonVersion>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("Audit events are append-only.");
+        }
     }
 }
 
@@ -201,6 +259,7 @@ internal sealed class ServerPerson
 {
     public int Id { get; set; }
     public int UserId { get; set; }
+    public int Revision { get; set; } = 1;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public DateTime BirthDate { get; set; }
@@ -454,6 +513,7 @@ internal sealed class ServerComprehensiveAssessment
     public int AuthorUserId { get; set; }
     public string Status { get; set; } = "Draft";
     public int Version { get; set; } = 1;
+    public int Revision { get; set; } = 1;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? SubmittedAt { get; set; }
@@ -511,4 +571,34 @@ internal sealed class ServerAtRequestItem
     public decimal ItemCost { get; set; }
     public int Quantity { get; set; }
     public string? Url { get; set; }
+}
+
+internal sealed class ServerAuditEvent
+{
+    public long Id { get; set; }
+    public Guid EventId { get; set; } = Guid.NewGuid();
+    public int AgencyId { get; set; }
+    public int ActorUserId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string ResourceType { get; set; } = string.Empty;
+    public string? ResourceId { get; set; }
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+    public string CorrelationId { get; set; } = string.Empty;
+    public string MetadataJson { get; set; } = "{}";
+}
+
+internal sealed class ServerPersonVersion
+{
+    public long Id { get; set; }
+    public int PersonId { get; set; }
+    public ServerPerson Person { get; set; } = null!;
+    public int AgencyId { get; set; }
+    public int ActorUserId { get; set; }
+    public string ActorDisplayName { get; set; } = string.Empty;
+    public int Version { get; set; }
+    public string ChangeKind { get; set; } = string.Empty;
+    public DateTime ChangedAtUtc { get; set; }
+    public string CorrelationId { get; set; } = string.Empty;
+    public byte[] SnapshotGzip { get; set; } = [];
+    public byte[] ChangesGzip { get; set; } = [];
 }

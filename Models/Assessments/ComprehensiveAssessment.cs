@@ -54,6 +54,7 @@ public class ComprehensiveAssessment
     public User AuthorUser { get; set; } = null!;
     public AssessmentStatus Status { get; set; } = AssessmentStatus.Draft;
     public int Version { get; set; } = 1;
+    public int Revision { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? SubmittedAt { get; set; }

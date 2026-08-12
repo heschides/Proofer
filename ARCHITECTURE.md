@@ -1,6 +1,6 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-08.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-12.*
 
 **Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
 `Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,
@@ -157,6 +157,50 @@ WPF remains a valid staff client. Replacing it is not a prerequisite for the API
 Browser and mobile clients should be added when access, field work, installation, or offline needs
 justify them; they will consume the same API rather than inventing separate business rules.
 
+### Current solution boundaries
+
+- `Sati.csproj` is the existing WPF client and still contains local models, EF persistence,
+  presentation, and local-development workflows.
+- `Sati.Api` is the ASP.NET Core server boundary for cloud workflows.
+- `Sati.Contracts` contains versioned network DTOs and has no WPF or EF dependency.
+- `Sati.Tests` covers desktop/domain behavior and migration-model consistency.
+- `Sati.Api.Tests` is cross-platform and drives the real HTTP/JWT pipeline against an isolated
+  relational test database. It must not reference the WPF project.
+
+The protected route inventory and authoritative tenant owner for every endpoint are recorded in
+`API_AUTHORIZATION.md`. Every protected request passes through `ValidatedActorFilter`, which
+revalidates the token's user, agency, and role against current database state. Feature endpoints
+use `TenantAccess` for shared actor, caseload, supervisory, and assessment-authorship decisions.
+
+Protected mutations use the PHI-minimized `AuditEvent` envelope described in `AUDIT_EVENTS.md`.
+The mutation and audit insert share one EF Core save transaction, and application contexts reject
+updates or deletes to existing audit rows. Admin audit queries are bounded and agency-scoped.
+Comprehensive Assessments are the first aggregate with an explicit `Revision` concurrency token;
+the API rejects stale saves/submissions with HTTP 409. Claim-line duplication is prevented by a
+unique `NoteId` index as well as a readable conflict response.
+
+Person profile changes additionally use a purpose-built `PersonVersion` ledger. Unlike the
+PHI-minimized activity envelope, each immutable version intentionally contains a compressed full
+profile snapshot and a field-level before/after change set so an authorized auditor can reconstruct
+the Person over time. Person writes and their version row share one database save; a Person
+`Revision` token rejects stale overwrites. Admin-only history and PDF exports verify both the Person
+and its assigned user's agency and record the access in the general audit envelope. Legacy rows
+receive a labeled current-state baseline when tracking first touches them; the system does not claim
+to reconstruct changes made before the ledger existed.
+
+Person profile changes additionally use a purpose-built `PersonVersion` ledger. Unlike the
+PHI-minimized activity envelope, each immutable version intentionally contains a compressed full
+profile snapshot and a field-level before/after change set so an authorized auditor can reconstruct
+the Person over time. Person writes and their version row share one database save; a Person
+`Revision` token rejects stale overwrites. Admin-only history and PDF exports verify both the Person
+and its assigned user's agency and record the access in the general audit envelope. Legacy rows
+receive a labeled current-state baseline when tracking first touches them; the system does not claim
+to reconstruct changes made before the ledger existed.
+
+This is a workable transition structure, not a reason for a whole-repository move. The next
+structural changes should reduce real coupling: split the API endpoint monolith by feature and
+make server persistence/migrations authoritative so `SatiContext` and `ApiDbContext` cannot drift.
+
 ---
 
 ## Domain Model Overview
@@ -170,7 +214,7 @@ justify them; they will consume the same API rather than inventing separate busi
 | `Note` | `Sati.Models` | Service note — visit, contact, form completion, or other. |
 | `User` | `Sati.Models` | Staff member. Has role, supervisor chain, and agency affiliation. |
 | `Agency` | `Sati.Models` | Billing/provider entity. Referenced by both `Person` and `User`. |
-| `Settings` | `Sati.Models` | Per-install configuration. No UserId FK — not yet per-user. |
+| `Settings` | `Sati.Models` | Agency-scoped configuration. User overrides are not currently modeled. |
 | `Incentive` | `Sati.Models` | Monthly productivity snapshot. Per-user, per-month. |
 | `Scratchpad` | `Sati.Models` | Daily freeform notes. Per-user, per-date. |
 | `ExemptDate` | `Sati.Models` | Manual workday exclusions. Per-user. Canonical store for day exclusions. |
@@ -201,9 +245,12 @@ justify them; they will consume the same API rather than inventing separate busi
   `ReadyForReview`.
 - Database uniqueness on `(PersonId, Version)` prevents two records from claiming the same
   document version.
-- Current ownership enforcement is both UI-side (`CanEdit`) and service-side at submission.
-  **Pending hardening:** save itself must also verify the current actor/assignment rather than
-  accepting only an assessment ID.
+- `Revision` is an optimistic concurrency token. The client sends the revision it opened, receives
+  the next revision after a successful save, and cannot overwrite a newer copy with a stale one.
+- Current ownership enforcement is both UI-side (`CanEdit`) and API-side. Assessment creation,
+  save, and submission require the authenticated actor to be the assigned case manager and author.
+  Supervisors may read appropriate assessment context for review but cannot author in the case
+  manager's place.
 
 **Editor owner: `ComprehensiveAssessmentViewModel`.**
 
@@ -437,9 +484,9 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   parameter (leaky abstraction). `GetOrCreateAsync` self-corrects stale `DaysScheduled`/`UnitsPerDay`.
 
 ### `SettingsService`
-- `LoadAsync` seeds defaults if no row exists — **the canonical default location** (not the model
-  initializers, which are bare). Now seeds `Q4RDaysBeforeAnniversary = 5` alongside the existing
-  anniversary offsets (Comp 120, Reclass 30, PCP/SafetyPlan/Privacy/Releases 0). No per-user isolation.
+- `LoadAsync` resolves the signed-in user's agency and seeds one settings row for that agency if
+  none exists. `SaveAsync` refuses to update a row outside the current agency. User-specific
+  overrides are deliberately absent until a concrete requirement exists.
 
 ### `AuthService`
 - **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI
@@ -479,7 +526,7 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 
 ### Deferred Design Decisions
 
-- **`Settings` is per-install, not per-user.** Future work; all users share one row.
+- **`Settings` is per-agency, not per-user.** Add user overrides only for a concrete requirement.
 - **`HealthcareSystemName` on `Person` is denormalized by design.** Three seams pre-cut. Read the
   comments before "fixing."
 - **`Incentive.ExcludedDatesJson` superseded** by `ExemptDate`; rollback pending `SchedulerViewModel`

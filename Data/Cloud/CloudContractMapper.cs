@@ -56,6 +56,7 @@ internal static class CloudContractMapper
         person.HasEmploymentSpecialist = dto.HasEmploymentSpecialist;
         person.HasWorkSupports = dto.HasWorkSupports;
         person.IsEmployed = dto.IsEmployed;
+        person.Revision = dto.Revision;
         person.Forms = dto.Forms.Select(ToForm).ToList();
         person.Notes = dto.Notes.Select(ToNoteSummary).ToList();
         return person;
@@ -270,7 +271,8 @@ internal static class CloudContractMapper
             form.Type.ToString(),
             form.IsCompliant,
             form.CompletedDate,
-            form.OpenedDate)).ToList());
+            form.OpenedDate)).ToList(),
+        person.Revision);
 
     public static PersonContact ToPersonContact(PersonContactDto dto)
     {
@@ -364,7 +366,8 @@ internal static class CloudContractMapper
         SubmittedAt = dto.SubmittedAt,
         ApprovedAt = dto.ApprovedAt,
         ApprovedByUserId = dto.ApprovedByUserId,
-        DocumentJson = dto.DocumentJson
+        DocumentJson = dto.DocumentJson,
+        Revision = dto.Revision
     };
 
     public static Provider ToProvider(ProviderDto dto) => new()

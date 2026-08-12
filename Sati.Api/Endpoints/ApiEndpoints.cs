@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Sati.Api.Data;
 using Sati.Api.Infrastructure;
@@ -15,8 +16,11 @@ internal static class ApiEndpoints
     public static void MapSatiApi(this WebApplication app)
     {
         MapAuth(app);
-        var api = app.MapGroup("/api/v1").RequireAuthorization();
+        var api = app.MapGroup("/api/v1")
+            .RequireAuthorization()
+            .AddEndpointFilter<ValidatedActorFilter>();
         MapProfile(api);
+        MapAudit(api);
         MapUsers(api);
         MapSupervisor(api);
         MapCaseload(api);
@@ -36,6 +40,58 @@ internal static class ApiEndpoints
         MapForms(api);
     }
 
+    private static void MapAudit(RouteGroupBuilder api)
+    {
+        api.MapGet("/audit-events", async Task<IResult> (
+            DateTime? from,
+            DateTime? to,
+            string? action,
+            int? take,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var start = from?.ToUniversalTime() ?? DateTime.UtcNow.AddDays(-30);
+            var end = to?.ToUniversalTime() ?? DateTime.UtcNow;
+            var limit = take ?? 100;
+            if (end < start || (end - start).TotalDays > 366 || limit is < 1 or > 500 || action?.Length > 100)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["query"] = ["Use a valid window no longer than one year, an action up to 100 characters, and a take value from 1 to 500."]
+                });
+            }
+
+            var query = db.AuditEvents.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == actor.AgencyId &&
+                                    candidate.OccurredAtUtc >= start &&
+                                    candidate.OccurredAtUtc <= end);
+            if (!string.IsNullOrWhiteSpace(action))
+                query = query.Where(candidate => candidate.Action == action);
+
+            var events = await query
+                .OrderByDescending(candidate => candidate.OccurredAtUtc)
+                .ThenByDescending(candidate => candidate.Id)
+                .Take(limit)
+                .Select(candidate => new AuditEventDto(
+                    candidate.Id,
+                    candidate.EventId,
+                    candidate.AgencyId,
+                    candidate.ActorUserId,
+                    candidate.Action,
+                    candidate.ResourceType,
+                    candidate.ResourceId,
+                    candidate.OccurredAtUtc,
+                    candidate.CorrelationId))
+                .ToListAsync(cancellationToken);
+            return Results.Ok(events);
+        });
+    }
+
     private static void MapAuth(WebApplication app)
     {
         app.MapPost("/api/v1/auth/login", async Task<IResult> (
@@ -44,6 +100,7 @@ internal static class ApiEndpoints
             PasswordVerifier passwordVerifier,
             TokenIssuer tokenIssuer,
             LoginAttemptGuard attemptGuard,
+            AuditTrail auditTrail,
             HttpContext context,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
@@ -74,6 +131,9 @@ internal static class ApiEndpoints
             }
 
             attemptGuard.Reset(username);
+            var actor = new Actor(user.Id, user.AgencyId, user.Role, user.DisplayName);
+            auditTrail.Record(actor, AuditActions.AuthenticationSucceeded, "User", user.Id);
+            await db.SaveChangesAsync(cancellationToken);
             var issued = tokenIssuer.Issue(user);
             logger.LogInformation("Sati authentication succeeded for user {UserId} in agency {AgencyId}.", user.Id, user.AgencyId);
             return TypedResults.Ok(new LoginResponse(issued.Token, issued.ExpiresAtUtc, ContractMapper.ToProfile(user)));
@@ -90,7 +150,9 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.UserId, cancellationToken);
+            var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(
+                x => x.Id == actor.UserId && x.AgencyId == actor.AgencyId,
+                cancellationToken);
             return user is null ? TypedResults.NotFound() : TypedResults.Ok(ContractMapper.ToProfile(user));
         });
 
@@ -113,7 +175,7 @@ internal static class ApiEndpoints
     {
         api.MapPost("/users", async Task<IResult> (
             CreateUserRequest request, ClaimsPrincipal principal, ApiDbContext db,
-            PasswordVerifier passwordVerifier, CancellationToken cancellationToken) =>
+            PasswordVerifier passwordVerifier, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
@@ -133,12 +195,14 @@ internal static class ApiEndpoints
                 PasswordHash = credential.Hash, Salt = credential.Salt
             };
             db.Users.Add(user);
+            auditTrail.Record(actor, AuditActions.UserCreated, "User");
             await db.SaveChangesAsync(cancellationToken);
             return Results.Created($"/api/v1/users/{user.Id}", ContractMapper.ToProfile(user));
         });
 
         api.MapPut("/users/{userId:int}", async Task<IResult> (
-            int userId, SaveUserRequest request, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+            int userId, SaveUserRequest request, ClaimsPrincipal principal, ApiDbContext db,
+            AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
@@ -153,13 +217,14 @@ internal static class ApiEndpoints
             user.SupervisorId = request.SupervisorId;
             user.Email = Normalize(request.Email);
             user.Phone = Normalize(request.Phone);
+            auditTrail.Record(actor, AuditActions.UserUpdated, "User", userId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToProfile(user));
         });
 
         api.MapPut("/users/{userId:int}/password", async Task<IResult> (
             int userId, ResetPasswordRequest request, ClaimsPrincipal principal, ApiDbContext db,
-            PasswordVerifier passwordVerifier, CancellationToken cancellationToken) =>
+            PasswordVerifier passwordVerifier, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
@@ -171,13 +236,14 @@ internal static class ApiEndpoints
             var credential = passwordVerifier.Hash(request.NewPassword);
             user.PasswordHash = credential.Hash;
             user.Salt = credential.Salt;
+            auditTrail.Record(actor, AuditActions.UserPasswordReset, "User", userId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
         });
 
         api.MapPut("/users/me/password", async Task<IResult> (
             ChangePasswordRequest request, ClaimsPrincipal principal, ApiDbContext db,
-            PasswordVerifier passwordVerifier, CancellationToken cancellationToken) =>
+            PasswordVerifier passwordVerifier, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             if (!ValidPassword(request.NewPassword)) return Results.ValidationProblem(
                 new Dictionary<string, string[]> { ["password"] = ["The new password must be between 8 and 128 characters."] });
@@ -190,6 +256,7 @@ internal static class ApiEndpoints
             var credential = passwordVerifier.Hash(request.NewPassword);
             user.PasswordHash = credential.Hash;
             user.Salt = credential.Salt;
+            auditTrail.Record(actor, AuditActions.UserPasswordChanged, "User", actor.UserId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
         });
@@ -223,7 +290,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!IsSupervisorRole(actor.Role))
+            if (!TenantAccess.IsSupervisorRole(actor.Role))
                 return Results.Forbid();
 
             var canReviewAgency = actor.Role == "Director" || actor.Role == "Admin";
@@ -261,12 +328,13 @@ internal static class ApiEndpoints
             int noteId,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
@@ -284,6 +352,7 @@ internal static class ApiEndpoints
             row.Note.Status = 6;
             row.Note.ApprovedById = actor.UserId;
             row.Note.ApprovedAt = DateTime.UtcNow;
+            auditTrail.Record(actor, AuditActions.NoteApproved, "Note", noteId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
@@ -293,6 +362,7 @@ internal static class ApiEndpoints
             SupervisorNoteActionRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var reason = request.Reason?.Trim() ?? string.Empty;
@@ -307,7 +377,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
@@ -319,6 +389,7 @@ internal static class ApiEndpoints
             row.Note.OverrideReason = reason;
             row.Note.OverrideApprovedById = actor.UserId;
             row.Note.OverrideApprovedAt = now;
+            auditTrail.Record(actor, AuditActions.NoteApprovalOverridden, "Note", noteId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
@@ -328,6 +399,7 @@ internal static class ApiEndpoints
             SupervisorNoteActionRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var reason = request.Reason?.Trim() ?? string.Empty;
@@ -342,7 +414,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be returned.", string.Empty));
 
@@ -350,6 +422,7 @@ internal static class ApiEndpoints
             row.Note.ReturnedById = actor.UserId;
             row.Note.ReturnReason = reason;
             row.Note.ReturnedAt = DateTime.UtcNow;
+            auditTrail.Record(actor, AuditActions.NoteReturned, "Note", noteId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
@@ -365,7 +438,7 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var targetUserId = userId ?? actor.UserId;
-            if (!await CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
+            if (!await TenantAccess.CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
                 return Results.Forbid();
 
             var people = await db.People.AsNoTracking()
@@ -399,18 +472,38 @@ internal static class ApiEndpoints
             return journal is null ? TypedResults.NotFound() : TypedResults.Ok<string?>(journal.Journal);
         });
 
-        api.MapPut("/people/{personId:int}/journal", async Task<Results<NoContent, NotFound>> (
+        api.MapPut("/people/{personId:int}/journal", async Task<IResult> (
             int personId,
             SaveJournalRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            var updated = await db.People
-                .Where(x => x.Id == personId && x.UserId == actor.UserId)
-                .ExecuteUpdateAsync(x => x.SetProperty(p => p.Journal, request.Journal), cancellationToken);
-            return updated == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+            var person = await db.People.SingleOrDefaultAsync(
+                x => x.Id == personId && x.UserId == actor.UserId && x.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var before = PersonLifecycle.Capture(person);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            person.Journal = request.Journal;
+            if (!lifecycle.RecordChanged(actor, person, before, "JournalUpdated"))
+                return Results.NoContent();
+
+            auditTrail.Record(actor, AuditActions.PersonJournalUpdated, "Person", personId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
+            return Results.NoContent();
         });
     }
 
@@ -420,6 +513,8 @@ internal static class ApiEndpoints
             SavePersonRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var validation = ValidatePerson(request, requireNewForms: request.EffectiveDate.HasValue);
@@ -443,6 +538,8 @@ internal static class ApiEndpoints
             }
 
             db.People.Add(person);
+            lifecycle.RecordCreated(actor, person);
+            auditTrail.Record(actor, AuditActions.PersonCreated, "Person");
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(await LoadPersonDtoAsync(db, person, cancellationToken));
         });
@@ -452,6 +549,8 @@ internal static class ApiEndpoints
             SavePersonRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var newForms = request.Forms.Where(form => form.Id == 0).ToList();
@@ -465,11 +564,16 @@ internal static class ApiEndpoints
                 cancellationToken);
             if (person is null)
                 return Results.NotFound();
+            if (request.ExpectedRevision != person.Revision)
+                return StalePersonConflict();
 
+            var before = PersonLifecycle.Capture(person);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
             ContractMapper.TryParseGender(request.Gender, out var gender);
             ContractMapper.TryParseWaiver(request.Waiver, out var waiver);
             ApplyPerson(person, request, gender, waiver);
 
+            var additionalChanges = new List<PersonFieldChangeDto>();
             if (newForms.Count > 0)
             {
                 if (request.EffectiveDate is not DateTime effectiveDate)
@@ -484,10 +588,87 @@ internal static class ApiEndpoints
                     form.PersonId = person.Id;
                     db.Forms.Add(form);
                 }
+                additionalChanges.Add(new PersonFieldChangeDto(
+                    "forms",
+                    "Generated compliance forms",
+                    null,
+                    $"{newForms.Count} forms"));
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            if (lifecycle.RecordChanged(actor, person, before, "Updated", additionalChanges))
+                auditTrail.Record(actor, AuditActions.PersonUpdated, "Person", personId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
             return Results.Ok(await LoadPersonDtoAsync(db, person, cancellationToken));
+        });
+
+        api.MapGet("/people/{personId:int}/history", async Task<IResult> (
+            int personId,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            var person = await LoadAuditablePersonAsync(db, actor, personId, cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            PreventSensitiveResponseCaching(httpContext);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            auditTrail.Record(actor, AuditActions.PersonHistoryViewed, "Person", personId);
+            await db.SaveChangesAsync(cancellationToken);
+            var versions = await db.PersonVersions.AsNoTracking()
+                .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+                .OrderBy(version => version.Version)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(versions.Select(PersonLifecycle.ToDto).ToList());
+        });
+
+        api.MapGet("/people/{personId:int}/history.pdf", async Task<IResult> (
+            int personId,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            PersonLifecycle lifecycle,
+            PersonAuditPdfGenerator pdfGenerator,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            var person = await LoadAuditablePersonAsync(db, actor, personId, cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            PreventSensitiveResponseCaching(httpContext);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            auditTrail.Record(actor, AuditActions.PersonHistoryPdfGenerated, "Person", personId);
+            await db.SaveChangesAsync(cancellationToken);
+            var versions = await db.PersonVersions.AsNoTracking()
+                .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+                .OrderBy(version => version.Version)
+                .ToListAsync(cancellationToken);
+            var agency = await db.Agencies.AsNoTracking().SingleAsync(
+                candidate => candidate.Id == actor.AgencyId,
+                cancellationToken);
+            var pdf = pdfGenerator.Generate(person, versions, agency, actor, DateTime.UtcNow);
+            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
+            return Results.File(
+                pdf,
+                "application/pdf",
+                $"person-{person.Id}-{safeName}-lifecycle-audit.pdf");
         });
 
         api.MapGet("/people/{personId:int}/contacts", async Task<IResult> (
@@ -497,7 +678,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!await OwnsPersonAsync(db, actor.UserId, personId, cancellationToken))
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
                 return Results.NotFound();
 
             var contacts = await db.PersonContacts.AsNoTracking()
@@ -520,7 +701,7 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(validation);
 
             var actor = Actor.From(principal);
-            if (!await OwnsPersonAsync(db, actor.UserId, personId, cancellationToken))
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
                 return Results.NotFound();
 
             var contact = new ServerPersonContact { PersonId = personId };
@@ -582,7 +763,7 @@ internal static class ApiEndpoints
             int userId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!await CanAccessUserAsync(db, actor, userId, cancellationToken)) return Results.Forbid();
+            if (!await TenantAccess.CanAccessUserAsync(db, actor, userId, cancellationToken)) return Results.Forbid();
             var items = await (from review in db.ReviewItems.AsNoTracking().Include(x => x.Appointment)
                                join person in db.People on review.PersonId equals person.Id
                                where person.UserId == userId
@@ -598,7 +779,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == personId, cancellationToken);
-            if (person is null || !await CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
+            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
             var items = await db.ReviewItems.AsNoTracking().Include(x => x.Appointment)
                 .Where(x => x.PersonId == personId).OrderBy(x => x.CycleAnchor).ThenBy(x => x.Quarter)
                 .ThenBy(x => x.Category).ThenBy(x => x.SlotIndex).ToListAsync(cancellationToken);
@@ -614,7 +795,7 @@ internal static class ApiEndpoints
             var created = 0;
             foreach (var person in people)
             {
-                if (!await CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) continue;
+                if (!await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) continue;
                 var anchor = CurrentCycleAnchor(person.EffectiveDate, request.Today);
                 if (anchor is null) continue;
                 var existing = await db.ReviewItems.Where(x => x.PersonId == person.Id && x.CycleAnchor == anchor.Value)
@@ -681,7 +862,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == personId, cancellationToken);
-            if (person is null || !await CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
+            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
             var medical = await LatestAppointmentAsync(db, personId, "Medical", cancellationToken);
             var dental = await LatestAppointmentAsync(db, personId, "Dental", cancellationToken);
             return Results.Ok(new LatestAppointmentsDto(medical is null ? null : ContractMapper.ToAppointment(medical),
@@ -692,12 +873,13 @@ internal static class ApiEndpoints
     private static void MapAssessments(RouteGroupBuilder api)
     {
         api.MapPost("/people/{personId:int}/assessments/draft", async Task<IResult> (
-            int personId, int authorUserId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+            int personId, int authorUserId, ClaimsPrincipal principal, ApiDbContext db,
+            AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
-                x => x.Id == personId && x.UserId == authorUserId, cancellationToken);
-            if (person is null || !await CanAccessUserAsync(db, actor, authorUserId, cancellationToken)) return Results.NotFound();
+            if (authorUserId != actor.UserId ||
+                !await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
 
             var editable = await db.ComprehensiveAssessments
                 .Where(x => x.PersonId == personId && x.AuthorUserId == authorUserId &&
@@ -718,13 +900,14 @@ internal static class ApiEndpoints
                 DocumentJson = approved?.DocumentJson ?? "{\"contributors\":[],\"answers\":{},\"needs\":[]}"
             };
             db.ComprehensiveAssessments.Add(assessment);
+            auditTrail.Record(actor, AuditActions.AssessmentCreated, "Person", personId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToAssessment(assessment));
         });
 
         api.MapPut("/assessments/{assessmentId:int}/document", async Task<IResult> (
             int assessmentId, SaveAssessmentDocumentRequest request, ClaimsPrincipal principal,
-            ApiDbContext db, CancellationToken cancellationToken) =>
+            ApiDbContext db, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.DocumentJson) || request.DocumentJson.Length > 4_000_000)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["document"] = ["Assessment data is required and must not exceed 4 MB."] });
@@ -732,27 +915,54 @@ internal static class ApiEndpoints
             catch (JsonException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["document"] = ["Assessment data is invalid."] }); }
             var actor = Actor.From(principal);
             var assessment = await db.ComprehensiveAssessments.SingleOrDefaultAsync(x => x.Id == assessmentId, cancellationToken);
-            if (assessment is null || !await CanAccessAssessmentAsync(db, actor, assessment, cancellationToken)) return Results.NotFound();
+            if (assessment is null ||
+                !await TenantAccess.CanAuthorAssessmentAsync(db, actor, assessment, cancellationToken))
+                return Results.NotFound();
             if (assessment.Status is "Approved" or "Superseded") return Results.Conflict(new ApiErrorDto("assessment_locked", "Approved assessment versions cannot be changed.", string.Empty));
+            if (request.ExpectedRevision != assessment.Revision)
+                return StaleAssessmentConflict();
             assessment.DocumentJson = request.DocumentJson;
             assessment.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-            return Results.NoContent();
+            assessment.Revision++;
+            auditTrail.Record(actor, AuditActions.AssessmentUpdated, "Assessment", assessmentId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAssessmentConflict();
+            }
+            return Results.Ok(ContractMapper.ToAssessment(assessment));
         });
 
         api.MapPost("/assessments/{assessmentId:int}/submit", async Task<IResult> (
-            int assessmentId, int authorUserId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+            int assessmentId, int authorUserId, int expectedRevision,
+            ClaimsPrincipal principal, ApiDbContext db,
+            AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             var assessment = await db.ComprehensiveAssessments.SingleOrDefaultAsync(x => x.Id == assessmentId, cancellationToken);
-            if (assessment is null || assessment.AuthorUserId != authorUserId ||
-                !await CanAccessAssessmentAsync(db, actor, assessment, cancellationToken)) return Results.NotFound();
+            if (assessment is null || authorUserId != actor.UserId ||
+                !await TenantAccess.CanAuthorAssessmentAsync(db, actor, assessment, cancellationToken))
+                return Results.NotFound();
             if (assessment.Status is not ("Draft" or "Returned"))
                 return Results.Conflict(new ApiErrorDto("assessment_locked", "This assessment is not editable.", string.Empty));
+            if (expectedRevision != assessment.Revision)
+                return StaleAssessmentConflict();
             assessment.Status = "ReadyForReview";
             assessment.SubmittedAt = DateTime.UtcNow;
             assessment.UpdatedAt = assessment.SubmittedAt.Value;
-            await db.SaveChangesAsync(cancellationToken);
+            assessment.Revision++;
+            auditTrail.Record(actor, AuditActions.AssessmentSubmitted, "Assessment", assessmentId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAssessmentConflict();
+            }
             return Results.Ok(ContractMapper.ToAssessment(assessment));
         });
 
@@ -763,7 +973,7 @@ internal static class ApiEndpoints
             var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == personId, cancellationToken);
             if (person is null || person.UserId != preferredAuthorUserId ||
-                !await CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
             var assessment = await db.ComprehensiveAssessments.AsNoTracking()
                 .Where(x => x.PersonId == personId && x.Status == "Approved")
                 .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken);
@@ -817,7 +1027,7 @@ internal static class ApiEndpoints
     {
         api.MapGet("/at-requests", async Task<IResult> (int userId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
-            var actor = Actor.From(principal); if (!await CanAccessUserAsync(db, actor, userId, cancellationToken)) return Results.Forbid();
+            var actor = Actor.From(principal); if (!await TenantAccess.CanAccessUserAsync(db, actor, userId, cancellationToken)) return Results.Forbid();
             var rate = (await GetOrCreateSettingsAsync(db, actor.AgencyId, cancellationToken)).PassthroughRate;
             var requests = await (from request in db.AtRequests.AsNoTracking()
                                   join person in db.People on request.PersonId equals person.Id
@@ -850,7 +1060,7 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var person = await db.People.AsNoTracking().SingleOrDefaultAsync(x => x.Id == input.PersonId, cancellationToken);
-            if (person is null || !await CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
+            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)) return Results.NotFound();
             var owner = await db.Users.AsNoTracking().SingleAsync(x => x.Id == person.UserId, cancellationToken);
             var agency = await db.Agencies.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.AgencyId, cancellationToken);
             var errors = ValidateAtRequest(input); if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -885,7 +1095,7 @@ internal static class ApiEndpoints
             var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == personId && x.UserId == request.RequestingUserId,
                 cancellationToken);
-            if (person is null || !await CanAccessUserAsync(db, actor, request.RequestingUserId, cancellationToken))
+            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, request.RequestingUserId, cancellationToken))
                 return Results.Forbid();
 
             var forms = await db.Forms.AsNoTracking().Where(x => x.PersonId == personId)
@@ -969,7 +1179,7 @@ internal static class ApiEndpoints
             var validation = ValidateNote(request);
             if (validation is not null)
                 return Results.ValidationProblem(validation);
-            if (!await OwnsPersonAsync(db, actor.UserId, request.PersonId, cancellationToken))
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, request.PersonId, cancellationToken))
                 return Results.NotFound();
 
             ContractMapper.TryParseNoteStatus(request.Status, out var status);
@@ -1065,7 +1275,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!await OwnsPersonAsync(db, actor.UserId, personId, cancellationToken))
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
                 return TypedResults.NotFound();
             var notes = await db.Notes.AsNoTracking().Where(x => x.PersonId == personId).ToListAsync(cancellationToken);
             return TypedResults.Ok(notes.Select(x => ContractMapper.ToNote(x)).ToList());
@@ -1080,7 +1290,7 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var targetUserId = userId ?? actor.UserId;
-            if (!await CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
+            if (!await TenantAccess.CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
                 return Results.Forbid();
 
             var first = new DateTime(clock.Today.Year, clock.Today.Month, 1);
@@ -1140,7 +1350,8 @@ internal static class ApiEndpoints
         });
 
         api.MapPut("/settings", async Task<IResult> (
-            SettingsDto request, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+            SettingsDto request, ClaimsPrincipal principal, ApiDbContext db,
+            AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
             if (actor.Role != "Admin") return Results.Forbid();
@@ -1159,6 +1370,7 @@ internal static class ApiEndpoints
             db.Entry(settings).CurrentValues.SetValues(request);
             settings.Id = id;
             settings.AgencyId = agencyId;
+            auditTrail.Record(actor, AuditActions.SettingsUpdated, "Settings", settings.Id);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToSettings(settings));
         });
@@ -1301,7 +1513,7 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var targetUserId = userId ?? actor.UserId;
-            if (!await CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
+            if (!await TenantAccess.CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
                 return Results.Forbid();
 
             var incentive = await db.Incentives.SingleOrDefaultAsync(x => x.UserId == targetUserId && x.Month == month && x.Year == year, cancellationToken);
@@ -1592,6 +1804,7 @@ internal static class ApiEndpoints
             CreateClaimLineRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -1604,8 +1817,10 @@ internal static class ApiEndpoints
                              where note.Id == request.NoteId && note.Status == 6 &&
                                    owner.AgencyId == actor.AgencyId
                              select new ReviewableNote(note, person)).SingleOrDefaultAsync(cancellationToken);
-            if (row is null || await db.ClaimLines.AnyAsync(line => line.NoteId == request.NoteId, cancellationToken))
+            if (row is null)
                 return Results.NotFound();
+            if (await db.ClaimLines.AnyAsync(line => line.NoteId == request.NoteId, cancellationToken))
+                return DuplicateClaimLineConflict();
             var agency = await db.Agencies.AsNoTracking()
                 .SingleOrDefaultAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
             var errors = ValidateBillingCandidate(row.Note, row.Person, agency);
@@ -1626,7 +1841,6 @@ internal static class ApiEndpoints
                     Status = 0
                 };
                 db.BillingPeriods.Add(period);
-                await db.SaveChangesAsync(cancellationToken);
             }
             if (period.Status != 0)
                 return Results.Conflict(new ApiErrorDto("period_submitted", "This billing period is no longer a draft.", string.Empty));
@@ -1645,8 +1859,16 @@ internal static class ApiEndpoints
                 IsComplianceException = request.IsComplianceException,
                 ComplianceExceptionReason = Normalize(request.ComplianceExceptionReason)
             };
-            db.ClaimLines.Add(line);
-            await db.SaveChangesAsync(cancellationToken);
+            period.Lines.Add(line);
+            auditTrail.Record(actor, AuditActions.BillingClaimLineCreated, "Note", request.NoteId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsDuplicateClaimLine(exception))
+            {
+                return DuplicateClaimLineConflict();
+            }
             return Results.Ok(ContractMapper.ToClaimLine(line));
         });
 
@@ -1672,6 +1894,7 @@ internal static class ApiEndpoints
             int periodId,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -1687,6 +1910,7 @@ internal static class ApiEndpoints
                 return Results.Conflict(new ApiErrorDto("invalid_period_status", "Only draft billing periods can be submitted.", string.Empty));
             period.Status = 1;
             period.SubmittedAt = DateTime.UtcNow;
+            auditTrail.Record(actor, AuditActions.BillingPeriodSubmitted, "BillingPeriod", periodId);
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToBillingPeriod(period));
         });
@@ -1696,6 +1920,7 @@ internal static class ApiEndpoints
             GenerateEdiRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -1710,14 +1935,31 @@ internal static class ApiEndpoints
             if (period.Lines.Count == 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["The billing period has no claim lines."] });
 
-            var noteIds = period.Lines.Select(line => line.NoteId).ToList();
-            var notes = await db.Notes.AsNoTracking().Where(note => noteIds.Contains(note.Id)).ToListAsync(cancellationToken);
-            var personIds = notes.Select(note => note.PersonId).Distinct().ToList();
-            var people = await db.People.AsNoTracking().Where(person => personIds.Contains(person.Id)).ToListAsync(cancellationToken);
+            var noteIds = period.Lines.Select(line => line.NoteId).Distinct().ToList();
+            var sourceRows = await (from note in db.Notes.AsNoTracking()
+                                    join person in db.People.AsNoTracking() on note.PersonId equals person.Id
+                                    join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+                                    where noteIds.Contains(note.Id) &&
+                                          owner.AgencyId == actor.AgencyId &&
+                                          person.AgencyId == actor.AgencyId
+                                    select new { Note = note, Person = person })
+                .ToListAsync(cancellationToken);
+            if (sourceRows.Select(row => row.Note.Id).Distinct().Count() != noteIds.Count)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "invalid_billing_source",
+                    "The billing period contains a note outside the agency boundary or a missing source record.",
+                    string.Empty));
+            }
+
+            var notes = sourceRows.Select(row => row.Note).ToList();
+            var people = sourceRows.Select(row => row.Person).DistinctBy(person => person.Id).ToList();
             var agency = await db.Agencies.AsNoTracking().SingleAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
             var content = ServerEdiGenerator.Generate(period, notes, people, agency, "010278395", request.IsTest);
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
             var testMarker = request.IsTest ? ".OATEST" : string.Empty;
+            auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
+            await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(new EdiFileDto($"837P{testMarker}_{period.Year}{period.Month:D2}_{timestamp}.txt", content));
         });
     }
@@ -1789,6 +2031,18 @@ internal static class ApiEndpoints
             .ToListAsync(cancellationToken);
         return ContractMapper.ToPerson(person, forms, notes);
     }
+
+    private static Task<ServerPerson?> LoadAuditablePersonAsync(
+        ApiDbContext db,
+        Actor actor,
+        int personId,
+        CancellationToken cancellationToken) =>
+        (from person in db.People
+         join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+         where person.Id == personId &&
+               person.AgencyId == actor.AgencyId &&
+               owner.AgencyId == actor.AgencyId
+         select person).SingleOrDefaultAsync(cancellationToken);
 
     private static Dictionary<string, string[]> ValidatePerson(
         SavePersonRequest request,
@@ -1962,16 +2216,13 @@ internal static class ApiEndpoints
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static bool IsSupervisorRole(string role) =>
-        role is "Supervisor" or "Director" or "Admin";
-
     private static async Task<ReviewableNote?> LoadReviewableNoteAsync(
         ApiDbContext db,
         Actor actor,
         int noteId,
         CancellationToken cancellationToken)
     {
-        if (!IsSupervisorRole(actor.Role))
+        if (!TenantAccess.IsSupervisorRole(actor.Role))
             return null;
 
         return await (from note in db.Notes
@@ -2036,9 +2287,6 @@ internal static class ApiEndpoints
         return errors;
     }
 
-    private static Task<bool> OwnsPersonAsync(ApiDbContext db, int userId, int personId, CancellationToken cancellationToken) =>
-        db.People.AnyAsync(x => x.Id == personId && x.UserId == userId, cancellationToken);
-
     private static DateTime? CurrentCycleAnchor(DateTime? effectiveDate, DateTime today)
     {
         if (effectiveDate is null || effectiveDate.Value.Date > today.Date) return null;
@@ -2080,7 +2328,10 @@ internal static class ApiEndpoints
         if (item is null) return null;
         var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
             x => x.Id == item.PersonId, cancellationToken);
-        return person is not null && await CanAccessUserAsync(db, actor, person.UserId, cancellationToken) ? item : null;
+        return person is not null &&
+               await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)
+            ? item
+            : null;
     }
 
     private static Task<ServerAppointment?> LatestAppointmentAsync(
@@ -2090,32 +2341,6 @@ internal static class ApiEndpoints
          where review.PersonId == personId && review.Category == category
          orderby appointment.Date descending
          select appointment).FirstOrDefaultAsync(cancellationToken);
-
-    private static async Task<bool> CanAccessAssessmentAsync(
-        ApiDbContext db, Actor actor, ServerComprehensiveAssessment assessment, CancellationToken cancellationToken)
-    {
-        if (!await CanAccessUserAsync(db, actor, assessment.AuthorUserId, cancellationToken)) return false;
-        return await db.People.AsNoTracking().AnyAsync(
-            x => x.Id == assessment.PersonId && x.UserId == assessment.AuthorUserId,
-            cancellationToken);
-    }
-
-    private static async Task<bool> CanAccessUserAsync(
-        ApiDbContext db,
-        Actor actor,
-        int targetUserId,
-        CancellationToken cancellationToken)
-    {
-        if (targetUserId == actor.UserId)
-            return true;
-        if (actor.Role is not ("Supervisor" or "Director" or "Admin"))
-            return false;
-
-        return await db.Users.AsNoTracking().AnyAsync(
-            x => x.Id == targetUserId && x.AgencyId == actor.AgencyId && x.Role == "CaseManager" &&
-                 (actor.Role == "Director" || actor.Role == "Admin" || x.SupervisorId == actor.UserId),
-            cancellationToken);
-    }
 
     private static bool IsBillingWindowBlocked(
         string formType,
@@ -2132,6 +2357,29 @@ internal static class ApiEndpoints
 
     private static int CalculateUnits(int? minutes) =>
         minutes.HasValue ? Math.Max(1, (int)Math.Ceiling(minutes.Value / 15.0)) : 0;
+
+    private static IResult StaleAssessmentConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_assessment",
+            "This assessment was changed after you opened it. Reload it before saving or submitting.",
+            string.Empty));
+
+    private static IResult StalePersonConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_person",
+            "This person record was changed after you opened it. Reload it before saving.",
+            string.Empty));
+
+    private static IResult DuplicateClaimLineConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "claim_line_exists",
+            "This service note already has a billing claim line.",
+            string.Empty));
+
+    private static bool IsDuplicateClaimLine(DbUpdateException exception) =>
+        exception.InnerException is SqlException sqlException &&
+        sqlException.Number is 2601 or 2627 &&
+        sqlException.Message.Contains("IX_ClaimLines_NoteId", StringComparison.Ordinal);
 
     private sealed record BillingLossPersonRow(
         int Id,
@@ -2265,7 +2513,10 @@ internal static class ApiEndpoints
         if (request is null) return null;
         var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
             x => x.Id == request.PersonId, cancellationToken);
-        return person is not null && await CanAccessUserAsync(db, actor, person.UserId, cancellationToken) ? request : null;
+        return person is not null &&
+               await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken)
+            ? request
+            : null;
     }
 
     private static IEnumerable<string> ExtractContextTerms(string value)
@@ -2279,6 +2530,24 @@ internal static class ApiEndpoints
 
     private static string CollapseContext(string value) => string.Join(' ', value.Split((char[]?)null,
         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static void PreventSensitiveResponseCaching(HttpContext context)
+    {
+        context.Response.Headers.CacheControl = "no-store, no-cache";
+        context.Response.Headers.Pragma = "no-cache";
+    }
+
+    private static string SafeFileName(string value)
+    {
+        var safe = new string(value
+            .Select(character => char.IsLetterOrDigit(character) || character is '-' or '_'
+                ? character
+                : '-')
+            .ToArray());
+        while (safe.Contains("--", StringComparison.Ordinal))
+            safe = safe.Replace("--", "-", StringComparison.Ordinal);
+        return string.IsNullOrWhiteSpace(safe.Trim('-')) ? "person" : safe.Trim('-');
+    }
 
     private static List<string> ContextServices(ServerPerson person)
     {

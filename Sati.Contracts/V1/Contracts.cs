@@ -75,6 +75,7 @@ public sealed record PersonDto(
     bool HasEmploymentSpecialist,
     bool HasWorkSupports,
     bool IsEmployed,
+    int Revision,
     IReadOnlyList<FormDto> Forms,
     IReadOnlyList<NoteSummaryDto> Notes);
 
@@ -114,7 +115,8 @@ public sealed record SavePersonRequest(
     bool HasEmploymentSpecialist,
     bool HasWorkSupports,
     bool IsEmployed,
-    IReadOnlyList<SavePersonFormRequest> Forms);
+    IReadOnlyList<SavePersonFormRequest> Forms,
+    int ExpectedRevision = 0);
 
 public sealed record PersonContactDto(
     int Id,
@@ -283,6 +285,34 @@ public sealed record RemainingEligibleDaysRequest(
 public sealed record DateWindowRequest(DateTime StartInclusive, DateTime EndInclusive);
 public sealed record CountDto(int Count);
 
+public sealed record AuditEventDto(
+    long Id,
+    Guid EventId,
+    int AgencyId,
+    int ActorUserId,
+    string Action,
+    string ResourceType,
+    string? ResourceId,
+    DateTime OccurredAtUtc,
+    string CorrelationId);
+
+public sealed record PersonFieldChangeDto(
+    string Field,
+    string Label,
+    string? PreviousValue,
+    string? NewValue);
+
+public sealed record PersonVersionDto(
+    long Id,
+    int PersonId,
+    int Version,
+    string ChangeKind,
+    int ActorUserId,
+    string ActorDisplayName,
+    DateTime ChangedAtUtc,
+    string CorrelationId,
+    IReadOnlyList<PersonFieldChangeDto> Changes);
+
 public sealed record ConsumerBillingLossRowDto(
     int PersonId,
     string ConsumerName,
@@ -348,9 +378,9 @@ public sealed record LatestAppointmentsDto(AppointmentDto? Medical, AppointmentD
 public sealed record ComprehensiveAssessmentDto(
     int Id, int PersonId, int AuthorUserId, string Status, int Version,
     DateTime CreatedAt, DateTime UpdatedAt, DateTime? SubmittedAt,
-    DateTime? ApprovedAt, int? ApprovedByUserId, string DocumentJson);
+    DateTime? ApprovedAt, int? ApprovedByUserId, string DocumentJson, int Revision);
 
-public sealed record SaveAssessmentDocumentRequest(string DocumentJson);
+public sealed record SaveAssessmentDocumentRequest(string DocumentJson, int ExpectedRevision);
 
 public sealed record PersonCenteredPlanSourceDto(
     int AssessmentId, int Version, string Status, DateTime UpdatedAt, string DocumentJson);

@@ -64,6 +64,7 @@ internal static class ContractMapper
         person.HasEmploymentSpecialist,
         person.HasWorkSupports,
         person.IsEmployed,
+        person.Revision,
         forms.Select(ToForm).ToList(),
         notes.Select(ToNoteSummary).ToList());
 
@@ -181,7 +182,7 @@ internal static class ContractMapper
     public static ComprehensiveAssessmentDto ToAssessment(ServerComprehensiveAssessment assessment) => new(
         assessment.Id, assessment.PersonId, assessment.AuthorUserId, assessment.Status,
         assessment.Version, assessment.CreatedAt, assessment.UpdatedAt, assessment.SubmittedAt,
-        assessment.ApprovedAt, assessment.ApprovedByUserId, assessment.DocumentJson);
+        assessment.ApprovedAt, assessment.ApprovedByUserId, assessment.DocumentJson, assessment.Revision);
 
     public static ProviderDto ToProvider(ServerProvider p) => new(
         p.Id, p.Type, p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,

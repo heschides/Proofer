@@ -169,7 +169,7 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         await _saveGate.WaitAsync();
         try
         {
-            await _service.SaveDocumentAsync(record.Id, document);
+            await _service.SaveDocumentAsync(record, document);
 
             // Do not let completion of an old client's save overwrite the status or
             // document belonging to a client that was selected in the meantime.
@@ -207,7 +207,7 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         // visible record. Do not submit whichever assessment happened to load next.
         if (!ReferenceEquals(_record, record)) return;
 
-        await _service.SubmitForReviewAsync(record.Id, user.Id);
+        await _service.SubmitForReviewAsync(record);
         CanEdit = false;
         SaveStatus = "Submitted for supervisor review";
     }

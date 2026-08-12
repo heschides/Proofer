@@ -194,13 +194,38 @@ public sealed class CloudComprehensiveAssessmentService(CloudApiClient api) : IC
         CloudContractMapper.ToAssessment(await api.PostAsync<object, ComprehensiveAssessmentDto>(
             $"/api/v1/people/{personId}/assessments/draft?authorUserId={authorUserId}", new { }));
 
-    public Task SaveDocumentAsync(int assessmentId, AssessmentDocument document) =>
-        api.PutAsync($"/api/v1/assessments/{assessmentId}/document",
-            new SaveAssessmentDocumentRequest(JsonSerializer.Serialize(document, JsonOptions)));
+    public async Task SaveDocumentAsync(
+        ComprehensiveAssessment assessment,
+        AssessmentDocument document)
+    {
+        var updated = await api.PutAsync<SaveAssessmentDocumentRequest, ComprehensiveAssessmentDto>(
+            $"/api/v1/assessments/{assessment.Id}/document",
+            new SaveAssessmentDocumentRequest(
+                JsonSerializer.Serialize(document, JsonOptions),
+                assessment.Revision));
+        ApplyServerState(assessment, updated);
+    }
 
-    public async Task SubmitForReviewAsync(int assessmentId, int authorUserId) =>
-        _ = await api.PostAsync<object, ComprehensiveAssessmentDto>(
-            $"/api/v1/assessments/{assessmentId}/submit?authorUserId={authorUserId}", new { });
+    public async Task SubmitForReviewAsync(ComprehensiveAssessment assessment)
+    {
+        var updated = await api.PostAsync<object, ComprehensiveAssessmentDto>(
+            $"/api/v1/assessments/{assessment.Id}/submit?authorUserId={assessment.AuthorUserId}&expectedRevision={assessment.Revision}",
+            new { });
+        ApplyServerState(assessment, updated);
+    }
+
+    private static void ApplyServerState(
+        ComprehensiveAssessment assessment,
+        ComprehensiveAssessmentDto updated)
+    {
+        assessment.Status = Enum.Parse<AssessmentStatus>(updated.Status);
+        assessment.UpdatedAt = updated.UpdatedAt;
+        assessment.SubmittedAt = updated.SubmittedAt;
+        assessment.ApprovedAt = updated.ApprovedAt;
+        assessment.ApprovedByUserId = updated.ApprovedByUserId;
+        assessment.DocumentJson = updated.DocumentJson;
+        assessment.Revision = updated.Revision;
+    }
 }
 
 public sealed class CloudPersonCenteredPlanSourceService(CloudApiClient api) : IPersonCenteredPlanSourceService

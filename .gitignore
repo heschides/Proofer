@@ -370,3 +370,7 @@ appsettings.json
 .api-deploy-*/
 .api-smoke-parity/
 .installer-test-*/
+
+# Generated report artifacts and visual-QA renders
+/output/
+/tmp/

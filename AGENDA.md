@@ -113,10 +113,10 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ---
 
-## Active Bugs — In Progress
-*Fix before next feature work*
+## Recently Resolved Bugs
+*Verified before the current platform work*
 
-- [ ] **Productivity threshold ignores scheduler** — `Incentive.Threshold` hardcodes `* 19`
+- [x] **Productivity threshold ignores scheduler** — `Incentive.Threshold` hardcodes `* 19`
   instead of using `Settings.ProductivityThreshold`; panel doesn't refresh after scheduler closes
   - Fix 1: Add `UnitsPerDay` snapshot field to `Incentive` model + migration
   - Fix 2: Set `UnitsPerDay = settings.ProductivityThreshold` in `GetOrCreateAsync`
@@ -128,16 +128,16 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   services. Swap AddDbContext for AddDbContextFactory in App.xaml.cs. Each method creates
   and disposes its own context via `await using var context = _contextFactory.CreateDbContext()`.
   Do before adding any new features.
-- [ ] **`GetOrCreateAsync` always returns `wasCreated = false`** — new month records never
+- [x] **`GetOrCreateAsync` always returns `wasCreated = false`** — new month records never
   trigger the scheduler prompt correctly; newly-created branch should return `true`
-- [ ] **NoteType edit not persisting** — suspected EF Core tracking issue; NoteType changes
+- [x] **NoteType edit not persisting** — suspected EF Core tracking issue; NoteType changes
   on existing notes not being written to DB on save
-- [ ] **Edit form not populating NoteType** — reopening an existing note doesn't restore
+- [x] **Edit form not populating NoteType** — reopening an existing note doesn't restore
   the current NoteType value; initialization/binding bug
-- [ ] **Stale data in Upcoming Tasks after failed note edit** — downstream of NoteType
+- [x] **Stale data in Upcoming Tasks after failed note edit** — downstream of NoteType
   persistence failure
 - [x] **Missing "Scheduled" filter in AllNotes combobox** — straightforward omission
-- [ ] **ExcludeDayAfterThanksgiving unhandled by IsExcludedHoliday
+- [x] **ExcludeDayAfterThanksgiving unhandled by IsExcludedHoliday**
 
 ---
 
@@ -148,10 +148,10 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   sequentially rather than snapping to fixed Mon–Fri grid positions
 - [ ] Stale ExcludedDates entries persist on Incentive after weekday exclusion is removed
   from Settings
-- [ ] Note abandonment threshold hardcoded to 8 days — needs wiring to
+- [x] Note abandonment threshold hardcoded to 8 days — wired to
   `SettingsService.AbandonedAfterDays`
-- [ ] Settings are global rather than per-user — needs per-user isolation before
-  multi-user deployment
+- [x] Settings are global rather than per-user — replaced with agency-scoped settings;
+  user overrides remain deferred until a concrete requirement exists
 
 ---
 
@@ -170,6 +170,72 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 ## Phase 9 — Cloud Platform Foundation
 *Goal: establish the boundary on which every external deployment and future client depends.*
 
+### Current next slice — concurrency and audit-operation breadth
+
+- [ ] Extend revision/concurrency tokens from assessments to notes, settings, AT requests, and other
+  records where simultaneous edits could silently lose work.
+- [ ] Add friendly desktop conflict handling that reloads or compares a stale record instead of
+  presenting a generic API error.
+- [ ] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
+- [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
+
+### Completed 2026-08-12 — first audit and concurrency slice
+
+- [x] Add the PHI-minimized `AuditEvent` envelope, migration, action catalog, and Admin-only,
+  agency-scoped audit query documented in `AUDIT_EVENTS.md`.
+- [x] Record successful authentication, account changes, supervisor note decisions, assessment
+  writes/submission, settings changes, billing submission, and EDI generation.
+- [x] Commit each protected state transition and its audit event in the same database save/transaction.
+- [x] Add an assessment `Revision` concurrency token and reject stale save/submit requests with HTTP 409.
+- [x] Make claim-line creation atomic and enforce one claim line per service note with a unique index.
+- [x] Test audit minimization/immutability/tenant scope, stale writes, and repeated billing commands.
+
+### Completed 2026-08-12 — Person lifecycle audit
+
+- [x] Preserve an append-only, compressed snapshot and field-level change set for every successful
+  Person create, profile edit, and journal edit.
+- [x] Record actor, agency, UTC timestamp, request correlation ID, and monotonically increasing
+  Person revision; reject stale profile saves with HTTP 409.
+- [x] Add Admin-only, agency-scoped history and auditor-PDF endpoints with no-store response headers
+  and audit events for viewing/exporting the history.
+- [x] Give pre-existing People an explicit current-state tracking baseline without pretending older
+  changes can be reconstructed.
+- [x] Verify cross-agency denial, append-only enforcement, stale-write rejection, and rendered PDF output.
+
+### Completed 2026-08-12 — tenant-enforcement breadth
+
+- [x] Inventory every protected API route and document its authoritative tenant owner in
+  `API_AUTHORIZATION.md`.
+- [x] Add cross-agency rejection tests for reports, billing exports, AT requests, assessments,
+  supervisor actions, and generated files.
+- [x] Revalidate the token's user, agency, and role against the database on every protected request.
+- [x] Centralize actor, caseload, supervisor, and assessment-authorship checks in `TenantAccess`.
+- [x] Prevent supervisors from authoring a case manager's assessment while preserving read/review access.
+- [x] Revalidate every billing-export source note and person against the exporting agency.
+
+### Completed 2026-08-12 — API boundary verification
+
+- [x] Add a dedicated cross-platform API integration/authorization test project.
+- [x] Prove unauthenticated requests are rejected at the protected API boundary.
+- [x] Prove cross-agency reads and writes are rejected for users, people, and providers.
+- [x] Keep the API test project independent from WPF and desktop persistence.
+- [x] Run the API tests in CI alongside the existing domain/migration tests.
+
+### Repository structure — targeted follow-up, not a reshuffle
+
+The solution-level boundaries (`Sati`, `Sati.Api`, `Sati.Contracts`, desktop/domain tests, and
+API integration tests) are coherent. Avoid a broad folder move while the API transition is active.
+Address these pressure points when the affected code is next changed:
+
+- [ ] Split the large `Sati.Api/Endpoints/ApiEndpoints.cs` by feature route group while preserving
+  one `/api/v1` composition point.
+- [ ] Eliminate schema drift between `SatiContext` and `ApiDbContext`; make server-side persistence
+  and migrations authoritative before removing local EF from the distributed WPF client.
+- [ ] Rename/move the root WPF project to an explicit `Sati.Wpf` project only after direct cloud
+  database responsibilities are removed; doing it now would create churn without changing coupling.
+- [ ] Archive historical session material out of this active agenda once the current platform
+  priorities are stable; keep a short current-work section at the top.
+
 ### Architecture and solution structure
 
 - [x] Add `Sati.Api` ASP.NET Core project.
@@ -178,7 +244,8 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [ ] Implement HTTP-backed desktop services behind the existing service interfaces where the
   contracts remain appropriate.
 - [ ] Remove direct database connectivity and `Database.Migrate()` from distributed clients.
-- [ ] Add API health checks, structured logs, correlation IDs, metrics, and startup validation.
+- [x] Add API health checks, structured logs, correlation IDs, and startup validation.
+- [ ] Add operational metrics and alert wiring.
 
 ### Identity and authorization
 
@@ -186,22 +253,23 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Never return `PasswordHash` or `Salt` to a client.
 - [ ] Add token expiration, revocation, secure recovery, and brute-force/rate-limit controls.
 - [ ] Define capabilities independently from menu visibility and coarse job titles.
-- [ ] Derive actor, tenant, role, and caseload server-side instead of trusting supplied IDs.
+- [x] Derive actor, tenant, role, and caseload server-side instead of trusting supplied IDs.
 - [ ] Evaluate Microsoft Entra ID/External ID and MFA for production organizations.
 
 ### Tenant model
 
 - [ ] Decide shared-database, database-per-tenant, or hybrid production isolation.
-- [ ] Define the authoritative tenant owner for every protected aggregate.
-- [ ] Replace global settings with tenant-scoped settings; add user overrides only where required.
+- [x] Define the authoritative tenant owner for every protected aggregate.
+- [x] Replace global settings with tenant-scoped settings; add user overrides only where required.
 - [ ] Centralize tenant enforcement with query filters/interceptors and command authorization.
-- [ ] Add automated cross-tenant read/write/export rejection tests.
+- [x] Add automated cross-tenant read/write/export rejection tests.
 - [ ] Add tenant provisioning, suspension, migration, export, and deletion/retention procedures.
 
 ### Records, audit, and concurrency
 
-- [ ] Create append-only `AuditEvent` records for reads and protected actions without copying
+- [x] Create append-only `AuditEvent` records for protected actions without copying
   unrestricted narrative PHI into log messages.
+- [ ] Define which sensitive read events require auditing without creating an unusable volume of noise.
 - [ ] Add immutable document versions, amendments, attestations, and electronic signatures.
 - [ ] Define retention and legal-hold behavior by record class.
 - [ ] Add optimistic concurrency tokens and user-facing conflict resolution.
@@ -210,8 +278,10 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Testing and delivery
 
-- [ ] Add unit, API integration, authorization, migration, and end-to-end test projects.
-- [ ] Establish CI with build, test, migration validation, dependency scanning, and artifact creation.
+- [x] Add unit, API integration, authorization, and migration-consistency tests.
+- [ ] Add end-to-end tests for the packaged Demo client and deployed API.
+- [x] Establish CI build and test validation across the solution.
+- [ ] Add CI dependency scanning, deployment migration validation, and artifact creation.
 - [ ] Establish controlled database deployment and rollback; clients never migrate cloud schemas.
 - [ ] Add backup verification, point-in-time recovery exercises, disaster-recovery objectives, and
   incident alerts.
@@ -678,7 +748,7 @@ audit evidence, accessibility, and policy acceptance are the substantive work.
       rows are the bug.
 
 ### Data loss risk
-- [ ] **App-close flush for Journal + Scratchpad.** Quitting via the window X
+- [x] **App-close flush for Journal + Scratchpad.** Quitting via the window X
       within 2s of typing loses the Journal tail (debounce hasn't fired). Same
       gap likely affects Scratchpad — its only shutdown save is in
       `ShellViewModel.ReinitializeAsync` (user-switch), not true app-close. Fix:
@@ -793,7 +863,7 @@ for a rewrite.
       relationship before reading or changing a note. Before OADS or other external users
       enter Sati, place these checks behind a trusted application/API boundary rather than
       relying on a desktop UI with direct database access.
-- [ ] **Fix the new-account `AssignedAgency` null path.** `NewUserViewModel.CreateUser`
+- [x] **Fix the new-account `AssignedAgency` null path.** `NewUserViewModel.CreateUser`
       dereferences `AssignedAgency.Id`, but `AssignedAgency` is never initialized and
       `NewUserWindow` has no agency selector. Add the intended agency source/selection,
       validate it before user creation, and cover the flow with a test. This is the
@@ -834,7 +904,7 @@ for a rewrite.
       autosave. Move the content/schema into a dedicated, versioned definition provider
       so questions can grow or branch without modifying the editor and so existing JSON
       answers remain reproducible against the definition version that created them.
-- [ ] **Add an automated domain/workflow test project.** Prioritize
+- [x] **Add an automated domain/workflow test project.** Prioritize
       `EvaluateComplianceGate`, `EvaluateBillingWindow`, midnight and back-entry rules,
       permanent unbillability, override separation, assessment support exclusions,
       completion rules, ownership, serialization compatibility, and workflow transitions.
@@ -854,9 +924,9 @@ for a rewrite.
       `NewClientViewModel` retains `IsEntryPanelOpen`, `ToggleEntryPanel`, and legacy
       naming. Remove the duplicate markup/commands after confirming the inline Overview
       editor covers add, edit, cancel, and delete.
-- [ ] **Resolve the disabled cycle-form feature switch.** The constant-false
-      `EnableEnsureCycleFormsOnLoad` makes code in `PersonService` unreachable and emits
-      the current `CS0162` warning. Either remove the obsolete path or replace it with a
+- [ ] **Resolve the disabled cycle-form feature switch.** The disabled
+      `EnableEnsureCycleFormsOnLoad` path is still awaiting the duplicate-form reconciliation;
+      the compiler warning has been removed. Either remove the obsolete path or replace it with a
       deliberate supported configuration after the duplicate-form reconciliation is
       settled.
 - [ ] **Make the README architectural claim accurate.** It currently says ViewModels

@@ -24,4 +24,4 @@ jobs:
         run: dotnet build Sati.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test Sati.Tests/Sati.Tests.csproj --configuration Release --no-build --no-restore
+        run: dotnet test Sati.slnx --configuration Release --no-build --no-restore

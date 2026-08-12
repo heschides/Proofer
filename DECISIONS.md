@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-08.*
+sections at the bottom. Last updated: 2026-08-12.*
 
 ---
 
@@ -59,6 +59,20 @@ small, versionable DTOs. In particular, `PasswordHash` and `Salt` never leave th
 Drafts may remain mutable. Submission, approval, signature, claim generation, or other defined
 record-finalization events create immutable versions. Later corrections produce amendments or new
 versions with a linked reason and actor. Audit events are append-only.
+
+### Person lifecycle history is a separate, PHI-bearing ledger
+
+The small `AuditEvent` envelope remains intentionally free of narratives and profile values. A
+Person audit has a different evidentiary purpose, so each revision stores a compressed full snapshot
+and the exact field-level before/after changes with actor, agency, timestamp, and request ID.
+Application code may append a version but may not update or delete one. Admin history access is
+tenant-scoped and audited, and PDF responses are non-cacheable.
+
+**Rejected:** storing Person values in the general activity log. That would spread PHI across every
+operational audit query and make retention and access control harder to reason about.
+
+**Rejected:** inventing history for existing People. The first touch creates an explicit tracking
+baseline of current state; only subsequent changes can truthfully identify who changed what and when.
 
 ### Clients do not migrate cloud databases
 
@@ -377,3 +391,22 @@ Prior records may clarify established names, roles, services, and deadlines, but
 what happened during the contact being documented. Client-record text is untrusted prompt data,
 not executable instruction. The case manager can expand **Context used** before accepting a draft
 to see the source note IDs and document version supplied to the model.
+
+## 2026-08-12 — Protected API requests revalidate the actor and distinguish review from authorship
+
+Every protected `/api/v1` request revalidates the JWT user, agency, and role against the current
+database record before feature code runs. Shared `TenantAccess` checks define self, caseload, and
+supervisory access, while `API_AUTHORIZATION.md` names the authoritative tenant owner for every
+protected route. A supervisor's permission to read or review a case manager's work does not grant
+permission to author or edit that case manager's assessment. Generated billing and AT artifacts
+inherit the same tenant boundary as their source records.
+
+## 2026-08-12 — Audit content is minimal, state changes are atomic, and stale assessments fail closed
+
+Audit events are an activity index, not a copy of a client record. They store stable action and
+resource identifiers, actor, agency, timestamp, and correlation ID; they do not store narratives,
+documents, passwords, reasons, tokens, or billing identifiers. A protected mutation and its audit
+event use one EF Core save transaction so neither can commit alone. Application contexts prohibit
+tracked audit updates/deletes; production SQL permissions and retention/legal-hold procedures remain
+required. Assessment revisions use optimistic concurrency and return HTTP 409 for stale writes.
+Claim lines are unique by service-note ID, making repeat billing commands fail safely.

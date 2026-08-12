@@ -191,6 +191,60 @@ namespace Sati.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Sati.Models.AuditEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MetadataJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResourceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("AgencyId", "OccurredAtUtc");
+
+                    b.ToTable("AuditEvents");
+                });
+
             modelBuilder.Entity("Sati.Models.Billing.BillingPeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -271,7 +325,8 @@ namespace Sati.Migrations
 
                     b.HasIndex("BillingPeriodId");
 
-                    b.HasIndex("NoteId");
+                    b.HasIndex("NoteId")
+                        .IsUnique();
 
                     b.ToTable("ClaimLines");
                 });
@@ -511,6 +566,62 @@ namespace Sati.Migrations
                     b.ToTable("PersonContacts");
                 });
 
+            modelBuilder.Entity("Sati.Models.PersonVersion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("ChangesGzip")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("SnapshotGzip")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgencyId", "ChangedAtUtc");
+
+                    b.HasIndex("PersonId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PersonVersions");
+                });
+
             modelBuilder.Entity("Sati.Models.Assessments.ComprehensiveAssessment", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
@@ -521,6 +632,7 @@ namespace Sati.Migrations
                     b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
                     b.Property<string>("DocumentJson").IsRequired().HasColumnType("nvarchar(max)");
                     b.Property<int>("PersonId").HasColumnType("int");
+                    b.Property<int>("Revision").IsConcurrencyToken().HasColumnType("int");
                     b.Property<string>("Status").IsRequired().HasMaxLength(30).HasColumnType("nvarchar(30)");
                     b.Property<DateTime?>("SubmittedAt").HasColumnType("datetime2");
                     b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2");
@@ -1014,6 +1126,10 @@ namespace Sati.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -1200,6 +1316,17 @@ namespace Sati.Migrations
                         .WithMany("Contacts")
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
+            modelBuilder.Entity("Sati.Models.PersonVersion", b =>
+                {
+                    b.HasOne("Sati.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Person");

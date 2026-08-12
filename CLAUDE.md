@@ -11,8 +11,9 @@ work. Its longer direction is a cloud-based, multi-tenant platform capable of su
 agencies, supervisors, billing staff, reviewers, and eventually state-facing workflows.
 
 The current client targets .NET 10 and uses WPF, CommunityToolkit.Mvvm, EF Core, SQL Server, and
-Microsoft.Extensions.Hosting. The repository currently contains one application project. That is
-the current implementation, not the intended final solution structure.
+Microsoft.Extensions.Hosting. The solution now contains the root WPF project, `Sati.Api`,
+`Sati.Contracts`, desktop/domain tests, and cross-platform API integration tests. The WPF project
+still owns local EF implementations during the transition; that is not the intended cloud boundary.
 
 ## Product direction
 

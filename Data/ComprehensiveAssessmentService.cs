@@ -86,28 +86,43 @@ public sealed class ComprehensiveAssessmentService(IDbContextFactory<SatiContext
         || answer.ActivitySupportLevels.Values.Any(level => level != ActivitySupportLevel.Independent)
         || answer.ActivitySkillsTraining.Values.Any(selected => selected);
 
-    public async Task SaveDocumentAsync(int assessmentId, AssessmentDocument document)
+    public async Task SaveDocumentAsync(
+        ComprehensiveAssessment assessment,
+        AssessmentDocument document)
     {
         await using var db = await contextFactory.CreateDbContextAsync();
-        var assessment = await db.ComprehensiveAssessments.SingleAsync(a => a.Id == assessmentId);
-        if (assessment.Status is AssessmentStatus.Approved or AssessmentStatus.Superseded)
+        var stored = await db.ComprehensiveAssessments.SingleAsync(a => a.Id == assessment.Id);
+        if (stored.Revision != assessment.Revision)
+            throw new DbUpdateConcurrencyException("This assessment was changed by someone else. Reload it before saving.");
+        if (stored.Status is AssessmentStatus.Approved or AssessmentStatus.Superseded)
             throw new InvalidOperationException("Approved assessment versions cannot be changed.");
-        assessment.DocumentJson = JsonSerializer.Serialize(document, JsonOptions);
-        assessment.UpdatedAt = DateTime.UtcNow;
+        stored.DocumentJson = JsonSerializer.Serialize(document, JsonOptions);
+        stored.UpdatedAt = DateTime.UtcNow;
+        stored.Revision++;
         await db.SaveChangesAsync();
+        assessment.DocumentJson = stored.DocumentJson;
+        assessment.UpdatedAt = stored.UpdatedAt;
+        assessment.Revision = stored.Revision;
     }
 
-    public async Task SubmitForReviewAsync(int assessmentId, int authorUserId)
+    public async Task SubmitForReviewAsync(ComprehensiveAssessment assessment)
     {
         await using var db = await contextFactory.CreateDbContextAsync();
-        var assessment = await db.ComprehensiveAssessments.SingleAsync(a => a.Id == assessmentId);
-        if (assessment.AuthorUserId != authorUserId)
+        var stored = await db.ComprehensiveAssessments.SingleAsync(a => a.Id == assessment.Id);
+        if (stored.Revision != assessment.Revision)
+            throw new DbUpdateConcurrencyException("This assessment was changed by someone else. Reload it before submitting.");
+        if (stored.AuthorUserId != assessment.AuthorUserId)
             throw new InvalidOperationException("Only the assigned author may submit this assessment.");
-        if (assessment.Status is not (AssessmentStatus.Draft or AssessmentStatus.Returned))
+        if (stored.Status is not (AssessmentStatus.Draft or AssessmentStatus.Returned))
             throw new InvalidOperationException("This assessment is not editable.");
-        assessment.Status = AssessmentStatus.ReadyForReview;
-        assessment.SubmittedAt = DateTime.UtcNow;
-        assessment.UpdatedAt = DateTime.UtcNow;
+        stored.Status = AssessmentStatus.ReadyForReview;
+        stored.SubmittedAt = DateTime.UtcNow;
+        stored.UpdatedAt = stored.SubmittedAt.Value;
+        stored.Revision++;
         await db.SaveChangesAsync();
+        assessment.Status = stored.Status;
+        assessment.SubmittedAt = stored.SubmittedAt;
+        assessment.UpdatedAt = stored.UpdatedAt;
+        assessment.Revision = stored.Revision;
     }
 }

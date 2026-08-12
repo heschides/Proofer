@@ -11,6 +11,7 @@ namespace Sati
 
         public int Id { get; private set; }
         public int UserId { get; private set; }
+        public int Revision { get; set; } = 1;
         public User? User { get; set; }
         public string? FirstName { get; set; }
         public string? LastName { get; set; }

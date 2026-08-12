@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using PdfSharp.Fonts;
 using Sati.Api.Data;
 using Sati.Api.Endpoints;
 using Sati.Api.Infrastructure;
@@ -14,6 +15,9 @@ using Sati.Api.Security;
 using Sati.Contracts.V1;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (OperatingSystem.IsWindows())
+    GlobalFontSettings.UseWindowsFontsUnderWindows = true;
 
 // Console logs are captured by App Service and avoid Windows Event Log
 // permissions on locked-down hosts and developer workstations.
@@ -39,6 +43,10 @@ builder.Services.AddSingleton<PasswordVerifier>();
 builder.Services.AddSingleton<TokenIssuer>();
 builder.Services.AddSingleton<LoginAttemptGuard>();
 builder.Services.AddSingleton<DatabaseIdentityValidator>();
+builder.Services.AddScoped<ValidatedActorFilter>();
+builder.Services.AddScoped<AuditTrail>();
+builder.Services.AddScoped<PersonLifecycle>();
+builder.Services.AddSingleton<PersonAuditPdfGenerator>();
 builder.Services.AddHostedService<DatabaseIdentityHostedService>();
 builder.Services.AddDbContextFactory<ApiDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));

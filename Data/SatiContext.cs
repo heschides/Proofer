@@ -26,10 +26,37 @@ namespace Sati.Data
         public DbSet<Provider> Providers { get; set; }
         public DbSet<PersonContact> PersonContacts { get; set; }
         public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
+        public DbSet<AuditEvent> AuditEvents { get; set; }
+        public DbSet<PersonVersion> PersonVersions { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
         {
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            EnsureAuditEventsAreAppendOnly();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureAuditEventsAreAppendOnly();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void EnsureAuditEventsAreAppendOnly()
+        {
+            if (ChangeTracker.Entries<AuditEvent>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<PersonVersion>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+            {
+                throw new InvalidOperationException("Audit and Person history records are append-only.");
+            }
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -86,10 +113,39 @@ namespace Sati.Data
                 entity.HasKey(a => a.Id);
                 entity.Property(a => a.Status).HasConversion<string>().HasMaxLength(30);
                 entity.Property(a => a.DocumentJson).IsRequired();
+                entity.Property(a => a.Revision).IsConcurrencyToken();
                 entity.HasIndex(a => new { a.PersonId, a.Version }).IsUnique();
                 entity.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(a => a.AuthorUser).WithMany().HasForeignKey(a => a.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne<User>().WithMany().HasForeignKey(a => a.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AuditEvent>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.HasIndex(a => a.EventId).IsUnique();
+                entity.HasIndex(a => new { a.AgencyId, a.OccurredAtUtc });
+                entity.Property(a => a.Action).IsRequired().HasMaxLength(100);
+                entity.Property(a => a.ResourceType).IsRequired().HasMaxLength(100);
+                entity.Property(a => a.ResourceId).HasMaxLength(100);
+                entity.Property(a => a.CorrelationId).IsRequired().HasMaxLength(100);
+                entity.Property(a => a.MetadataJson).IsRequired().HasMaxLength(4_000);
+            });
+
+            modelBuilder.Entity<PersonVersion>(entity =>
+            {
+                entity.HasKey(version => version.Id);
+                entity.HasIndex(version => new { version.PersonId, version.Version }).IsUnique();
+                entity.HasIndex(version => new { version.AgencyId, version.ChangedAtUtc });
+                entity.Property(version => version.ActorDisplayName).IsRequired().HasMaxLength(150);
+                entity.Property(version => version.ChangeKind).IsRequired().HasMaxLength(30);
+                entity.Property(version => version.CorrelationId).IsRequired().HasMaxLength(100);
+                entity.Property(version => version.SnapshotGzip).IsRequired();
+                entity.Property(version => version.ChangesGzip).IsRequired();
+                entity.HasOne(version => version.Person)
+                      .WithMany()
+                      .HasForeignKey(version => version.PersonId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<User>(entity =>
@@ -115,6 +171,7 @@ namespace Sati.Data
             modelBuilder.Entity<Person>(entity =>
             {
                 entity.HasKey(p => p.Id);
+                entity.Property(p => p.Revision).IsConcurrencyToken();
                 entity.Property(p => p.FirstName)
                       .IsRequired()
                       .HasMaxLength(50);
@@ -358,6 +415,7 @@ namespace Sati.Data
             modelBuilder.Entity<ClaimLine>(entity =>
             {
                 entity.HasKey(c => c.Id);
+                entity.HasIndex(c => c.NoteId).IsUnique();
                 entity.Property(c => c.Units).HasColumnType("decimal(18,2)");
                 entity.HasOne(c => c.BillingPeriod)
                       .WithMany(b => b.Lines)
