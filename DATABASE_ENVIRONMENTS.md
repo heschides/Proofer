@@ -102,15 +102,20 @@ Provisioned and validated on August 11, 2026:
 | Network | Public endpoint with three exact App Service outbound-IP rules; tester IPs are not allowed |
 
 The imported database was read back through an exact-IP temporary firewall rule and matched the
-verified local source: `Demo` identity marker, 15 users, 167 people, 3,769 notes, 50 migrations,
-and zero people owned outside the `Sandbox Mode` agency. The temporary import and validation
-firewall rules were removed after use.
+verified local source: `Demo` identity marker, 15 users, 167 people, and 3,769 notes. On August 12,
+2026, the controlled Admin/audit deployment brought the database to 55 migrations, reconciled all
+legacy Person and Note ownership to the owning user's agency, and verified zero null or mismatched
+tenant assignments. Every temporary import, migration, and validation firewall rule was removed
+after use.
 
 The API is hosted on Windows App Service Free F1 in Central US at
 `https://sati-demo-api-satilogica.azurewebsites.net/`. Its system-assigned managed identity is a
 contained database user with only `db_datareader` and `db_datawriter`. The API uses a managed-
 identity connection; its token-signing key is an App Service setting and is not stored in source.
-Both `/health/live` and `/health/ready` returned HTTP 200 after deployment on August 11, 2026.
+Both `/health/live` and `/health/ready` returned HTTP 200 after the Admin/audit API deployment on
+August 12, 2026. Authenticated verification also covered the agency-scoped Admin overview, all 167
+Person list rows, first-view lifecycle baseline creation, recent activity, and PDF export; anonymous
+Admin access returned HTTP 401.
 
 ## Azure migration checklist
 

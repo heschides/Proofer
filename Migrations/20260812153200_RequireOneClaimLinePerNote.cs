@@ -17,6 +17,10 @@ public partial class RequireOneClaimLinePerNote : Migration
                 THROW 51000, 'Cannot enforce one claim line per note because duplicate claim lines already exist.', 1;
             """);
 
+        migrationBuilder.DropIndex(
+            name: "IX_ClaimLines_NoteId",
+            table: "ClaimLines");
+
         migrationBuilder.CreateIndex(
             name: "IX_ClaimLines_NoteId",
             table: "ClaimLines",
@@ -24,8 +28,15 @@ public partial class RequireOneClaimLinePerNote : Migration
             unique: true);
     }
 
-    protected override void Down(MigrationBuilder migrationBuilder) =>
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
         migrationBuilder.DropIndex(
             name: "IX_ClaimLines_NoteId",
             table: "ClaimLines");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_ClaimLines_NoteId",
+            table: "ClaimLines",
+            column: "NoteId");
+    }
 }

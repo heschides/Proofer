@@ -407,6 +407,19 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
             _factory.TryToModifyFirstPersonVersionAsync);
     }
 
+    [Fact]
+    public async Task AdministratorCanInitializeHistoryForAnUntouchedPerson()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var response = await admin.GetAsync("/api/v1/people/101/history");
+        var history = await response.Content.ReadFromJsonAsync<List<PersonVersionDto>>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Contains(history!, version => version.ChangeKind == "TrackingBaseline");
+    }
+
     private static SaveProviderRequest ProviderRequest(string name) => new(
         "Other", name, null, null, null, null, null, null, 0, false, null, null, null);
 

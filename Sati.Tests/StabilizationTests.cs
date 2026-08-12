@@ -3,6 +3,7 @@ using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Sati.Contracts.V1;
 using Sati.Reporting;
 using PdfSharp.Fonts;
@@ -108,6 +109,42 @@ public sealed class StabilizationTests
         using var context = new SatiContext(options);
 
         Assert.False(context.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public void ClaimLineUniquenessMigrationReplacesTheExistingIndex()
+    {
+        var migration = new Migrations.RequireOneClaimLinePerNote();
+        var builder = new Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder(
+            "Microsoft.EntityFrameworkCore.SqlServer");
+        var up = typeof(Migrations.RequireOneClaimLinePerNote).GetMethod(
+            "Up",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+
+        up.Invoke(migration, [builder]);
+
+        var drop = Assert.Single(builder.Operations.OfType<
+            Microsoft.EntityFrameworkCore.Migrations.Operations.DropIndexOperation>());
+        var create = Assert.Single(builder.Operations.OfType<
+            Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation>());
+        Assert.Equal("IX_ClaimLines_NoteId", drop.Name);
+        Assert.Equal("ClaimLines", drop.Table);
+        Assert.Equal("IX_ClaimLines_NoteId", create.Name);
+        Assert.Equal(["NoteId"], create.Columns);
+        Assert.True(create.IsUnique);
+    }
+
+    [Fact]
+    public void TenantOwnershipRepairIsRegisteredAsAnEfMigration()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiMigrationValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.Contains("20260812213000_ReconcileTenantOwnership", migrations.Migrations.Keys);
     }
 
     [Fact]

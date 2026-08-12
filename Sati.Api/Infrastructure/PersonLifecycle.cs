@@ -148,7 +148,13 @@ internal sealed class PersonLifecycle(ApiDbContext db, IHttpContextAccessor http
     {
         db.PersonVersions.Add(new ServerPersonVersion
         {
-            Person = person,
+            // Existing People may have been loaded through a read-oriented join
+            // and therefore be detached. Linking that instance as a navigation
+            // would make Add() traverse the graph and attempt to insert the
+            // already-existing Person. New People still need the navigation so
+            // EF can propagate their generated identity into the version row.
+            Person = person.Id == 0 ? person : null!,
+            PersonId = person.Id,
             AgencyId = actor.AgencyId,
             ActorUserId = actor.UserId,
             ActorDisplayName = actor.DisplayName,
