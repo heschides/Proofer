@@ -28,9 +28,9 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
-                "Added repeatable Demo packaging, health preflight, and company-demo operating guidance.",
+                "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
-                "Expanded automated coverage to 77 authorization, integration, migration, reporting, and domain tests."
+                "Expanded automated coverage across authorization, integration, migration, reporting, and domain behavior."
             ]),
         new(
             "Still planned before commercial production",

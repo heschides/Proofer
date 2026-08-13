@@ -83,6 +83,32 @@ activity endpoints. It does not export files or mutate a business record.
 - Keep a PDF or screenshots of the synthetic workflow available as a presentation fallback; never
   use screenshots containing real client data.
 
+## Canonical local Demo reset
+
+After approving the exact synthetic dataset used for rehearsal, capture its immutable baseline once:
+
+```powershell
+.\scripts\Seed-DemoShowcaseData.ps1
+.\scripts\Reset-LocalDemoData.ps1 -Action CaptureBaseline
+```
+
+The baseline is stored outside the repository under
+`%LOCALAPPDATA%\Satilogica\Sati\DemoBaseline`. The tool refuses any database except `SatiDemo`
+with the `Demo` identity marker, verifies SQL backup checksums and a SHA-256 manifest, and will not
+silently replace an existing baseline.
+
+Close Sati, then restore after a rehearsal:
+
+```powershell
+.\scripts\Reset-LocalDemoData.ps1 -Action VerifyBaseline
+.\scripts\Reset-LocalDemoData.ps1 -Action RestoreBaseline
+```
+
+`DEMO_RESTORE_VERIFIED` is the acceptance marker. `-ReplaceBaseline` archives the previous backup
+and must be used only when intentionally approving a new canonical dataset. The deployed Azure Demo
+database requires the same snapshot/restore control in its deployment runbook; this local command
+never connects to Azure.
+
 ## Final acceptance gates
 
 Company-demo readiness reaches 100% only when all of these are true for the exact artifact being
@@ -92,5 +118,6 @@ shown:
 - [ ] Health and authenticated readiness checks pass against that deployment.
 - [ ] The packaged artifact launches on a clean Windows machine outside the development network.
 - [ ] The ten-minute path is rehearsed with the designated synthetic accounts and records.
-- [ ] A canonical Demo restore/reset procedure is available for any rehearsal mutations.
+- [x] A canonical local Demo restore/reset procedure is available for rehearsal mutations; the
+  deployed database procedure is an explicit deployment gate.
 - [ ] The presenter has an approved fallback and knows the product/production limitations above.

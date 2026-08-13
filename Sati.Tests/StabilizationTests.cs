@@ -70,6 +70,29 @@ public sealed class StabilizationTests
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
     }
+
+    [Fact]
+    public void DemoResetScriptIsPinnedToTheSyntheticDatabaseAndVerifiesItsBackup()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var script = File.ReadAllText(Path.Combine(
+            directory!.FullName,
+            "scripts",
+            "Reset-LocalDemoData.ps1"));
+
+        Assert.Contains("$database = 'SatiDemo'", script);
+        Assert.Contains("EnvironmentName -cne 'Demo'", script);
+        Assert.Contains("RESTORE VERIFYONLY", script);
+        Assert.Contains("Get-FileHash", script);
+        Assert.Contains("WITH REPLACE, RECOVERY, CHECKSUM", script);
+        Assert.Contains("Get-Process -Name 'Sati', 'Sati.Demo'", script);
+        Assert.DoesNotContain("SatiProduction", script);
+    }
+
     [Fact]
     public void UnexpectedErrorLogOmitsExceptionMessagesAndReturnsAReference()
     {
