@@ -17,6 +17,14 @@ availability, or background-job coverage until those denominators are collected 
 JSON-line diagnostics remain workstation-only for support; the aggregated dashboard receives the
 curated envelope, not those raw diagnostics.
 
+Incident aggregation uses a bounded, keyed in-process gate plus a serializable database transaction.
+The gate avoids duplicate insert races inside one process; the transaction is the authority across
+separate API processes. The unique incident-key index remains the final invariant. Agency Admins can
+search and filter their incident list and move a selected group among Open, Investigating, and
+Resolved; status changes are audited. Alert labels are deterministic and visible: Urgent for an
+unresolved critical group or score below 60, Action required below 80/three unresolved groups/high
+recurrence, Watch below 95 or with any unresolved group, otherwise Normal.
+
 **Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
 `Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,
 `CaseManagerDashboardViewModel.BuildFormRows`, and the `BoardTabConverter` NoteType fix.

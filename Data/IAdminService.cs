@@ -10,6 +10,10 @@ public interface IAdminService
         int days = 30,
         int take = 250,
         CancellationToken cancellationToken = default);
+    Task<IncidentGroupDto> UpdateIncidentStatusAsync(
+        long incidentId,
+        string status,
+        CancellationToken cancellationToken = default);
     Task<byte[]> ExportAuditCsvAsync(
         DateTime fromUtc,
         DateTime toUtc,

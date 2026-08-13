@@ -22,7 +22,9 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
 {
     private const string TestPassword = "Correct-Horse-42!";
     private const string TestSigningKey = "integration-test-signing-key-that-is-at-least-32-characters";
-    private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private const string TestDatabaseConnection =
+        "Data Source=SatiApiTests;Mode=Memory;Cache=Shared;Default Timeout=30";
+    private readonly SqliteConnection _connection = new(TestDatabaseConnection);
     private readonly SemaphoreSlim _seedLock = new(1, 1);
     private bool _seeded;
 
@@ -71,7 +73,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IDbContextOptionsConfiguration<ApiDbContext>>();
             services.RemoveAll<IDatabaseProvider>();
             services.AddDbContextFactory<ApiDbContext>(options =>
-                options.UseSqlite(_connection));
+                options.UseSqlite(TestDatabaseConnection));
             services.AddScoped(provider =>
                 provider.GetRequiredService<IDbContextFactory<ApiDbContext>>().CreateDbContext());
             services.AddDataProtection().UseEphemeralDataProtectionProvider();

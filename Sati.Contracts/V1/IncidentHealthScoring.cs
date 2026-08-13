@@ -31,6 +31,7 @@ public static class IncidentHealthScoring
             return ageDays >= 14 ? 4 : ageDays >= 7 ? 2 : ageDays >= 2 ? 1 : 0;
         }));
         var score = Math.Max(0, 100 - severityPenalty - recurrencePenalty - agePenalty);
+        var alert = Alert(score, unresolved, critical, recurrencePenalty);
 
         return new IncidentHealthScoreDto(
             score,
@@ -45,6 +46,23 @@ public static class IncidentHealthScoring
             recurrencePenalty,
             agePenalty,
             FormulaVersion,
-            "100 minus severity, recurrence, and unresolved-age penalties. It includes groups active in the selected window; occurrence counts are cumulative for each group. This version measures recorded incidents only and does not claim crash-free session coverage.");
+            "100 minus severity, recurrence, and unresolved-age penalties. It includes groups active in the selected window; occurrence counts are cumulative for each group. This version measures recorded incidents only and does not claim crash-free session coverage.",
+            alert.Level,
+            alert.Reason);
+    }
+
+    private static (string Level, string Reason) Alert(
+        int score,
+        IReadOnlyCollection<IncidentGroupDto> unresolved,
+        int criticalOccurrences,
+        int recurrencePenalty)
+    {
+        if (unresolved.Any(item => item.Severity == IncidentSeverities.Critical) || score < 60)
+            return ("Urgent", "An unresolved critical incident exists or the score is below 60. Contact platform support now.");
+        if (score < 80 || unresolved.Count >= 3 || recurrencePenalty >= 10)
+            return ("Action required", "The score is below 80, at least three groups are unresolved, or repeated failures reached the recurrence threshold.");
+        if (score < 95 || unresolved.Count > 0 || criticalOccurrences > 0)
+            return ("Watch", "At least one incident remains unresolved or the score is below 95. Review during normal operations.");
+        return ("Normal", "No incident alert threshold is currently crossed.");
     }
 }

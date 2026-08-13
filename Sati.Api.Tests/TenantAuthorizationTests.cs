@@ -75,6 +75,31 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task ConcurrentIncidentReportsProduceOneGroupWithTheExactCount()
+    {
+        using var reporter = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        const int reportCount = 24;
+        var occurredAt = DateTime.UtcNow;
+        var responses = await Task.WhenAll(Enumerable.Range(0, reportCount).Select(index =>
+            reporter.PostAsJsonAsync("/api/v1/incidents", new IncidentReportRequest(
+                $"REF_PAR{index:000}",
+                "Desktop",
+                index == reportCount - 1 ? "Critical" : "Warning",
+                "calendar.concurrent.open",
+                "1.2.2",
+                "DDDDEE0123456789DDDDEE0123456789",
+                occurredAt.AddMilliseconds(index)))));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Accepted, response.StatusCode));
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var dashboard = await admin.GetFromJsonAsync<AdminIncidentDashboardDto>("/api/v1/admin/incidents");
+        var incident = Assert.Single(dashboard!.Incidents,
+            item => item.Operation == "calendar.concurrent.open");
+        Assert.Equal(reportCount, incident.OccurrenceCount);
+        Assert.Equal("Critical", incident.Severity);
+    }
+
+    [Fact]
     public async Task AgencyAdminCannotOpenPlatformDashboardButPlatformOperatorCan()
     {
         using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");

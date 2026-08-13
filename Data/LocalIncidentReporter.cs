@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
 using Sati.Models;
@@ -10,6 +11,10 @@ public sealed class LocalIncidentReporter(
     IDbContextFactory<SatiContext> contextFactory,
     ISessionService sessionService) : IIncidentReporter
 {
+    private static readonly SemaphoreSlim[] Gates = Enumerable.Range(0, 32)
+        .Select(_ => new SemaphoreSlim(1, 1))
+        .ToArray();
+
     public async Task ReportAsync(
         Exception exception,
         string operation,
@@ -23,46 +28,63 @@ public sealed class LocalIncidentReporter(
 
         try
         {
-            await using var context = contextFactory.CreateDbContext();
             var fingerprint = AppErrorLog.CreateFingerprint(exception);
             var safeOperation = AppErrorLog.SafeArea(operation);
             var release = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
             var occurredAt = DateTime.UtcNow;
-            var incident = await context.IncidentGroups.SingleOrDefaultAsync(candidate =>
-                candidate.AgencyId == actor.AgencyId &&
-                candidate.Source == "Desktop" &&
-                candidate.Operation == safeOperation &&
-                candidate.ExceptionFingerprint == fingerprint,
-                cancellationToken);
-            if (incident is null)
+            var gate = Gates[(int)((uint)HashCode.Combine(
+                actor.AgencyId,
+                safeOperation,
+                fingerprint) % Gates.Length)];
+            await gate.WaitAsync(cancellationToken);
+            try
             {
-                context.IncidentGroups.Add(new IncidentGroup
+                await using var context = contextFactory.CreateDbContext();
+                await using var transaction = await context.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken);
+                var incident = await context.IncidentGroups.SingleOrDefaultAsync(candidate =>
+                    candidate.AgencyId == actor.AgencyId &&
+                    candidate.Source == "Desktop" &&
+                    candidate.Operation == safeOperation &&
+                    candidate.ExceptionFingerprint == fingerprint,
+                    cancellationToken);
+                if (incident is null)
                 {
-                    AgencyId = actor.AgencyId,
-                    Source = "Desktop",
-                    Severity = severity,
-                    Operation = safeOperation,
-                    FirstRelease = release,
-                    LastRelease = release,
-                    ExceptionFingerprint = fingerprint,
-                    FirstSeenUtc = occurredAt,
-                    LastSeenUtc = occurredAt,
-                    LastReference = reference,
-                    LastActorRole = actor.Role.ToString()
-                });
+                    context.IncidentGroups.Add(new IncidentGroup
+                    {
+                        AgencyId = actor.AgencyId,
+                        Source = "Desktop",
+                        Severity = severity,
+                        Operation = safeOperation,
+                        FirstRelease = release,
+                        LastRelease = release,
+                        ExceptionFingerprint = fingerprint,
+                        FirstSeenUtc = occurredAt,
+                        LastSeenUtc = occurredAt,
+                        LastReference = reference,
+                        LastActorRole = actor.Role.ToString()
+                    });
+                }
+                else
+                {
+                    incident.Severity = MoreSevere(incident.Severity, severity);
+                    incident.FirstSeenUtc = occurredAt < incident.FirstSeenUtc ? occurredAt : incident.FirstSeenUtc;
+                    incident.LastRelease = release;
+                    incident.LastSeenUtc = occurredAt > incident.LastSeenUtc ? occurredAt : incident.LastSeenUtc;
+                    incident.LastReference = reference;
+                    incident.LastActorRole = actor.Role.ToString();
+                    incident.OccurrenceCount++;
+                    if (incident.Status == "Resolved")
+                        incident.Status = "Reopened";
+                }
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
-            else
+            finally
             {
-                incident.Severity = MoreSevere(incident.Severity, severity);
-                incident.LastRelease = release;
-                incident.LastSeenUtc = occurredAt;
-                incident.LastReference = reference;
-                incident.LastActorRole = actor.Role.ToString();
-                incident.OccurrenceCount++;
-                if (incident.Status == "Resolved")
-                    incident.Status = "Reopened";
+                gate.Release();
             }
-            await context.SaveChangesAsync(cancellationToken);
         }
         catch
         {

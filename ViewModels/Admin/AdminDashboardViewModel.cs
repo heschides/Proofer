@@ -17,11 +17,20 @@ public partial class AdminDashboardViewModel(
     public ObservableCollection<AdminPersonListItemDto> People { get; } = [];
     public ObservableCollection<PersonVersionDto> PersonHistory { get; } = [];
     public ObservableCollection<IncidentGroupDto> Incidents { get; } = [];
+    public ObservableCollection<IncidentGroupDto> FilteredIncidents { get; } = [];
+    public IReadOnlyList<string> IncidentStatusFilters { get; } = ["All statuses", "Open", "Reopened", "Investigating", "Resolved"];
+    public IReadOnlyList<string> IncidentSeverityFilters { get; } = ["All severities", "Critical", "Error", "Warning"];
+    public IReadOnlyList<string> IncidentStatuses { get; } = ["Open", "Investigating", "Resolved"];
 
     [ObservableProperty] private AdminOverviewDto? overview;
     [ObservableProperty] private AdminOperationsDto? operations;
     [ObservableProperty] private IncidentHealthScoreDto? health;
     [ObservableProperty] private string auditExportReason = "Internal compliance review";
+    [ObservableProperty] private string incidentSearch = string.Empty;
+    [ObservableProperty] private string incidentStatusFilter = "All statuses";
+    [ObservableProperty] private string incidentSeverityFilter = "All severities";
+    [ObservableProperty] private IncidentGroupDto? selectedIncident;
+    [ObservableProperty] private string selectedIncidentStatus = "Investigating";
     [ObservableProperty] private AdminPersonListItemDto? selectedPerson;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string statusMessage = string.Empty;
@@ -71,6 +80,7 @@ public partial class AdminDashboardViewModel(
             var incidentDashboard = await incidentsTask;
             Health = incidentDashboard.Health;
             Replace(Incidents, incidentDashboard.Incidents);
+            ApplyIncidentFilter();
             Replace(People, await peopleTask);
             Replace(RecentActivity, (await activityTask).Select(item => new AdminActivityRow(item)));
             LastRefreshedAt = DateTime.Now;
@@ -103,12 +113,69 @@ public partial class AdminDashboardViewModel(
     {
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
+        UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnAuditExportReasonChanged(string value) =>
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
+    partial void OnIncidentSearchChanged(string value) => ApplyIncidentFilter();
+    partial void OnIncidentStatusFilterChanged(string value) => ApplyIncidentFilter();
+    partial void OnIncidentSeverityFilterChanged(string value) => ApplyIncidentFilter();
+    partial void OnSelectedIncidentChanged(IncidentGroupDto? value)
+    {
+        if (value is not null)
+            SelectedIncidentStatus = value.Status == "Reopened" ? "Investigating" : value.Status;
+        UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
+    }
+    partial void OnSelectedIncidentStatusChanged(string value) =>
+        UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
     partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasError));
     partial void OnLastRefreshedAtChanged(DateTime? value) => OnPropertyChanged(nameof(LastRefreshedLabel));
+
+    private bool CanUpdateIncidentStatus() =>
+        !IsBusy && SelectedIncident is not null &&
+        IncidentStatuses.Contains(SelectedIncidentStatus) &&
+        SelectedIncident.Status != SelectedIncidentStatus;
+
+    [RelayCommand(CanExecute = nameof(CanUpdateIncidentStatus))]
+    private async Task UpdateIncidentStatusAsync()
+    {
+        if (SelectedIncident is null)
+            return;
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            var selectedId = SelectedIncident.Id;
+            await adminService.UpdateIncidentStatusAsync(selectedId, SelectedIncidentStatus);
+            var dashboard = await adminService.GetIncidentsAsync();
+            Health = dashboard.Health;
+            Replace(Incidents, dashboard.Incidents);
+            ApplyIncidentFilter();
+            SelectedIncident = FilteredIncidents.FirstOrDefault(item => item.Id == selectedId);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The incident status could not be updated. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void ApplyIncidentFilter()
+    {
+        var search = IncidentSearch?.Trim() ?? string.Empty;
+        var filtered = Incidents.Where(item =>
+            (IncidentStatusFilter == "All statuses" || item.Status == IncidentStatusFilter) &&
+            (IncidentSeverityFilter == "All severities" || item.Severity == IncidentSeverityFilter) &&
+            (search.Length == 0 ||
+             item.Operation.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             item.LastReference.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             item.LastRelease.Contains(search, StringComparison.OrdinalIgnoreCase)));
+        Replace(FilteredIncidents, filtered);
+    }
 
     private async Task LoadHistoryAsync(
         AdminPersonListItemDto? person,

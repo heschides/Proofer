@@ -50,7 +50,9 @@ public sealed record IncidentHealthScoreDto(
     int RecurrencePenalty,
     int UnresolvedAgePenalty,
     string FormulaVersion,
-    string Explanation);
+    string Explanation,
+    string AlertLevel,
+    string AlertReason);
 
 public sealed record AdminIncidentDashboardDto(
     DateTime ObservedAtUtc,

@@ -245,16 +245,49 @@
                             <Run Text="{Binding Health.UnresolvedGroups, Mode=OneWay, TargetNullValue=0}" />
                             <Run Text=" unresolved groups" />
                         </TextBlock>
+                        <TextBlock Text="{Binding Health.AlertLevel, TargetNullValue=Not evaluated}"
+                                   Margin="0,7,0,0" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Health.AlertReason}" TextWrapping="Wrap"
+                                   FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" />
                     </StackPanel>
                     <Grid Grid.Column="1">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="120" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="{Binding Health.Explanation}"
                                    FontSize="9" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                        <DataGrid Grid.Row="1" ItemsSource="{Binding Incidents}"
+                        <Grid Grid.Row="1" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="125" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding IncidentSearch, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="5,3" Margin="0,0,6,0"
+                                     AutomationProperties.Name="Search agency incidents" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding IncidentSeverityFilters}"
+                                      SelectedItem="{Binding IncidentSeverityFilter}" Margin="0,0,6,0"
+                                      AutomationProperties.Name="Filter incidents by severity" />
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding IncidentStatusFilters}"
+                                      SelectedItem="{Binding IncidentStatusFilter}"
+                                      AutomationProperties.Name="Filter incidents by status" />
+                            <ComboBox Grid.Column="4" ItemsSource="{Binding IncidentStatuses}"
+                                      SelectedItem="{Binding SelectedIncidentStatus}"
+                                      AutomationProperties.Name="New incident status" />
+                            <Button Grid.Column="5" Content="Update status" Margin="6,0,0,0"
+                                    Command="{Binding UpdateIncidentStatusCommand}"
+                                    Style="{StaticResource SmallButton}"
+                                    AutomationProperties.Name="Update selected incident status" />
+                        </Grid>
+                        <DataGrid Grid.Row="2" ItemsSource="{Binding FilteredIncidents}"
+                                  SelectedItem="{Binding SelectedIncident}"
                                   AutoGenerateColumns="False" IsReadOnly="True"
                                   HeadersVisibility="Column" CanUserAddRows="False"
                                   Margin="0,7,0,0"

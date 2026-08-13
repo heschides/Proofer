@@ -46,6 +46,11 @@
                                Foreground="{DynamicResource AccentBrush}" />
                     <TextBlock Text="{Binding OverallHealth.Grade, TargetNullValue=Not measured}" FontSize="14"
                                Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding OverallHealth.AlertLevel, TargetNullValue=Not evaluated}"
+                               Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentBrush}" />
+                    <TextBlock Text="{Binding OverallHealth.AlertReason}" TextWrapping="Wrap"
+                               FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" />
                     <TextBlock Text="{Binding OverallHealth.Explanation}" TextWrapping="Wrap" Margin="0,8,0,0"
                                FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>

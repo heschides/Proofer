@@ -136,6 +136,34 @@ public sealed class AdminService(
             incidents);
     }
 
+    public async Task<IncidentGroupDto> UpdateIncidentStatusAsync(
+        long incidentId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        if (status is not ("Open" or "Investigating" or "Resolved"))
+            throw new ArgumentException("Status must be Open, Investigating, or Resolved.", nameof(status));
+        await using var context = contextFactory.CreateDbContext();
+        var incident = await context.IncidentGroups.SingleOrDefaultAsync(candidate =>
+            candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId,
+            cancellationToken) ?? throw new InvalidOperationException("This incident was not found in your agency.");
+        incident.Status = status;
+        LocalAuditTrail.Record(
+            context,
+            actor,
+            LocalAuditActions.IncidentStatusUpdated,
+            "IncidentGroup",
+            metadataJson: JsonSerializer.Serialize(new { incidentId, status }));
+        await context.SaveChangesAsync(cancellationToken);
+        return new IncidentGroupDto(
+            incident.Id, incident.AgencyId, incident.Source, incident.Severity,
+            incident.Operation, incident.FirstRelease, incident.LastRelease,
+            incident.ExceptionFingerprint, incident.Status, incident.OccurrenceCount,
+            incident.FirstSeenUtc, incident.LastSeenUtc, incident.LastReference,
+            incident.LastActorRole);
+    }
+
     public async Task<byte[]> ExportAuditCsvAsync(
         DateTime fromUtc,
         DateTime toUtc,

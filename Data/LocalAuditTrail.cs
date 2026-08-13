@@ -42,6 +42,7 @@ internal static class LocalAuditActions
     public const string NoteReturned = "note.returned";
     public const string BillingClaimLineCreated = "billing-claim-line.created";
     public const string BillingPeriodSubmitted = "billing-period.submitted";
+    public const string IncidentStatusUpdated = "incident-status.updated";
         public const string BillingEdiGenerated = "billing-edi.generated";
         public const string BillingConfigurationUpdated = "billing-configuration.updated";
 }

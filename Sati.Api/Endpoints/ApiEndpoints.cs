@@ -47,7 +47,7 @@ internal static class ApiEndpoints
         api.MapPost("/incidents", async Task<IResult> (
             IncidentReportRequest request,
             ClaimsPrincipal principal,
-            ApiDbContext db,
+            IncidentAggregator aggregator,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -65,46 +65,17 @@ internal static class ApiEndpoints
                 });
             }
 
-            var existing = await db.IncidentGroups.SingleOrDefaultAsync(candidate =>
-                candidate.AgencyId == actor.AgencyId &&
-                candidate.Source == request.Source &&
-                candidate.Operation == request.Operation &&
-                candidate.ExceptionFingerprint == request.ExceptionFingerprint,
-                cancellationToken);
-            if (existing is null)
-            {
-                existing = new ServerIncidentGroup
-                {
-                    AgencyId = actor.AgencyId,
-                    Source = request.Source,
-                    Severity = request.Severity,
-                    Operation = request.Operation,
-                    FirstRelease = request.Release,
-                    LastRelease = request.Release,
-                    ExceptionFingerprint = request.ExceptionFingerprint,
-                    Status = "Open",
-                    OccurrenceCount = 1,
-                    FirstSeenUtc = occurredAt,
-                    LastSeenUtc = occurredAt,
-                    LastReference = request.Reference,
-                    LastActorRole = actor.Role
-                };
-                db.IncidentGroups.Add(existing);
-            }
-            else
-            {
-                existing.Severity = MoreSevere(existing.Severity, request.Severity);
-                existing.LastRelease = request.Release;
-                existing.LastSeenUtc = occurredAt > existing.LastSeenUtc ? occurredAt : existing.LastSeenUtc;
-                existing.LastReference = request.Reference;
-                existing.LastActorRole = actor.Role;
-                existing.OccurrenceCount++;
-                if (existing.Status == "Resolved")
-                    existing.Status = "Reopened";
-            }
-
-            await db.SaveChangesAsync(cancellationToken);
-            return Results.Accepted(value: ToIncidentDto(existing));
+            var incident = await aggregator.UpsertAsync(new IncidentAggregation(
+                actor.AgencyId,
+                request.Source,
+                request.Severity,
+                request.Operation,
+                request.Release,
+                request.ExceptionFingerprint,
+                occurredAt,
+                request.Reference,
+                actor.Role), cancellationToken);
+            return Results.Accepted(value: ToIncidentDto(incident));
         });
 
         api.MapGet("/admin/incidents", async Task<IResult> (
@@ -3329,17 +3300,6 @@ internal static class ApiEndpoints
     private static bool IsSafeIncidentToken(string? value, int minimumLength, int maximumLength) =>
         value?.Length >= minimumLength && value.Length <= maximumLength &&
         value.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_');
-
-    private static string MoreSevere(string current, string reported)
-    {
-        static int Rank(string value) => value switch
-        {
-            IncidentSeverities.Critical => 3,
-            IncidentSeverities.Error => 2,
-            _ => 1
-        };
-        return Rank(reported) > Rank(current) ? reported : current;
-    }
 
     private static IncidentGroupDto ToIncidentDto(ServerIncidentGroup incident) => new(
         incident.Id,

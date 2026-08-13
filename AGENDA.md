@@ -216,8 +216,9 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Define transparent, versioned agency and platform Incident Health v1 scores from recorded
       severity, recurrence, and unresolved age; show every penalty and state explicitly that v1
       does not claim crash-free-session, availability, or job-failure coverage.
-- [ ] Add safe session denominators, API availability, scheduled-job outcomes, desktop filters and
-      status-edit controls, incident alert thresholds, and concurrency-safe atomic upsert.
+- [x] Add desktop incident search/severity/status filters, audited status-edit controls, explicit
+      alert thresholds, and concurrency-safe aggregation with exact-count integration coverage.
+- [ ] Add safe session denominators, API availability, and scheduled-job outcomes.
 - [ ] Add retention, legal-hold, access-review, alerting, and runbook requirements; prove PHI/PII
       minimization, tenant isolation, bounded queries, concurrency, and score calculations with
       automated tests before enabling production collection.

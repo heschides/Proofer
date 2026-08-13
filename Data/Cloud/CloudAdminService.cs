@@ -18,6 +18,15 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
             $"/api/v1/admin/incidents?days={days}&take={take}",
             cancellationToken);
 
+    public Task<IncidentGroupDto> UpdateIncidentStatusAsync(
+        long incidentId,
+        string status,
+        CancellationToken cancellationToken = default) =>
+        api.PutAsync<UpdateIncidentStatusRequest, IncidentGroupDto>(
+            $"/api/v1/admin/incidents/{incidentId}/status",
+            new UpdateIncidentStatusRequest(status),
+            cancellationToken);
+
     public Task<byte[]> ExportAuditCsvAsync(
         DateTime fromUtc,
         DateTime toUtc,

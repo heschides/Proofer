@@ -430,6 +430,33 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void IncidentHealthAlertsHaveExplicitEscalationThresholds()
+    {
+        var observedAt = new DateTime(2026, 8, 13, 12, 0, 0, DateTimeKind.Utc);
+        var normal = IncidentHealthScoring.Calculate([], observedAt, 30);
+        var watch = IncidentHealthScoring.Calculate([
+            Incident("Warning", "Open", 1, observedAt)
+        ], observedAt, 30);
+        var actionRequired = IncidentHealthScoring.Calculate([
+            Incident("Warning", "Open", 1, observedAt) with { Id = 2, Operation = "notes.open" },
+            Incident("Warning", "Open", 1, observedAt) with { Id = 3, Operation = "billing.open" },
+            Incident("Warning", "Open", 1, observedAt) with { Id = 4, Operation = "forms.open" }
+        ], observedAt, 30);
+        var urgent = IncidentHealthScoring.Calculate([
+            Incident("Critical", "Open", 1, observedAt)
+        ], observedAt, 30);
+
+        Assert.Equal("Normal", normal.AlertLevel);
+        Assert.Equal("Watch", watch.AlertLevel);
+        Assert.Equal("Action required", actionRequired.AlertLevel);
+        Assert.Equal("Urgent", urgent.AlertLevel);
+
+        static IncidentGroupDto Incident(string severity, string status, int count, DateTime now) =>
+            new(1, 1, "Desktop", severity, "calendar.open", "1.2.2", "1.2.2",
+                "ABCDEF0123456789", status, count, now, now, "REF_TEST01", "Admin");
+    }
+
+    [Fact]
     public void EfModelMatchesLatestMigrationSnapshot()
     {
         var options = new DbContextOptionsBuilder<SatiContext>()

@@ -457,3 +457,14 @@ and job telemetry exist.
 **Rejected:** exposing raw stack traces to agency Admins, giving ordinary Admins cross-tenant access,
 or presenting an incident-only score as proof of uptime. Each would reveal unnecessary technical or
 tenant information or overstate what the collected data can establish.
+
+Incident updates must also survive simultaneous copies of the same failure. Sati combines a bounded
+striped process gate with a serializable transaction and a unique database key. The gate is only a
+contention reducer; correctness does not depend on one API instance. This preserves a single group,
+an exact occurrence count, the earliest and latest observation, and the highest reported severity.
+The integration suite sends 24 simultaneous reports through separate database connections to keep
+that guarantee testable.
+
+**Rejected:** an unbounded dictionary containing one lock per fingerprint, which could grow without
+limit, and a plain read-then-insert sequence, which loses reports or returns unique-key failures under
+contention.

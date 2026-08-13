@@ -54,6 +54,7 @@ builder.Services.AddScoped<ValidatedActorFilter>();
 builder.Services.AddScoped<AuditTrail>();
 builder.Services.AddScoped<PersonLifecycle>();
 builder.Services.AddSingleton<PersonAuditPdfGenerator>();
+builder.Services.AddSingleton<IncidentAggregator>();
 builder.Services.AddSingleton<ApiIncidentRecorder>();
 builder.Services.AddHostedService<DatabaseIdentityHostedService>();
 builder.Services.AddDbContextFactory<ApiDbContext>(options =>
