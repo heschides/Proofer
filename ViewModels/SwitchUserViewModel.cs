@@ -92,10 +92,20 @@ namespace Sati.ViewModels
 
         public async Task InitializeAsync()
         {
-            var all = await _userService.GetAllAsync();
-            Users.Clear();
-            foreach (var user in all.OrderBy(u => u.DisplayName))
-                Users.Add(user);
+            ErrorMessage = string.Empty;
+            try
+            {
+                var all = await _userService.GetAllAsync();
+                Users.Clear();
+                foreach (var user in all.OrderBy(u => u.DisplayName))
+                    Users.Add(user);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Switch-user directory load failed: {ex.Message}");
+                Users.Clear();
+                ErrorMessage = "The user list could not be loaded. Close this window and sign in again.";
+            }
         }
     }
 }

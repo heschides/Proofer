@@ -48,6 +48,7 @@ public static class ProductReleaseNotes
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
                 "Global Admin desktop failures are accepted as platform-scoped incidents without exposing agency business routes or blaming an individual tenant.",
                 "Global Admin can change its own password while remaining blocked from agency user-management and business-data endpoints.",
+                "Switching away from Global Admin now uses neutral username and password entry instead of attempting to enumerate an agency directory.",
                 "Agency Admins can review a PHI-minimized incident table and explainable 30-day Incident Health score; a separately controlled platform operator sees audited cross-agency health.",
                 "Incident reports now aggregate safely during simultaneous failures, and Admins can search, filter, investigate, resolve, and see explicit alert thresholds.",
                 "Expanded automated coverage across authorization, integration, migration, reporting, and domain behavior."

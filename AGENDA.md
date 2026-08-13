@@ -28,9 +28,11 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Correct the asynchronous save-on-close handoff and permit narrowly scoped Global Admin
       self-service password changes in release 1.2.6, with regression coverage proving agency
       user-password resets remain forbidden.
+- [x] Route Global Admin account switching through neutral credential entry in release 1.2.7,
+      preserving the agency-directory prohibition and containing ordinary picker load failures.
 - [x] Regenerate and visually inspect all ten pages of the version-matched offline Demo fallback.
 - [ ] Complete authenticated agency-Admin preflight, external-machine installer attestation,
-      presenter rehearsal, and final evidence binding for the exact 1.2.6 installer.
+      presenter rehearsal, and final evidence binding for the exact 1.2.7 installer.
 
 ---
 

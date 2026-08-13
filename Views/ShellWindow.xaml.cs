@@ -1,6 +1,7 @@
 ﻿using Sati.Data;
 using Sati.ViewModels;
 using Sati.Services;
+using Sati.Models;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -11,6 +12,7 @@ namespace Sati.Views
         private readonly ShellViewModel _shellViewModel;
         private readonly CaseManagerDashboardViewModel _caseManagerDashboardViewModel;
         private readonly Func<SwitchUserWindow> _switchUserWindowFactory;
+        private readonly Func<LoginWindow> _loginWindowFactory;
         private readonly Func<MyAccountWindow> _myAccountWindowFactory;
         private readonly Func<MyAccountViewModel> _myAccountViewModelFactory;
         private readonly ISessionService _sessionService;
@@ -32,6 +34,7 @@ namespace Sati.Views
             Func<SettingsWindow> settingsWindowFactory,
             Func<ScratchpadHistoryWindow> scratchpadHistoryWindowFactory,
             Func<SwitchUserWindow> switchUserWindowFactory,
+            Func<LoginWindow> loginWindowFactory,
             Func<MyAccountWindow> myAccountWindowFactory,
             Func<MyAccountViewModel> myAccountViewModelFactory)
         {
@@ -42,6 +45,7 @@ namespace Sati.Views
             _incidentReporter = incidentReporter;
             _applicationRunState = applicationRunState;
             _switchUserWindowFactory = switchUserWindowFactory;
+            _loginWindowFactory = loginWindowFactory;
             _myAccountWindowFactory = myAccountWindowFactory;
             _myAccountViewModelFactory = myAccountViewModelFactory;
             DataContext = shellViewModel;
@@ -156,19 +160,40 @@ namespace Sati.Views
         // and on success swap the session user and reinitialize the shell.
         private async Task OpenSwitchUserFlowAsync()
         {
-            var content = _shellViewModel.Scratchpad.ScratchpadContent;
-            if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+            var currentUser = _sessionService.CurrentUser;
+            if (currentUser is null)
                 return;
-            await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
 
-            var win = _switchUserWindowFactory();
-            win.Owner = this;
-            bool? result = win.ShowDialog();
-
-            if (result == true && win.NewUser is not null)
+            User? newUser;
+            bool? result;
+            if (AccountSwitchPolicy.RequiresDirectSignIn(currentUser.Role))
             {
-                _sessionService.SetUser(win.NewUser);
-                await _applicationRunState.StartSessionAsync(win.NewUser, _incidentReporter);
+                // A platform operator must never enumerate an agency's directory.
+                // Use neutral credential entry instead; authentication may identify
+                // any legitimate next account without disclosing account names.
+                var login = _loginWindowFactory();
+                login.Owner = this;
+                login.Title = "Switch Account — Sign in";
+                result = login.ShowDialog();
+                newUser = login.LoggedInUser;
+            }
+            else
+            {
+                var content = _shellViewModel.Scratchpad.ScratchpadContent;
+                if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                    return;
+                await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
+
+                var picker = _switchUserWindowFactory();
+                picker.Owner = this;
+                result = picker.ShowDialog();
+                newUser = picker.NewUser;
+            }
+
+            if (result == true && newUser is not null)
+            {
+                _sessionService.SetUser(newUser);
+                await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
                 await _incidentReporter.FlushAsync();
                 await _shellViewModel.ReinitializeAsync();
             }

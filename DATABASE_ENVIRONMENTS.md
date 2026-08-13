@@ -161,6 +161,16 @@ agency-route-denial, and non-mutating self-password-route checks passed. The exa
 installer passed isolated installation, version 1.2.6.0, 15-second responsiveness, and cleanup;
 SHA-256 is `5bba56cf90f80a44089a7d47fe9a0ca330272ec33841c4d8c8c63d492b1e0929`.
 
+Release 1.2.7 corrected Global Admin account switching without weakening the platform boundary:
+the desktop now opens neutral username/password entry rather than requesting an agency user
+directory, and ordinary picker initialization failures remain contained in the dialog. API 1.2.7
+was deployed with OneDeploy deployment `d4afc62157994bc49ff75696c148d8cc`; live, ready, and
+exact-version checks passed. The encrypted verification credential returned 401 after the user's
+password-change attempt, consistent with that separate credential retaining the prior password,
+so the authenticated Global Admin script awaits an intentional credential refresh. The exact
+1.2.7 installer passed isolated installation, version 1.2.7.0, 15-second responsiveness, and
+cleanup; SHA-256 is `92f37711eb9c208c19d9424d7b6a4d7b4efbed8a4bb93f39eeb5d37485552752`.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
