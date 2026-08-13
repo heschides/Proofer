@@ -44,7 +44,17 @@ function Write-ReadinessEvidence([System.Collections.IDictionary]$Evidence) {
 Write-Host "Checking Demo liveness and readiness..."
 Assert-Health "health/live"
 Assert-Health "health/ready"
-$release = Invoke-RestMethod -Uri (Get-DemoUri "health/version") -Method Get -TimeoutSec 90
+try {
+    $release = Invoke-RestMethod -Uri (Get-DemoUri "health/version") -Method Get -TimeoutSec 90
+}
+catch {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -eq 404) {
+        throw "The Demo API passed live/ready health checks but does not expose /health/version. The deployed API predates the $ExpectedReleaseVersion acceptance contract; deploy the matching API release before collecting readiness evidence."
+    }
+
+    throw "The Demo API version check failed: $($_.Exception.Message)"
+}
 if ($release.product -cne 'Sati.Api') {
     throw "The Demo version endpoint reported unexpected product '$($release.product)'."
 }

@@ -145,6 +145,8 @@ public sealed class StabilizationTests
         Assert.Contains("Authenticated = $true", readiness);
         Assert.Contains("health/version", readiness);
         Assert.Contains("ReleaseVersion", readiness);
+        Assert.Contains("passed live/ready health checks but does not expose /health/version", readiness);
+        Assert.Contains("deploy the matching API release before collecting readiness evidence", readiness);
         Assert.DoesNotContain("SATI_DEMO_PASSWORD =", readiness);
 
         Assert.Contains("ClientApiParityConfirmed", presenter);

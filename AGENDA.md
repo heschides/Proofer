@@ -13,6 +13,8 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
       per process, and safe XAML location metadata is included in the local technical log.
 - [x] Reproduce calendar-day rendering in a real WPF window and cover the binding rule with
       automated regression tests.
+- [x] Make the Demo readiness preflight distinguish an older healthy deployment from a matching
+      release and report the exact deployment-parity remedy instead of a raw web exception.
 
 ---
 
