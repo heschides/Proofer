@@ -131,6 +131,17 @@ succeeded for the matching API package; after the normal restart interval, `/hea
 `/health/ready` returned HTTP 200 and `/health/version` returned 1.2.2. Authenticated Admin
 preflight and clean external-machine evidence remain explicit final Demo gates.
 
+Later on August 13, the tenant-safe incident pipeline was applied as migration 62 and the matching
+API/client release 1.2.3 was deployed with OneDeploy deployment
+`8e1d1e6de769418c87fc15588237d28d`. Live, ready, and version checks returned HTTP 200/1.2.3. A
+separately provisioned `global-admin` account returned the `PlatformOperator` role, read four
+cross-agency health rows, and was correctly denied an agency provider route. Its randomly generated
+password is retained only in a Windows user-bound encrypted credential file outside the repository.
+The temporary migration firewall rule and a stale client-IP rule were removed; only the three App
+Service outbound-IP rules remain. The 1.2.3 installer passed isolated version, public-configuration,
+15-second launch, responsiveness, and cleanup checks. External-machine and presenter attestations
+remain separate final evidence gates.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
