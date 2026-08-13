@@ -20,4 +20,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-DemoIn
 
 The installer and its SHA-256 checksum are written to `artifacts\SatiDemoInstaller`.
 
+Run the isolated installation and launch acceptance test from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+    .\scripts\Test-DemoInstaller.ps1 `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.1.exe
+```
+
 The generated installer is not code-signed. Windows may display an Unknown publisher or SmartScreen warning until the executable is signed with a trusted code-signing certificate.

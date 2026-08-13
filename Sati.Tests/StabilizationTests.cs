@@ -63,7 +63,7 @@ public sealed class StabilizationTests
         var version = typeof(Sati.ViewModels.SettingsViewModel).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.0", version);
+        Assert.Equal("1.2.1", version);
         Assert.Equal("Demo readiness and governance", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
@@ -91,6 +91,28 @@ public sealed class StabilizationTests
         Assert.Contains("WITH REPLACE, RECOVERY, CHECKSUM", script);
         Assert.Contains("Get-Process -Name 'Sati', 'Sati.Demo'", script);
         Assert.DoesNotContain("SatiProduction", script);
+    }
+
+    [Fact]
+    public void InstallerAcceptanceChecksInstalledVersionPublicConfigAndLiveProcess()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var script = File.ReadAllText(Path.Combine(
+            directory!.FullName,
+            "scripts",
+            "Test-DemoInstaller.ps1"));
+
+        Assert.Contains("SATI_DEMO_INSTALLER_TEST", script);
+        Assert.Contains("appsettings.Public.json", script);
+        Assert.Contains("The private appsettings.json file was installed", script);
+        Assert.Contains("FileVersion", script);
+        Assert.Contains("Installed app exited during startup", script);
+        Assert.Contains("Stop-Process -Id $app.Id", script);
+        Assert.Contains("ReparsePoint", script);
     }
 
     [Fact]
