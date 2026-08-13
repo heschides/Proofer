@@ -8,4 +8,6 @@ public interface IIncidentReporter
         string reference,
         string severity = "Error",
         CancellationToken cancellationToken = default);
+
+    Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

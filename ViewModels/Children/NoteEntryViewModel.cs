@@ -142,9 +142,32 @@ namespace Sati.ViewModels.Children
             NoteStatus.Cancelled,
             NoteStatus.Delayed
         ];
+        public string SaveActionLabel => Status switch
+        {
+            NoteStatus.Pending => IsEditing ? "Update Draft" : "Save as Draft",
+            NoteStatus.Logged => "Submit for Supervisor Review",
+            _ => IsEditing ? "Update Note" : "Save Note"
+        };
+        public string StatusGuidance => Status switch
+        {
+            NoteStatus.Pending => "Draft: saved for the case manager, but not visible in the supervisor review queue.",
+            NoteStatus.Logged => "Submit for review: locks the note for supervisory approval and billing review.",
+            NoteStatus.Scheduled => "Scheduled: records planned work that has not happened yet.",
+            NoteStatus.Cancelled => "Cancelled: records that the planned service did not occur.",
+            NoteStatus.Delayed => "Delayed: records that the planned service was postponed.",
+            _ => "Choose how this note should move through the workflow."
+        };
         public Array FormTypes => Enum.GetValues(typeof(FormType));
         public bool IsFormNote => SelectedNoteType == NoteType.Form;
         public bool IsVisitNote => SelectedNoteType == NoteType.Visit;
+
+        partial void OnStatusChanged(NoteStatus? value)
+        {
+            OnPropertyChanged(nameof(SaveActionLabel));
+            OnPropertyChanged(nameof(StatusGuidance));
+        }
+
+        partial void OnIsEditingChanged(bool value) => OnPropertyChanged(nameof(SaveActionLabel));
         public bool IsLocalAiEnabled => _caseNoteFormatter.IsEnabled;
         public Array VisitSettings => Enum.GetValues(typeof(VisitSetting));
         public Array VisitAppearances => Enum.GetValues(typeof(VisitAppearance));

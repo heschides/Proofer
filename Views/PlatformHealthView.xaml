@@ -72,6 +72,7 @@
         <DataGrid Grid.Row="4" ItemsSource="{Binding Incidents}" AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" AutomationProperties.Name="Cross-agency incident groups">
             <DataGrid.Columns>
+                <DataGridTextColumn Header="SCOPE" Binding="{Binding Scope}" Width="75" />
                 <DataGridTextColumn Header="AGENCY ID" Binding="{Binding AgencyId}" Width="75" />
                 <DataGridTextColumn Header="SEVERITY" Binding="{Binding Severity}" Width="85" />
                 <DataGridTextColumn Header="FEATURE / OPERATION" Binding="{Binding Operation}" Width="2*" />

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Security;
@@ -67,6 +68,14 @@ namespace Sati.ViewModels
                     _ => "Demo Service Unavailable"
                 };
                 SignInUnavailableRequested?.Invoke(this, new SignInUnavailableEventArgs(title, ex.Message));
+            }
+            catch (Exception ex)
+            {
+                var reference = AppErrorLog.Record(ex, "authentication.response");
+                SignInUnavailableRequested?.Invoke(this, new SignInUnavailableEventArgs(
+                    "Sign-in Could Not Be Completed",
+                    "Sati received an unexpected sign-in response. No session was opened. " +
+                    $"Please give support error reference {reference}."));
             }
             finally
             {

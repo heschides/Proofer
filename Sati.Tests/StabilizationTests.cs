@@ -20,16 +20,27 @@ namespace Sati.Tests;
 public sealed class StabilizationTests
 {
     [Fact]
+    public void EmptyIncidentWindowIsUnknownRatherThanHealthy()
+    {
+        var health = IncidentHealthScoring.Calculate([], DateTime.UtcNow, 30);
+
+        Assert.Null(health.Score);
+        Assert.False(health.HasTelemetry);
+        Assert.Equal("No telemetry", health.Grade);
+        Assert.Equal("Unknown", health.AlertLevel);
+    }
+
+    [Fact]
     public void IncidentHealthScoreExplainsSeverityRecurrenceAndAgePenalties()
     {
         var now = new DateTime(2026, 8, 13, 16, 0, 0, DateTimeKind.Utc);
         var incidents = new[]
         {
             new IncidentGroupDto(
-                1, 1, "Desktop", "Error", "billing.queue.load", "1.2.2", "1.2.2",
+                1, 1, IncidentScopes.Agency, "Desktop", "Error", "billing.queue.load", "1.2.2", "1.2.2",
                 "ABCDEF012345", "Open", 3, now.AddDays(-8), now.AddHours(-1), "REF100001", "Admin"),
             new IncidentGroupDto(
-                2, 1, "Api", "Warning", "GET.api", "1.2.2", "1.2.2",
+                2, 1, IncidentScopes.Agency, "Api", "Warning", "GET.api", "1.2.2", "1.2.2",
                 "BBBBBB012345", "Resolved", 1, now.AddDays(-1), now.AddHours(-2), "REF100002", "CaseManager")
         };
 
@@ -195,9 +206,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.3", version);
+        Assert.Equal("1.2.5", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Demo readiness and governance", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Reliable review and incident recovery", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
@@ -433,7 +444,7 @@ public sealed class StabilizationTests
     public void IncidentHealthAlertsHaveExplicitEscalationThresholds()
     {
         var observedAt = new DateTime(2026, 8, 13, 12, 0, 0, DateTimeKind.Utc);
-        var normal = IncidentHealthScoring.Calculate([], observedAt, 30);
+        var unknown = IncidentHealthScoring.Calculate([], observedAt, 30);
         var watch = IncidentHealthScoring.Calculate([
             Incident("Warning", "Open", 1, observedAt)
         ], observedAt, 30);
@@ -446,13 +457,13 @@ public sealed class StabilizationTests
             Incident("Critical", "Open", 1, observedAt)
         ], observedAt, 30);
 
-        Assert.Equal("Normal", normal.AlertLevel);
+        Assert.Equal("Unknown", unknown.AlertLevel);
         Assert.Equal("Watch", watch.AlertLevel);
         Assert.Equal("Action required", actionRequired.AlertLevel);
         Assert.Equal("Urgent", urgent.AlertLevel);
 
         static IncidentGroupDto Incident(string severity, string status, int count, DateTime now) =>
-            new(1, 1, "Desktop", severity, "calendar.open", "1.2.2", "1.2.2",
+            new(1, 1, IncidentScopes.Agency, "Desktop", severity, "calendar.open", "1.2.2", "1.2.2",
                 "ABCDEF0123456789", status, count, now, now, "REF_TEST01", "Admin");
     }
 

@@ -224,9 +224,10 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("IncidentGroups");
             entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.AgencyId, x.Source, x.Operation, x.ExceptionFingerprint }).IsUnique();
+            entity.HasIndex(x => new { x.AgencyId, x.Scope, x.Source, x.Operation, x.ExceptionFingerprint }).IsUnique();
             entity.HasIndex(x => new { x.AgencyId, x.LastSeenUtc });
             entity.Property(x => x.Source).IsRequired().HasMaxLength(20);
+            entity.Property(x => x.Scope).IsRequired().HasMaxLength(20);
             entity.Property(x => x.Severity).IsRequired().HasMaxLength(20);
             entity.Property(x => x.Operation).IsRequired().HasMaxLength(80);
             entity.Property(x => x.FirstRelease).IsRequired().HasMaxLength(30);
@@ -682,6 +683,7 @@ internal sealed class ServerIncidentGroup
 {
     public long Id { get; set; }
     public int AgencyId { get; set; }
+    public string Scope { get; set; } = "Agency";
     public string Source { get; set; } = string.Empty;
     public string Severity { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;

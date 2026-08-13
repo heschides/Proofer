@@ -24,6 +24,7 @@ internal sealed class ApiIncidentRecorder(IncidentAggregator aggregator)
             var now = DateTime.UtcNow;
             await aggregator.UpsertAsync(new IncidentAggregation(
                 agencyId,
+                actorRole == "PlatformOperator" ? IncidentScopes.Platform : IncidentScopes.Agency,
                 "Api",
                 IncidentSeverities.Error,
                 operation,

@@ -110,13 +110,16 @@ public sealed class AdminService(
         var observedAt = DateTime.UtcNow;
         var start = observedAt.AddDays(-days);
         var incidents = await context.IncidentGroups.AsNoTracking()
-            .Where(candidate => candidate.AgencyId == actor.AgencyId && candidate.LastSeenUtc >= start)
+            .Where(candidate => candidate.AgencyId == actor.AgencyId &&
+                                candidate.Scope == IncidentScopes.Agency &&
+                                candidate.LastSeenUtc >= start)
             .OrderByDescending(candidate => candidate.LastSeenUtc)
             .ThenByDescending(candidate => candidate.Id)
             .Take(take)
             .Select(candidate => new IncidentGroupDto(
                 candidate.Id,
                 candidate.AgencyId,
+                candidate.Scope,
                 candidate.Source,
                 candidate.Severity,
                 candidate.Operation,
@@ -146,7 +149,8 @@ public sealed class AdminService(
             throw new ArgumentException("Status must be Open, Investigating, or Resolved.", nameof(status));
         await using var context = contextFactory.CreateDbContext();
         var incident = await context.IncidentGroups.SingleOrDefaultAsync(candidate =>
-            candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId,
+            candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId &&
+            candidate.Scope == IncidentScopes.Agency,
             cancellationToken) ?? throw new InvalidOperationException("This incident was not found in your agency.");
         incident.Status = status;
         LocalAuditTrail.Record(
@@ -157,7 +161,7 @@ public sealed class AdminService(
             metadataJson: JsonSerializer.Serialize(new { incidentId, status }));
         await context.SaveChangesAsync(cancellationToken);
         return new IncidentGroupDto(
-            incident.Id, incident.AgencyId, incident.Source, incident.Severity,
+            incident.Id, incident.AgencyId, incident.Scope, incident.Source, incident.Severity,
             incident.Operation, incident.FirstRelease, incident.LastRelease,
             incident.ExceptionFingerprint, incident.Status, incident.OccurrenceCount,
             incident.FirstSeenUtc, incident.LastSeenUtc, incident.LastReference,

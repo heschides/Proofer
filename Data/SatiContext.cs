@@ -465,12 +465,14 @@ namespace Sati.Data
                 entity.HasIndex(incident => new
                 {
                     incident.AgencyId,
+                    incident.Scope,
                     incident.Source,
                     incident.Operation,
                     incident.ExceptionFingerprint
                 }).IsUnique();
                 entity.HasIndex(incident => new { incident.AgencyId, incident.LastSeenUtc });
                 entity.Property(incident => incident.Source).IsRequired().HasMaxLength(20);
+                entity.Property(incident => incident.Scope).IsRequired().HasMaxLength(20);
                 entity.Property(incident => incident.Severity).IsRequired().HasMaxLength(20);
                 entity.Property(incident => incident.Operation).IsRequired().HasMaxLength(80);
                 entity.Property(incident => incident.FirstRelease).IsRequired().HasMaxLength(30);

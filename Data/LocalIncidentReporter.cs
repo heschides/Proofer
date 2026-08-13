@@ -34,6 +34,7 @@ public sealed class LocalIncidentReporter(
             var occurredAt = DateTime.UtcNow;
             var gate = Gates[(int)((uint)HashCode.Combine(
                 actor.AgencyId,
+                actor.Role == UserRole.PlatformOperator ? IncidentScopes.Platform : IncidentScopes.Agency,
                 safeOperation,
                 fingerprint) % Gates.Length)];
             await gate.WaitAsync(cancellationToken);
@@ -45,6 +46,7 @@ public sealed class LocalIncidentReporter(
                     cancellationToken);
                 var incident = await context.IncidentGroups.SingleOrDefaultAsync(candidate =>
                     candidate.AgencyId == actor.AgencyId &&
+                    candidate.Scope == (actor.Role == UserRole.PlatformOperator ? IncidentScopes.Platform : IncidentScopes.Agency) &&
                     candidate.Source == "Desktop" &&
                     candidate.Operation == safeOperation &&
                     candidate.ExceptionFingerprint == fingerprint,
@@ -54,6 +56,7 @@ public sealed class LocalIncidentReporter(
                     context.IncidentGroups.Add(new IncidentGroup
                     {
                         AgencyId = actor.AgencyId,
+                        Scope = actor.Role == UserRole.PlatformOperator ? IncidentScopes.Platform : IncidentScopes.Agency,
                         Source = "Desktop",
                         Severity = severity,
                         Operation = safeOperation,

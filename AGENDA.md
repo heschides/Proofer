@@ -20,9 +20,14 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Apply the incident migration to Azure Demo, provision the encrypted-credential Global Admin,
       deploy matching API/client 1.2.3, verify least-privilege platform access, and isolated-launch-
       test the versioned installer.
+- [x] Repair incident coverage and the supervisory billing handoff in release 1.2.5: durable retry
+      outbox, platform-scoped Global Admin reporting, unclean-shutdown detection, No telemetry
+      health state, reentrant window-close protection, explicit Save as Draft / Submit for
+      Supervisor Review actions, and an end-to-end draft-to-test-837 integration gate. Apply the
+      guarded Azure migration, deploy API 1.2.5, and isolated-launch-test its exact installer.
 - [x] Regenerate and visually inspect all ten pages of the version-matched offline Demo fallback.
 - [ ] Complete authenticated agency-Admin preflight, external-machine installer attestation,
-      presenter rehearsal, and final evidence binding for the exact 1.2.3 installer.
+      presenter rehearsal, and final evidence binding for the exact 1.2.5 installer.
 
 ---
 

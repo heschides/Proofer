@@ -10,6 +10,12 @@ public static class IncidentSeverities
         value is Warning or Error or Critical;
 }
 
+public static class IncidentScopes
+{
+    public const string Agency = "Agency";
+    public const string Platform = "Platform";
+}
+
 public sealed record IncidentReportRequest(
     string Reference,
     string Source,
@@ -24,6 +30,7 @@ public sealed record UpdateIncidentStatusRequest(string Status);
 public sealed record IncidentGroupDto(
     long Id,
     int AgencyId,
+    string Scope,
     string Source,
     string Severity,
     string Operation,
@@ -38,7 +45,7 @@ public sealed record IncidentGroupDto(
     string LastActorRole);
 
 public sealed record IncidentHealthScoreDto(
-    int Score,
+    int? Score,
     string Grade,
     int WindowDays,
     int TotalOccurrences,
@@ -52,7 +59,8 @@ public sealed record IncidentHealthScoreDto(
     string FormulaVersion,
     string Explanation,
     string AlertLevel,
-    string AlertReason);
+    string AlertReason,
+    bool HasTelemetry);
 
 public sealed record AdminIncidentDashboardDto(
     DateTime ObservedAtUtc,

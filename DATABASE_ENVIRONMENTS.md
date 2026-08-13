@@ -142,6 +142,16 @@ Service outbound-IP rules remain. The 1.2.3 installer passed isolated version, p
 15-second launch, responsiveness, and cleanup checks. External-machine and presenter attestations
 remain separate final evidence gates.
 
+Later on August 13, release 1.2.5 corrected the missing-telemetry failure mode and clarified the
+note review handoff. Guarded migration `20260813210000_AddIncidentScope` was applied to `SatiDemo`
+as migration 63; its temporary single-IP firewall rule was verified and removed immediately. API
+1.2.5 was deployed with OneDeploy deployment `4d16d2e572094579b0e427f8fdaac55f`.
+Live, ready, version, Global Admin role, four-agency visibility, and agency-route denial checks
+passed. With no received incidents, platform health now reports No telemetry rather than 100.
+The exact 1.2.5 installer passed isolated installation, version 1.2.5.0, 15-second responsiveness,
+and cleanup checks; SHA-256 is
+`86a16127cb595cae70af8e709de681e2afabf00561aed65b5decb2f196a17737`.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

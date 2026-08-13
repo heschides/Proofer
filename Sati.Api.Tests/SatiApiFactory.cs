@@ -441,6 +441,40 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         };
     }
 
+    public async Task<int> CreateBillingWorkflowPersonAsync()
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var nextId = await db.People.MaxAsync(person => person.Id) + 1;
+        db.People.Add(new ServerPerson
+        {
+            Id = nextId,
+            UserId = 12,
+            AgencyId = 1,
+            FirstName = "Workflow",
+            LastName = nextId.ToString(),
+            BirthDate = new DateTime(1990, 1, 1),
+            EffectiveDate = new DateTime(2026, 1, 1),
+            MaineCareId = $"9{nextId:D5}",
+            DiagnosisCode = "F89",
+            PlaceOfService = 11,
+            BillingStreet = "10 Test Street",
+            BillingCity = "Portland",
+            BillingState = "ME",
+            BillingZip = "04101",
+            Forms =
+            [
+                CompliantForm(nextId, "PCP"),
+                CompliantForm(nextId, "ComprehensiveAssessment"),
+                CompliantForm(nextId, "Reclassification"),
+                CompliantForm(nextId, "SafetyPlan")
+            ]
+        });
+        await db.SaveChangesAsync();
+        return nextId;
+    }
+
     private static ServerForm CompliantForm(int personId, string type) => new()
     {
         PersonId = personId,

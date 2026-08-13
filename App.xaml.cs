@@ -136,6 +136,7 @@ namespace Sati
                         // registered separately below and has no EF/SQL fallback.
                         services.AddTransient<IPasswordHasher, PasswordHasher>();
                         services.AddSingleton<ISessionService, SessionService>();
+                        services.AddSingleton<ApplicationRunState>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
@@ -245,6 +246,13 @@ namespace Sati
                     var session = _host.Services.GetRequiredService<ISessionService>();
                     session.SetUser(user);
 
+                    if (_host.Services.GetService<IIncidentReporter>() is { } reporter)
+                    {
+                        await _host.Services.GetRequiredService<ApplicationRunState>()
+                            .StartSessionAsync(user, reporter);
+                        await reporter.FlushAsync();
+                    }
+
                     var shellVm = _host.Services.GetRequiredService<ShellViewModel>();
                     await shellVm.InitializeAsync();
 
@@ -287,6 +295,7 @@ namespace Sati
             if (_host is not null)
             {
                 await _host.StopAsync();
+                _host.Services.GetService<ApplicationRunState>()?.MarkGracefulExit();
                 _host.Dispose();
             }
 
@@ -336,6 +345,7 @@ namespace Sati
             });
             services.AddSingleton(sp => new CloudApiClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
+            services.AddSingleton<IncidentOutbox>();
             services.AddTransient<IAuthService, CloudAuthService>();
             services.AddTransient<IAdminService, CloudAdminService>();
             services.AddTransient<IIncidentReporter, CloudIncidentReporter>();

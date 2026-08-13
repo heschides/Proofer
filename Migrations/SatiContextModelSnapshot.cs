@@ -493,12 +493,13 @@ namespace Sati.Migrations
                     b.Property<int>("OccurrenceCount").HasColumnType("int");
                     b.Property<string>("Operation").IsRequired().HasMaxLength(80).HasColumnType("nvarchar(80)");
                     b.Property<string>("Severity").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<string>("Scope").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
                     b.Property<string>("Source").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
                     b.Property<string>("Status").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
                     b.HasIndex("AgencyId", "LastSeenUtc");
-                    b.HasIndex("AgencyId", "Source", "Operation", "ExceptionFingerprint").IsUnique();
+                    b.HasIndex("AgencyId", "Scope", "Source", "Operation", "ExceptionFingerprint").IsUnique();
                     b.ToTable("IncidentGroups");
                 });
 

@@ -7,6 +7,7 @@ namespace Sati.Api.Infrastructure;
 
 internal sealed record IncidentAggregation(
     int AgencyId,
+    string Scope,
     string Source,
     string Severity,
     string Operation,
@@ -31,6 +32,7 @@ internal sealed class IncidentAggregator(IDbContextFactory<ApiDbContext> context
     {
         var gate = Gates[(int)((uint)HashCode.Combine(
             report.AgencyId,
+            report.Scope,
             report.Source,
             report.Operation,
             report.Fingerprint) % Gates.Length)];
@@ -45,12 +47,14 @@ internal sealed class IncidentAggregator(IDbContextFactory<ApiDbContext> context
                 ? db.IncidentGroups.FromSqlInterpolated($"""
                     SELECT * FROM [IncidentGroups] WITH (UPDLOCK, HOLDLOCK)
                     WHERE [AgencyId] = {report.AgencyId}
+                      AND [Scope] = {report.Scope}
                       AND [Source] = {report.Source}
                       AND [Operation] = {report.Operation}
                       AND [ExceptionFingerprint] = {report.Fingerprint}
                     """)
                 : db.IncidentGroups.Where(candidate =>
                     candidate.AgencyId == report.AgencyId &&
+                    candidate.Scope == report.Scope &&
                     candidate.Source == report.Source &&
                     candidate.Operation == report.Operation &&
                     candidate.ExceptionFingerprint == report.Fingerprint);
@@ -60,6 +64,7 @@ internal sealed class IncidentAggregator(IDbContextFactory<ApiDbContext> context
                 incident = new ServerIncidentGroup
                 {
                     AgencyId = report.AgencyId,
+                    Scope = report.Scope,
                     Source = report.Source,
                     Severity = report.Severity,
                     Operation = report.Operation,
@@ -77,6 +82,15 @@ internal sealed class IncidentAggregator(IDbContextFactory<ApiDbContext> context
             }
             else
             {
+                // Durable clients may retry an accepted envelope when the local
+                // acknowledgement could not be removed. The support reference is
+                // the idempotency key for that individual occurrence.
+                if (incident.LastReference == report.Reference)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                    return incident;
+                }
+
                 incident.Severity = MoreSevere(incident.Severity, report.Severity);
                 incident.FirstSeenUtc = report.OccurredAtUtc < incident.FirstSeenUtc
                     ? report.OccurredAtUtc

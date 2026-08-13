@@ -156,14 +156,7 @@
                         <Style TargetType="Button"
                                BasedOn="{StaticResource PrimaryButton}">
                             <Setter Property="Content"
-                                    Value="Submit Note" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsEditing}"
-                                             Value="True">
-                                    <Setter Property="Content"
-                                            Value="Update Note" />
-                                </DataTrigger>
-                            </Style.Triggers>
+                                    Value="{Binding SaveActionLabel}" />
                         </Style>
                     </Button.Style>
                 </Button>
@@ -199,6 +192,10 @@
                 <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}" />
+                <TextBlock Grid.Row="4" Margin="0,32,0,4"
+                           Text="{Binding StatusGuidance}"
+                           TextWrapping="Wrap" FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
 
                 <Grid Margin="0,0,0,10"
                       Grid.Row="5">

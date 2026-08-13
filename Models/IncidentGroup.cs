@@ -4,6 +4,7 @@ public sealed class IncidentGroup
 {
     public long Id { get; set; }
     public int AgencyId { get; set; }
+    public string Scope { get; set; } = "Agency";
     public string Source { get; set; } = string.Empty;
     public string Severity { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;

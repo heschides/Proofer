@@ -57,16 +57,17 @@ internal static class ApiEndpoints
 
             var occurredAt = DateTime.SpecifyKind(request.OccurredAtUtc, DateTimeKind.Utc);
             var now = DateTime.UtcNow;
-            if (occurredAt < now.AddDays(-7) || occurredAt > now.AddMinutes(5))
+            if (occurredAt < now.AddDays(-90) || occurredAt > now.AddMinutes(5))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    ["occurredAtUtc"] = ["Incident time must be within the last seven days and not in the future."]
+                    ["occurredAtUtc"] = ["Incident time must be within the last 90 days and not in the future."]
                 });
             }
 
             var incident = await aggregator.UpsertAsync(new IncidentAggregation(
                 actor.AgencyId,
+                actor.Role == "PlatformOperator" ? IncidentScopes.Platform : IncidentScopes.Agency,
                 request.Source,
                 request.Severity,
                 request.Operation,
@@ -96,7 +97,9 @@ internal static class ApiEndpoints
 
             var start = DateTime.UtcNow.AddDays(-window);
             var incidents = await db.IncidentGroups.AsNoTracking()
-                .Where(candidate => candidate.AgencyId == actor.AgencyId && candidate.LastSeenUtc >= start)
+                .Where(candidate => candidate.AgencyId == actor.AgencyId &&
+                                    candidate.Scope == IncidentScopes.Agency &&
+                                    candidate.LastSeenUtc >= start)
                 .OrderByDescending(candidate => candidate.LastSeenUtc)
                 .ThenByDescending(candidate => candidate.Id)
                 .Take(limit)
@@ -122,7 +125,8 @@ internal static class ApiEndpoints
             if (request.Status is not ("Open" or "Investigating" or "Resolved"))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Status must be Open, Investigating, or Resolved."] });
             var incident = await db.IncidentGroups.SingleOrDefaultAsync(candidate =>
-                candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId,
+                candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId &&
+                candidate.Scope == IncidentScopes.Agency,
                 cancellationToken);
             if (incident is null)
                 return Results.NotFound();
@@ -164,7 +168,8 @@ internal static class ApiEndpoints
             var agencyHealth = agencies.Select(agency => new PlatformAgencyHealthDto(
                 agency.Id,
                 agency.Name,
-                IncidentHealthScoring.Calculate(dtos.Where(item => item.AgencyId == agency.Id), observedAt, window)))
+                IncidentHealthScoring.Calculate(dtos.Where(item =>
+                    item.AgencyId == agency.Id && item.Scope == IncidentScopes.Agency), observedAt, window)))
                 .ToList();
             auditTrail.Record(actor, AuditActions.PlatformIncidentsViewed, "IncidentGroup");
             await db.SaveChangesAsync(cancellationToken);
@@ -3304,6 +3309,7 @@ internal static class ApiEndpoints
     private static IncidentGroupDto ToIncidentDto(ServerIncidentGroup incident) => new(
         incident.Id,
         incident.AgencyId,
+        incident.Scope,
         incident.Source,
         incident.Severity,
         incident.Operation,

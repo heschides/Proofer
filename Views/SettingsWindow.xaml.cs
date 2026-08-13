@@ -20,6 +20,7 @@ namespace Sati.Views
     public partial class SettingsWindow : Window
     {
         private bool _closeAfterSuccessfulSave;
+        private bool _saveOnCloseInProgress;
 
         public SettingsWindow(SettingsViewModel vm)
         {
@@ -35,8 +36,13 @@ namespace Sati.Views
                 return;
 
             e.Cancel = true;
+            if (_saveOnCloseInProgress)
+                return;
+
             if (DataContext is not SettingsViewModel vm)
                 return;
+
+            _saveOnCloseInProgress = true;
 
             if (!await vm.TrySaveSettingsAsync())
             {
@@ -46,7 +52,10 @@ namespace Sati.Views
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
                 if (discard != MessageBoxResult.Yes)
+                {
+                    _saveOnCloseInProgress = false;
                     return;
+                }
             }
 
             _closeAfterSuccessfulSave = true;

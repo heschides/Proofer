@@ -33,7 +33,7 @@ Exercise the exact installer in an isolated location. This launches the installe
 
 ```powershell
 .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.3.exe
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.5.exe
 ```
 
 Check the deployed API without credentials:

@@ -26,7 +26,7 @@ public sealed class LocalPlatformHealthService(
             .ThenByDescending(candidate => candidate.Id)
             .Take(take)
             .Select(candidate => new IncidentGroupDto(
-                candidate.Id, candidate.AgencyId, candidate.Source, candidate.Severity,
+                candidate.Id, candidate.AgencyId, candidate.Scope, candidate.Source, candidate.Severity,
                 candidate.Operation, candidate.FirstRelease, candidate.LastRelease,
                 candidate.ExceptionFingerprint, candidate.Status, candidate.OccurrenceCount,
                 candidate.FirstSeenUtc, candidate.LastSeenUtc, candidate.LastReference,
@@ -43,7 +43,8 @@ public sealed class LocalPlatformHealthService(
                 agency.Id,
                 agency.Name,
                 IncidentHealthScoring.Calculate(
-                    incidents.Where(item => item.AgencyId == agency.Id), observedAt, days))).ToList(),
+                    incidents.Where(item => item.AgencyId == agency.Id &&
+                        item.Scope == IncidentScopes.Agency), observedAt, days))).ToList(),
             incidents);
     }
 }

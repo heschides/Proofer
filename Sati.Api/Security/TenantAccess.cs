@@ -82,6 +82,7 @@ internal sealed class ValidatedActorFilter : IEndpointFilter
         var path = context.HttpContext.Request.Path;
         if (actor.Role == "PlatformOperator" &&
             !path.StartsWithSegments("/api/v1/platform") &&
+            path != "/api/v1/incidents" &&
             path != "/api/v1/me")
             return Results.Forbid();
 

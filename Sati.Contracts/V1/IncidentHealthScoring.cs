@@ -14,6 +14,19 @@ public static class IncidentHealthScoring
 
         var start = observedAtUtc.AddDays(-windowDays);
         var current = incidents.Where(item => item.LastSeenUtc >= start).ToList();
+        if (current.Count == 0)
+        {
+            return new IncidentHealthScoreDto(
+                null,
+                "No telemetry",
+                windowDays,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                FormulaVersion,
+                "No incident telemetry was received in the selected window, so application health cannot be inferred.",
+                "Unknown",
+                "Confirm that a current Sati release has checked in before treating the absence of reports as healthy.",
+                false);
+        }
         var critical = current.Where(item => item.Severity == IncidentSeverities.Critical)
             .Sum(item => item.OccurrenceCount);
         var errors = current.Where(item => item.Severity == IncidentSeverities.Error)
@@ -48,7 +61,8 @@ public static class IncidentHealthScoring
             FormulaVersion,
             "100 minus severity, recurrence, and unresolved-age penalties. It includes groups active in the selected window; occurrence counts are cumulative for each group. This version measures recorded incidents only and does not claim crash-free session coverage.",
             alert.Level,
-            alert.Reason);
+            alert.Reason,
+            true);
     }
 
     private static (string Level, string Reason) Alert(

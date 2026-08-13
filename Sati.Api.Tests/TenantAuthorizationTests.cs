@@ -30,7 +30,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.3", release["releaseVersion"]);
+        Assert.Equal("1.2.5", release["releaseVersion"]);
     }
 
     [Fact]
@@ -128,6 +128,36 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
             (await platform.GetAsync("/api/v1/users/switchable")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
             (await platform.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task PlatformOperatorMayReportPlatformIncidentWithoutExposingItToAgencyAdmin()
+    {
+        using var platform = await _factory.CreateAuthenticatedClientAsync("platform-operator");
+        var report = new IncidentReportRequest(
+            "REF_PLATFORM01", "Desktop", "Error", "platform.dashboard.load", "1.2.5",
+            "EEEEEE0123456789EEEEEE0123456789", DateTime.UtcNow);
+
+        var first = await platform.PostAsJsonAsync("/api/v1/incidents", report);
+        var retry = await platform.PostAsJsonAsync("/api/v1/incidents", report);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, retry.StatusCode);
+
+        var created = await first.Content.ReadFromJsonAsync<IncidentGroupDto>();
+        Assert.Equal(IncidentScopes.Platform, created!.Scope);
+
+        var platformDashboard = await platform.GetFromJsonAsync<PlatformIncidentDashboardDto>(
+            "/api/v1/platform/incidents");
+        var platformIncident = Assert.Single(platformDashboard!.Incidents,
+            item => item.Operation == "platform.dashboard.load");
+        Assert.Equal(1, platformIncident.OccurrenceCount);
+
+        using var agencyAdmin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var agencyDashboard = await agencyAdmin.GetFromJsonAsync<AdminIncidentDashboardDto>(
+            "/api/v1/admin/incidents");
+        Assert.DoesNotContain(agencyDashboard!.Incidents,
+            item => item.Operation == "platform.dashboard.load");
     }
 
     [Fact]
@@ -256,6 +286,84 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.NotEmpty(report!.Consumers);
         Assert.Contains(report.Consumers, consumer => consumer.PersonId == 101);
         Assert.DoesNotContain(report.Consumers, consumer => consumer.PersonId == 201);
+    }
+
+    [Fact]
+    public async Task DraftSubmissionApprovalAndBillingProduceATest837()
+    {
+        var personId = await _factory.CreateBillingWorkflowPersonAsync();
+        using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var draftResponse = await caseManager.PostAsJsonAsync(
+            "/api/v1/notes",
+            new SaveNoteRequest(
+                "End-to-end billing workflow test",
+                new DateTime(2026, 6, 10),
+                "Pending",
+                60,
+                null,
+                personId,
+                null,
+                "Contact",
+                null,
+                null));
+        Assert.Equal(HttpStatusCode.OK, draftResponse.StatusCode);
+        var draft = await draftResponse.Content.ReadFromJsonAsync<NoteDto>();
+
+        using var supervisor = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
+        var beforeSubmission = await supervisor.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/supervisor/notes?compliant=true&allSupervisees=true");
+        Assert.DoesNotContain(beforeSubmission!, note => note.Id == draft!.Id);
+
+        var loggedResponse = await caseManager.PutAsJsonAsync(
+            $"/api/v1/notes/{draft!.Id}",
+            new SaveNoteRequest(
+                draft.Narrative,
+                draft.EventDate,
+                "Logged",
+                draft.Minutes,
+                draft.StartTime,
+                draft.PersonId,
+                draft.FormType,
+                draft.NoteType,
+                draft.CaseManagerJustification,
+                draft.VisitDocumentationJson,
+                draft.Revision));
+        Assert.Equal(HttpStatusCode.OK, loggedResponse.StatusCode);
+        var logged = await loggedResponse.Content.ReadFromJsonAsync<NoteDto>();
+
+        var reviewQueue = await supervisor.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/supervisor/notes?compliant=true&allSupervisees=true");
+        Assert.Contains(reviewQueue!, note => note.Id == logged!.Id);
+
+        var approvalResponse = await supervisor.PostAsJsonAsync(
+            $"/api/v1/supervisor/notes/{logged!.Id}/approve",
+            new SupervisorNoteActionRequest(null, logged.Revision));
+        Assert.Equal(HttpStatusCode.OK, approvalResponse.StatusCode);
+        var approved = await approvalResponse.Content.ReadFromJsonAsync<NoteDto>();
+        Assert.Equal("Approved", approved!.Status);
+
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var claimResponse = await admin.PostAsJsonAsync(
+            "/api/v1/billing/claim-lines",
+            new CreateClaimLineRequest(approved.Id, false, null));
+        Assert.Equal(HttpStatusCode.OK, claimResponse.StatusCode);
+        var claim = await claimResponse.Content.ReadFromJsonAsync<ClaimLineDto>();
+
+        var submissionResponse = await admin.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{claim!.BillingPeriodId}/submit",
+            new { });
+        Assert.Equal(HttpStatusCode.OK, submissionResponse.StatusCode);
+
+        var ediResponse = await admin.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{claim.BillingPeriodId}/edi",
+            new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
+        Assert.True(
+            ediResponse.StatusCode == HttpStatusCode.OK,
+            await ediResponse.Content.ReadAsStringAsync());
+        var edi = await ediResponse.Content.ReadFromJsonAsync<EdiFileDto>();
+        Assert.Contains(".OATEST", edi!.FileName);
+        Assert.Contains($"CLM*{claim.BillingPeriodId}-{approved.Id}", edi.Content);
+        Assert.Contains("ST*837*", edi.Content);
     }
 
     [Fact]

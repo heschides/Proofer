@@ -1,5 +1,6 @@
 ﻿using Sati.Data;
 using Sati.ViewModels;
+using Sati.Services;
 using System.Windows;
 
 namespace Sati.Views
@@ -12,7 +13,10 @@ namespace Sati.Views
         private readonly Func<MyAccountWindow> _myAccountWindowFactory;
         private readonly Func<MyAccountViewModel> _myAccountViewModelFactory;
         private readonly ISessionService _sessionService;
-        private bool _isSavingOnClose = false;
+        private readonly IIncidentReporter _incidentReporter;
+        private readonly ApplicationRunState _applicationRunState;
+        private bool _isSavingOnClose;
+        private bool _closeAfterSuccessfulSave;
 
         // Remembers the scratchpad column's width (including any GridSplitter resize)
         // across a collapse, so reopening restores what the user had. Seeded with the
@@ -22,6 +26,8 @@ namespace Sati.Views
         public ShellWindow(ShellViewModel shellViewModel,
             CaseManagerDashboardViewModel caseManagerDashboardViewModel,
             ISessionService sessionService,
+            IIncidentReporter incidentReporter,
+            ApplicationRunState applicationRunState,
             Func<SettingsWindow> settingsWindowFactory,
             Func<ScratchpadHistoryWindow> scratchpadHistoryWindowFactory,
             Func<SwitchUserWindow> switchUserWindowFactory,
@@ -32,6 +38,8 @@ namespace Sati.Views
             _shellViewModel = shellViewModel;
             _caseManagerDashboardViewModel = caseManagerDashboardViewModel;
             _sessionService = sessionService;
+            _incidentReporter = incidentReporter;
+            _applicationRunState = applicationRunState;
             _switchUserWindowFactory = switchUserWindowFactory;
             _myAccountWindowFactory = myAccountWindowFactory;
             _myAccountViewModelFactory = myAccountViewModelFactory;
@@ -112,8 +120,15 @@ namespace Sati.Views
             Closing += async (s, e) =>
             {
                 if (!IsVisible) return;
-                if (_isSavingOnClose) return;
+                if (_closeAfterSuccessfulSave) return;
                 e.Cancel = true;
+
+                // Closing can be raised again while the asynchronous save below is
+                // still running (for example, a second click on the close button).
+                // Every re-entrant event must remain cancelled; otherwise WPF starts
+                // closing the window and the first handler later calls Close() on a
+                // window that is already closing.
+                if (_isSavingOnClose) return;
                 _isSavingOnClose = true;
 
                 var content = _shellViewModel.Scratchpad.ScratchpadContent;
@@ -123,6 +138,7 @@ namespace Sati.Views
                     return;
                 }
 
+                _closeAfterSuccessfulSave = true;
                 Close();
             };
 
@@ -147,6 +163,8 @@ namespace Sati.Views
             if (result == true && win.NewUser is not null)
             {
                 _sessionService.SetUser(win.NewUser);
+                await _applicationRunState.StartSessionAsync(win.NewUser, _incidentReporter);
+                await _incidentReporter.FlushAsync();
                 await _shellViewModel.ReinitializeAsync();
             }
         }

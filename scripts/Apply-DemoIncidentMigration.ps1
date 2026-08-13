@@ -14,7 +14,7 @@ $connectionString = if ([string]::IsNullOrWhiteSpace($AccessToken)) {
     "Server=$SqlServer;Database=$DatabaseName;Integrated Security=true;Encrypt=false;Connect Timeout=15;"
 }
 else {
-    "Server=$SqlServer;Database=$DatabaseName;Encrypt=true;TrustServerCertificate=false;Connect Timeout=30;"
+    "Server=$SqlServer;Database=$DatabaseName;Encrypt=true;TrustServerCertificate=false;Connect Timeout=90;"
 }
 $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
 if (-not [string]::IsNullOrWhiteSpace($AccessToken)) {
@@ -37,6 +37,9 @@ IF NOT EXISTS (SELECT 1 FROM dbo.SatiDatabaseIdentity WHERE Id = 1 AND Environme
 DECLARE @migrationId nvarchar(150) = N'20260813162000_AddIncidentHealthPipeline';
 DECLARE @alreadyApplied bit = CASE WHEN EXISTS (
     SELECT 1 FROM dbo.__EFMigrationsHistory WHERE MigrationId = @migrationId) THEN 1 ELSE 0 END;
+DECLARE @scopeMigrationId nvarchar(150) = N'20260813210000_AddIncidentScope';
+DECLARE @scopeAlreadyApplied bit = CASE WHEN EXISTS (
+    SELECT 1 FROM dbo.__EFMigrationsHistory WHERE MigrationId = @scopeMigrationId) THEN 1 ELSE 0 END;
 
 IF @alreadyApplied = 0 AND OBJECT_ID(N'dbo.IncidentGroups', N'U') IS NOT NULL
     THROW 51202, 'IncidentGroups exists without its migration-history row; manual review is required.', 1;
@@ -78,8 +81,34 @@ BEGIN
     COMMIT TRANSACTION;
 END;
 
+IF @scopeAlreadyApplied = 0 AND COL_LENGTH(N'dbo.IncidentGroups', N'Scope') IS NOT NULL
+    THROW 51204, 'Incident Scope exists without its migration-history row; manual review is required.', 1;
+IF @scopeAlreadyApplied = 1 AND COL_LENGTH(N'dbo.IncidentGroups', N'Scope') IS NULL
+    THROW 51205, 'The incident-scope migration is recorded but the Scope column is missing; manual review is required.', 1;
+
+IF @scopeAlreadyApplied = 0
+BEGIN
+    BEGIN TRANSACTION;
+
+    DROP INDEX IX_IncidentGroups_AgencyId_Source_Operation_ExceptionFingerprint
+        ON dbo.IncidentGroups;
+
+    ALTER TABLE dbo.IncidentGroups
+        ADD Scope nvarchar(20) NOT NULL
+        CONSTRAINT DF_IncidentGroups_Scope DEFAULT N'Agency';
+
+    CREATE UNIQUE INDEX IX_IncidentGroups_AgencyId_Scope_Source_Operation_ExceptionFingerprint
+        ON dbo.IncidentGroups(AgencyId, Scope, Source, Operation, ExceptionFingerprint);
+
+    INSERT dbo.__EFMigrationsHistory(MigrationId, ProductVersion)
+    VALUES (@scopeMigrationId, N'10.0.5');
+
+    COMMIT TRANSACTION;
+END;
+
 SELECT
     CAST(CASE WHEN @alreadyApplied = 0 THEN 1 ELSE 0 END AS bit) AS AppliedNow,
+    CAST(CASE WHEN @scopeAlreadyApplied = 0 THEN 1 ELSE 0 END AS bit) AS ScopeAppliedNow,
     DB_NAME() AS DatabaseName,
     (SELECT EnvironmentName FROM dbo.SatiDatabaseIdentity WHERE Id = 1) AS EnvironmentName,
     (SELECT COUNT_BIG(*) FROM dbo.IncidentGroups) AS IncidentGroupCount,
@@ -91,10 +120,11 @@ SELECT
     }
     [pscustomobject][ordered]@{
         AppliedNow = $reader.GetBoolean(0)
-        DatabaseName = $reader.GetString(1)
-        EnvironmentName = $reader.GetString(2)
-        IncidentGroupCount = $reader.GetInt64(3)
-        MigrationCount = $reader.GetInt64(4)
+        ScopeAppliedNow = $reader.GetBoolean(1)
+        DatabaseName = $reader.GetString(2)
+        EnvironmentName = $reader.GetString(3)
+        IncidentGroupCount = $reader.GetInt64(4)
+        MigrationCount = $reader.GetInt64(5)
     }
     $reader.Close()
 }
