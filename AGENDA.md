@@ -180,6 +180,14 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
 - [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
 
+### Completed 2026-08-13 -- release notes and 1.2.0 packaging
+
+- [x] Add a Settings **Release notes** tab tied to the installed assembly version and summarize
+  Admin/audit, safety/reliability, Demo/support, and remaining production work.
+- [x] Version Debug, Release, Demo, and the installer consistently as 1.2.0 and add a regression test
+  so the in-app notes cannot silently drift from the packaged assembly.
+- [x] Compile Debug and Demo with zero warnings and pass 78/78 API, authorization, integration,
+  migration, reporting, and domain tests before producing the installer.
 ### Completed 2026-08-12 -- Demo recovery and acceptance tooling
 
 - [x] Replace user-visible exception/stack-trace dumps with calm reference-number messages and a

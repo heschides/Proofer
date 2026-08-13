@@ -58,6 +58,19 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void ReleaseNotesMatchTheDemoAssemblyVersionAndDocumentProductionGaps()
+    {
+        var version = typeof(Sati.ViewModels.SettingsViewModel).Assembly
+            .GetName().Version?.ToString(3);
+
+        Assert.Equal("1.2.0", version);
+        Assert.Equal("Demo readiness and governance", ProductReleaseNotes.ReleaseName);
+        Assert.NotEmpty(ProductReleaseNotes.Sections);
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Still planned before commercial production" &&
+            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
+    }
+    [Fact]
     public void UnexpectedErrorLogOmitsExceptionMessagesAndReturnsAReference()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"sati-error-log-{Guid.NewGuid():N}");

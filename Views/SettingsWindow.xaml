@@ -625,6 +625,71 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Release notes"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
+                        <TextBlock Text="RELEASE NOTES"
+                                   Style="{StaticResource SectionHeader}" />
+                        <Separator />
+
+                        <TextBlock Text="{Binding ReleaseVersion}"
+                                   AutomationProperties.Name="Installed Sati version"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding ReleaseName}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding ReleaseDate}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Margin="0,2,0,22" />
+
+                        <ItemsControl ItemsSource="{Binding ReleaseNoteSections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="14"
+                                            Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Margin="0,0,0,7" />
+                                            <ItemsControl ItemsSource="{Binding Items}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,3,0,3">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="16" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="&#x2022;"
+                                                                       Foreground="{DynamicResource AccentBrush}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding}"
+                                                                       TextWrapping="Wrap"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Maintenance"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

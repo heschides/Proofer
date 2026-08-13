@@ -11,16 +11,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <Company>Satilogica</Company>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Demo'">
     <AssemblyName>Sati.Demo</AssemblyName>
     <DefineConstants>$(DefineConstants);SATI_DEMO</DefineConstants>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
     <Product>Sati Demo</Product>
-    <Company>Satilogica</Company>
   </PropertyGroup>
 	
 	<PropertyGroup>

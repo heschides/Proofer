@@ -10,6 +10,7 @@ The Demo build:
 - installs under `%LOCALAPPDATA%\Programs\Satilogica\Sati Demo`;
 - creates Start Menu and Desktop shortcuts and a Windows uninstall entry;
 - includes the .NET runtime, so the receiving computer does not need a separate .NET installation.
+- exposes the installed version and release notes from the Settings window.
 
 Build from the repository root:
 

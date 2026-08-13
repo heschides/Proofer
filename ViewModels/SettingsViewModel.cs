@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Helpers;
@@ -39,6 +39,10 @@ namespace Sati.ViewModels
         }
 
         public IReadOnlyList<ThemeOption> ThemeOptions => _themeService.Themes;
+        public string ReleaseVersion => $"Version {typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3)}";
+        public string ReleaseName => ProductReleaseNotes.ReleaseName;
+        public string ReleaseDate => ProductReleaseNotes.ReleaseDate;
+        public IReadOnlyList<ReleaseNoteSection> ReleaseNoteSections => ProductReleaseNotes.Sections;
 
         [ObservableProperty]
         private ThemeOption? selectedTheme;
