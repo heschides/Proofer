@@ -180,6 +180,17 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
 - [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
 
+### Completed 2026-08-13 -- presenter acceptance kit
+
+- [x] Add secret-free JSON evidence output to authenticated Demo API readiness and isolated
+  installer acceptance without treating health-only or same-machine results as final proof.
+- [x] Add a final verifier that binds fresh API, external-machine, rehearsal, fallback, release,
+  and artifact-hash evidence to the exact installer being presented.
+- [x] Produce and visually verify a ten-page offline PDF fallback using only synthetic and
+  explicitly representative material, with a presenter approval area and honest limitations.
+- [x] Document the external-machine, rehearsal, fallback approval, and final acceptance workflow;
+  keep the actual deployment, authenticated run, external-machine run, and human attestation open.
+
 ### Completed 2026-08-13 -- release notes and 1.2.0 packaging
 
 - [x] Add a Settings **Release notes** tab tied to the installed assembly version and summarize

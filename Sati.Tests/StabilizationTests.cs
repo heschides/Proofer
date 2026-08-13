@@ -62,8 +62,11 @@ public sealed class StabilizationTests
     {
         var version = typeof(Sati.ViewModels.SettingsViewModel).Assembly
             .GetName().Version?.ToString(3);
+        var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
+            .GetName().Version?.ToString(3);
 
         Assert.Equal("1.2.1", version);
+        Assert.Equal(version, apiVersion);
         Assert.Equal("Demo readiness and governance", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
@@ -113,6 +116,68 @@ public sealed class StabilizationTests
         Assert.Contains("Installed app exited during startup", script);
         Assert.Contains("Stop-Process -Id $app.Id", script);
         Assert.Contains("ReparsePoint", script);
+    }
+
+    [Fact]
+    public void DemoAcceptanceEvidenceBindsEveryFinalGateToExactArtifacts()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var scripts = Path.Combine(directory!.FullName, "scripts");
+        var installer = File.ReadAllText(Path.Combine(scripts, "Test-DemoInstaller.ps1"));
+        var readiness = File.ReadAllText(Path.Combine(scripts, "Test-DemoReadiness.ps1"));
+        var presenter = File.ReadAllText(Path.Combine(scripts, "New-DemoPresenterAttestation.ps1"));
+        var final = File.ReadAllText(Path.Combine(scripts, "Test-CompanyDemoAcceptance.ps1"));
+        var fallbackBuilder = File.ReadAllText(Path.Combine(scripts, "Build-DemoFallback.py"));
+
+        Assert.Contains("Gate = 'CleanMachineLaunch'", installer);
+        Assert.Contains("ExternalMachineConfirmed", installer);
+        Assert.Contains("SourceTreeDetected", installer);
+        Assert.Contains("Gate = 'AuthenticatedApiReadiness'", readiness);
+        Assert.Contains("Authenticated = $false", readiness);
+        Assert.Contains("Authenticated = $true", readiness);
+        Assert.Contains("health/version", readiness);
+        Assert.Contains("ReleaseVersion", readiness);
+        Assert.DoesNotContain("SATI_DEMO_PASSWORD =", readiness);
+
+        Assert.Contains("ClientApiParityConfirmed", presenter);
+        Assert.Contains("WalkthroughRehearsed", presenter);
+        Assert.Contains("SyntheticDataOnly", presenter);
+        Assert.Contains("FallbackApproved", presenter);
+        Assert.Contains("LimitationsPresented", presenter);
+
+        Assert.Contains("api-readiness.json", final);
+        Assert.Contains("clean-machine.json", final);
+        Assert.Contains("presenter-attestation.json", final);
+        Assert.Contains("InstallerSha256", final);
+        Assert.Contains("FallbackSha256", final);
+        Assert.Contains("MaxEvidenceAgeHours", final);
+        Assert.Contains("api.ReleaseVersion -ceq $expectedVersion", final);
+        Assert.Contains("COMPANY_DEMO_ACCEPTANCE_PASSED", final);
+        Assert.Contains("ET.parse(ROOT / \"Sati.csproj\")", fallbackBuilder);
+        Assert.Contains("invariant=1", fallbackBuilder);
+        Assert.Contains("Synthetic records only", fallbackBuilder);
+    }
+
+    [Fact]
+    public void DemoRunbookDoesNotClaimAcceptanceBeforeExternalEvidenceExists()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var runbook = File.ReadAllText(Path.Combine(directory!.FullName, "DEMO_RUNBOOK.md"));
+        var evidenceGuide = File.ReadAllText(Path.Combine(directory.FullName, "DEMO_ACCEPTANCE.md"));
+
+        Assert.Contains("[ ] The current Demo client and API changes are deployed together.", runbook);
+        Assert.Contains("[ ] Health and authenticated readiness checks pass", runbook);
+        Assert.Contains("[ ] The packaged artifact launches on a clean Windows machine", runbook);
+        Assert.Contains("[ ] The presenter has reviewed and approved", runbook);
+        Assert.Contains("never edit an evidence file to make it pass", evidenceGuide, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

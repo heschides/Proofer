@@ -22,6 +22,18 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task ReleaseVersionIsPublicAndMatchesThePackagedClientRelease()
+    {
+        using var client = _factory.CreateAnonymousClient();
+
+        var release = await client.GetFromJsonAsync<Dictionary<string, string>>("/health/version");
+
+        Assert.NotNull(release);
+        Assert.Equal("Sati.Api", release["product"]);
+        Assert.Equal("1.2.1", release["releaseVersion"]);
+    }
+
+    [Fact]
     public async Task ProtectedEndpointRejectsABadgeAfterTheUsersRoleChanges()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("stale-badge-user");

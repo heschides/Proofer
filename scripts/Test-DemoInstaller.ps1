@@ -8,6 +8,10 @@ param(
 
     [string]$WorkingRoot = (Join-Path ([System.IO.Path]::GetTempPath()) 'Satilogica\SatiDemoInstallerAcceptance'),
 
+    [string]$EvidencePath,
+
+    [switch]$ExternalMachine,
+
     [switch]$KeepInstalledFiles
 )
 
@@ -84,6 +88,39 @@ try {
     $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-Output "INSTALLER_ACCEPTANCE_PASSED installer=$installerName sha256=$hash"
     Write-Output "INSTALLED_APP_ACCEPTANCE_PASSED version=$actualVersion responding=$($app.Responding) launchSeconds=$LaunchSeconds"
+
+    if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+        $resolvedEvidence = [System.IO.Path]::GetFullPath($EvidencePath)
+        $evidenceParent = [System.IO.Path]::GetDirectoryName($resolvedEvidence)
+        if ([string]::IsNullOrWhiteSpace($evidenceParent)) {
+            throw 'EvidencePath must include a parent directory.'
+        }
+        [System.IO.Directory]::CreateDirectory($evidenceParent) | Out-Null
+        if (Test-Path -LiteralPath $resolvedEvidence) {
+            throw "Refusing to overwrite installer evidence: $resolvedEvidence"
+        }
+
+        $sourceTreeDetected = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '.git')
+        [ordered]@{
+            SchemaVersion = 1
+            Gate = 'CleanMachineLaunch'
+            Passed = $true
+            CapturedUtc = [DateTime]::UtcNow.ToString('O')
+            InstallerFileName = $installerName
+            InstallerSha256 = $hash
+            InstalledVersion = $actualVersion
+            AppResponding = [bool]$app.Responding
+            LaunchSeconds = $LaunchSeconds
+            MachineName = [Environment]::MachineName
+            OsVersion = [Environment]::OSVersion.VersionString
+            ExternalMachineConfirmed = [bool]$ExternalMachine
+            SourceTreeDetected = [bool]$sourceTreeDetected
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedEvidence -Encoding UTF8
+        Write-Output "INSTALLER_EVIDENCE_WRITTEN path=$resolvedEvidence"
+        if (-not $ExternalMachine) {
+            Write-Warning 'Evidence records a successful launch, but it is not a clean external-machine attestation.'
+        }
+    }
 }
 finally {
     if ($null -ne $app -and -not $app.HasExited) {

@@ -136,7 +136,13 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+var releaseVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous();
+app.MapGet("/health/version", () => Results.Ok(new
+{
+    product = "Sati.Api",
+    releaseVersion
+})).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions()).AllowAnonymous();
 app.MapSatiApi();
 

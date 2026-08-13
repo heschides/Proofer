@@ -1,6 +1,9 @@
 param(
     [string]$BaseAddress = "https://sati-demo-api-satilogica.azurewebsites.net/",
-    [switch]$HealthOnly
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$ExpectedReleaseVersion = '1.2.1',
+    [switch]$HealthOnly,
+    [string]$EvidencePath
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,17 +23,50 @@ function Assert-Health([string]$Path) {
     }
 }
 
+function Write-ReadinessEvidence([System.Collections.IDictionary]$Evidence) {
+    if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
+        return
+    }
+
+    $resolvedEvidence = [System.IO.Path]::GetFullPath($EvidencePath)
+    $evidenceParent = [System.IO.Path]::GetDirectoryName($resolvedEvidence)
+    if ([string]::IsNullOrWhiteSpace($evidenceParent)) {
+        throw 'EvidencePath must include a parent directory.'
+    }
+    [System.IO.Directory]::CreateDirectory($evidenceParent) | Out-Null
+    if (Test-Path -LiteralPath $resolvedEvidence) {
+        throw "Refusing to overwrite readiness evidence: $resolvedEvidence"
+    }
+    $Evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $resolvedEvidence -Encoding UTF8
+    Write-Output "READINESS_EVIDENCE_WRITTEN path=$resolvedEvidence"
+}
+
 Write-Host "Checking Demo liveness and readiness..."
 Assert-Health "health/live"
 Assert-Health "health/ready"
+$release = Invoke-RestMethod -Uri (Get-DemoUri "health/version") -Method Get -TimeoutSec 90
+if ($release.product -cne 'Sati.Api') {
+    throw "The Demo version endpoint reported unexpected product '$($release.product)'."
+}
+if ($release.releaseVersion -cne $ExpectedReleaseVersion) {
+    throw "The Demo API release '$($release.releaseVersion)' does not match expected release '$ExpectedReleaseVersion'."
+}
 
 if ($HealthOnly) {
-    [pscustomobject]@{
+    $healthResult = [ordered]@{
+        SchemaVersion = 1
+        Gate = 'AuthenticatedApiReadiness'
+        Passed = $true
+        CapturedUtc = [DateTime]::UtcNow.ToString('O')
         BaseAddress = $baseUri.AbsoluteUri
         Live = "Healthy"
         Ready = "Healthy"
+        ReleaseVersion = $release.releaseVersion
+        Authenticated = $false
         AuthenticatedChecks = "Skipped"
-    } | Format-List
+    }
+    Write-ReadinessEvidence $healthResult
+    [pscustomobject]$healthResult | Format-List
     exit 0
 }
 
@@ -74,10 +110,17 @@ if ($people.Count -lt 1) {
     throw "The Admin Person directory was empty."
 }
 
-[pscustomobject]@{
+$authenticatedResult = [ordered]@{
+    SchemaVersion = 1
+    Gate = 'AuthenticatedApiReadiness'
+    Passed = $true
+    CapturedUtc = [DateTime]::UtcNow.ToString('O')
     BaseAddress = $baseUri.AbsoluteUri
     Live = "Healthy"
     Ready = "Healthy"
+    ReleaseVersion = $release.releaseVersion
+    Authenticated = $true
+    AccountRole = $login.user.role
     AgencyId = $overview.agencyId
     Users = $overview.userCount
     People = $overview.personCount
@@ -85,4 +128,6 @@ if ($people.Count -lt 1) {
     RetentionMode = $operations.retentionEnforcementMode
     AuditEvents = $operations.auditEventCount
     EdiReplayFiles = $operations.ediReplayCount
-} | Format-List
+}
+Write-ReadinessEvidence $authenticatedResult
+[pscustomobject]$authenticatedResult | Format-List

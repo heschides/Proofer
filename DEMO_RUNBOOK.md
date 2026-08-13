@@ -58,6 +58,11 @@ activity endpoints. It does not export files or mutate a business record.
 
 ## Ten-minute walkthrough
 
+The current canonical local rehearsal path uses synthetic Admin `Longchenpa`, synthetic case
+manager `Bradley`, synthetic reviewer `Shantideva`, and Person `Shirley Bennett` (Person ID 1012).
+The deployed environment must contain the corresponding designated records before attestation; do
+not document passwords in this runbook.
+
 1. **Frame the product (one minute).** Sati is a human-services case-management platform moving
    from a WPF pilot client to an API-authoritative, multi-tenant product. Point out the `DEMO`
    marker and say that all visible records are synthetic.
@@ -88,8 +93,9 @@ activity endpoints. It does not export files or mutate a business record.
   under `%LOCALAPPDATA%\Satilogica\Sati\Logs` and omit exception messages by design.
 - If a demonstration mutation succeeds, record the synthetic account, Person ID, and action so the
   canonical Demo dataset can be restored deliberately.
-- Keep a PDF or screenshots of the synthetic workflow available as a presentation fallback; never
-  use screenshots containing real client data.
+- Keep `output\pdf\Sati-Company-Demo-Fallback-1.2.1.pdf` available offline. It is explicitly
+  labeled as a fallback, contains only synthetic/representative material, and must be reviewed by
+  the presenter before the meeting. Never use screenshots containing real client data.
 
 ## Canonical local Demo reset
 
@@ -117,6 +123,21 @@ and must be used only when intentionally approving a new canonical dataset. The 
 database requires the same snapshot/restore control in its deployment runbook; this local command
 never connects to Azure.
 
+## Evidence-backed final check
+
+Follow `DEMO_ACCEPTANCE.md` to create fresh, secret-free evidence for authenticated application
+programming interface (API) readiness, the exact installer on an external Windows machine, the
+rehearsed walkthrough, client/API release parity, and the approved offline Portable Document Format
+(PDF) fallback. The final verifier binds those facts to the installer and fallback SHA-256 hashes
+and rejects stale or health-only evidence. It also requires the deployed API's public release
+version to match the version encoded in the installer filename.
+
+The only complete marker is:
+
+```text
+COMPANY_DEMO_ACCEPTANCE_PASSED
+```
+
 ## Final acceptance gates
 
 Company-demo readiness reaches 100% only when all of these are true for the exact artifact being
@@ -128,4 +149,7 @@ shown:
 - [ ] The ten-minute path is rehearsed with the designated synthetic accounts and records.
 - [x] A canonical local Demo restore/reset procedure is available for rehearsal mutations; the
   deployed database procedure is an explicit deployment gate.
-- [ ] The presenter has an approved fallback and knows the product/production limitations above.
+- [ ] The presenter has reviewed and approved the generated offline fallback and knows the
+  product/production limitations above.
+- [x] A final acceptance verifier can bind fresh evidence to the exact installer, API address,
+  external-machine run, release commit, rehearsal, and fallback hashes without storing secrets.
