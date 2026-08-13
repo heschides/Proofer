@@ -27,6 +27,14 @@ public static class ProductReleaseNotes
                 "Fixed calendar-day selection so note details render without repeated error dialogs."
             ]),
         new(
+            "Billing pipeline",
+            [
+                "Billing administrators can configure the procedure, modifier, unit rate, submitter, payer, and contact values for their agency.",
+                "The billing queue now rechecks approval, current compliance, historical billing gaps, member/provider identifiers, structured claim addresses, and EDI configuration before promotion.",
+                "Section 13 service time now retains partial units after the one-unit minimum, and claim charges are calculated separately from units.",
+                "837P files require a submitted billing period and use immutable claim snapshots, structural envelope checks, subscriber addresses, and retry-safe generation."
+            ]),
+        new(
             "Demo and support",
             [
                 "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
@@ -38,6 +46,7 @@ public static class ProductReleaseNotes
             [
                 "Automated retention and legal-hold enforcement; the current dashboard correctly reports PolicyOnly.",
                 "Production identity and MFA, external alert routing, backup/restore drills, payer certification, and controlled production deployment.",
+                "Clearinghouse test-file acceptance, payer enrollment/rate verification, acknowledgments, rejections, remittances, and reconciliation.",
                 "Broader immutable clinical-document versions, amendments, signatures, and mobile/web clients."
             ])
     ];

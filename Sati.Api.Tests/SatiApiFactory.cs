@@ -208,13 +208,21 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             db.Agencies.AddRange(
                 new ServerAgency
                 {
-                    Id = 1, Name = "Agency One", Npi = "1111111111", TaxId = "111111111",
-                    Street = "1 First Street", City = "Portland", State = "ME", Zip = "04101"
+                    Id = 1, Name = "Agency One", Npi = "1999999984", TaxId = "111111111",
+                    Street = "1 First Street", City = "Portland", State = "ME", Zip = "04101",
+                    BillingProcedureCode = "G9012", BillingModifier = "HI", BillingUnitRate = 25m,
+                    EdiSubmitterId = "SATITEST1", EdiPayerName = "MEDICAID MAINE",
+                    EdiPayerId = "MCDME", EdiContactName = "Test Billing",
+                    EdiContactPhone = "2075550101"
                 },
                 new ServerAgency
                 {
-                    Id = 2, Name = "Agency Two", Npi = "2222222222", TaxId = "222222222",
-                    Street = "2 Second Street", City = "Bangor", State = "ME", Zip = "04401"
+                    Id = 2, Name = "Agency Two", Npi = "1999999984", TaxId = "222222222",
+                    Street = "2 Second Street", City = "Bangor", State = "ME", Zip = "04401",
+                    BillingProcedureCode = "G9012", BillingModifier = "HI", BillingUnitRate = 25m,
+                    EdiSubmitterId = "SATITEST2", EdiPayerName = "MEDICAID MAINE",
+                    EdiPayerId = "MCDME", EdiContactName = "Test Billing",
+                    EdiContactPhone = "2075550102"
                 });
             db.Users.AddRange(
                 CreateUser(verifier, 11, "admin-one", "Admin", 1),
@@ -228,8 +236,18 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 new ServerPerson
                 {
                     Id = 101, UserId = 12, AgencyId = 1, FirstName = "Person", LastName = "One",
-                    BirthDate = new DateTime(1990, 1, 1), Journal = "Agency one journal",
-                    MaineCareId = "111111", DiagnosisCode = "F89", PlaceOfService = 11
+                    BirthDate = new DateTime(1990, 1, 1), EffectiveDate = new DateTime(2026, 1, 1),
+                    Journal = "Agency one journal", MaineCareId = "111111",
+                    DiagnosisCode = "F89", PlaceOfService = 11,
+                    BillingStreet = "10 Test Street", BillingCity = "Portland",
+                    BillingState = "ME", BillingZip = "04101",
+                    Forms =
+                    [
+                        CompliantForm(101, "PCP"),
+                        CompliantForm(101, "ComprehensiveAssessment"),
+                        CompliantForm(101, "Reclassification"),
+                        CompliantForm(101, "SafetyPlan")
+                    ]
                 },
                 new ServerPerson
                 {
@@ -238,12 +256,17 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                     Bio = "Initial lifecycle biography.", Journal = "Initial private journal.",
                     MaineCareId = "333333", DiagnosisCode = "F89", PlaceOfService = 11,
                     HasGuardian = true, GuardianName = "Original Guardian", Address = "10 First Avenue",
+                    BillingStreet = "10 First Avenue", BillingCity = "Portland",
+                    BillingState = "ME", BillingZip = "04101",
                     DayProgramCount = 1
                 },
                 new ServerPerson
                 {
                     Id = 201, UserId = 22, AgencyId = 2, FirstName = "Person", LastName = "Two",
-                    BirthDate = new DateTime(1990, 1, 1), Journal = "Agency two journal"
+                    BirthDate = new DateTime(1990, 1, 1), Journal = "Agency two journal",
+                    MaineCareId = "222222", DiagnosisCode = "F89", PlaceOfService = 11,
+                    BillingStreet = "20 Test Street", BillingCity = "Bangor",
+                    BillingState = "ME", BillingZip = "04401"
                 });
             db.Providers.AddRange(
                 new ServerProvider { Id = 301, AgencyId = 1, Type = "Other", Name = "Provider One" },
@@ -263,6 +286,11 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 {
                     Id = 602, PersonId = 201, AgencyId = 2, Narrative = "Unbilled agency two note",
                     EventDate = new DateTime(2026, 7, 12), Minutes = 60, Status = 6
+                },
+                new ServerNote
+                {
+                    Id = 603, PersonId = 201, AgencyId = 2, Narrative = "Submitted agency two billing note",
+                    EventDate = new DateTime(2026, 8, 12), Minutes = 20, Status = 6
                 },
                 new ServerNote
                 {
@@ -344,8 +372,9 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                         new ServerClaimLine
                         {
                             Id = 1301, NoteId = 501, DateOfService = new DateTime(2026, 7, 10),
-                            ProcedureCode = "T2021", Units = 4, ClientMaineCareId = "111111",
-                            RenderingProviderNpi = "1111111111", DiagnosisCode = "F89", PlaceOfService = 11
+                            ProcedureCode = "G9012", ProcedureModifier = "HI", Units = 4, ChargeAmount = 100m, ClientMaineCareId = "111111",
+                            RenderingProviderNpi = "1999999984", DiagnosisCode = "F89", PlaceOfService = 11,
+                            ClaimSnapshotJson = ClaimSnapshot(1, 101, "Person", "One", "111111", "10 Test Street", "Portland", "04101", "SATITEST1", "Agency One", "111111111", "1 First Street", "Portland", "04101", "2075550101")
                         }
                     ]
                 },
@@ -357,8 +386,24 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                         new ServerClaimLine
                         {
                             Id = 1401, NoteId = 601, DateOfService = new DateTime(2026, 7, 11),
-                            ProcedureCode = "T2021", Units = 4, ClientMaineCareId = "222222",
-                            RenderingProviderNpi = "2222222222", DiagnosisCode = "F89", PlaceOfService = 11
+                            ProcedureCode = "G9012", ProcedureModifier = "HI", Units = 4, ChargeAmount = 100m, ClientMaineCareId = "222222",
+                            RenderingProviderNpi = "1999999984", DiagnosisCode = "F89", PlaceOfService = 11,
+                            ClaimSnapshotJson = ClaimSnapshot(2, 201, "Person", "Two", "222222", "20 Test Street", "Bangor", "04401", "SATITEST2", "Agency Two", "222222222", "2 Second Street", "Bangor", "04401", "2075550102")
+                        }
+                    ]
+                },
+                new ServerBillingPeriod
+                {
+                    Id = 1202, UserId = 22, Month = 8, Year = 2026, Status = 1,
+                    SubmittedAt = new DateTime(2026, 8, 13, 1, 0, 0, DateTimeKind.Utc),
+                    Lines =
+                    [
+                        new ServerClaimLine
+                        {
+                            Id = 1402, NoteId = 603, DateOfService = new DateTime(2026, 8, 12),
+                            ProcedureCode = "G9012", ProcedureModifier = "HI", Units = 1.33m, ChargeAmount = 33.25m, ClientMaineCareId = "222222",
+                            RenderingProviderNpi = "1999999984", DiagnosisCode = "F89", PlaceOfService = 11,
+                            ClaimSnapshotJson = ClaimSnapshot(2, 201, "Person", "Two", "222222", "20 Test Street", "Bangor", "04401", "SATITEST2", "Agency Two", "222222222", "2 Second Street", "Bangor", "04401", "2075550102")
                         }
                     ]
                 });
@@ -392,6 +437,45 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             Salt = credential.Salt
         };
     }
+
+    private static ServerForm CompliantForm(int personId, string type) => new()
+    {
+        PersonId = personId,
+        Type = type,
+        DueDate = new DateTime(2026, 12, 31),
+        IsCompliant = true,
+        CompletedDate = new DateTime(2026, 1, 2)
+    };
+
+    private static string ClaimSnapshot(
+        int agencyId, int personId, string firstName, string lastName, string memberId,
+        string subscriberStreet, string city, string zip, string submitterId,
+        string providerName, string taxId, string providerStreet, string providerCity,
+        string providerZip, string contactPhone) => ProfessionalClaimSnapshotCodec.Serialize(new(
+            ProfessionalClaimSnapshotCodec.CurrentVersion,
+            agencyId,
+            personId,
+            firstName,
+            lastName,
+            new DateTime(1990, 1, 1),
+            "U",
+            memberId,
+            subscriberStreet,
+            city,
+            "ME",
+            zip,
+            providerName,
+            "1999999984",
+            taxId,
+            providerStreet,
+            providerCity,
+            "ME",
+            providerZip,
+            submitterId,
+            "Test Billing",
+            contactPhone,
+            "MEDICAID MAINE",
+            "MCDME"));
 
     protected override void Dispose(bool disposing)
     {

@@ -112,6 +112,21 @@ namespace Sati.ViewModels
         private string? address;
 
         [ObservableProperty]
+        private string? maineCareId;
+        [ObservableProperty]
+        private string? diagnosisCode;
+        [ObservableProperty]
+        private int? placeOfService;
+        [ObservableProperty]
+        private string? billingStreet;
+        [ObservableProperty]
+        private string? billingCity;
+        [ObservableProperty]
+        private string? billingState;
+        [ObservableProperty]
+        private string? billingZip;
+
+        [ObservableProperty]
         private string? primaryCareProvider;
 
         [ObservableProperty]
@@ -616,6 +631,13 @@ namespace Sati.ViewModels
                 existing.GuardianName = GuardianName;
                 existing.EvergreenId = EvergreenId;
                 existing.PhoneNumber = PhoneNumber; existing.Address = Address;
+                existing.MaineCareId = MaineCareId;
+                existing.DiagnosisCode = DiagnosisCode?.Trim().ToUpperInvariant();
+                existing.PlaceOfService = PlaceOfService;
+                existing.BillingStreet = BillingStreet;
+                existing.BillingCity = BillingCity;
+                existing.BillingState = BillingState?.Trim().ToUpperInvariant();
+                existing.BillingZip = BillingZip;
                 existing.PrimaryCareProvider = PrimaryCareProvider;
                 existing.HealthcareSystemName = HealthcareSystemName;
                 existing.IsEmployed = IsEmployed;
@@ -662,6 +684,13 @@ namespace Sati.ViewModels
                 person.EvergreenId = EvergreenId;
                 person.PhoneNumber = PhoneNumber;
                 person.Address = Address;
+                person.MaineCareId = MaineCareId;
+                person.DiagnosisCode = DiagnosisCode?.Trim().ToUpperInvariant();
+                person.PlaceOfService = PlaceOfService;
+                person.BillingStreet = BillingStreet;
+                person.BillingCity = BillingCity;
+                person.BillingState = BillingState?.Trim().ToUpperInvariant();
+                person.BillingZip = BillingZip;
                 person.PrimaryCareProvider = PrimaryCareProvider;
                 person.HealthcareSystemName = HealthcareSystemName;
                 person.IsEmployed = IsEmployed;
@@ -744,6 +773,13 @@ namespace Sati.ViewModels
             EvergreenId = person.EvergreenId;
             PhoneNumber = person.PhoneNumber;
             Address = person.Address; PrimaryCareProvider = person.PrimaryCareProvider;
+            MaineCareId = person.MaineCareId;
+            DiagnosisCode = person.DiagnosisCode;
+            PlaceOfService = person.PlaceOfService;
+            BillingStreet = person.BillingStreet;
+            BillingCity = person.BillingCity;
+            BillingState = person.BillingState;
+            BillingZip = person.BillingZip;
             HealthcareSystemName = person.HealthcareSystemName;
             IsEmployed = person.IsEmployed;
             HasHomeSupport = person.HasHomeSupport;
@@ -970,6 +1006,13 @@ namespace Sati.ViewModels
             EvergreenId = string.Empty;
             PhoneNumber = string.Empty;
             Address = string.Empty;
+            MaineCareId = string.Empty;
+            DiagnosisCode = string.Empty;
+            PlaceOfService = null;
+            BillingStreet = string.Empty;
+            BillingCity = string.Empty;
+            BillingState = string.Empty;
+            BillingZip = string.Empty;
             PrimaryCareProvider = string.Empty;
             HealthcareSystemName = null;
             IsEmployed = false;

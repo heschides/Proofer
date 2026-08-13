@@ -487,10 +487,18 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   low risk). No compliance logic here.
 
 ### `BillingService`
-- Owns `BillingPeriod`/`ClaimLine` persistence. `ValidateNoteForBilling` is pure, collects all errors.
-- **Bug:** error message says "Section 13 TCM" but code is T1016 (Section 17).
-- `CreateClaimLineAsync` hardcodes `"T1016"`. `GetApprovedUnbilledNotesAsync` uses a `!Any(...)`
-  subquery (correct; may be slow at scale).
+- Owns agency-scoped `BillingPeriod`/`ClaimLine` persistence and agency billing/EDI configuration.
+  Admin authorization and tenant scope are enforced in the service/API, not by tab visibility.
+- `ValidateNoteForBilling` collects approval, duration, current-compliance, historical billing-window,
+  subscriber, provider, and EDI-configuration failures. Claim creation repeats validation against
+  freshly loaded records before writing.
+- Section 13 unit arithmetic is shared in `BillingRules`: substantive contacts up to 15 minutes
+  receive one unit; longer services retain two-decimal partial 15-minute units. `ChargeAmount` is
+  calculated separately from units using the agency's configured unit rate.
+- Claim creation freezes subscriber/provider/submitter/payer values into a versioned JSON snapshot.
+  The generator does not read mutable Person or Agency values for an existing financial record.
+- Database uniqueness on service-note ID and billing-period owner/month/year makes simultaneous
+  promotion/period creation fail safely; local and API paths translate repeat attempts.
 
 ### `IncentiveService`
 - Owns `Incentive` CRUD and days-scheduled calc. `CalculateDaysScheduled` loops via
@@ -523,8 +531,8 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 - Clean CRUD over `ExemptDate`. Strips time on `AddAsync` (`date.Date`).
 
 ### `EdiService`
-- Owns 837P generation/output. Output dir hardcoded `C:\Published\Sati\Contained\EDI`. Delegates
-  content to `EdiGenerator.Generate()`.
+- Owns 837P generation/output. Local-development files use the signed-in user's LocalApplicationData
+  directory instead of a machine-global administrator-only path. Cloud responses remain API files.
 - A generation attempt carries a stable GUID retry key. The exact file name and content are stored
   under a unique `(AgencyId, ActorUserId, IdempotencyKey)` boundary before the response is returned;
   an ambiguous network retry therefore replays the same 837P instead of creating another file or
@@ -662,14 +670,13 @@ Previously excluded as "stateless, low-risk." One live bug surfaced and was fixe
 
 ## Additional Rough Edges (from services review)
 
-- **Bug:** `BillingService.ValidateNoteForBilling` says "Section 13 TCM"; code is T1016 (Section 17).
 - **DI inconsistency:** `AuthService` uses `new PasswordHasher()` instead of DI.
 - **Leaky abstraction:** `IncentiveService.GetRemainingEligibleDaysAsync` requires caller-supplied
   exempt dates.
 - **Invariant risk:** `FormService.UpdateFormAsync` — raw EF update, no compliance guard. No current
   offender, but unguarded.
 - **Minor:** `NoteService.GetMonthlyNotesAsync` double `DateTime.Now`; `OnModelCreating` configures
-  `Person → User` twice; `EdiService` output dir hardcoded.
+  `Person → User` twice.
 
 ---
 
@@ -781,24 +788,25 @@ Overview/Remittances/Alerts are stubs.
 ## EDI Generator
 
 **`EdiGenerator`** — pure static translation. Caller (`EdiService`) loads
-`BillingPeriod → Lines → Note → Person → Agency`; missing navigation → runtime throw.
+`BillingPeriod → Lines → immutable ProfessionalClaimSnapshot`. Legacy or malformed claim lines
+without that snapshot fail closed instead of silently reading today's Person/Agency values.
 
 The generation timestamp is supplied by the caller so the persisted response, control numbers,
 and filename describe one atomic attempt. Billing-period submission uses `Status` as an EF
 concurrency token and treats a retry of an already-successful submission as the same success.
 
 **Pre-live checklist (before first real submission):**
-1. Replace hardcoded `PER04` phone (`"3609787000"`) with the agency's contact number (source from `Agency`).
-2. Add agency field validation (street, city, state, zip, tax ID) to pre-submission check.
-3. Confirm `CLM02`/`SV102` monetary-vs-unit interpretation with Maine Medicaid companion guide
-   (may require a `Rate`/`ChargeAmount` on `ClaimLine`).
-4. Fix SE01 segment count to count `~`, not newlines.
-5. Fix the "Section 13 TCM" → Section 17 / T1016 message.
-6. Test through Office Ally sandbox (`isTest = true`) and verify 999 acknowledgment.
+1. Replace representative Demo code/rate/payer/submitter values with the agency's verified contract,
+   enrollment, and clearinghouse values.
+2. Test through the clearinghouse sandbox (`isTest = true`) and receive/validate a 999 and 277CA.
+3. Obtain payer-specific acceptance; implement rejection correction, transport, 835 remittance,
+   reconciliation, and void/replacement workflows.
+4. Complete qualified billing/compliance review. Structural generation tests are not payer certification.
 
-**Verified-correct structure:** ISA/GS/ST/BHT envelope; HL hierarchy (20→22); 2000B/2010BA/2010BB/
-2300/2400 nesting; per-subscriber `LX`; `~`/`*`/`:` separators; one group per file. `isTest ? "T":"P"`
-in ISA15 flows from `BillingSubmissionsViewModel.IsTestMode` (defaults true — safe).
+**Structurally regression-tested:** fixed 106-character ISA including ISA16; ISA/GS/ST/BHT envelope;
+HL hierarchy (20→22); subscriber and provider N3/N4; 2000B/2010BA/2010BB/2300/2400 nesting;
+per-subscriber `LX`; separate monetary charge and units; ST-through-SE segment count; `~`/`*`/`:`
+separators; one group per file. `isTest ? "T":"P"` in ISA15 flows from the UI and defaults to test.
 
 ---
 

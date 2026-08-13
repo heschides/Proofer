@@ -117,6 +117,13 @@ August 12, 2026. Authenticated verification also covered the agency-scoped Admin
 Person list rows, first-view lifecycle baseline creation, recent activity, and PDF export; anonymous
 Admin access returned HTTP 401.
 
+On August 13, 2026, the additive billing configuration/snapshot migration was applied to Azure
+`SatiDemo`, and ten clearly marked synthetic billing scenarios were seeded for Sandbox Mode:
+three ready and seven independently blocked. The real billing service verified the expected 3/7
+split and partial-unit values before the matching API package was deployed. Post-deploy liveness and
+readiness returned HTTP 200, the release endpoint returned 1.2.1, and the new anonymous billing-
+configuration request returned HTTP 401. Temporary exact-IP migration rules were removed after use.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

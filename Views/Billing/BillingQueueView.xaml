@@ -204,14 +204,14 @@
 
                         <!-- Units -->
                         <TextBlock Grid.Column="3"
-                                   Text="{Binding Result.Note.Units}"
+                                   Text="{Binding BillingUnits}"
                                    FontSize="13"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    VerticalAlignment="Center" />
 
                         <!-- Procedure code -->
                         <TextBlock Grid.Column="4"
-                                   Text="T1016"
+                                   Text="{Binding ProcedureDisplay}"
                                    FontSize="13"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center" />
@@ -427,6 +427,11 @@
 
             </StackPanel>
         </Border>
+
+        <TextBlock Grid.Row="4" Text="{Binding StatusMessage}" HorizontalAlignment="Left"
+                   VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
+                   FontSize="11" TextWrapping="Wrap" Margin="8,12,340,0"
+                   AutomationProperties.LiveSetting="Polite" />
 
     </Grid>
 </UserControl>

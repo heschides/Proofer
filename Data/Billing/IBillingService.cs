@@ -13,5 +13,7 @@ namespace Sati.Data.Billing
         Task SubmitBillingPeriodAsync(int billingPeriodId);
         Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync();
         BillingValidationResult ValidateNoteForBilling(Note note);
+        Task<BillingConfiguration> GetBillingConfigurationAsync();
+        Task SaveBillingConfigurationAsync(BillingConfiguration configuration);
     }
 }

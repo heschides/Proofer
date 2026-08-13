@@ -87,6 +87,8 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Reports | `GET /reports/consumer-billing-loss` | Each person's assigned user and agency | Own caseload only. |
 | Billing | `POST /billing/periods/{year}/{month}` | Billing period user's `AgencyId` | Admin only; target user must be in actor agency. |
 | Billing | `GET /billing/periods` | Billing period user's `AgencyId` | Admin only; response joined to actor agency. |
+| Billing | `GET /billing/configuration` | Authenticated actor's `AgencyId` | Admin only; returns only the actor agency's payer/provider defaults. |
+| Billing | `PUT /billing/configuration` | Authenticated actor's `AgencyId` | Admin only; writes and audits only the actor agency's configuration. |
 | Billing | `GET /billing/candidates` | Note person's owning user's `AgencyId` | Admin only; candidates joined to actor agency. |
 | Billing | `POST /billing/claim-lines` | Source note person's owning user's `AgencyId` | Admin only; source note must be approved and in actor agency. |
 | Billing | `GET /billing/claim-lines/draft` | Billing period user's `AgencyId` | Admin only; period owner joined to actor agency. |

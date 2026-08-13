@@ -158,6 +158,30 @@ namespace Sati.Migrations
                     b.Property<string>("City")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("BillingModifier")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BillingProcedureCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("BillingUnitRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EdiContactName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EdiContactPhone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EdiPayerId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EdiPayerName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EdiSubmitterId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -296,6 +320,12 @@ namespace Sati.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("ChargeAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ClaimSnapshotJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ComplianceExceptionReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -317,6 +347,9 @@ namespace Sati.Migrations
 
                     b.Property<string>("ProcedureCode")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProcedureModifier")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RenderingProviderNpi")
@@ -1103,6 +1136,22 @@ namespace Sati.Migrations
 
                     b.Property<string>("Bio")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BillingCity")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("BillingState")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("BillingStreet")
+                        .HasMaxLength(55)
+                        .HasColumnType("nvarchar(55)");
+
+                    b.Property<string>("BillingZip")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
 
                     b.Property<DateTime>("BirthDate")
                         .HasColumnType("datetime2");

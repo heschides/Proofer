@@ -86,6 +86,12 @@ namespace Sati
 
         public string? PhoneNumber { get; set; }
         public string? Address { get; set; }
+        // Structured claim address. The ordinary Address remains the human-facing mailing/display
+        // value; X12 must not try to parse city/state/ZIP back out of free text.
+        public string? BillingStreet { get; set; }
+        public string? BillingCity { get; set; }
+        public string? BillingState { get; set; }
+        public string? BillingZip { get; set; }
         public string? PrimaryCareProvider { get; set; }
 
         // Deliberately denormalized as a name string. The seam for a future

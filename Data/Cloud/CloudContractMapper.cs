@@ -44,6 +44,10 @@ internal static class CloudContractMapper
         person.GuardianName = dto.GuardianName;
         person.PhoneNumber = dto.PhoneNumber;
         person.Address = dto.Address;
+        person.BillingStreet = dto.BillingStreet;
+        person.BillingCity = dto.BillingCity;
+        person.BillingState = dto.BillingState;
+        person.BillingZip = dto.BillingZip;
         person.PrimaryCareProvider = dto.PrimaryCareProvider;
         person.HealthcareSystemName = dto.HealthcareSystemName;
         person.HasHomeSupport = dto.HasHomeSupport;
@@ -258,6 +262,10 @@ internal static class CloudContractMapper
         person.GuardianName,
         person.PhoneNumber,
         person.Address,
+        person.BillingStreet,
+        person.BillingCity,
+        person.BillingState,
+        person.BillingZip,
         person.PrimaryCareProvider,
         person.HealthcareSystemName,
         person.HasHomeSupport,
@@ -276,7 +284,8 @@ internal static class CloudContractMapper
             form.IsCompliant,
             form.CompletedDate,
             form.OpenedDate)).ToList(),
-        person.Revision);
+        person.Revision,
+        true);
 
     public static PersonContact ToPersonContact(PersonContactDto dto)
     {
@@ -324,7 +333,9 @@ internal static class CloudContractMapper
         BillingPeriodId = dto.BillingPeriodId,
         DateOfService = dto.DateOfService,
         ProcedureCode = dto.ProcedureCode,
+        ProcedureModifier = dto.ProcedureModifier,
         Units = dto.Units,
+        ChargeAmount = dto.ChargeAmount,
         ClientMaineCareId = dto.ClientMaineCareId,
         RenderingProviderNpi = dto.RenderingProviderNpi,
         DiagnosisCode = dto.DiagnosisCode,
@@ -332,6 +343,10 @@ internal static class CloudContractMapper
         IsComplianceException = dto.IsComplianceException,
         ComplianceExceptionReason = dto.ComplianceExceptionReason
     };
+
+    public static BillingConfiguration ToBillingConfiguration(BillingConfigurationDto dto) => new(
+        dto.ProcedureCode, dto.Modifier, dto.UnitRate, dto.EdiSubmitterId,
+        dto.PayerName, dto.PayerId, dto.ContactName, dto.ContactPhone);
 
     public static PersonSummary ToPersonSummary(PersonDto dto) => new()
     {

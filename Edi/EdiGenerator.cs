@@ -1,5 +1,6 @@
 ﻿using Sati.Models;
 using Sati.Models.Billing;
+using Sati.Contracts.V1;
 
 namespace Sati.Helpers
 {
@@ -24,29 +25,32 @@ namespace Sati.Helpers
         private const string SubSep = ":";
         private const string OaReceiverId = "330897513";
         private const string OaReceiverName = "OFFICE ALLY";
-        private const string PayerId = "MCDME";
-        private const string PayerName = "MEDICAID MAINE";
-        private const string ProcedureCode = "T1016";
         private const string VersionCode = "005010X222A1";
         private const string TaxonomyCode = "251B00000X"; // Case Management
 
-        public static string Generate(BillingPeriod period, string submitterId, bool isTest, DateTime generatedAt, string controlNumber)
+        public static string Generate(BillingPeriod period, bool isTest, DateTime generatedAt, string controlNumber)
         {
             var dateStr = generatedAt.ToString("yyyyMMdd");
             var timeStr = generatedAt.ToString("HHmm");
             var icn = controlNumber; // interchange control number
             var gcn = "1"; // group control number — one group per file
 
-            // Group claim lines by consumer so each consumer gets one 2000B loop
-            // containing all their claims for the period.
-            var byPerson = period.Lines
-                .GroupBy(l => l.Note.PersonId)
+            var rows = period.Lines
+                .Select(line => new EdiSnapshotRow(
+                    line,
+                    ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson)))
                 .ToList();
+            if (rows.Count == 0)
+                throw new InvalidOperationException("The billing period has no claim lines.");
 
-            var agency = period.Lines
-                .Select(l => l.Note.Person.Agency)
-                .FirstOrDefault(a => a != null)
-                ?? throw new InvalidOperationException("No agency found on claim lines.");
+            // Group the immutable claim snapshots by consumer. No mutable Person or Agency value
+            // is read while rendering a financial record.
+            var byPerson = rows
+                .GroupBy(row => row.Snapshot.PersonId)
+                .ToList();
+            var envelope = rows[0].Snapshot;
+            var submitterId = envelope.SubmitterId;
+            Validate(envelope, rows);
 
             var sb = new System.Text.StringBuilder();
 
@@ -68,7 +72,8 @@ namespace Sati.Helpers
                 "00501",                        // ISA12 Version
                 icn.PadLeft(9, '0')[..9],       // ISA13 Interchange control number (9 digits)
                 "0",                            // ISA14 Acknowledgment requested
-                isTest ? "T" : "P"              // ISA15 Usage indicator
+                isTest ? "T" : "P",             // ISA15 Usage indicator
+                SubSep                          // ISA16 Component separator
             ));
 
             // ─── GS — Functional Group Header ───────────────────────────────────
@@ -104,7 +109,7 @@ namespace Sati.Helpers
             sb.AppendLine(Seg("NM1",
                 "41",                           // NM101 Submitter
                 "2",                            // NM102 Non-person entity
-                agency.Name,                    // NM103 Org name
+                envelope.BillingProviderName,  // NM103 Org name
                 "", "", "", "",                 // NM104-107 not used
                 "46",                           // NM108 ID qualifier
                 submitterId                     // NM109 Submitter ID
@@ -112,9 +117,9 @@ namespace Sati.Helpers
 
             sb.AppendLine(Seg("PER",
                 "IC",                           // PER01 Contact function (IC = information contact)
-                agency.Name,                    // PER02 Name
+                envelope.SubmitterContactName, // PER02 Name
                 "TE",                           // PER03 Comm qualifier (telephone)
-                "3609757000"                    // PER04 OA support number as placeholder
+                envelope.SubmitterContactPhone // PER04 submitter contact number
             ));
 
             // ─── Loop 1000B — Receiver ───────────────────────────────────────────
@@ -146,23 +151,23 @@ namespace Sati.Helpers
             sb.AppendLine(Seg("NM1",
                 "85",                           // NM101 Billing provider
                 "2",                            // NM102 Non-person entity
-                agency.Name,                    // NM103
+                envelope.BillingProviderName,  // NM103
                 "", "", "", "",                 // NM104-107 not used
                 "XX",                           // NM108 NPI qualifier
-                agency.Npi!                     // NM109 NPI
+                envelope.BillingProviderNpi    // NM109 NPI
             ));
 
-            sb.AppendLine(Seg("N3", agency.Street!));
+            sb.AppendLine(Seg("N3", envelope.BillingProviderStreet));
 
             sb.AppendLine(Seg("N4",
-                agency.City!,                   // N401
-                agency.State!,                  // N402
-                agency.Zip!                     // N403
+                envelope.BillingProviderCity,   // N401
+                envelope.BillingProviderState,  // N402
+                envelope.BillingProviderZip     // N403
             ));
 
             sb.AppendLine(Seg("REF",
                 "EI",                           // REF01 Tax ID qualifier
-                agency.TaxId!                   // REF02 Tax ID
+                envelope.BillingProviderTaxId  // REF02 Tax ID
             ));
 
             // ─── Loop 2000B — One per consumer ───────────────────────────────────
@@ -170,7 +175,7 @@ namespace Sati.Helpers
 
             foreach (var personGroup in byPerson)
             {
-                var person = personGroup.First().Note.Person;
+                var subscriber = personGroup.First().Snapshot;
                 var hlSubscriber = hlCounter++;
 
                 sb.AppendLine(Seg("HL",
@@ -191,46 +196,52 @@ namespace Sati.Helpers
                 sb.AppendLine(Seg("NM1",
                     "IL",                       // NM101 Insured/subscriber
                     "1",                        // NM102 Person
-                    person.LastName!,           // NM103
-                    person.FirstName!,          // NM104
+                    subscriber.SubscriberLastName,  // NM103
+                    subscriber.SubscriberFirstName, // NM104
                     "", "",                     // NM105-106 not used
                     "",                         // NM107 not used
                     "MI",                       // NM108 Member ID qualifier
-                    person.MaineCareId!         // NM109 MaineCare ID
+                    subscriber.SubscriberMemberId // NM109 MaineCare ID
                 ));
+
+                sb.AppendLine(Seg("N3", subscriber.SubscriberStreet));
+                sb.AppendLine(Seg("N4", subscriber.SubscriberCity,
+                    subscriber.SubscriberState, subscriber.SubscriberZip));
 
                 sb.AppendLine(Seg("DMG",
                     "D8",                                           // DMG01 Date format
-                    person.BirthDate.ToString("yyyyMMdd"),          // DMG02 DOB
-                    person.Gender switch                            // DMG03 Gender
-                    {
-                        Gender.Male => "M",
-                        Gender.Female => "F",
-                        _ => "U"
-                    }
+                    subscriber.SubscriberBirthDate.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture),
+                    subscriber.SubscriberGenderCode
                 ));
 
                 // ─── Loop 2010BB — Payer ─────────────────────────────────────────
                 sb.AppendLine(Seg("NM1",
                     "PR",                       // NM101 Payer
                     "2",                        // NM102 Non-person entity
-                    PayerName,                  // NM103
+                    subscriber.PayerName,       // NM103
                     "", "", "", "",             // NM104-107 not used
                     "PI",                       // NM108 Payer ID qualifier
-                    PayerId                     // NM109 OA payer ID
+                    subscriber.PayerId          // NM109 payer ID
                 ));
 
                 // ─── Loop 2300 — One claim per note ──────────────────────────────
                 var claimCounter = 1;
-                foreach (var line in personGroup)
+                foreach (var row in personGroup)
                 {
+                    var line = row.Line;
                     var claimId = $"{period.Id}-{line.NoteId}";
 
+                    var units = BillingRules.FormatDecimal(line.Units ?? 0m);
+                    var charge = BillingRules.FormatDecimal(line.ChargeAmount);
+                    var procedure = $"HC{SubSep}{line.ProcedureCode}" +
+                        (string.IsNullOrWhiteSpace(line.ProcedureModifier)
+                            ? string.Empty
+                            : $"{SubSep}{line.ProcedureModifier}");
                     sb.AppendLine(Seg("CLM",
                         claimId,                            // CLM01 Claim submitter ID
-                        line.Units?.ToString("F2") ?? "0",  // CLM02 Total charge
+                        charge,                             // CLM02 Total charge
                         "", "",                             // CLM03-04 not used
-                        $"{line.PlaceOfService}{SubSep}{SubSep}1", // CLM05 place:qualifier:participation
+                        $"{line.PlaceOfService:D2}{SubSep}{SubSep}1", // CLM05 place:qualifier:participation
                         "Y",                                // CLM06 Provider signature on file
                         "A",                                // CLM07 Assignment (A = assigned)
                         "Y",                                // CLM08 Benefits assigned
@@ -254,11 +265,11 @@ namespace Sati.Helpers
                     sb.AppendLine(Seg("LX", claimCounter.ToString()));
 
                     sb.AppendLine(Seg("SV1",
-                        $"HC{SubSep}{ProcedureCode}",           // SV101 Procedure (HC = HCPCS)
-                        line.Units?.ToString("F2") ?? "0",       // SV102 Charge
+                        procedure,                              // SV101 Procedure and modifier
+                        charge,                                 // SV102 Charge
                         "UN",                                    // SV103 Unit basis (UN = unit)
-                        line.Units?.ToString("F2") ?? "0",       // SV104 Units
-                        line.PlaceOfService.ToString(),          // SV105 Place of service
+                        units,                                  // SV104 Units
+                        line.PlaceOfService.ToString("D2"),     // SV105 Place of service
                         "",                                      // SV106 not used
                         ""                                       // SV107 not used
                     ));
@@ -275,9 +286,8 @@ namespace Sati.Helpers
 
             // ─── SE — Transaction Set Trailer ────────────────────────────────────
             // SE01 is the segment count — every segment from ST to SE inclusive.
-            var segmentCount = sb.ToString()
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Length + 1; // +1 for SE itself
+            // SE01 counts ST through SE inclusive; ISA and GS are outside the transaction set.
+            var segmentCount = sb.ToString().Count(character => character == '~') - 1;
 
             sb.AppendLine(Seg("SE",
                 segmentCount.ToString(),        // SE01 Segment count
@@ -304,5 +314,55 @@ namespace Sati.Helpers
         {
             return id + ElemSep + string.Join(ElemSep, elements) + SegTerm;
         }
+
+        private static void Validate(
+            ProfessionalClaimSnapshot envelope,
+            IEnumerable<EdiSnapshotRow> rows)
+        {
+            if (!BillingRules.IsSafeX12Element(envelope.BillingProviderName, 60) ||
+                !BillingRules.IsValidNpi(envelope.BillingProviderNpi) ||
+                !BillingRules.IsSafeX12Element(envelope.BillingProviderTaxId, 50) ||
+                !BillingRules.IsSafeX12Element(envelope.BillingProviderStreet, 55) ||
+                !BillingRules.IsSafeX12Element(envelope.BillingProviderCity, 30) ||
+                !BillingRules.IsSafeX12Element(envelope.BillingProviderState, 2) ||
+                !BillingRules.IsSafeX12Element(envelope.BillingProviderZip, 15) ||
+                !BillingRules.IsSafeX12Element(envelope.SubmitterId, 15) ||
+                !BillingRules.IsSafeX12Element(envelope.PayerName, 60) ||
+                !BillingRules.IsSafeX12Element(envelope.PayerId, 80) ||
+                !BillingRules.IsSafeX12Element(envelope.SubmitterContactName, 60) ||
+                envelope.SubmitterContactPhone.Length is < 10 or > 15 ||
+                envelope.SubmitterContactPhone.Any(character => !char.IsDigit(character)))
+                throw new InvalidOperationException("The agency billing and EDI configuration is incomplete or invalid.");
+
+            foreach (var row in rows)
+            {
+                var line = row.Line;
+                var snapshot = row.Snapshot;
+                if (snapshot.AgencyId != envelope.AgencyId ||
+                    snapshot.SubmitterId != envelope.SubmitterId ||
+                    snapshot.PayerId != envelope.PayerId ||
+                    snapshot.BillingProviderNpi != envelope.BillingProviderNpi)
+                    throw new InvalidOperationException("The billing period mixes incompatible provider or payer snapshots.");
+                if (!BillingRules.IsSafeX12Element(snapshot.SubscriberFirstName, 35) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberLastName, 60) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberMemberId, 80) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberStreet, 55) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberCity, 30) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberState, 2) ||
+                    !BillingRules.IsSafeX12Element(snapshot.SubscriberZip, 15) ||
+                    snapshot.SubscriberGenderCode is not ("M" or "F" or "U"))
+                    throw new InvalidOperationException($"Claim line {line.Id} has an invalid subscriber snapshot.");
+                if (!BillingRules.IsValidProcedureCode(line.ProcedureCode) ||
+                    !BillingRules.IsValidModifier(line.ProcedureModifier) ||
+                    !BillingRules.IsValidDiagnosisCode(line.DiagnosisCode) ||
+                    line.PlaceOfService is < 1 or > 99 ||
+                    line.Units is null or <= 0 || line.ChargeAmount <= 0)
+                    throw new InvalidOperationException($"Claim line {line.Id} is incomplete or invalid for EDI generation.");
+            }
+        }
+
+        private sealed record EdiSnapshotRow(
+            ClaimLine Line,
+            ProfessionalClaimSnapshot Snapshot);
     }
 }

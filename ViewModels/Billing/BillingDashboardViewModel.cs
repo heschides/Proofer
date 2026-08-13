@@ -25,6 +25,7 @@ namespace Sati.ViewModels.Billing
             _alertsViewModel = alertsViewModel;
 
             CurrentSubView = _overviewViewModel;
+            _ = _overviewViewModel.LoadAsync();
         }
 
         [ObservableProperty] private object? currentSubView;
@@ -45,8 +46,12 @@ namespace Sati.ViewModels.Billing
         }
 
         [RelayCommand]
-        private void NavigateToOverview() =>
+        private void NavigateToOverview()
+        {
             CurrentSubView = _overviewViewModel;
+            if (!_overviewViewModel.HasLoaded)
+                _ = _overviewViewModel.LoadAsync();
+        }
 
         [RelayCommand]
         private void NavigateToQueue()

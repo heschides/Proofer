@@ -52,6 +52,10 @@ internal static class ContractMapper
         person.GuardianName,
         person.PhoneNumber,
         person.Address,
+        person.BillingStreet,
+        person.BillingCity,
+        person.BillingState,
+        person.BillingZip,
         person.PrimaryCareProvider,
         person.HealthcareSystemName,
         person.HasHomeSupport,
@@ -136,13 +140,25 @@ internal static class ContractMapper
         line.BillingPeriodId,
         line.DateOfService,
         line.ProcedureCode,
+        line.ProcedureModifier,
         line.Units,
+        line.ChargeAmount,
         line.ClientMaineCareId,
         line.RenderingProviderNpi,
         line.DiagnosisCode,
         line.PlaceOfService,
         line.IsComplianceException,
         line.ComplianceExceptionReason);
+
+    public static BillingConfigurationDto ToBillingConfiguration(ServerAgency agency) => new(
+        agency.BillingProcedureCode ?? string.Empty,
+        agency.BillingModifier,
+        agency.BillingUnitRate,
+        agency.EdiSubmitterId ?? string.Empty,
+        agency.EdiPayerName ?? string.Empty,
+        agency.EdiPayerId ?? string.Empty,
+        agency.EdiContactName ?? string.Empty,
+        agency.EdiContactPhone ?? string.Empty);
 
     public static ScratchpadDto ToScratchpad(
         ServerScratchpad scratchpad,

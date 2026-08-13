@@ -191,6 +191,55 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
 - [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
 - [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
+- [ ] Review and remove the pre-existing Azure SQL firewall rule
+      `ClientIPAddress_2026-8-12_14-41-29` if no active operator still owns it; the August 13 billing
+      deployment's temporary rules were removed, but unrelated pre-existing access was not changed.
+
+### Next major slice after billing — tenant-safe incident and health pipeline
+
+- [ ] Capture structured client and API incidents with UTC time, release, agency, actor role,
+      operation, correlation/reference ID, severity, exception fingerprint, recurrence count, and
+      lifecycle status; never capture note narratives, passwords, tokens, connection strings, or
+      unrestricted exception messages.
+- [ ] Deduplicate repeated failures into stable incident groups while retaining occurrence counts,
+      first/last-seen times, affected releases, and a bounded diagnostic envelope.
+- [ ] Add an Admin-only agency incident table with filters for severity, status, release, operation,
+      date, and fingerprint. Enforce agency scope at the API and data boundaries, not only in the UI.
+- [ ] Introduce a separately named platform-operator capability for cross-tenant incident visibility.
+      Do not treat an ordinary agency Admin as a master account, and audit every cross-tenant view
+      or export.
+- [ ] Define transparent, versioned agency and platform health scores using documented inputs such
+      as crash-free sessions, severe-error rate, recurrence, unresolved age, API availability, and
+      data-job failures. Show the component scores and data window so the number is explainable.
+- [ ] Add retention, legal-hold, access-review, alerting, and runbook requirements; prove PHI/PII
+      minimization, tenant isolation, bounded queries, concurrency, and score calculations with
+      automated tests before enabling production collection.
+
+### Completed 2026-08-13 — billing gate and 837P hardening slice
+
+- [x] Replace the obsolete hardcoded queue code with agency-scoped procedure/modifier/rate,
+      submitter, payer, and contact configuration, enforced by Admin-only API and service boundaries.
+- [x] Revalidate note approval, current compliance, historical billing windows, subscriber fields,
+      provider NPI/address/tax fields, and EDI configuration immediately before claim creation.
+- [x] Apply the current Section 13 minimum/partial-unit rule and keep service units separate from
+      calculated monetary charges in claim lines and 837P CLM/SV1 segments.
+- [x] Require submit-and-lock before EDI generation, preserve retry idempotency, generate ISA16,
+      calculate SE01 from ST through SE, and validate fixed ISA length and service-line structure.
+- [x] Freeze subscriber, provider, submitter, and payer values in an immutable per-claim snapshot so
+      later Person or Agency edits cannot silently rewrite a financial record.
+- [x] Add structured subscriber claim-address fields and an accessible editor; generate 2010BA
+      N3/N4 segments rather than attempting to parse a free-form address.
+- [x] Add an idempotent Demo-only seed with three ready and seven deliberately blocked examples;
+      verify all ten through the real billing service and keep ready rows first in the queue.
+- [x] Back up and verify local Demo and Production databases before applying the migration; seed
+      synthetic rows only in Demo.
+- [x] Apply the additive migration and the same ten-row seed to Azure `SatiDemo`, verify 3 ready / 7
+      blocked through the real service, deploy the matching Demo API, and remove temporary firewall rules.
+- [ ] Obtain the agency's authoritative fee/code configuration and payer enrollment identifiers,
+      then pass clearinghouse test-file validation and payer-specific acceptance. Generated 837P
+      structure is tested, but Sati is not yet certified for live claims.
+- [ ] Implement 999/277CA acknowledgments, claim rejection correction, 835 remittance import,
+      payment/reconciliation, void/replacement claims, and operational submission transport.
 
 ### Completed 2026-08-13 -- presenter acceptance kit
 
@@ -501,7 +550,7 @@ and broad supervisory analytics are not assumed to belong in the first mobile cl
 - No parallel copy of authoritative business rules in WPF and Avalonia.
 - No abandonment of WPF unless cross-platform desktop demand and a measured migration case justify
   it.
-## Billing Pipeline (Next Dedicated Session)
+## Billing Pipeline (historical plan; superseded by the completed hardening slice above)
 
 ### Data model changes needed
 - [ ] Add `CompletedDate DateTime?` to `Form` + migration

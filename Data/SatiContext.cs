@@ -70,6 +70,7 @@ namespace Sati.Data
                 entity.Property(a => a.Name)
                       .IsRequired()
                       .HasMaxLength(100);
+                entity.Property(a => a.BillingUnitRate).HasColumnType("decimal(18,2)");
                 entity.HasData(
                                     new Agency { Id = 1, Name = "Internal" },
                                     new Agency { Id = 2, Name = "Sandbox Mode" });
@@ -182,6 +183,10 @@ namespace Sati.Data
                 entity.Property(p => p.GuardianName).HasMaxLength(100);
                 entity.Property(p => p.PhoneNumber).HasMaxLength(20);
                 entity.Property(p => p.Address).HasMaxLength(250);
+                entity.Property(p => p.BillingStreet).HasMaxLength(55);
+                entity.Property(p => p.BillingCity).HasMaxLength(30);
+                entity.Property(p => p.BillingState).HasMaxLength(2);
+                entity.Property(p => p.BillingZip).HasMaxLength(15);
                 entity.Property(p => p.PrimaryCareProvider).HasMaxLength(100);
                 entity.Property(p => p.HealthcareSystemName).HasMaxLength(100); entity.HasOne<User>()
                       .WithMany()
@@ -423,6 +428,7 @@ namespace Sati.Data
                 entity.HasKey(c => c.Id);
                 entity.HasIndex(c => c.NoteId).IsUnique();
                 entity.Property(c => c.Units).HasColumnType("decimal(18,2)");
+                entity.Property(c => c.ChargeAmount).HasColumnType("decimal(18,2)");
                 entity.HasOne(c => c.BillingPeriod)
                       .WithMany(b => b.Lines)
                       .HasForeignKey(c => c.BillingPeriodId)

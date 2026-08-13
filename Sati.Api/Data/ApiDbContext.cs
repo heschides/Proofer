@@ -121,6 +121,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Agencies");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.BillingUnitRate).HasColumnType("decimal(18,2)");
         });
 
         modelBuilder.Entity<ServerBillingPeriod>(entity =>
@@ -137,6 +138,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.NoteId).IsUnique();
             entity.Property(x => x.Units).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.ChargeAmount).HasColumnType("decimal(18,2)");
             entity.HasOne<ServerBillingPeriod>()
                 .WithMany(x => x.Lines)
                 .HasForeignKey(x => x.BillingPeriodId)
@@ -298,6 +300,10 @@ internal sealed class ServerPerson
     public string? GuardianName { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Address { get; set; }
+    public string? BillingStreet { get; set; }
+    public string? BillingCity { get; set; }
+    public string? BillingState { get; set; }
+    public string? BillingZip { get; set; }
     public string? PrimaryCareProvider { get; set; }
     public string? HealthcareSystemName { get; set; }
     public bool HasHomeSupport { get; set; }
@@ -478,6 +484,14 @@ internal sealed class ServerAgency
     public string? City { get; set; }
     public string? State { get; set; }
     public string? Zip { get; set; }
+    public string? BillingProcedureCode { get; set; }
+    public string? BillingModifier { get; set; }
+    public decimal? BillingUnitRate { get; set; }
+    public string? EdiSubmitterId { get; set; }
+    public string? EdiPayerName { get; set; }
+    public string? EdiPayerId { get; set; }
+    public string? EdiContactName { get; set; }
+    public string? EdiContactPhone { get; set; }
 }
 
 internal sealed class ServerBillingPeriod
@@ -498,11 +512,14 @@ internal sealed class ServerClaimLine
     public int BillingPeriodId { get; set; }
     public DateTime DateOfService { get; set; }
     public string ProcedureCode { get; set; } = string.Empty;
+    public string? ProcedureModifier { get; set; }
     public decimal? Units { get; set; }
+    public decimal ChargeAmount { get; set; }
     public string ClientMaineCareId { get; set; } = string.Empty;
     public string RenderingProviderNpi { get; set; } = string.Empty;
     public string DiagnosisCode { get; set; } = string.Empty;
     public int PlaceOfService { get; set; }
+    public string? ClaimSnapshotJson { get; set; }
     public bool IsComplianceException { get; set; }
     public string? ComplianceExceptionReason { get; set; }
 }

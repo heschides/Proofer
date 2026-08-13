@@ -13,6 +13,7 @@ namespace Sati.ViewModels.Billing
         public ObservableCollection<BillingQueueItemViewModel> QueueItems { get; } = [];
 
         [ObservableProperty] private bool isBusy;
+        [ObservableProperty] private string statusMessage = string.Empty;
         public bool HasLoaded { get; private set; }
 
         public int ValidCount => QueueItems.Count(r => r.IsValid);
@@ -27,16 +28,33 @@ namespace Sati.ViewModels.Billing
         public async Task LoadAsync()
         {
             IsBusy = true;
-            Debug.WriteLine($"[BillingQueue] LoadAsync started — {DateTime.Now:HH:mm:ss.fff}");
-            var notes = await _billingService.GetApprovedUnbilledNotesAsync();
-            Debug.WriteLine($"[BillingQueue] GetApprovedUnbilledNotesAsync returned {notes.Count()} notes — {DateTime.Now:HH:mm:ss.fff}");
-            QueueItems.Clear();
-            foreach (var note in notes)
-                QueueItems.Add(new BillingQueueItemViewModel(_billingService.ValidateNoteForBilling(note)));
-            RefreshCounts();
-            HasLoaded = true;
-            IsBusy = false;
-            Debug.WriteLine($"[BillingQueue] LoadAsync complete — {DateTime.Now:HH:mm:ss.fff}");
+            StatusMessage = string.Empty;
+            try
+            {
+                Debug.WriteLine($"[BillingQueue] LoadAsync started — {DateTime.Now:HH:mm:ss.fff}");
+                var configuration = await _billingService.GetBillingConfigurationAsync();
+                var notes = await _billingService.GetApprovedUnbilledNotesAsync();
+                Debug.WriteLine($"[BillingQueue] GetApprovedUnbilledNotesAsync returned {notes.Count()} notes — {DateTime.Now:HH:mm:ss.fff}");
+                QueueItems.Clear();
+                var items = notes.Select(note => new BillingQueueItemViewModel(
+                    _billingService.ValidateNoteForBilling(note), configuration));
+                foreach (var item in items
+                    .OrderByDescending(candidate => candidate.IsValid)
+                    .ThenBy(candidate => candidate.Result.Note.EventDate))
+                    QueueItems.Add(item);
+                RefreshCounts();
+                HasLoaded = true;
+                Debug.WriteLine($"[BillingQueue] LoadAsync complete — {DateTime.Now:HH:mm:ss.fff}");
+            }
+            catch
+            {
+                StatusMessage = "The billing queue could not be loaded. Please try Refresh.";
+                throw;
+            }
+            finally
+            {
+                IsBusy = false;
+            }
 
         }
 
@@ -46,13 +64,21 @@ namespace Sati.ViewModels.Billing
             if (!item.IsValid)
                 return;
 
-            await _billingService.CreateClaimLineAsync(
-                item.Result.Note.Id,
-                item.Result.Note.ComplianceOverride,
-                item.Result.Note.OverrideReason);
-
-            QueueItems.Remove(item);
-            RefreshCounts();
+            try
+            {
+                await _billingService.CreateClaimLineAsync(
+                    item.Result.Note.Id,
+                    item.Result.Note.ComplianceOverride,
+                    item.Result.Note.OverrideReason);
+                QueueItems.Remove(item);
+                RefreshCounts();
+                StatusMessage = "The selected service was added to its draft billing period.";
+            }
+            catch
+            {
+                StatusMessage = "The service changed or could not be promoted. Refresh the queue before retrying.";
+                throw;
+            }
         }
 
         [RelayCommand]
@@ -62,17 +88,28 @@ namespace Sati.ViewModels.Billing
                 .Where(r => r.IsSelected && r.IsValid)
                 .ToList();
 
+            var promoted = 0;
             foreach (var item in toPromote)
             {
-                await _billingService.CreateClaimLineAsync(
-                    item.Result.Note.Id,
-                    item.Result.Note.ComplianceOverride,
-                    item.Result.Note.OverrideReason);
-
-                QueueItems.Remove(item);
+                try
+                {
+                    await _billingService.CreateClaimLineAsync(
+                        item.Result.Note.Id,
+                        item.Result.Note.ComplianceOverride,
+                        item.Result.Note.OverrideReason);
+                    QueueItems.Remove(item);
+                    promoted++;
+                }
+                catch
+                {
+                    StatusMessage = $"Promoted {promoted} service(s). A later service changed or failed; refresh before retrying.";
+                    RefreshCounts();
+                    throw;
+                }
             }
 
             RefreshCounts();
+            StatusMessage = $"Promoted {promoted} service(s) into draft billing periods.";
         }
 
         [RelayCommand]

@@ -1062,6 +1062,53 @@
                                         <TextBox Text="{Binding DayProgramCount, UpdateSourceTrigger=LostFocus}" Width="42" AutomationProperties.Name="Day program count" />
                                     </StackPanel>
                                 </StackPanel>
+
+                                <Grid Grid.Row="4" Grid.ColumnSpan="4" Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="0.8*" />
+                                        <ColumnDefinition Width="0.7*" />
+                                        <ColumnDefinition Width="1.5*" />
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="0.45*" />
+                                        <ColumnDefinition Width="0.75*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="MAINECARE ID" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding MaineCareId, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="MaineCare member ID" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                        <TextBlock Text="DIAGNOSIS" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding DiagnosisCode, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Billing diagnosis code" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                        <TextBlock Text="PLACE" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding PlaceOfService, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Two digit place of service" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Margin="0,0,10,0">
+                                        <TextBlock Text="CLAIM STREET" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding BillingStreet, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Subscriber claim street" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4" Margin="0,0,10,0">
+                                        <TextBlock Text="CITY" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding BillingCity, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Subscriber claim city" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="5" Margin="0,0,10,0">
+                                        <TextBlock Text="STATE" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding BillingState, UpdateSourceTrigger=PropertyChanged}" MaxLength="2"
+                                                 AutomationProperties.Name="Subscriber claim state" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="6">
+                                        <TextBlock Text="ZIP" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding BillingZip, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Subscriber claim ZIP code" />
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </ScrollViewer>
                     </Border>

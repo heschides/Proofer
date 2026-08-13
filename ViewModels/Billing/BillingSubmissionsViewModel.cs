@@ -39,9 +39,17 @@ namespace Sati.ViewModels.Billing
 
         public bool HasSelectedPeriod => SelectedPeriod is not null;
         public bool HasGeneratedFile => !string.IsNullOrWhiteSpace(LastGeneratedPath);
+        public bool CanSubmitPeriod => SelectedPeriod is
+            { Status: BillingStatus.Draft, Lines.Count: > 0 };
+        public bool CanGenerateEdi => SelectedPeriod is
+            { Status: BillingStatus.Submitted, Lines.Count: > 0 };
 
         partial void OnSelectedPeriodChanged(BillingPeriod? value)
-            => OnPropertyChanged(nameof(HasSelectedPeriod));
+        {
+            OnPropertyChanged(nameof(HasSelectedPeriod));
+            OnPropertyChanged(nameof(CanSubmitPeriod));
+            OnPropertyChanged(nameof(CanGenerateEdi));
+        }
 
         partial void OnLastGeneratedPathChanged(string? value)
             => OnPropertyChanged(nameof(HasGeneratedFile));
@@ -69,9 +77,37 @@ namespace Sati.ViewModels.Billing
         }
 
         [RelayCommand]
+        private async Task SubmitPeriod()
+        {
+            if (!CanSubmitPeriod || SelectedPeriod is null)
+                return;
+
+            try
+            {
+                IsGenerating = true;
+                StatusMessage = "Submitting and locking billing period...";
+                var selectedId = SelectedPeriod.Id;
+                await _billingService.SubmitBillingPeriodAsync(selectedId);
+                HasLoaded = false;
+                await LoadAsync();
+                SelectedPeriod = BillingPeriods.SingleOrDefault(period => period.Id == selectedId);
+                StatusMessage = "Billing period submitted and locked. It is ready for 837P generation.";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Submit billing period failed: {ex.Message}");
+                StatusMessage = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                IsGenerating = false;
+            }
+        }
+
+        [RelayCommand]
         private async Task GenerateEdi()
         {
-            if (SelectedPeriod is null)
+            if (!CanGenerateEdi || SelectedPeriod is null)
                 return;
 
             if (_pendingEdiKey is null || _pendingPeriodId != SelectedPeriod.Id || _pendingIsTest != IsTestMode)

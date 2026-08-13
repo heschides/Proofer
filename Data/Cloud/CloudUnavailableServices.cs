@@ -349,6 +349,23 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
         var errors = _candidateErrors.GetValueOrDefault(note.Id) ?? ["Billing validation was not loaded for this note."];
         return new BillingValidationResult(errors.Count == 0, note, errors);
     }
+
+    public async Task<BillingConfiguration> GetBillingConfigurationAsync() =>
+        CloudContractMapper.ToBillingConfiguration(
+            await api.GetAsync<BillingConfigurationDto>("/api/v1/billing/configuration"));
+
+    public async Task SaveBillingConfigurationAsync(BillingConfiguration configuration) =>
+        _ = await api.PutAsync<SaveBillingConfigurationRequest, BillingConfigurationDto>(
+            "/api/v1/billing/configuration",
+            new SaveBillingConfigurationRequest(
+                configuration.ProcedureCode,
+                configuration.Modifier,
+                configuration.UnitRate,
+                configuration.EdiSubmitterId,
+                configuration.PayerName,
+                configuration.PayerId,
+                configuration.ContactName,
+                configuration.ContactPhone));
 }
 
 public sealed class CloudEdiService(CloudApiClient api) : IEdiService

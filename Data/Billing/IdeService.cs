@@ -11,12 +11,10 @@ namespace Sati.Edi
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISessionService _sessionService;
 
-        // Submitter ID — Tax ID without hyphens. Replace with OA-assigned
-        // submitter ID after enrollment if different.
-        private const string SubmitterId = "010278395";
-
-        // Output directory for generated 837P files.
-        private const string OutputDirectory = @"C:\Published\Sati\Contained\EDI";
+        // User-scoped output avoids requiring administrator rights or a machine-global folder.
+        private static readonly string OutputDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Sati", "EDI");
 
         public EdiService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
         {
@@ -46,9 +44,6 @@ namespace Sati.Edi
             var period = await context.BillingPeriods
                 .Include(p => p.User)
                 .Include(p => p.Lines)
-                    .ThenInclude(l => l.Note)
-                        .ThenInclude(n => n.Person)
-                            .ThenInclude(p => p.Agency)
                 .FirstOrDefaultAsync(p => p.Id == billingPeriodId)
                 ?? throw new InvalidOperationException(
                     $"Billing period {billingPeriodId} not found.");
@@ -59,10 +54,14 @@ namespace Sati.Edi
             if (!period.Lines.Any())
                 throw new InvalidOperationException(
                     $"Billing period {billingPeriodId} has no claim lines.");
+            if (period.Status != BillingStatus.Submitted)
+                throw new InvalidOperationException(
+                    "Submit and lock the billing period before generating its 837P file.");
 
             var generatedAt = DateTime.Now;
             var controlNumber = CreateEdiControlNumber(normalizedKey);
-            var ediContent = EdiGenerator.Generate(period, SubmitterId, isTest, generatedAt, controlNumber);
+            var ediContent = EdiGenerator.Generate(
+                period, isTest, generatedAt, controlNumber);
 
             // File naming per OA companion guide:
             // - Must contain OATEST for test files
@@ -83,6 +82,8 @@ namespace Sati.Edi
                 Content = ediContent,
                 CreatedAtUtc = DateTime.UtcNow
             });
+            LocalAuditTrail.Record(context, actor, LocalAuditActions.BillingEdiGenerated,
+                "BillingPeriod", billingPeriodId);
             try
             {
                 await context.SaveChangesAsync();

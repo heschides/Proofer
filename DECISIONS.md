@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-12.*
+sections at the bottom. Last updated: 2026-08-13.*
 
 ---
 
@@ -410,3 +410,27 @@ event use one EF Core save transaction so neither can commit alone. Application 
 tracked audit updates/deletes; production SQL permissions and retention/legal-hold procedures remain
 required. Assessment revisions use optimistic concurrency and return HTTP 409 for stale writes.
 Claim lines are unique by service-note ID, making repeat billing commands fail safely.
+
+## 2026-08-13 — Billing records freeze their claim inputs
+
+A claim line stores the service date, procedure/modifier, units, charge, diagnosis, place of service,
+and a versioned immutable snapshot of the subscriber, billing provider, submitter, and payer values
+used to create it. The 837P generator reads that snapshot rather than live Person or Agency rows.
+Later corrections require a deliberate financial correction/amendment workflow; an address or agency
+configuration edit must never silently rewrite a claim that was already assembled.
+
+**Rejected:** resolving subscriber/provider values live during EDI generation. That would make the
+same submitted period render differently after an ordinary profile edit and would destroy the
+evidentiary meaning of the stored file.
+
+## 2026-08-13 — Billing rules are configured per tenant and revalidated at promotion
+
+Procedure, modifier, unit rate, submitter, payer, and contact values belong to the agency tenant and
+are administered only through an Admin-authorized boundary. Queue display is advisory: claim creation
+reloads and rechecks approval, current compliance, the historical billing window, identifiers,
+structured addresses, provider fields, and configuration immediately before persistence.
+
+The shared Section 13 arithmetic grants a one-unit minimum for a substantive contact up to 15 minutes
+and preserves partial 15-minute units thereafter. Units and monetary charges are separate fields.
+Representative Demo values prove behavior only; live use still requires the agency's authoritative
+contract/rate and clearinghouse/payer acceptance.

@@ -58,15 +58,21 @@
                        VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- Generate button -->
+        <!-- Lock and generate actions -->
         <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     Margin="0,0,0,16">
+            <Button Content="Submit &amp; Lock Period"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="180"
+                    Command="{Binding SubmitPeriodCommand}"
+                    IsEnabled="{Binding CanSubmitPeriod}"
+                    Margin="0,0,12,0" />
             <Button Content="Generate 837P File"
                     Style="{StaticResource PrimaryButton}"
                     Width="180"
                     Command="{Binding GenerateEdiCommand}"
-                    IsEnabled="{Binding HasSelectedPeriod}"
+                    IsEnabled="{Binding CanGenerateEdi}"
                     Margin="0,0,12,0" />
             <Button Content="Open Output Folder"
                     Style="{StaticResource SmallButton}"

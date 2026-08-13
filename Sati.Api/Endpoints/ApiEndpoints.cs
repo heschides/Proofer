@@ -2064,6 +2064,68 @@ internal static class ApiEndpoints
 
     private static void MapBilling(RouteGroupBuilder api)
     {
+        api.MapGet("/billing/configuration", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            var agency = await db.Agencies.AsNoTracking()
+                .SingleAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
+            return Results.Ok(ContractMapper.ToBillingConfiguration(agency));
+        });
+
+        api.MapPut("/billing/configuration", async Task<IResult> (
+            SaveBillingConfigurationRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var procedureCode = Normalize(request.ProcedureCode)?.ToUpperInvariant() ?? string.Empty;
+            var modifier = Normalize(request.Modifier)?.ToUpperInvariant();
+            var submitterId = Normalize(request.EdiSubmitterId) ?? string.Empty;
+            var payerName = Normalize(request.PayerName) ?? string.Empty;
+            var payerId = Normalize(request.PayerId) ?? string.Empty;
+            var contactName = Normalize(request.ContactName) ?? string.Empty;
+            var contactPhone = new string((request.ContactPhone ?? string.Empty).Where(char.IsDigit).ToArray());
+            var errors = new Dictionary<string, string[]>();
+            if (!BillingRules.IsValidProcedureCode(procedureCode))
+                errors["procedureCode"] = ["Procedure code must contain four or five letters or digits."];
+            if (!BillingRules.IsValidModifier(modifier))
+                errors["modifier"] = ["Modifier must be blank or contain exactly two letters or digits."];
+            if (request.UnitRate is null or <= 0 or > 100_000)
+                errors["unitRate"] = ["Unit rate must be greater than zero and no more than 100,000."];
+            if (!BillingRules.IsSafeX12Element(submitterId, 15))
+                errors["ediSubmitterId"] = ["Submitter ID is required, must be X12-safe, and cannot exceed 15 characters."];
+            if (!BillingRules.IsSafeX12Element(payerName, 60) || !BillingRules.IsSafeX12Element(payerId, 80))
+                errors["payer"] = ["Payer name and ID are required and must be safe X12 values."];
+            if (!BillingRules.IsSafeX12Element(contactName, 60) || contactPhone.Length is < 10 or > 15)
+                errors["contact"] = ["Contact name and a 10-to-15 digit telephone number are required."];
+            if (errors.Count > 0)
+                return Results.ValidationProblem(errors);
+
+            var agency = await db.Agencies.SingleAsync(
+                candidate => candidate.Id == actor.AgencyId, cancellationToken);
+            agency.BillingProcedureCode = procedureCode;
+            agency.BillingModifier = modifier;
+            agency.BillingUnitRate = request.UnitRate;
+            agency.EdiSubmitterId = submitterId;
+            agency.EdiPayerName = payerName;
+            agency.EdiPayerId = payerId;
+            agency.EdiContactName = contactName;
+            agency.EdiContactPhone = contactPhone;
+            auditTrail.Record(actor, AuditActions.BillingConfigurationUpdated, "Agency", agency.Id);
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ContractMapper.ToBillingConfiguration(agency));
+        });
+
         api.MapPost("/billing/periods/{year:int}/{month:int}", async Task<IResult> (
             int year,
             int month,
@@ -2137,9 +2199,17 @@ internal static class ApiEndpoints
                               select new ReviewableNote(note, person)).ToListAsync(cancellationToken);
             var agency = await db.Agencies.AsNoTracking()
                 .SingleOrDefaultAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
+            var personIds = rows.Select(row => row.Person.Id).Distinct().ToList();
+            var formsByPerson = (await db.Forms.AsNoTracking()
+                    .Where(form => personIds.Contains(form.PersonId))
+                    .ToListAsync(cancellationToken))
+                .GroupBy(form => form.PersonId)
+                .ToDictionary(group => group.Key, group => (IReadOnlyList<ServerForm>)group.ToList());
+            var today = BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow);
             var candidates = rows.Select(row => new BillingCandidateDto(
                 ContractMapper.ToNote(row.Note, row.Person),
-                ValidateBillingCandidate(row.Note, row.Person, agency))).ToList();
+                ValidateBillingCandidate(row.Note, row.Person, agency,
+                    formsByPerson.GetValueOrDefault(row.Person.Id) ?? [], today))).ToList();
             return Results.Ok(candidates);
         });
 
@@ -2166,7 +2236,11 @@ internal static class ApiEndpoints
                 return DuplicateClaimLineConflict();
             var agency = await db.Agencies.AsNoTracking()
                 .SingleOrDefaultAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
-            var errors = ValidateBillingCandidate(row.Note, row.Person, agency);
+            var forms = await db.Forms.AsNoTracking()
+                .Where(form => form.PersonId == row.Person.Id)
+                .ToListAsync(cancellationToken);
+            var errors = ValidateBillingCandidate(row.Note, row.Person, agency, forms,
+                BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow));
             if (errors.Count > 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = errors.ToArray() });
 
@@ -2193,12 +2267,18 @@ internal static class ApiEndpoints
                 NoteId = row.Note.Id,
                 BillingPeriodId = period.Id,
                 DateOfService = serviceDate,
-                ProcedureCode = "T1016",
-                Units = CalculateUnits(row.Note.Minutes),
+                ProcedureCode = agency!.BillingProcedureCode!,
+                ProcedureModifier = agency.BillingModifier,
+                Units = BillingRules.CalculateSection13Units(row.Note.Minutes),
+                ChargeAmount = BillingRules.CalculateCharge(
+                    BillingRules.CalculateSection13Units(row.Note.Minutes),
+                    agency.BillingUnitRate!.Value),
                 ClientMaineCareId = row.Person.MaineCareId!,
                 RenderingProviderNpi = agency!.Npi!,
                 DiagnosisCode = row.Person.DiagnosisCode!,
                 PlaceOfService = row.Person.PlaceOfService!.Value,
+                ClaimSnapshotJson = ProfessionalClaimSnapshotCodec.Serialize(
+                    CreateClaimSnapshot(row.Person, agency)),
                 IsComplianceException = request.IsComplianceException,
                 ComplianceExceptionReason = Normalize(request.ComplianceExceptionReason)
             };
@@ -2253,6 +2333,13 @@ internal static class ApiEndpoints
                 return Results.Ok(ContractMapper.ToBillingPeriod(period));
             if (period.Status != 0)
                 return Results.Conflict(new ApiErrorDto("invalid_period_status", "Only draft billing periods can be submitted.", string.Empty));
+            if (period.Lines.Count == 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["period"] = ["A billing period with no claim lines cannot be submitted."]
+                });
+            }
             period.Status = 1;
             period.SubmittedAt = DateTime.UtcNow;
             auditTrail.Record(actor, AuditActions.BillingPeriodSubmitted, "BillingPeriod", periodId);
@@ -2307,6 +2394,11 @@ internal static class ApiEndpoints
                 return Results.NotFound();
             if (period.Lines.Count == 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["The billing period has no claim lines."] });
+            if (period.Status != 1)
+                return Results.Conflict(new ApiErrorDto(
+                    "billing_period_not_submitted",
+                    "Submit and lock the billing period before generating its 837P file.",
+                    string.Empty));
 
             var noteIds = period.Lines.Select(line => line.NoteId).Distinct().ToList();
             var sourceRows = await (from note in db.Notes.AsNoTracking()
@@ -2325,13 +2417,10 @@ internal static class ApiEndpoints
                     string.Empty));
             }
 
-            var notes = sourceRows.Select(row => row.Note).ToList();
-            var people = sourceRows.Select(row => row.Person).DistinctBy(person => person.Id).ToList();
-            var agency = await db.Agencies.AsNoTracking().SingleAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
             var generatedAt = DateTime.Now;
             var controlNumber = CreateEdiControlNumber(normalizedKey);
             var content = ServerEdiGenerator.Generate(
-                period, notes, people, agency, "010278395", request.IsTest, generatedAt, controlNumber);
+                period, request.IsTest, generatedAt, controlNumber);
             var timestamp = generatedAt.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
             var testMarker = request.IsTest ? ".OATEST" : string.Empty;
             var file = new EdiFileDto($"837P{testMarker}_{period.Year}{period.Month:D2}_{timestamp}_{normalizedKey[..8]}.txt", content);
@@ -2466,6 +2555,10 @@ internal static class ApiEndpoints
         ValidateLength(errors, "guardianName", request.GuardianName, 100);
         ValidateLength(errors, "phoneNumber", request.PhoneNumber, 20);
         ValidateLength(errors, "address", request.Address, 250);
+        ValidateLength(errors, "billingStreet", request.BillingStreet, 55);
+        ValidateLength(errors, "billingCity", request.BillingCity, 30);
+        ValidateLength(errors, "billingState", request.BillingState, 2);
+        ValidateLength(errors, "billingZip", request.BillingZip, 15);
         ValidateLength(errors, "primaryCareProvider", request.PrimaryCareProvider, 100);
         ValidateLength(errors, "healthcareSystemName", request.HealthcareSystemName, 100);
 
@@ -2510,6 +2603,13 @@ internal static class ApiEndpoints
         person.GuardianName = Normalize(request.GuardianName);
         person.PhoneNumber = Normalize(request.PhoneNumber);
         person.Address = Normalize(request.Address);
+        if (request.UpdateBillingAddress)
+        {
+            person.BillingStreet = Normalize(request.BillingStreet);
+            person.BillingCity = Normalize(request.BillingCity);
+            person.BillingState = Normalize(request.BillingState)?.ToUpperInvariant();
+            person.BillingZip = Normalize(request.BillingZip);
+        }
         person.PrimaryCareProvider = Normalize(request.PrimaryCareProvider);
         person.HealthcareSystemName = Normalize(request.HealthcareSystemName);
         person.HasHomeSupport = request.HasHomeSupport;
@@ -2668,23 +2768,114 @@ internal static class ApiEndpoints
     private static IReadOnlyList<string> ValidateBillingCandidate(
         ServerNote note,
         ServerPerson person,
-        ServerAgency? agency)
+        ServerAgency? agency,
+        IReadOnlyList<ServerForm> forms,
+        DateTime today)
     {
         var errors = new List<string>();
+        if (note.Status != 6)
+            errors.Add("Service note is not approved.");
         if (note.EventDate is null)
             errors.Add("No service date.");
-        if (CalculateUnits(note.Minutes) < 1)
+        if (BillingRules.CalculateSection13Units(note.Minutes) < 1)
             errors.Add("Units must be at least 1.");
         if (string.IsNullOrWhiteSpace(person.MaineCareId))
             errors.Add("Consumer has no MaineCare ID.");
-        if (string.IsNullOrWhiteSpace(person.DiagnosisCode))
-            errors.Add("Consumer has no diagnosis code.");
+        if (!BillingRules.IsValidDiagnosisCode(person.DiagnosisCode))
+            errors.Add("Consumer diagnosis code is missing or invalid.");
         if (person.PlaceOfService is null)
             errors.Add("Consumer has no place of service.");
-        if (string.IsNullOrWhiteSpace(agency?.Npi))
-            errors.Add("Agency has no NPI.");
+        if (!HasValidSubscriberClaimIdentity(person))
+            errors.Add("Consumer claim name, birth date, or structured claim address is incomplete or invalid.");
+        if (!BillingRules.IsValidNpi(agency?.Npi))
+            errors.Add("Agency NPI is missing or invalid.");
+        if (agency is not null)
+            errors.AddRange(ValidateBillingConfiguration(agency));
+
+        if (note.ComplianceOverride)
+        {
+            if (string.IsNullOrWhiteSpace(note.OverrideReason) ||
+                note.OverrideApprovedById is null || note.OverrideApprovedAt is null)
+                errors.Add("Compliance override is incomplete.");
+        }
+        else
+        {
+            if (!IsPersonCompliant(person, forms, today))
+                errors.Add("Consumer does not meet current compliance requirements.");
+            if (note.EventDate is DateTime serviceDate)
+            {
+                errors.AddRange(forms
+                    .Where(form => IsBillingWindowBlocked(form.Type, form.DueDate,
+                        form.CompletedDate, serviceDate))
+                    .Select(form => $"{form.Type} was due {form.DueDate:MMM d, yyyy} and was not completed as of this service date."));
+            }
+        }
         return errors;
     }
+
+    private static IReadOnlyList<string> ValidateBillingConfiguration(ServerAgency agency)
+    {
+        var errors = new List<string>();
+        if (!BillingRules.IsValidProcedureCode(agency.BillingProcedureCode))
+            errors.Add("Agency billing procedure code is missing or invalid.");
+        if (!BillingRules.IsValidModifier(agency.BillingModifier))
+            errors.Add("Agency billing modifier is invalid.");
+        if (agency.BillingUnitRate is null or <= 0)
+            errors.Add("Agency billing unit rate is missing or invalid.");
+        if (!BillingRules.IsSafeX12Element(agency.EdiSubmitterId, 15))
+            errors.Add("EDI submitter ID is missing or invalid.");
+        if (!BillingRules.IsSafeX12Element(agency.EdiPayerName, 60) ||
+            !BillingRules.IsSafeX12Element(agency.EdiPayerId, 80))
+            errors.Add("EDI payer name or payer ID is missing or invalid.");
+        if (!BillingRules.IsSafeX12Element(agency.EdiContactName, 60) ||
+            agency.EdiContactPhone is null || agency.EdiContactPhone.Length is < 10 or > 15 ||
+            agency.EdiContactPhone.Any(character => !char.IsDigit(character)))
+            errors.Add("EDI contact name or telephone number is missing or invalid.");
+        if (!BillingRules.IsSafeX12Element(agency.Name, 60) ||
+            !BillingRules.IsValidNpi(agency.Npi) ||
+            !BillingRules.IsSafeX12Element(agency.TaxId, 50) ||
+            !BillingRules.IsSafeX12Element(agency.Street, 55) ||
+            !BillingRules.IsSafeX12Element(agency.City, 30) ||
+            !BillingRules.IsSafeX12Element(agency.State, 2) ||
+            !BillingRules.IsSafeX12Element(agency.Zip, 15))
+            errors.Add("Agency billing provider name, NPI, tax ID, or structured address is incomplete or invalid.");
+        return errors;
+    }
+
+    private static bool HasValidSubscriberClaimIdentity(ServerPerson person) =>
+        BillingRules.IsSafeX12Element(person.FirstName, 35) &&
+        BillingRules.IsSafeX12Element(person.LastName, 60) &&
+        person.BirthDate >= new DateTime(1900, 1, 1) &&
+        BillingRules.IsSafeX12Element(person.BillingStreet, 55) &&
+        BillingRules.IsSafeX12Element(person.BillingCity, 30) &&
+        BillingRules.IsSafeX12Element(person.BillingState, 2) &&
+        BillingRules.IsSafeX12Element(person.BillingZip, 15);
+
+    private static ProfessionalClaimSnapshot CreateClaimSnapshot(ServerPerson person, ServerAgency agency) => new(
+        ProfessionalClaimSnapshotCodec.CurrentVersion,
+        agency.Id,
+        person.Id,
+        person.FirstName!,
+        person.LastName!,
+        person.BirthDate.Date,
+        person.Gender == 1 ? "M" : person.Gender == 2 ? "F" : "U",
+        person.MaineCareId!,
+        person.BillingStreet!,
+        person.BillingCity!,
+        person.BillingState!,
+        person.BillingZip!,
+        agency.Name,
+        agency.Npi!,
+        agency.TaxId!,
+        agency.Street!,
+        agency.City!,
+        agency.State!,
+        agency.Zip!,
+        agency.EdiSubmitterId!,
+        agency.EdiContactName!,
+        agency.EdiContactPhone!,
+        agency.EdiPayerName!,
+        agency.EdiPayerId!);
 
     private static DateTime? CurrentCycleAnchor(DateTime? effectiveDate, DateTime today)
     {

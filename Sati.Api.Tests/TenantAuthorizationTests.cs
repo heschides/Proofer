@@ -169,6 +169,11 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var line = await first.Content.ReadFromJsonAsync<ClaimLineDto>();
+        Assert.Equal("G9012", line!.ProcedureCode);
+        Assert.Equal("HI", line.ProcedureModifier);
+        Assert.Equal(4m, line.Units);
+        Assert.Equal(100m, line.ChargeAmount);
         Assert.Single(auditEvents, candidate => candidate.ResourceId == "502");
     }
 
@@ -180,13 +185,13 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         var auditBefore = await _factory.GetAuditEventsAsync("billing-edi.generated");
 
         var firstResponse = await client.PostAsJsonAsync(
-            "/api/v1/billing/periods/1201/edi",
+            "/api/v1/billing/periods/1202/edi",
             new GenerateEdiRequest(true, key));
         var retryResponse = await client.PostAsJsonAsync(
-            "/api/v1/billing/periods/1201/edi",
+            "/api/v1/billing/periods/1202/edi",
             new GenerateEdiRequest(true, key));
         var reusedResponse = await client.PostAsJsonAsync(
-            "/api/v1/billing/periods/1201/edi",
+            "/api/v1/billing/periods/1202/edi",
             new GenerateEdiRequest(false, key));
 
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
@@ -194,13 +199,24 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         var first = await firstResponse.Content.ReadFromJsonAsync<EdiFileDto>();
         var retry = await retryResponse.Content.ReadFromJsonAsync<EdiFileDto>();
         Assert.Equal(first, retry);
+        Assert.Contains("NM1*IL*1*Two*Person****MI*222222~", first!.Content);
+        Assert.Contains("N3*20 Test Street~", first.Content);
+        Assert.Contains("CLM*1202-603*33.25***11::1", first.Content);
+        Assert.Contains("SV1*HC:G9012:HI*33.25*UN*1.33*11", first.Content);
+        Assert.Equal(106, first.Content.Split('~', StringSplitOptions.RemoveEmptyEntries)[0].Length + 1);
+        var segments = first.Content.Split('~', StringSplitOptions.RemoveEmptyEntries);
+        var se = segments.Single(segment => segment.TrimStart().StartsWith("SE*", StringComparison.Ordinal));
+        var declared = int.Parse(se.Trim().Split('*')[1]);
+        var stIndex = Array.FindIndex(segments, segment => segment.TrimStart().StartsWith("ST*", StringComparison.Ordinal));
+        var seIndex = Array.FindIndex(segments, segment => segment.TrimStart().StartsWith("SE*", StringComparison.Ordinal));
+        Assert.Equal(seIndex - stIndex + 1, declared);
         Assert.Equal(HttpStatusCode.Conflict, reusedResponse.StatusCode);
         var reusedError = await reusedResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
         Assert.Equal("idempotency_key_reused", reusedError!.Code);
         Assert.Equal(1, await _factory.GetEdiGenerationCountAsync(key));
         var auditAfter = await _factory.GetAuditEventsAsync("billing-edi.generated");
         Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
-        Assert.Single(auditAfter, candidate => candidate.ResourceId == "1201");
+        Assert.Single(auditAfter, candidate => candidate.ResourceId == "1202");
     }
 
     [Fact]
@@ -683,7 +699,15 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
         var caseload = await caseManager.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload");
         var original = Assert.Single(caseload!, person => person.Id == 102);
-        var update = PersonRequest(original, "Updated", "Revised lifecycle biography.");
+        // Simulate a pre-billing-address client: omitted fields must preserve the server values.
+        var update = PersonRequest(original, "Updated", "Revised lifecycle biography.") with
+        {
+            BillingStreet = null,
+            BillingCity = null,
+            BillingState = null,
+            BillingZip = null,
+            UpdateBillingAddress = false
+        };
 
         var updateResponse = await caseManager.PutAsJsonAsync("/api/v1/people/102", update);
         var updated = await updateResponse.Content.ReadFromJsonAsync<PersonDto>();
@@ -691,6 +715,8 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
         Assert.Equal(2, updated!.Revision);
+        Assert.Equal("10 First Avenue", updated.BillingStreet);
+        Assert.Equal("Portland", updated.BillingCity);
         Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
 
         var forbiddenHistory = await caseManager.GetAsync("/api/v1/people/102/history");
@@ -921,6 +947,10 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         person.GuardianName,
         person.PhoneNumber,
         person.Address,
+        person.BillingStreet,
+        person.BillingCity,
+        person.BillingState,
+        person.BillingZip,
         person.PrimaryCareProvider,
         person.HealthcareSystemName,
         person.HasHomeSupport,
@@ -934,5 +964,6 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         person.HasWorkSupports,
         person.IsEmployed,
         [],
-        person.Revision);
+        person.Revision,
+        true);
 }

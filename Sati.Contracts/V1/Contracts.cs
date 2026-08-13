@@ -63,6 +63,10 @@ public sealed record PersonDto(
     string? GuardianName,
     string? PhoneNumber,
     string? Address,
+    string? BillingStreet,
+    string? BillingCity,
+    string? BillingState,
+    string? BillingZip,
     string? PrimaryCareProvider,
     string? HealthcareSystemName,
     bool HasHomeSupport,
@@ -103,6 +107,10 @@ public sealed record SavePersonRequest(
     string? GuardianName,
     string? PhoneNumber,
     string? Address,
+    string? BillingStreet,
+    string? BillingCity,
+    string? BillingState,
+    string? BillingZip,
     string? PrimaryCareProvider,
     string? HealthcareSystemName,
     bool HasHomeSupport,
@@ -116,7 +124,8 @@ public sealed record SavePersonRequest(
     bool HasWorkSupports,
     bool IsEmployed,
     IReadOnlyList<SavePersonFormRequest> Forms,
-    int ExpectedRevision = 0);
+    int ExpectedRevision = 0,
+    bool UpdateBillingAddress = false);
 
 public sealed record PersonContactDto(
     int Id,
@@ -400,13 +409,35 @@ public sealed record ClaimLineDto(
     int BillingPeriodId,
     DateTime DateOfService,
     string ProcedureCode,
+    string? ProcedureModifier,
     decimal? Units,
+    decimal ChargeAmount,
     string ClientMaineCareId,
     string RenderingProviderNpi,
     string DiagnosisCode,
     int PlaceOfService,
     bool IsComplianceException,
     string? ComplianceExceptionReason);
+
+public sealed record BillingConfigurationDto(
+    string ProcedureCode,
+    string? Modifier,
+    decimal? UnitRate,
+    string EdiSubmitterId,
+    string PayerName,
+    string PayerId,
+    string ContactName,
+    string ContactPhone);
+
+public sealed record SaveBillingConfigurationRequest(
+    string ProcedureCode,
+    string? Modifier,
+    decimal? UnitRate,
+    string EdiSubmitterId,
+    string PayerName,
+    string PayerId,
+    string ContactName,
+    string ContactPhone);
 
 public sealed record BillingCandidateDto(NoteDto Note, IReadOnlyList<string> Errors);
 public sealed record CreateClaimLineRequest(int NoteId, bool IsComplianceException, string? ComplianceExceptionReason);

@@ -58,6 +58,110 @@ public sealed class StabilizationTests
         Assert.False(NoteWorkflow.CanCaseManagerDelete(7));
     }
 
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(15, 1)]
+    [InlineData(16, 1.07)]
+    [InlineData(20, 1.33)]
+    [InlineData(29, 1.93)]
+    [InlineData(30, 2)]
+    [InlineData(60, 4)]
+    public void Section13BillingUnitsPreservePartialUnitsAfterTheMinimum(
+        int? minutes, decimal expected)
+    {
+        Assert.Equal(expected, BillingRules.CalculateSection13Units(minutes));
+    }
+
+    [Theory]
+    [InlineData("1999999984", true)]
+    [InlineData("1234567893", true)]
+    [InlineData("1999999985", false)]
+    [InlineData("1111111111", false)]
+    [InlineData("", false)]
+    public void BillingNpiValidationIncludesTheCheckDigit(string value, bool expected)
+    {
+        Assert.Equal(expected, BillingRules.IsValidNpi(value));
+    }
+
+    [Fact]
+    public void BillingUsesTheMaineCalendarDateInsteadOfUtcAtMidnightBoundary()
+    {
+        var utc = new DateTimeOffset(2026, 8, 13, 2, 30, 0, TimeSpan.Zero);
+
+        Assert.Equal(new DateTime(2026, 8, 12), BillingRules.MaineBusinessDate(utc));
+    }
+
+    [Fact]
+    public void Professional837UsesFrozenSubscriberProviderAndFinancialValues()
+    {
+        var snapshot = new ProfessionalClaimSnapshot(
+            ProfessionalClaimSnapshotCodec.CurrentVersion,
+            1, 101, "Alex", "Example", new DateTime(1990, 2, 3), "U", "987654321",
+            "10 Claim Street", "Portland", "ME", "04101",
+            "Example Agency", "1999999984", "111111111", "1 Provider Way",
+            "Portland", "ME", "04101", "SATITEST1", "Billing Desk", "2075550101",
+            "MEDICAID MAINE", "MCDME");
+        var period = new BillingPeriod
+        {
+            Id = 77,
+            UserId = 12,
+            Month = 8,
+            Year = 2026,
+            Status = BillingStatus.Submitted,
+            Lines =
+            [
+                new ClaimLine
+                {
+                    Id = 88,
+                    NoteId = 99,
+                    DateOfService = new DateTime(2026, 8, 12),
+                    ProcedureCode = "G9012",
+                    ProcedureModifier = "HI",
+                    Units = 1.33m,
+                    ChargeAmount = 33.25m,
+                    ClientMaineCareId = "987654321",
+                    RenderingProviderNpi = "1999999984",
+                    DiagnosisCode = "F89",
+                    PlaceOfService = 11,
+                    ClaimSnapshotJson = ProfessionalClaimSnapshotCodec.Serialize(snapshot)
+                }
+            ]
+        };
+
+        var edi = EdiGenerator.Generate(period, true,
+            new DateTime(2026, 8, 13, 9, 10, 0), "123456789");
+
+        Assert.Contains("NM1*IL*1*Example*Alex****MI*987654321~", edi);
+        Assert.Contains("N3*10 Claim Street~", edi);
+        Assert.Contains("N4*Portland*ME*04101~", edi);
+        Assert.Contains("CLM*77-99*33.25***11::1", edi);
+        Assert.Contains("SV1*HC:G9012:HI*33.25*UN*1.33*11", edi);
+        Assert.Equal(106, edi.Split('~', StringSplitOptions.RemoveEmptyEntries)[0].Length + 1);
+        var segments = edi.Split('~', StringSplitOptions.RemoveEmptyEntries);
+        var se = segments.Single(segment => segment.TrimStart().StartsWith("SE*", StringComparison.Ordinal));
+        var declared = int.Parse(se.Trim().Split('*')[1]);
+        var stIndex = Array.FindIndex(segments, segment => segment.TrimStart().StartsWith("ST*", StringComparison.Ordinal));
+        var seIndex = Array.FindIndex(segments, segment => segment.TrimStart().StartsWith("SE*", StringComparison.Ordinal));
+        Assert.Equal(seIndex - stIndex + 1, declared);
+    }
+
+    [Fact]
+    public void Professional837FailsClosedWithoutAnImmutableClaimSnapshot()
+    {
+        var period = new BillingPeriod
+        {
+            Status = BillingStatus.Submitted,
+            Lines = [new ClaimLine { Id = 1, NoteId = 1 }]
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            EdiGenerator.Generate(period, true, DateTime.UtcNow, "123456789"));
+
+        Assert.Contains("immutable billing snapshot", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void ReleaseNotesMatchTheDemoAssemblyVersionAndDocumentProductionGaps()
     {
@@ -425,6 +529,8 @@ public sealed class StabilizationTests
         var billingStatus = context.Model.FindEntityType(typeof(BillingPeriod))!
             .FindProperty(nameof(BillingPeriod.Status));
         var generation = context.Model.FindEntityType(typeof(EdiGeneration))!;
+        var claim = context.Model.FindEntityType(typeof(ClaimLine))!;
+        var person = context.Model.FindEntityType(typeof(Person))!;
         var retryIndex = Assert.Single(generation.GetIndexes(), index =>
             index.Properties.Select(property => property.Name).SequenceEqual([
                 nameof(EdiGeneration.AgencyId),
@@ -437,6 +543,10 @@ public sealed class StabilizationTests
         Assert.True(billingStatus!.IsConcurrencyToken);
         Assert.True(retryIndex.IsUnique);
         Assert.Contains("20260812235500_AddEdiIdempotency", migrations.Migrations.Keys);
+        Assert.Contains("20260813110000_AddBillingPipelineConfiguration", migrations.Migrations.Keys);
+        Assert.NotNull(claim.FindProperty(nameof(ClaimLine.ClaimSnapshotJson)));
+        Assert.NotNull(claim.FindProperty(nameof(ClaimLine.ChargeAmount)));
+        Assert.NotNull(person.FindProperty(nameof(Person.BillingStreet)));
     }
 
     [Fact]
@@ -448,7 +558,12 @@ public sealed class StabilizationTests
             edi,
             new SessionService())
         {
-            SelectedPeriod = new BillingPeriod { Id = 99 }
+            SelectedPeriod = new BillingPeriod
+            {
+                Id = 99,
+                Status = BillingStatus.Submitted,
+                Lines = [new ClaimLine { Id = 1 }]
+            }
         };
 
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
@@ -543,5 +658,7 @@ public sealed class StabilizationTests
         public Task SubmitBillingPeriodAsync(int billingPeriodId) => throw new NotSupportedException();
         public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() => throw new NotSupportedException();
         public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
+        public Task<BillingConfiguration> GetBillingConfigurationAsync() => throw new NotSupportedException();
+        public Task SaveBillingConfigurationAsync(BillingConfiguration configuration) => throw new NotSupportedException();
     }
 }

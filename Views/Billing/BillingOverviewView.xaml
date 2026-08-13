@@ -1,22 +1,61 @@
-<!-- BillingOverviewView.xaml -->
 <UserControl x:Class="Sati.Views.Billing.BillingOverviewView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
-    <StackPanel HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="500">
-        <TextBlock Text="OVERVIEW"
-                   FontSize="11"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource TextSecondaryBrush}"
-                   HorizontalAlignment="Center"
-                   Margin="0,0,0,8" />
-        <TextBlock Text="{Binding StubMessage}"
-                   FontSize="13"
-                   Foreground="{DynamicResource TextPrimaryBrush}"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center" />
-    </StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32" MaxWidth="780" HorizontalAlignment="Left">
+            <TextBlock Text="BILLING CONFIGURATION" Style="{StaticResource SectionHeader}" />
+            <TextBlock Margin="0,6,0,20" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="These agency-level values control claim creation and the 837P envelope. The billing queue remains blocked until every required value is valid." />
+
+            <UniformGrid Columns="3" Margin="0,0,0,16">
+                <StackPanel Margin="0,0,12,0">
+                    <TextBlock Text="Procedure code" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding ProcedureCode, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Billing procedure code" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,0">
+                    <TextBlock Text="Modifier (optional)" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding Modifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Billing modifier" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Rate per unit" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding UnitRate, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Billing unit rate" />
+                </StackPanel>
+            </UniformGrid>
+
+            <UniformGrid Columns="2" Margin="0,0,0,16">
+                <StackPanel Margin="0,0,12,0">
+                    <TextBlock Text="EDI submitter ID" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding EdiSubmitterId, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="EDI submitter ID" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Payer ID" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding PayerId, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Payer ID" />
+                </StackPanel>
+            </UniformGrid>
+
+            <StackPanel Margin="0,0,0,16">
+                <TextBlock Text="Payer name" Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding PayerName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Payer name" />
+            </StackPanel>
+
+            <UniformGrid Columns="2" Margin="0,0,0,20">
+                <StackPanel Margin="0,0,12,0">
+                    <TextBlock Text="EDI contact name" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding ContactName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="EDI contact name" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="EDI contact telephone" Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding ContactPhone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="EDI contact telephone" />
+                </StackPanel>
+            </UniformGrid>
+
+            <Button Content="Save Billing Configuration" Width="220" HorizontalAlignment="Left"
+                    Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" />
+            <TextBlock Margin="0,12,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" Foreground="{DynamicResource TextSecondaryBrush}" />
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
