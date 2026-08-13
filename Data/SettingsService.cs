@@ -72,10 +72,23 @@ namespace Sati.Data
             var agencyId = CurrentAgencyId();
             var tracked = await context.Settings.SingleOrDefaultAsync(x => x.Id == settings.Id && x.AgencyId == agencyId)
                 ?? throw new InvalidOperationException("The settings record is outside the current agency.");
+
+            if (tracked.Revision != settings.Revision)
+                throw new SettingsConcurrencyException();
+
             context.Entry(tracked).CurrentValues.SetValues(settings);
             tracked.Id = settings.Id;
             tracked.AgencyId = agencyId;
-            await context.SaveChangesAsync();
+            tracked.Revision++;
+            try
+            {
+                await context.SaveChangesAsync();
+                settings.Revision = tracked.Revision;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new SettingsConcurrencyException(ex);
+            }
         }
 
         private int CurrentAgencyId() => _sessionService.CurrentUser?.AgencyId

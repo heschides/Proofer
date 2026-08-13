@@ -76,7 +76,19 @@ public sealed class CloudSettingsService(CloudApiClient api) : ISettingsService
     public async Task<Settings> LoadAsync() =>
         CloudContractMapper.ToSettings(await api.GetAsync<SettingsDto>("/api/v1/settings"));
 
-    public Task SaveAsync(Settings settings) => api.PutAsync("/api/v1/settings", CloudContractMapper.ToSettingsDto(settings));
+    public async Task SaveAsync(Settings settings)
+    {
+        try
+        {
+            var saved = await api.PutAsync<SettingsDto, SettingsDto>(
+                "/api/v1/settings", CloudContractMapper.ToSettingsDto(settings));
+            settings.Revision = saved.Revision;
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_settings")
+        {
+            throw new SettingsConcurrencyException(ex);
+        }
+    }
 }
 
 public sealed class CloudScratchpadService(CloudApiClient api) : IScratchpadService

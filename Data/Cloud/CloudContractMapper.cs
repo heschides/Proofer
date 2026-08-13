@@ -164,7 +164,8 @@ internal static class CloudContractMapper
         PrivacyPracticesDaysBeforeAnniversary = s.PrivacyPracticesDaysBeforeAnniversary,
         ReleaseAgencyDaysBeforeAnniversary = s.ReleaseAgencyDaysBeforeAnniversary,
         ReleaseDhhsDaysBeforeAnniversary = s.ReleaseDhhsDaysBeforeAnniversary,
-        ReleaseMedicalDaysBeforeAnniversary = s.ReleaseMedicalDaysBeforeAnniversary
+        ReleaseMedicalDaysBeforeAnniversary = s.ReleaseMedicalDaysBeforeAnniversary,
+        Revision = s.Revision
     };
 
     public static SettingsDto ToSettingsDto(Settings s) => new(
@@ -184,7 +185,7 @@ internal static class CloudContractMapper
         s.PcpDaysBeforeAnniversary, s.CompAssessmentDaysBeforeAnniversary, s.ReclassificationDaysBeforeAnniversary,
         s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
         s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
-        s.ReleaseMedicalDaysBeforeAnniversary);
+        s.ReleaseMedicalDaysBeforeAnniversary, s.Revision);
 
     public static Scratchpad ToScratchpad(ScratchpadDto dto) => new()
     {

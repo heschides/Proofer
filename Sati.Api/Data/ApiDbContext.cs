@@ -65,6 +65,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Settings");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasIndex(x => x.AgencyId).IsUnique();
             entity.Property(x => x.BaseIncentive).HasColumnType("decimal(18,2)");
             entity.Property(x => x.PerUnitIncentive).HasColumnType("decimal(18,2)");
@@ -336,6 +337,7 @@ internal sealed class ServerSettings
 {
     public int Id { get; set; }
     public int AgencyId { get; set; }
+    public int Revision { get; set; } = 1;
     public int AbandonedAfterDays { get; set; } = 7;
     public int ProductivityThreshold { get; set; } = 100;
     public decimal BaseIncentive { get; set; }

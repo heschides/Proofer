@@ -241,7 +241,8 @@ public sealed record SettingsDto(
     int PrivacyPracticesDaysBeforeAnniversary,
     int ReleaseAgencyDaysBeforeAnniversary,
     int ReleaseDhhsDaysBeforeAnniversary,
-    int ReleaseMedicalDaysBeforeAnniversary);
+    int ReleaseMedicalDaysBeforeAnniversary,
+    int Revision = 0);
 
 public sealed record ScratchpadDto(
     int Id,

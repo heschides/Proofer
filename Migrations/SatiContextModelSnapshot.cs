@@ -943,6 +943,10 @@ namespace Sati.Migrations
                     b.Property<int>("ReleaseMedicalOpenDaysBefore")
                         .HasColumnType("int");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.Property<int>("ReviewDaysAfterDue")
                         .HasColumnType("int");
 

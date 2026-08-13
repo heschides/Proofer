@@ -10,6 +10,7 @@ namespace Sati.Models
     {
         public int Id { get; set; }
         public int AgencyId { get; set; }
+        public int Revision { get; set; } = 1;
 
         // Abandonment
         public int AbandonedAfterDays { get; set; } = 7;

@@ -182,6 +182,23 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void SettingsRevisionIsAConcurrencyTokenAndItsMigrationIsRegistered()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiSettingsRevisionValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var revision = context.Model.FindEntityType(typeof(Settings))!
+            .FindProperty(nameof(Settings.Revision));
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.NotNull(revision);
+        Assert.True(revision!.IsConcurrencyToken);
+        Assert.Contains("20260812233000_AddSettingsRevision", migrations.Migrations.Keys);
+    }
+
+    [Fact]
     public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;

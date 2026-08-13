@@ -176,8 +176,10 @@ Protected mutations use the PHI-minimized `AuditEvent` envelope described in `AU
 The mutation and audit insert share one EF Core save transaction, and application contexts reject
 updates or deletes to existing audit rows. Admin audit queries are bounded and agency-scoped.
 Comprehensive Assessments are the first aggregate with an explicit `Revision` concurrency token;
-the API rejects stale saves/submissions with HTTP 409. Claim-line duplication is prevented by a
-unique `NoteId` index as well as a readable conflict response.
+the API rejects stale saves/submissions with HTTP 409. Notes, AT requests (including their line
+items), and agency Settings use the same revision-and-409 boundary. Settings also keeps the desktop
+window open after a conflict so the administrator's attempted values are not silently discarded.
+Claim-line duplication is prevented by a unique `NoteId` index as well as a readable conflict response.
 
 Person profile changes additionally use a purpose-built `PersonVersion` ledger. Unlike the
 PHI-minimized activity envelope, each immutable version intentionally contains a compressed full
@@ -482,8 +484,10 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 
 ### `SettingsService`
 - `LoadAsync` resolves the signed-in user's agency and seeds one settings row for that agency if
-  none exists. `SaveAsync` refuses to update a row outside the current agency. User-specific
-  overrides are deliberately absent until a concrete requirement exists.
+  none exists. `SaveAsync` refuses to update a row outside the current agency and rejects an older
+  `Revision` rather than silently replacing a newer administrator's changes. The API mirrors this
+  with `409 stale_settings`, and successful revision advancement shares the same save transaction as
+  the audit event. User-specific overrides are deliberately absent until a concrete requirement exists.
 
 ### `AuthService`
 - **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI

@@ -596,6 +596,58 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.Contains(history!, version => version.ChangeKind == "TrackingBaseline");
     }
 
+    [Fact]
+    public async Task SettingsRejectStaleAndLegacyWritesWithoutFalseAuditEventsOrTenantLeakage()
+    {
+        using var agencyOneAdmin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        using var agencyTwoAdmin = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        var original = await agencyOneAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
+        var otherAgencyOriginal = await agencyTwoAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
+        var auditBefore = await _factory.GetAuditEventsAsync("settings.updated");
+
+        var successfulResponse = await agencyOneAdmin.PutAsJsonAsync(
+            "/api/v1/settings",
+            original! with { ProductivityThreshold = original.ProductivityThreshold + 7 });
+        var successful = await successfulResponse.Content.ReadFromJsonAsync<SettingsDto>();
+
+        Assert.Equal(HttpStatusCode.OK, successfulResponse.StatusCode);
+        Assert.Equal(original.Revision + 1, successful!.Revision);
+
+        var staleResponse = await agencyOneAdmin.PutAsJsonAsync(
+            "/api/v1/settings",
+            original with { ProductivityThreshold = original.ProductivityThreshold + 13 });
+        var staleError = await staleResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        Assert.Equal("stale_settings", staleError!.Code);
+
+        var serializerOptions = new System.Text.Json.JsonSerializerOptions(
+            System.Text.Json.JsonSerializerDefaults.Web);
+        var legacyRequest = System.Text.Json.JsonSerializer
+            .SerializeToNode(successful, serializerOptions)!.AsObject();
+        legacyRequest.Remove("revision");
+        legacyRequest["productivityThreshold"] = original.ProductivityThreshold + 19;
+
+        var legacyResponse = await agencyOneAdmin.PutAsJsonAsync("/api/v1/settings", legacyRequest);
+        var legacyError = await legacyResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+
+        Assert.Equal(HttpStatusCode.Conflict, legacyResponse.StatusCode);
+        Assert.Equal("stale_settings", legacyError!.Code);
+
+        var stored = await agencyOneAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
+        var otherAgencyStored = await agencyTwoAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
+        var auditAfter = await _factory.GetAuditEventsAsync("settings.updated");
+
+        Assert.Equal(original.ProductivityThreshold + 7, stored!.ProductivityThreshold);
+        Assert.Equal(successful.Revision, stored.Revision);
+        Assert.Equal(otherAgencyOriginal, otherAgencyStored);
+        Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
+        var savedEvent = auditAfter[^1];
+        Assert.Equal(1, savedEvent.AgencyId);
+        Assert.Equal(11, savedEvent.ActorUserId);
+        Assert.Equal("Settings", savedEvent.ResourceType);
+    }
+
     private static SaveProviderRequest ProviderRequest(string name) => new(
         "Other", name, null, null, null, null, null, null, 0, false, null, null, null);
 

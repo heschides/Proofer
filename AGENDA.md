@@ -172,12 +172,22 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Current next slice — concurrency and audit-operation breadth
 
-- [ ] Extend revision/concurrency tokens from assessments, notes, and AT requests to settings and
+- [ ] Extend revision/concurrency tokens from assessments, notes, AT requests, and settings to
   other records where simultaneous edits could silently lose work.
-- [ ] Extend the friendly desktop conflict handling now used by notes to the remaining concurrent
+- [ ] Extend the friendly desktop conflict handling now used by notes and settings to the remaining concurrent
   records instead of presenting generic API errors.
 - [ ] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
 - [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
+
+### Completed 2026-08-12 -- settings concurrency boundary
+
+- [x] Add an agency Settings `Revision` token through local SQL, cloud contracts, and the API.
+- [x] Reject stale and legacy settings saves with `409 stale_settings` before shared agency policy
+  can be silently overwritten; advance the revision only after a successful save.
+- [x] Keep the Settings window open with a friendly warning when another administrator saved first,
+  preserving the attempted values for comparison with the latest agency settings.
+- [x] Prove one success audit event per accepted save, no false success event for rejected attempts,
+  older-client fail-closed behavior, and isolation of another agency's settings.
 
 ### Completed 2026-08-12 — first audit and concurrency slice
 

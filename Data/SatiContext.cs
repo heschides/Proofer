@@ -324,6 +324,7 @@ namespace Sati.Data
             modelBuilder.Entity<Settings>(entity =>
             {
                 entity.HasKey(s => s.Id);
+                entity.Property(s => s.Revision).IsConcurrencyToken();
                 entity.HasIndex(s => s.AgencyId).IsUnique();
                 entity.HasOne<Agency>()
                       .WithMany()

@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
+using System.Windows;
 
 namespace Sati.ViewModels
 {
@@ -355,8 +356,13 @@ namespace Sati.ViewModels
         [RelayCommand]
         public async Task SaveSettingsAsync()
         {
+            _ = await TrySaveSettingsAsync();
+        }
+
+        public async Task<bool> TrySaveSettingsAsync()
+        {
             if (_settings is null)
-                return;
+                return true;
 
             _settings.AbandonedAfterDays = AbandonedAfterDays;
             _settings.SalesTaxRate = SalesTaxRate;
@@ -412,7 +418,20 @@ namespace Sati.ViewModels
             // flagged when writing Settings.cs, now honored.
             _settings.HealthcareSystems = HealthcareSystems.ToList();
 
-            await _settingsService.SaveAsync(_settings);
+            try
+            {
+                await _settingsService.SaveAsync(_settings);
+                return true;
+            }
+            catch (SettingsConcurrencyException ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Settings Changed Elsewhere",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
         }
 
         // Rebuilds the bound collection in place from a source list. Snapshots the

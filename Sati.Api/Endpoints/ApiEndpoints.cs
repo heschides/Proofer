@@ -1568,13 +1568,24 @@ internal static class ApiEndpoints
                     cancellationToken))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["defaultPassthroughProviderId"] = ["The default provider is outside your agency or does not provide passthrough service."] });
             var settings = await GetOrCreateSettingsAsync(db, actor.AgencyId, cancellationToken);
+            if (request.Revision != settings.Revision)
+                return StaleSettingsConflict();
+
             var id = settings.Id;
             var agencyId = settings.AgencyId;
             db.Entry(settings).CurrentValues.SetValues(request);
             settings.Id = id;
             settings.AgencyId = agencyId;
+            settings.Revision++;
             auditTrail.Record(actor, AuditActions.SettingsUpdated, "Settings", settings.Id);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleSettingsConflict();
+            }
             return Results.Ok(ContractMapper.ToSettings(settings));
         });
     }
@@ -2583,6 +2594,12 @@ internal static class ApiEndpoints
         Results.Conflict(new ApiErrorDto(
             "stale_at_request",
             "This AT request changed after it was opened. Reload the saved request before applying your changes.",
+            string.Empty));
+
+    private static IResult StaleSettingsConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_settings",
+            "Agency settings changed after this window was opened. Review the latest settings before trying again.",
             string.Empty));
 
     private static IResult DuplicateClaimLineConflict() =>
