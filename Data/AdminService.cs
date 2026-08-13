@@ -25,7 +25,7 @@ public sealed class AdminService(
             .Select(agency => agency.Name)
             .SingleAsync(cancellationToken);
         var userCount = await context.Users.AsNoTracking()
-            .CountAsync(user => user.AgencyId == actor.AgencyId, cancellationToken);
+            .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role != UserRole.PlatformOperator, cancellationToken);
         var caseManagerCount = await context.Users.AsNoTracking()
             .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role == UserRole.CaseManager, cancellationToken);
         var personCount = await context.People.AsNoTracking()
@@ -96,6 +96,44 @@ public sealed class AdminService(
             ediCharacters,
             oldestAudit,
             oldestEdi);
+    }
+
+    public async Task<AdminIncidentDashboardDto> GetIncidentsAsync(
+        int days = 30,
+        int take = 250,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        if (days is < 1 or > 90 || take is < 1 or > 500)
+            throw new ArgumentOutOfRangeException(nameof(days));
+        await using var context = contextFactory.CreateDbContext();
+        var observedAt = DateTime.UtcNow;
+        var start = observedAt.AddDays(-days);
+        var incidents = await context.IncidentGroups.AsNoTracking()
+            .Where(candidate => candidate.AgencyId == actor.AgencyId && candidate.LastSeenUtc >= start)
+            .OrderByDescending(candidate => candidate.LastSeenUtc)
+            .ThenByDescending(candidate => candidate.Id)
+            .Take(take)
+            .Select(candidate => new IncidentGroupDto(
+                candidate.Id,
+                candidate.AgencyId,
+                candidate.Source,
+                candidate.Severity,
+                candidate.Operation,
+                candidate.FirstRelease,
+                candidate.LastRelease,
+                candidate.ExceptionFingerprint,
+                candidate.Status,
+                candidate.OccurrenceCount,
+                candidate.FirstSeenUtc,
+                candidate.LastSeenUtc,
+                candidate.LastReference,
+                candidate.LastActorRole))
+            .ToListAsync(cancellationToken);
+        return new AdminIncidentDashboardDto(
+            observedAt,
+            IncidentHealthScoring.Calculate(incidents, observedAt, days),
+            incidents);
     }
 
     public async Task<byte[]> ExportAuditCsvAsync(

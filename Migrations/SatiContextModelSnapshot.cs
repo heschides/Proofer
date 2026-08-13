@@ -474,6 +474,34 @@ namespace Sati.Migrations
                     b.ToTable("Forms");
                 });
 
+            modelBuilder.Entity("Sati.Models.IncidentGroup", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AgencyId").HasColumnType("int");
+                    b.Property<string>("ExceptionFingerprint").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+                    b.Property<string>("FirstRelease").IsRequired().HasMaxLength(30).HasColumnType("nvarchar(30)");
+                    b.Property<DateTime>("FirstSeenUtc").HasColumnType("datetime2");
+                    b.Property<string>("LastActorRole").IsRequired().HasMaxLength(30).HasColumnType("nvarchar(30)");
+                    b.Property<string>("LastReference").IsRequired().HasMaxLength(40).HasColumnType("nvarchar(40)");
+                    b.Property<string>("LastRelease").IsRequired().HasMaxLength(30).HasColumnType("nvarchar(30)");
+                    b.Property<DateTime>("LastSeenUtc").HasColumnType("datetime2");
+                    b.Property<int>("OccurrenceCount").HasColumnType("int");
+                    b.Property<string>("Operation").IsRequired().HasMaxLength(80).HasColumnType("nvarchar(80)");
+                    b.Property<string>("Severity").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<string>("Source").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+                    b.HasIndex("AgencyId", "LastSeenUtc");
+                    b.HasIndex("AgencyId", "Source", "Operation", "ExceptionFingerprint").IsUnique();
+                    b.ToTable("IncidentGroups");
+                });
+
             modelBuilder.Entity("Sati.Models.Incentive", b =>
                 {
                     b.Property<int>("Id")
@@ -1403,6 +1431,15 @@ namespace Sati.Migrations
                         .IsRequired();
 
                     b.Navigation("Person");
+                });
+
+            modelBuilder.Entity("Sati.Models.IncidentGroup", b =>
+                {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Sati.Models.Incentive", b =>

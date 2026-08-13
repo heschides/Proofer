@@ -58,7 +58,9 @@ namespace Sati.ViewModels.Supervisor
 
         public ObservableCollection<User> Users { get; } = [];
         public ObservableCollection<User> Supervisors { get; } = [];
-        public Array Roles => Enum.GetValues(typeof(UserRole));
+        public Array Roles => Enum.GetValues<UserRole>()
+            .Where(role => role != UserRole.PlatformOperator)
+            .ToArray();
 
         // -------------------------------------------------------------------------
         // Computed properties

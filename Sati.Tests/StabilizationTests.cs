@@ -19,6 +19,31 @@ namespace Sati.Tests;
 
 public sealed class StabilizationTests
 {
+    [Fact]
+    public void IncidentHealthScoreExplainsSeverityRecurrenceAndAgePenalties()
+    {
+        var now = new DateTime(2026, 8, 13, 16, 0, 0, DateTimeKind.Utc);
+        var incidents = new[]
+        {
+            new IncidentGroupDto(
+                1, 1, "Desktop", "Error", "billing.queue.load", "1.2.2", "1.2.2",
+                "ABCDEF012345", "Open", 3, now.AddDays(-8), now.AddHours(-1), "REF100001", "Admin"),
+            new IncidentGroupDto(
+                2, 1, "Api", "Warning", "GET.api", "1.2.2", "1.2.2",
+                "BBBBBB012345", "Resolved", 1, now.AddDays(-1), now.AddHours(-2), "REF100002", "CaseManager")
+        };
+
+        var health = IncidentHealthScoring.Calculate(incidents, now, 30);
+
+        Assert.Equal(83, health.Score);
+        Assert.Equal("Watch", health.Grade);
+        Assert.Equal(13, health.SeverityPenalty);
+        Assert.Equal(2, health.RecurrencePenalty);
+        Assert.Equal(2, health.UnresolvedAgePenalty);
+        Assert.Equal("incident-health-v1", health.FormulaVersion);
+        Assert.Contains("recorded incidents only", health.Explanation);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -436,6 +461,33 @@ public sealed class StabilizationTests
         Assert.Equal("IX_ClaimLines_NoteId", create.Name);
         Assert.Equal(["NoteId"], create.Columns);
         Assert.True(create.IsUnique);
+    }
+
+    [Fact]
+    public void IncidentMigrationIsAdditiveAndRegistered()
+    {
+        var migration = new Migrations.AddIncidentHealthPipeline();
+        var builder = new Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder(
+            "Microsoft.EntityFrameworkCore.SqlServer");
+        var up = typeof(Migrations.AddIncidentHealthPipeline).GetMethod(
+            "Up",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        up.Invoke(migration, [builder]);
+
+        var create = Assert.Single(builder.Operations.OfType<
+            Microsoft.EntityFrameworkCore.Migrations.Operations.CreateTableOperation>());
+        Assert.Equal("IncidentGroups", create.Name);
+        Assert.DoesNotContain(builder.Operations, operation =>
+            operation is Microsoft.EntityFrameworkCore.Migrations.Operations.DropTableOperation);
+        Assert.Equal(2, builder.Operations.OfType<
+            Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation>().Count());
+
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiIncidentMigrationValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var migrations = context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+        Assert.Contains("20260813162000_AddIncidentHealthPipeline", migrations.Migrations.Keys);
     }
 
     [Fact]

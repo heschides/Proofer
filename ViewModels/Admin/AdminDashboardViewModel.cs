@@ -16,9 +16,11 @@ public partial class AdminDashboardViewModel(
     public ObservableCollection<AdminActivityRow> RecentActivity { get; } = [];
     public ObservableCollection<AdminPersonListItemDto> People { get; } = [];
     public ObservableCollection<PersonVersionDto> PersonHistory { get; } = [];
+    public ObservableCollection<IncidentGroupDto> Incidents { get; } = [];
 
     [ObservableProperty] private AdminOverviewDto? overview;
     [ObservableProperty] private AdminOperationsDto? operations;
+    [ObservableProperty] private IncidentHealthScoreDto? health;
     [ObservableProperty] private string auditExportReason = "Internal compliance review";
     [ObservableProperty] private AdminPersonListItemDto? selectedPerson;
     [ObservableProperty] private bool isBusy;
@@ -61,10 +63,14 @@ public partial class AdminDashboardViewModel(
             var peopleTask = adminService.GetPeopleAsync();
             var activityTask = adminService.GetActivityAsync(30, 150);
             var operationsTask = adminService.GetOperationsAsync();
-            await Task.WhenAll(overviewTask, peopleTask, activityTask, operationsTask);
+            var incidentsTask = adminService.GetIncidentsAsync();
+            await Task.WhenAll(overviewTask, peopleTask, activityTask, operationsTask, incidentsTask);
 
             Overview = await overviewTask;
             Operations = await operationsTask;
+            var incidentDashboard = await incidentsTask;
+            Health = incidentDashboard.Health;
+            Replace(Incidents, incidentDashboard.Incidents);
             Replace(People, await peopleTask);
             Replace(RecentActivity, (await activityTask).Select(item => new AdminActivityRow(item)));
             LastRefreshedAt = DateTime.Now;

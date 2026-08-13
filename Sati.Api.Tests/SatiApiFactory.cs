@@ -231,7 +231,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 CreateUser(verifier, 14, "stale-badge-user", "CaseManager", 1),
                 CreateUser(verifier, 21, "admin-two", "Admin", 2),
                 CreateUser(verifier, 22, "case-manager-two", "CaseManager", 2, 23),
-                CreateUser(verifier, 23, "supervisor-two", "Supervisor", 2));
+                CreateUser(verifier, 23, "supervisor-two", "Supervisor", 2),
+                CreateUser(verifier, 31, "platform-operator", "PlatformOperator", 1));
             db.People.AddRange(
                 new ServerPerson
                 {

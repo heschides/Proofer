@@ -76,6 +76,15 @@ internal sealed class ValidatedActorFilter : IEndpointFilter
         if (!await TenantAccess.IsCurrentActorAsync(db, actor, context.HttpContext.RequestAborted))
             return Results.Unauthorized();
 
+        // The cross-tenant support identity is deliberately not an agency user. Keep
+        // it on the narrow platform surface even though its token carries an agency
+        // anchor for authentication-integrity checks.
+        var path = context.HttpContext.Request.Path;
+        if (actor.Role == "PlatformOperator" &&
+            !path.StartsWithSegments("/api/v1/platform") &&
+            path != "/api/v1/me")
+            return Results.Forbid();
+
         return await next(context);
     }
 }

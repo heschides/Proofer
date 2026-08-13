@@ -63,7 +63,8 @@ namespace Sati
         CaseManager,
         Supervisor,
         Director,
-        Admin
+        Admin,
+        PlatformOperator
     }
     public enum UpcomingEventKind
     {

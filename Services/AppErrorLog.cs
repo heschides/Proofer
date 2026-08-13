@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Markup;
 
@@ -57,7 +59,21 @@ internal static class AppErrorLog
         xamlLinePosition = exception is XamlParseException xamlPosition ? (int?)xamlPosition.LinePosition : null
     };
 
-    private static string SafeArea(string area)
+    internal static string CreateFingerprint(Exception exception)
+    {
+        var shape = string.Join('|',
+            exception.GetType().FullName,
+            exception.HResult.ToString("X8"),
+            exception.TargetSite?.DeclaringType?.FullName,
+            exception.TargetSite?.Name,
+            exception.InnerException?.GetType().FullName,
+            exception.InnerException?.HResult.ToString("X8"),
+            exception.InnerException?.TargetSite?.DeclaringType?.FullName,
+            exception.InnerException?.TargetSite?.Name);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(shape)));
+    }
+
+    internal static string SafeArea(string area)
     {
         var safe = new string((area ?? string.Empty)
             .Where(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_')

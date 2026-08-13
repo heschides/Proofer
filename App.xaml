@@ -515,6 +515,9 @@
             <DataTemplate DataType="{x:Type adminVms:AdminDashboardViewModel}">
                 <views:AdminDashboardView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVms:PlatformHealthViewModel}">
+                <views:PlatformHealthView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type billingVms:BillingDashboardViewModel}">
                 <billingViews:BillingDashboardView />
             </DataTemplate>

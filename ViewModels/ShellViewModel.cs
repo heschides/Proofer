@@ -23,6 +23,7 @@ namespace Sati.ViewModels
         private readonly ISessionService _sessionService;
         private readonly BillingDashboardViewModel _billingDashboardViewModel;
         private readonly AdminDashboardViewModel _adminDashboardViewModel;
+        private readonly PlatformHealthViewModel _platformHealthViewModel;
         private readonly DataEnvironmentInfo _dataEnvironment;
 
 
@@ -39,6 +40,7 @@ namespace Sati.ViewModels
             ISessionService sessionService,
             BillingDashboardViewModel billingDashboardViewModel,
             AdminDashboardViewModel adminDashboardViewModel,
+            PlatformHealthViewModel platformHealthViewModel,
             DataEnvironmentInfo dataEnvironment)
         {
             _notesViewModel = notesViewModel;
@@ -49,6 +51,7 @@ namespace Sati.ViewModels
             Scratchpad = scratchpadViewModel;
             _billingDashboardViewModel = billingDashboardViewModel;
             _adminDashboardViewModel = adminDashboardViewModel;
+            _platformHealthViewModel = platformHealthViewModel;
             _dataEnvironment = dataEnvironment;
         }
 
@@ -83,11 +86,13 @@ namespace Sati.ViewModels
         public bool IsBillingAvailable =>
     _sessionService.CurrentUser?.Role is UserRole.Admin;
         public bool IsAdminAvailable => _sessionService.CurrentUser?.Role is UserRole.Admin;
+        public bool IsPlatformHealthAvailable => _sessionService.CurrentUser?.Role is UserRole.PlatformOperator;
         public bool IsDemoEnvironment => _dataEnvironment.IsDemo;
         public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
         public bool IsAdminActive => CurrentViewModel is AdminDashboardViewModel;
+        public bool IsPlatformHealthActive => CurrentViewModel is PlatformHealthViewModel;
 
         public bool IsSupervisionAvailable =>
             _sessionService.CurrentUser?.Role is UserRole.Supervisor
@@ -123,6 +128,7 @@ namespace Sati.ViewModels
                     UserRole.Supervisor => "#5A8A5A",
                     UserRole.Director => "#A6607A",
                     UserRole.Admin => "#4A3728",
+                    UserRole.PlatformOperator => "#7A2E8E",
                     _ => "#9C7A5C"
                 }));
 
@@ -138,6 +144,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsHelpersActive));
             OnPropertyChanged(nameof(IsBillingActive));
             OnPropertyChanged(nameof(IsAdminActive));
+            OnPropertyChanged(nameof(IsPlatformHealthActive));
             if (value is not SupervisorDashboardViewModel)
                 _supervisorDashboardViewModel?.ClearCharts();
         }
@@ -159,6 +166,12 @@ namespace Sati.ViewModels
             CurrentViewModel = _adminDashboardViewModel;
             await _adminDashboardViewModel.InitializeAsync();
         }
+        [RelayCommand]
+        private async Task NavigateToPlatformHealth()
+        {
+            CurrentViewModel = _platformHealthViewModel;
+            await _platformHealthViewModel.RefreshAsync();
+        }
         [RelayCommand] private void ToggleScratchpad() => IsScratchpadVisible = !IsScratchpadVisible;
         // -------------------------------------------------------------------------
         // Initialization
@@ -166,6 +179,13 @@ namespace Sati.ViewModels
 
         public async Task InitializeAsync()
         {
+            NotifyRoleDependentProperties();
+            if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
+            {
+                await NavigateToPlatformHealth();
+                return;
+            }
+
             await Scratchpad.InitializeAsync();
             // Awaited, not fire-and-forget: the dashboard's own People-load must finish
             // before the NotesLog and Clients reloads run theirs. Overlapping People-loads
@@ -179,11 +199,6 @@ namespace Sati.ViewModels
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
 
-            OnPropertyChanged(nameof(UserGreeting)); OnPropertyChanged(nameof(UserInitials));
-            OnPropertyChanged(nameof(AvatarBrush));
-            OnPropertyChanged(nameof(IsSupervisionAvailable));
-            OnPropertyChanged(nameof(IsBillingAvailable));
-            OnPropertyChanged(nameof(IsAdminAvailable));
             NavigateByRole();
         }
 
@@ -192,8 +207,15 @@ namespace Sati.ViewModels
             // The switch flow saves the outgoing user's scratchpad and journal before
             // authentication replaces the cloud API token. From this point onward every
             // request must belong to the newly selected user.
-            await Scratchpad.InitializeAsync();
             _notesViewModel.Reset();
+            NotifyRoleDependentProperties();
+            if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
+            {
+                await NavigateToPlatformHealth();
+                return;
+            }
+
+            await Scratchpad.InitializeAsync();
             await _notesViewModel.InitializeAsync();
             // NotesLog hosts its own NoteEntry instance; the dashboard's init only
             // covers the dashboard's copy. This loads the module's settings so its
@@ -202,16 +224,27 @@ namespace Sati.ViewModels
             await _notesViewModel.NotesLog.ReloadAsync();
             await _notesViewModel.Clients.ReloadAsync();
 
-            OnPropertyChanged(nameof(UserGreeting)); OnPropertyChanged(nameof(UserInitials));
+            NavigateByRole();
+        }
+
+        private void NotifyRoleDependentProperties()
+        {
+            OnPropertyChanged(nameof(UserGreeting));
+            OnPropertyChanged(nameof(UserInitials));
             OnPropertyChanged(nameof(AvatarBrush));
             OnPropertyChanged(nameof(IsSupervisionAvailable));
             OnPropertyChanged(nameof(IsBillingAvailable));
             OnPropertyChanged(nameof(IsAdminAvailable));
-            NavigateByRole();
+            OnPropertyChanged(nameof(IsPlatformHealthAvailable));
         }
 
         private void NavigateByRole()
         {
+            if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
+            {
+                _ = NavigateToPlatformHealth();
+                return;
+            }
             if (_sessionService.CurrentUser?.Role is UserRole.Supervisor or UserRole.Admin or UserRole.Director)
                 _ = InitializeSupervisorAsync();
 

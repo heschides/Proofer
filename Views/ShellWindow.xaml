@@ -105,6 +105,32 @@
                     <Border Cursor="Hand"
                             CornerRadius="4"
                             Padding="10,4"
+                            Margin="0,0,4,0"
+                            Visibility="{Binding IsPlatformHealthAvailable,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding NavigateToPlatformHealthCommand}" />
+                        </Border.InputBindings>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPlatformHealthActive}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
+                                    </DataTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="Platform health" FontSize="13"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Border>
+                    <Border Cursor="Hand"
+                            CornerRadius="4"
+                            Padding="10,4"
                             Margin="0,0,4,0">
                         <Border.InputBindings>
                             <MouseBinding MouseAction="LeftClick"

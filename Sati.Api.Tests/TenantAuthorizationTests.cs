@@ -45,6 +45,107 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task IncidentCollectionDeduplicatesAndAgencyAdminCannotSeeAnotherTenant()
+    {
+        using var agencyOneReporter = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var agencyTwoReporter = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
+        var occurredAt = DateTime.UtcNow;
+        var first = new IncidentReportRequest(
+            "REF_A10001", "Desktop", "Error", "billing.queue.load", "1.2.2",
+            "ABCDEF0123456789ABCDEF0123456789", occurredAt);
+        var foreign = new IncidentReportRequest(
+            "REF_B20001", "Desktop", "Critical", "calendar.day.open", "1.2.2",
+            "BBBBBB0123456789BBBBBB0123456789", occurredAt);
+
+        Assert.Equal(HttpStatusCode.Accepted,
+            (await agencyOneReporter.PostAsJsonAsync("/api/v1/incidents", first)).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted,
+            (await agencyOneReporter.PostAsJsonAsync("/api/v1/incidents", first with { Reference = "REF_A10002" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted,
+            (await agencyTwoReporter.PostAsJsonAsync("/api/v1/incidents", foreign)).StatusCode);
+
+        using var adminOne = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var dashboard = await adminOne.GetFromJsonAsync<AdminIncidentDashboardDto>("/api/v1/admin/incidents");
+
+        var incident = Assert.Single(dashboard!.Incidents, item => item.Operation == "billing.queue.load");
+        Assert.Equal(1, incident.AgencyId);
+        Assert.Equal(2, incident.OccurrenceCount);
+        Assert.DoesNotContain(dashboard.Incidents, item => item.AgencyId == 2);
+        Assert.Equal(2, dashboard.Health.TotalOccurrences);
+    }
+
+    [Fact]
+    public async Task AgencyAdminCannotOpenPlatformDashboardButPlatformOperatorCan()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await admin.GetAsync("/api/v1/platform/incidents")).StatusCode);
+
+        using var platform = await _factory.CreateAuthenticatedClientAsync("platform-operator");
+        var response = await platform.GetAsync("/api/v1/platform/incidents");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dashboard = await response.Content.ReadFromJsonAsync<PlatformIncidentDashboardDto>();
+        Assert.NotNull(dashboard);
+        Assert.Equal(2, dashboard.Agencies.Count);
+        var audit = await _factory.GetAuditEventsAsync("platform-incidents.viewed");
+        Assert.Contains(audit, item => item.ActorUserId == 31);
+    }
+
+    [Fact]
+    public async Task PlatformOperatorCannotUseAgencyBusinessEndpoints()
+    {
+        using var platform = await _factory.CreateAuthenticatedClientAsync("platform-operator");
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await platform.GetAsync("/api/v1/providers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await platform.GetAsync("/api/v1/users/switchable")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await platform.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task IncidentCollectionRejectsNarrativeLikeOperationAndInvalidFingerprint()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var unsafeReport = new IncidentReportRequest(
+            "REF_A10003", "Desktop", "Error", "Person One narrative failed", "1.2.2",
+            "not-a-hash", DateTime.UtcNow);
+
+        var response = await client.PostAsJsonAsync("/api/v1/incidents", unsafeReport);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AgencyAdminMayResolveOnlyItsOwnIncidentAndTheChangeIsAudited()
+    {
+        using var reporter = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var report = new IncidentReportRequest(
+            "REF_STATUS01", "Desktop", "Warning", "notes.refresh", "1.2.2",
+            "CCCCCC0123456789CCCCCC0123456789", DateTime.UtcNow);
+        var createdResponse = await reporter.PostAsJsonAsync("/api/v1/incidents", report);
+        var created = await createdResponse.Content.ReadFromJsonAsync<IncidentGroupDto>();
+
+        using var otherAdmin = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await otherAdmin.PutAsJsonAsync(
+                $"/api/v1/admin/incidents/{created!.Id}/status",
+                new UpdateIncidentStatusRequest("Resolved"))).StatusCode);
+
+        using var owningAdmin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var response = await owningAdmin.PutAsJsonAsync(
+            $"/api/v1/admin/incidents/{created.Id}/status",
+            new UpdateIncidentStatusRequest("Resolved"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Resolved", (await response.Content.ReadFromJsonAsync<IncidentGroupDto>())!.Status);
+        var audit = await _factory.GetAuditEventsAsync("incident-status.updated");
+        Assert.Contains(audit, item => item.AgencyId == 1 && item.ActorUserId == 11);
+    }
+
+    [Fact]
     public async Task ProviderReadReturnsOnlyTheActorsAgency()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");

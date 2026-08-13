@@ -29,6 +29,7 @@ namespace Sati.Data
         {
             await using var context = _contextFactory.CreateDbContext();
             return await context.Users
+                .Where(user => user.Role != UserRole.PlatformOperator)
                 .Include(u => u.Supervisees)
                 .ToListAsync();
         }

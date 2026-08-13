@@ -1,6 +1,21 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-12.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-13.*
+
+## Incident and health boundary
+
+Unexpected desktop and authenticated API failures are grouped by agency, source, sanitized
+operation, and a one-way exception-shape fingerprint. The stored envelope contains no exception
+message, stack trace, request body, URL, note narrative, credential, token, or connection string.
+Ordinary agency Admins can query only their agency's table. A separately provisioned
+`PlatformOperator` role has an audited cross-tenant dashboard and is excluded from agency user
+counts, switch-user lists, role assignment, and agency user editing.
+
+`incident-health-v1` is a 30-day score starting at 100 and subtracting visible severity,
+recurrence, and unresolved-age penalties. It deliberately does not claim crash-free-session,
+availability, or background-job coverage until those denominators are collected safely. Local
+JSON-line diagnostics remain workstation-only for support; the aggregated dashboard receives the
+curated envelope, not those raw diagnostics.
 
 **Review scope (2026-06-29 session):** Form due-date correctness pass — `FormDueDateCalculator`,
 `Settings`, cycle-membership convention, form generation, backfill/bulk-completion tooling,

@@ -54,6 +54,7 @@ builder.Services.AddScoped<ValidatedActorFilter>();
 builder.Services.AddScoped<AuditTrail>();
 builder.Services.AddScoped<PersonLifecycle>();
 builder.Services.AddSingleton<PersonAuditPdfGenerator>();
+builder.Services.AddSingleton<ApiIncidentRecorder>();
 builder.Services.AddHostedService<DatabaseIdentityHostedService>();
 builder.Services.AddDbContextFactory<ApiDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
@@ -117,6 +118,11 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
     logger.LogError(exception, "Unhandled API error. CorrelationId={CorrelationId}", context.TraceIdentifier);
+    if (exception is not null)
+    {
+        await context.RequestServices.GetRequiredService<ApiIncidentRecorder>()
+            .RecordAsync(exception, context, context.RequestAborted);
+    }
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     await context.Response.WriteAsJsonAsync(new ApiErrorDto(
         "server_error",

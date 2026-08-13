@@ -39,6 +39,7 @@ public static class ProductReleaseNotes
             [
                 "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
+                "Agency Admins can review a PHI-minimized incident table and explainable 30-day Incident Health score; a separately controlled platform operator sees audited cross-agency health.",
                 "Expanded automated coverage across authorization, integration, migration, reporting, and domain behavior."
             ]),
         new(

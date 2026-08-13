@@ -26,6 +26,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerAtRequestItem> AtRequestItems => Set<ServerAtRequestItem>();
     public DbSet<ServerAuditEvent> AuditEvents => Set<ServerAuditEvent>();
     public DbSet<ServerPersonVersion> PersonVersions => Set<ServerPersonVersion>();
+    public DbSet<ServerIncidentGroup> IncidentGroups => Set<ServerIncidentGroup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -218,6 +219,26 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.ResourceId).HasMaxLength(100);
             entity.Property(x => x.CorrelationId).IsRequired().HasMaxLength(100);
             entity.Property(x => x.MetadataJson).IsRequired().HasMaxLength(4_000);
+        });
+        modelBuilder.Entity<ServerIncidentGroup>(entity =>
+        {
+            entity.ToTable("IncidentGroups");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.AgencyId, x.Source, x.Operation, x.ExceptionFingerprint }).IsUnique();
+            entity.HasIndex(x => new { x.AgencyId, x.LastSeenUtc });
+            entity.Property(x => x.Source).IsRequired().HasMaxLength(20);
+            entity.Property(x => x.Severity).IsRequired().HasMaxLength(20);
+            entity.Property(x => x.Operation).IsRequired().HasMaxLength(80);
+            entity.Property(x => x.FirstRelease).IsRequired().HasMaxLength(30);
+            entity.Property(x => x.LastRelease).IsRequired().HasMaxLength(30);
+            entity.Property(x => x.ExceptionFingerprint).IsRequired().HasMaxLength(64);
+            entity.Property(x => x.Status).IsRequired().HasMaxLength(20);
+            entity.Property(x => x.LastReference).IsRequired().HasMaxLength(40);
+            entity.Property(x => x.LastActorRole).IsRequired().HasMaxLength(30);
+            entity.HasOne<ServerAgency>()
+                .WithMany()
+                .HasForeignKey(x => x.AgencyId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ServerPersonVersion>(entity =>
         {
@@ -655,4 +676,22 @@ internal sealed class ServerPersonVersion
     public string CorrelationId { get; set; } = string.Empty;
     public byte[] SnapshotGzip { get; set; } = [];
     public byte[] ChangesGzip { get; set; } = [];
+}
+
+internal sealed class ServerIncidentGroup
+{
+    public long Id { get; set; }
+    public int AgencyId { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public string Operation { get; set; } = string.Empty;
+    public string FirstRelease { get; set; } = string.Empty;
+    public string LastRelease { get; set; } = string.Empty;
+    public string ExceptionFingerprint { get; set; } = string.Empty;
+    public string Status { get; set; } = "Open";
+    public int OccurrenceCount { get; set; } = 1;
+    public DateTime FirstSeenUtc { get; set; }
+    public DateTime LastSeenUtc { get; set; }
+    public string LastReference { get; set; } = string.Empty;
+    public string LastActorRole { get; set; } = string.Empty;
 }

@@ -60,6 +60,8 @@ namespace Sati
                 try
                 {
                     var reference = AppErrorLog.Record(args.Exception, "dispatcher.unhandled");
+                    if (_host?.Services.GetService<IIncidentReporter>() is { } reporter)
+                        _ = reporter.ReportAsync(args.Exception, "dispatcher.unhandled", reference);
                     MessageBox.Show(
                         "Sati encountered an unexpected problem. Your current action may not have completed. " +
                         $"Please close and reopen Sati, and give support error reference {reference}.",
@@ -158,6 +160,7 @@ namespace Sati
                         services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
                         services.AddSingleton<AdminDashboardViewModel>();
+                        services.AddSingleton<PlatformHealthViewModel>();
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();
 
@@ -257,6 +260,8 @@ namespace Sati
             catch (Exception ex)
             {
                 var reference = AppErrorLog.Record(ex, "application.startup");
+                if (_host?.Services.GetService<IIncidentReporter>() is { } reporter)
+                    _ = reporter.ReportAsync(ex, "application.startup", reference, "Critical");
                 MessageBox.Show(
                     "Sati could not finish starting safely. No work session was opened. " +
                     $"Please give support error reference {reference}.",
@@ -293,6 +298,8 @@ namespace Sati
             services.AddSingleton<DatabaseIdentityValidator>();
             services.AddTransient<IPersonService, PersonService>();
             services.AddTransient<IAdminService, AdminService>();
+            services.AddTransient<IIncidentReporter, LocalIncidentReporter>();
+            services.AddTransient<IPlatformHealthService, LocalPlatformHealthService>();
             services.AddSingleton<PersonAuditPdfExporter>();
             services.AddTransient<IPersonContactService, PersonContactService>();
             services.AddTransient<INoteService, NoteService>();
@@ -331,6 +338,8 @@ namespace Sati
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
             services.AddTransient<IAuthService, CloudAuthService>();
             services.AddTransient<IAdminService, CloudAdminService>();
+            services.AddTransient<IIncidentReporter, CloudIncidentReporter>();
+            services.AddTransient<IPlatformHealthService, CloudPlatformHealthService>();
             services.AddTransient<IPersonService, CloudPersonService>();
             services.AddTransient<INoteService, CloudNoteService>();
             services.AddTransient<ISettingsService, CloudSettingsService>();

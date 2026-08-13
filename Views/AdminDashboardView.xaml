@@ -215,6 +215,65 @@
         </Border>
 
         <Grid Grid.Row="4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="10" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="175" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="AGENCY INCIDENT HEALTH / 30D" Style="{StaticResource AdminMetricLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Health.Score, TargetNullValue=&#x2014;}"
+                                       FontSize="30" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="{Binding Health.Grade, TargetNullValue=Not measured}"
+                                       Margin="10,10,0,0" FontSize="12"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </StackPanel>
+                        <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
+                            <Run Text="{Binding Health.TotalOccurrences, Mode=OneWay, TargetNullValue=0}" />
+                            <Run Text=" occurrences | " />
+                            <Run Text="{Binding Health.UnresolvedGroups, Mode=OneWay, TargetNullValue=0}" />
+                            <Run Text=" unresolved groups" />
+                        </TextBlock>
+                    </StackPanel>
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="120" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{Binding Health.Explanation}"
+                                   FontSize="9" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Incidents}"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" CanUserAddRows="False"
+                                  Margin="0,7,0,0"
+                                  AutomationProperties.Name="Agency incident groups">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="SEVERITY" Binding="{Binding Severity}" Width="82" />
+                                <DataGridTextColumn Header="FEATURE / OPERATION" Binding="{Binding Operation}" Width="2*" />
+                                <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="72" />
+                                <DataGridTextColumn Header="COUNT" Binding="{Binding OccurrenceCount}" Width="60" />
+                                <DataGridTextColumn Header="LAST SEEN (UTC)" Binding="{Binding LastSeenUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="125" />
+                                <DataGridTextColumn Header="RELEASE" Binding="{Binding LastRelease}" Width="72" />
+                                <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="78" />
+                                <DataGridTextColumn Header="REFERENCE" Binding="{Binding LastReference}" Width="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </Border>
+            <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.05*" MinWidth="260" />
                 <ColumnDefinition Width="8" />
@@ -388,6 +447,7 @@
                     </ScrollViewer>
                 </Grid>
             </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

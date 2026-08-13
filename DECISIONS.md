@@ -434,3 +434,26 @@ The shared Section 13 arithmetic grants a one-unit minimum for a substantive con
 and preserves partial 15-minute units thereafter. Units and monetary charges are separate fields.
 Representative Demo values prove behavior only; live use still requires the agency's authoritative
 contract/rate and clearinghouse/payer acceptance.
+
+## 2026-08-13 — Agency incident visibility is curated; cross-tenant visibility is separate
+
+Agency Admins need enough operational information to recognize recurring failures, coordinate with
+their staff, and confirm whether an incident is being investigated or resolved. Their dashboard is
+therefore limited to their own agency and to a curated envelope: severity, lifecycle status,
+release, sanitized operation, reference, timestamps, occurrence count, and a one-way exception-shape
+fingerprint. It does not expose exception messages, stack traces, request bodies, URLs, narratives,
+credentials, tokens, connection strings, or another agency's activity.
+
+Cross-tenant support is assigned to a separately provisioned `PlatformOperator`, not to a more
+powerful agency Admin. Every cross-tenant dashboard view is audited, and this identity is denied
+ordinary agency business endpoints and excluded from agency user-management workflows. Raw local
+diagnostics remain workstation-only support material and are not copied into the aggregated table.
+
+The versioned health score is an operational signal, not a service-level claim. Version 1 scores
+recorded incident groups active in the selected window and states that group occurrence totals are
+cumulative; it does not imply crash-free sessions or measured availability until safe denominators
+and job telemetry exist.
+
+**Rejected:** exposing raw stack traces to agency Admins, giving ordinary Admins cross-tenant access,
+or presenting an incident-only score as proof of uptime. Each would reveal unnecessary technical or
+tenant information or overstate what the collected data can establish.

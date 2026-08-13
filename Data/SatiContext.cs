@@ -29,6 +29,7 @@ namespace Sati.Data
         public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
         public DbSet<AuditEvent> AuditEvents { get; set; }
         public DbSet<PersonVersion> PersonVersions { get; set; }
+        public DbSet<IncidentGroup> IncidentGroups { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -455,6 +456,32 @@ namespace Sati.Data
                 entity.HasOne(generation => generation.BillingPeriod)
                       .WithMany()
                       .HasForeignKey(generation => generation.BillingPeriodId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<IncidentGroup>(entity =>
+            {
+                entity.HasKey(incident => incident.Id);
+                entity.HasIndex(incident => new
+                {
+                    incident.AgencyId,
+                    incident.Source,
+                    incident.Operation,
+                    incident.ExceptionFingerprint
+                }).IsUnique();
+                entity.HasIndex(incident => new { incident.AgencyId, incident.LastSeenUtc });
+                entity.Property(incident => incident.Source).IsRequired().HasMaxLength(20);
+                entity.Property(incident => incident.Severity).IsRequired().HasMaxLength(20);
+                entity.Property(incident => incident.Operation).IsRequired().HasMaxLength(80);
+                entity.Property(incident => incident.FirstRelease).IsRequired().HasMaxLength(30);
+                entity.Property(incident => incident.LastRelease).IsRequired().HasMaxLength(30);
+                entity.Property(incident => incident.ExceptionFingerprint).IsRequired().HasMaxLength(64);
+                entity.Property(incident => incident.Status).IsRequired().HasMaxLength(20);
+                entity.Property(incident => incident.LastReference).IsRequired().HasMaxLength(40);
+                entity.Property(incident => incident.LastActorRole).IsRequired().HasMaxLength(30);
+                entity.HasOne<Agency>()
+                      .WithMany()
+                      .HasForeignKey(incident => incident.AgencyId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
         }

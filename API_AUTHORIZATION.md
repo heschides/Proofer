@@ -96,6 +96,13 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Billing | `POST /billing/periods/{periodId}/edi` | Billing period user's `AgencyId` | Admin only; period, every source note/person, and generated file must remain in actor agency. |
 | Forms | `POST /forms/delete` | Form person's assigned user and agency | Own caseload only; all requested IDs must be owned. |
 | Forms | `PUT /forms/{id}` | Form person's assigned user and agency | Own caseload only. |
+| Incidents | `POST /incidents` | Authenticated actor's `AgencyId` | Reports only a validated PHI-minimized envelope; agency is derived from the token, never the request. |
+| Incidents | `GET /admin/incidents` | Incident `AgencyId` | Admin only; actor agency only. |
+| Incidents | `PUT /admin/incidents/{id}/status` | Incident `AgencyId` | Admin only; same-agency status transition is audited. |
+| Platform health | `GET /platform/incidents` | All incident agencies | `PlatformOperator` only; every cross-tenant view is audited. Ordinary Admin is forbidden. |
+
+`PlatformOperator` is provisioned outside agency user-management workflows. It is excluded from
+agency counts, switch-user results, selectable agency roles, and agency user editing.
 
 ## Required regression coverage
 

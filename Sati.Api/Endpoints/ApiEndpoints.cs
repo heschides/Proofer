@@ -39,6 +39,170 @@ internal static class ApiEndpoints
         MapReports(api);
         MapBilling(api);
         MapForms(api);
+        MapIncidents(api);
+    }
+
+    private static void MapIncidents(RouteGroupBuilder api)
+    {
+        api.MapPost("/incidents", async Task<IResult> (
+            IncidentReportRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var validation = ValidateIncidentReport(request);
+            if (validation is not null)
+                return Results.ValidationProblem(validation);
+
+            var occurredAt = DateTime.SpecifyKind(request.OccurredAtUtc, DateTimeKind.Utc);
+            var now = DateTime.UtcNow;
+            if (occurredAt < now.AddDays(-7) || occurredAt > now.AddMinutes(5))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["occurredAtUtc"] = ["Incident time must be within the last seven days and not in the future."]
+                });
+            }
+
+            var existing = await db.IncidentGroups.SingleOrDefaultAsync(candidate =>
+                candidate.AgencyId == actor.AgencyId &&
+                candidate.Source == request.Source &&
+                candidate.Operation == request.Operation &&
+                candidate.ExceptionFingerprint == request.ExceptionFingerprint,
+                cancellationToken);
+            if (existing is null)
+            {
+                existing = new ServerIncidentGroup
+                {
+                    AgencyId = actor.AgencyId,
+                    Source = request.Source,
+                    Severity = request.Severity,
+                    Operation = request.Operation,
+                    FirstRelease = request.Release,
+                    LastRelease = request.Release,
+                    ExceptionFingerprint = request.ExceptionFingerprint,
+                    Status = "Open",
+                    OccurrenceCount = 1,
+                    FirstSeenUtc = occurredAt,
+                    LastSeenUtc = occurredAt,
+                    LastReference = request.Reference,
+                    LastActorRole = actor.Role
+                };
+                db.IncidentGroups.Add(existing);
+            }
+            else
+            {
+                existing.Severity = MoreSevere(existing.Severity, request.Severity);
+                existing.LastRelease = request.Release;
+                existing.LastSeenUtc = occurredAt > existing.LastSeenUtc ? occurredAt : existing.LastSeenUtc;
+                existing.LastReference = request.Reference;
+                existing.LastActorRole = actor.Role;
+                existing.OccurrenceCount++;
+                if (existing.Status == "Resolved")
+                    existing.Status = "Reopened";
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Accepted(value: ToIncidentDto(existing));
+        });
+
+        api.MapGet("/admin/incidents", async Task<IResult> (
+            int? days,
+            int? take,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var window = days ?? 30;
+            var limit = take ?? 250;
+            if (window is < 1 or > 90 || limit is < 1 or > 500)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Use 1-90 days and request 1-500 rows."] });
+
+            var start = DateTime.UtcNow.AddDays(-window);
+            var incidents = await db.IncidentGroups.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == actor.AgencyId && candidate.LastSeenUtc >= start)
+                .OrderByDescending(candidate => candidate.LastSeenUtc)
+                .ThenByDescending(candidate => candidate.Id)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+            var dtos = incidents.Select(ToIncidentDto).ToList();
+            return Results.Ok(new AdminIncidentDashboardDto(
+                DateTime.UtcNow,
+                IncidentHealthScoring.Calculate(dtos, DateTime.UtcNow, window),
+                dtos));
+        });
+
+        api.MapPut("/admin/incidents/{incidentId:long}/status", async Task<IResult> (
+            long incidentId,
+            UpdateIncidentStatusRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            if (request.Status is not ("Open" or "Investigating" or "Resolved"))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Status must be Open, Investigating, or Resolved."] });
+            var incident = await db.IncidentGroups.SingleOrDefaultAsync(candidate =>
+                candidate.Id == incidentId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (incident is null)
+                return Results.NotFound();
+            incident.Status = request.Status;
+            auditTrail.Record(actor, AuditActions.IncidentStatusUpdated, "IncidentGroup", metadataJson:
+                JsonSerializer.Serialize(new { incidentId, status = request.Status }));
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ToIncidentDto(incident));
+        });
+
+        api.MapGet("/platform/incidents", async Task<IResult> (
+            int? days,
+            int? take,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "PlatformOperator")
+                return Results.Forbid();
+            var window = days ?? 30;
+            var limit = take ?? 500;
+            if (window is < 1 or > 90 || limit is < 1 or > 1000)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Use 1-90 days and request 1-1000 rows."] });
+
+            var observedAt = DateTime.UtcNow;
+            var start = observedAt.AddDays(-window);
+            var incidents = await db.IncidentGroups.AsNoTracking()
+                .Where(candidate => candidate.LastSeenUtc >= start)
+                .OrderByDescending(candidate => candidate.LastSeenUtc)
+                .ThenByDescending(candidate => candidate.Id)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+            var dtos = incidents.Select(ToIncidentDto).ToList();
+            var agencies = await db.Agencies.AsNoTracking().OrderBy(candidate => candidate.Name)
+                .Select(candidate => new { candidate.Id, candidate.Name })
+                .ToListAsync(cancellationToken);
+            var agencyHealth = agencies.Select(agency => new PlatformAgencyHealthDto(
+                agency.Id,
+                agency.Name,
+                IncidentHealthScoring.Calculate(dtos.Where(item => item.AgencyId == agency.Id), observedAt, window)))
+                .ToList();
+            auditTrail.Record(actor, AuditActions.PlatformIncidentsViewed, "IncidentGroup");
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(new PlatformIncidentDashboardDto(
+                observedAt,
+                IncidentHealthScoring.Calculate(dtos, observedAt, window),
+                agencyHealth,
+                dtos));
+        });
     }
 
     private static void MapAudit(RouteGroupBuilder api)
@@ -113,7 +277,7 @@ internal static class ApiEndpoints
                 .Select(agency => agency.Name)
                 .SingleAsync(cancellationToken);
             var userCount = await db.Users.AsNoTracking()
-                .CountAsync(user => user.AgencyId == actor.AgencyId, cancellationToken);
+                .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role != "PlatformOperator", cancellationToken);
             var caseManagerCount = await db.Users.AsNoTracking()
                 .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role == "CaseManager", cancellationToken);
             var personCount = await db.People.AsNoTracking()
@@ -393,7 +557,7 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var users = await db.Users.AsNoTracking()
-                .Where(x => x.AgencyId == actor.AgencyId)
+                .Where(x => x.AgencyId == actor.AgencyId && x.Role != "PlatformOperator")
                 .OrderBy(x => x.DisplayName)
                 .ThenBy(x => x.Username)
                 .ToListAsync(cancellationToken);
@@ -438,6 +602,7 @@ internal static class ApiEndpoints
             if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
             var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.AgencyId == actor.AgencyId, cancellationToken);
             if (user is null) return Results.NotFound();
+            if (user.Role == "PlatformOperator") return Results.NotFound();
             if (actor.Role == "Supervisor" && (user.Role != "CaseManager" || user.SupervisorId != actor.UserId)) return Results.Forbid();
             var errors = await ValidateUserRequestAsync(db, actor, request, userId, cancellationToken);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -462,6 +627,7 @@ internal static class ApiEndpoints
                 new Dictionary<string, string[]> { ["password"] = ["The new password must be between 8 and 128 characters."] });
             var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.AgencyId == actor.AgencyId, cancellationToken);
             if (user is null) return Results.NotFound();
+            if (user.Role == "PlatformOperator") return Results.NotFound();
             if (actor.Role == "Supervisor" && (user.Role != "CaseManager" || user.SupervisorId != actor.UserId)) return Results.Forbid();
             var credential = passwordVerifier.Hash(request.NewPassword);
             user.PasswordHash = credential.Hash;
@@ -3139,6 +3305,57 @@ internal static class ApiEndpoints
     }
 
     private static bool ValidPassword(string? password) => password?.Length is >= 8 and <= 128;
+
+    private static Dictionary<string, string[]>? ValidateIncidentReport(IncidentReportRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (!IsSafeIncidentToken(request.Reference, 6, 40))
+            errors["reference"] = ["Reference must contain 6-40 letters, numbers, hyphens, or underscores."];
+        if (request.Source is not ("Desktop" or "Api"))
+            errors["source"] = ["Source must be Desktop or Api."];
+        if (!IncidentSeverities.IsValid(request.Severity))
+            errors["severity"] = ["Severity must be Warning, Error, or Critical."];
+        if (!IsSafeIncidentToken(request.Operation, 1, 80))
+            errors["operation"] = ["Operation must contain only letters, numbers, dots, hyphens, or underscores."];
+        if (!IsSafeIncidentToken(request.Release, 1, 30))
+            errors["release"] = ["Release contains unsupported characters."];
+        if (string.IsNullOrWhiteSpace(request.ExceptionFingerprint) ||
+            request.ExceptionFingerprint.Length is < 12 or > 64 ||
+            request.ExceptionFingerprint.Any(character => !Uri.IsHexDigit(character)))
+            errors["exceptionFingerprint"] = ["Exception fingerprint must be 12-64 hexadecimal characters."];
+        return errors.Count == 0 ? null : errors;
+    }
+
+    private static bool IsSafeIncidentToken(string? value, int minimumLength, int maximumLength) =>
+        value?.Length >= minimumLength && value.Length <= maximumLength &&
+        value.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_');
+
+    private static string MoreSevere(string current, string reported)
+    {
+        static int Rank(string value) => value switch
+        {
+            IncidentSeverities.Critical => 3,
+            IncidentSeverities.Error => 2,
+            _ => 1
+        };
+        return Rank(reported) > Rank(current) ? reported : current;
+    }
+
+    private static IncidentGroupDto ToIncidentDto(ServerIncidentGroup incident) => new(
+        incident.Id,
+        incident.AgencyId,
+        incident.Source,
+        incident.Severity,
+        incident.Operation,
+        incident.FirstRelease,
+        incident.LastRelease,
+        incident.ExceptionFingerprint,
+        incident.Status,
+        incident.OccurrenceCount,
+        incident.FirstSeenUtc,
+        incident.LastSeenUtc,
+        incident.LastReference,
+        incident.LastActorRole);
 
     private static Dictionary<string, string[]> ValidateProvider(SaveProviderRequest request)
     {

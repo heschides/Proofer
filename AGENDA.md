@@ -202,20 +202,22 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Next major slice after billing — tenant-safe incident and health pipeline
 
-- [ ] Capture structured client and API incidents with UTC time, release, agency, actor role,
+- [x] Capture structured client and API incidents with UTC time, release, agency, actor role,
       operation, correlation/reference ID, severity, exception fingerprint, recurrence count, and
       lifecycle status; never capture note narratives, passwords, tokens, connection strings, or
       unrestricted exception messages.
-- [ ] Deduplicate repeated failures into stable incident groups while retaining occurrence counts,
+- [x] Deduplicate repeated failures into stable incident groups while retaining occurrence counts,
       first/last-seen times, affected releases, and a bounded diagnostic envelope.
-- [ ] Add an Admin-only agency incident table with filters for severity, status, release, operation,
+- [x] Add an Admin-only agency incident table showing severity, status, release, operation,
       date, and fingerprint. Enforce agency scope at the API and data boundaries, not only in the UI.
-- [ ] Introduce a separately named platform-operator capability for cross-tenant incident visibility.
+- [x] Introduce a separately named platform-operator capability for cross-tenant incident visibility.
       Do not treat an ordinary agency Admin as a master account, and audit every cross-tenant view
       or export.
-- [ ] Define transparent, versioned agency and platform health scores using documented inputs such
-      as crash-free sessions, severe-error rate, recurrence, unresolved age, API availability, and
-      data-job failures. Show the component scores and data window so the number is explainable.
+- [x] Define transparent, versioned agency and platform Incident Health v1 scores from recorded
+      severity, recurrence, and unresolved age; show every penalty and state explicitly that v1
+      does not claim crash-free-session, availability, or job-failure coverage.
+- [ ] Add safe session denominators, API availability, scheduled-job outcomes, desktop filters and
+      status-edit controls, incident alert thresholds, and concurrency-safe atomic upsert.
 - [ ] Add retention, legal-hold, access-review, alerting, and runbook requirements; prove PHI/PII
       minimization, tenant isolation, bounded queries, concurrency, and score calculations with
       automated tests before enabling production collection.

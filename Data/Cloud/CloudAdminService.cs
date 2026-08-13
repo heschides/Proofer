@@ -10,6 +10,14 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
     public Task<AdminOperationsDto> GetOperationsAsync(CancellationToken cancellationToken = default) =>
         api.GetAsync<AdminOperationsDto>("/api/v1/admin/operations", cancellationToken);
 
+    public Task<AdminIncidentDashboardDto> GetIncidentsAsync(
+        int days = 30,
+        int take = 250,
+        CancellationToken cancellationToken = default) =>
+        api.GetAsync<AdminIncidentDashboardDto>(
+            $"/api/v1/admin/incidents?days={days}&take={take}",
+            cancellationToken);
+
     public Task<byte[]> ExportAuditCsvAsync(
         DateTime fromUtc,
         DateTime toUtc,
