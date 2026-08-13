@@ -124,6 +124,13 @@ split and partial-unit values before the matching API package was deployed. Post
 readiness returned HTTP 200, the release endpoint returned 1.2.1, and the new anonymous billing-
 configuration request returned HTTP 401. Temporary exact-IP migration rules were removed after use.
 
+Later on August 13, the billing-complete desktop client and API were versioned together as 1.2.2.
+The exact 1.2.2 installer passed isolated install, public-configuration, version, 15-second launch,
+and cleanup checks. Azure OneDeploy deployment `204b1019a81746508f7e3585723b5ec6`
+succeeded for the matching API package; after the normal restart interval, `/health/live` and
+`/health/ready` returned HTTP 200 and `/health/version` returned 1.2.2. Authenticated Admin
+preflight and clean external-machine evidence remain explicit final Demo gates.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

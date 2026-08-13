@@ -33,7 +33,7 @@ Exercise the exact installer in an isolated location. This launches the installe
 
 ```powershell
 .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.1.exe
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.2.exe
 ```
 
 Check the deployed API without credentials:
@@ -93,7 +93,7 @@ not document passwords in this runbook.
   under `%LOCALAPPDATA%\Satilogica\Sati\Logs` and omit exception messages by design.
 - If a demonstration mutation succeeds, record the synthetic account, Person ID, and action so the
   canonical Demo dataset can be restored deliberately.
-- Keep `output\pdf\Sati-Company-Demo-Fallback-1.2.1.pdf` available offline. It is explicitly
+- Keep `output\pdf\Sati-Company-Demo-Fallback-1.2.2.pdf` available offline. It is explicitly
   labeled as a fallback, contains only synthetic/representative material, and must be reviewed by
   the presenter before the meeting. Never use screenshots containing real client data.
 

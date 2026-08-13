@@ -15,6 +15,11 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
       automated regression tests.
 - [x] Make the Demo readiness preflight distinguish an older healthy deployment from a matching
       release and report the exact deployment-parity remedy instead of a raw web exception.
+- [x] Build and isolated-launch-test the version 1.2.2 installer containing the completed billing
+      client, deploy the matching 1.2.2 API to Azure Demo, and verify live/ready/version health.
+- [x] Regenerate and visually inspect all ten pages of the version-matched offline Demo fallback.
+- [ ] Complete authenticated Admin preflight, external-machine installer attestation, presenter
+      rehearsal, and final evidence binding for the exact 1.2.2 installer.
 
 ---
 
@@ -250,7 +255,8 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Produce and visually verify a ten-page offline PDF fallback using only synthetic and
   explicitly representative material, with a presenter approval area and honest limitations.
 - [x] Document the external-machine, rehearsal, fallback approval, and final acceptance workflow;
-  keep the actual deployment, authenticated run, external-machine run, and human attestation open.
+  the matching 1.2.2 API deployment and isolated installer launch are complete, while the
+  authenticated run, external-machine run, and human attestation remain open.
 
 ### Completed 2026-08-13 -- release notes and 1.2.0 packaging
 

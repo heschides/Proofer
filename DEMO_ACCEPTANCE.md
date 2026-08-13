@@ -40,7 +40,7 @@ An unauthenticated `-HealthOnly` result is useful diagnostics, but the final ver
 
 Copy these three items to a Windows machine that does not contain the Sati source tree:
 
-- the exact `SatiDemoSetup-1.2.1.exe` installer;
+- the exact `SatiDemoSetup-1.2.2.exe` installer;
 - its adjacent `.sha256` checksum file;
 - `scripts\Test-DemoInstaller.ps1`.
 
@@ -48,7 +48,7 @@ Run:
 
 ```powershell
 .\Test-DemoInstaller.ps1 `
-    -InstallerPath .\SatiDemoSetup-1.2.1.exe `
+    -InstallerPath .\SatiDemoSetup-1.2.2.exe `
     -ExternalMachine `
     -EvidencePath C:\SatiDemoEvidence\clean-machine.json
 ```
@@ -76,8 +76,8 @@ Use the exact installer and fallback PDF intended for the meeting. Complete the 
 
 ```powershell
 .\scripts\New-DemoPresenterAttestation.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.1.exe `
-    -FallbackPath .\output\pdf\Sati-Company-Demo-Fallback-1.2.1.pdf `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.2.exe `
+    -FallbackPath .\output\pdf\Sati-Company-Demo-Fallback-1.2.2.pdf `
     -EvidenceDirectory C:\SatiDemoEvidence `
     -Presenter 'Joshua White' `
     -ReleaseCommit '<deployed-client-api-commit>' `
@@ -97,8 +97,8 @@ Place all three evidence files in the same directory and run:
 
 ```powershell
 .\scripts\Test-CompanyDemoAcceptance.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.1.exe `
-    -FallbackPath .\output\pdf\Sati-Company-Demo-Fallback-1.2.1.pdf `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.2.exe `
+    -FallbackPath .\output\pdf\Sati-Company-Demo-Fallback-1.2.2.pdf `
     -EvidenceDirectory C:\SatiDemoEvidence
 ```
 
