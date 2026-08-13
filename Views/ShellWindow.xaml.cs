@@ -2,6 +2,7 @@
 using Sati.ViewModels;
 using Sati.Services;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace Sati.Views
 {
@@ -139,7 +140,11 @@ namespace Sati.Views
                 }
 
                 _closeAfterSuccessfulSave = true;
-                Close();
+                // Do not call Close from the continuation of the Closing event.
+                // WPF can still have its internal closing guard raised even though
+                // this async handler already set Cancel. Queue the final close so
+                // the original event and its continuation unwind completely first.
+                _ = Dispatcher.BeginInvoke(new Action(Close), DispatcherPriority.ApplicationIdle);
             };
 
             Closed += (s, e) => Application.Current.Shutdown();

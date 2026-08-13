@@ -59,7 +59,9 @@ namespace Sati.Views
             }
 
             _closeAfterSuccessfulSave = true;
-            Close();
+            _ = Dispatcher.BeginInvoke(
+                new Action(Close),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
     }
 

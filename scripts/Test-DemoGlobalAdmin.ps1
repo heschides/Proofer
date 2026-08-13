@@ -1,7 +1,7 @@
 param(
     [string]$BaseAddress = 'https://sati-demo-api-satilogica.azurewebsites.net/',
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$ExpectedReleaseVersion = '1.2.5',
+    [string]$ExpectedReleaseVersion = '1.2.6',
     [string]$CredentialPath = (Join-Path $env:LOCALAPPDATA 'Satilogica\Sati\Credentials\demo-global-admin.xml'),
     [string]$EvidencePath
 )
@@ -59,6 +59,25 @@ try {
         throw 'The Global Admin account was not forbidden from the agency provider route.'
     }
 
+    # Use a deliberately incorrect current password so this verifies that the
+    # self-service route is reachable without changing the stored credential.
+    $selfPasswordRouteReachable = $false
+    try {
+        $passwordProbe = @{
+            currentPassword = 'deliberately-incorrect-probe'
+            newPassword = 'ProbePassword123!'
+        } | ConvertTo-Json -Compress
+        Invoke-WebRequest -Uri (Get-DemoUri 'api/v1/users/me/password') -Headers $headers `
+            -Method Put -ContentType 'application/json' -Body $passwordProbe `
+            -UseBasicParsing -TimeoutSec 90 | Out-Null
+    }
+    catch {
+        $selfPasswordRouteReachable = $_.Exception.Response.StatusCode.value__ -eq 400
+    }
+    if (-not $selfPasswordRouteReachable) {
+        throw 'The Global Admin self-service password route was not reachable.'
+    }
+
     $result = [ordered]@{
         SchemaVersion = 1
         Gate = 'GlobalAdminApiReadiness'
@@ -72,6 +91,7 @@ try {
         IncidentGroups = @($dashboard.incidents).Count
         OverallScore = $dashboard.overallHealth.score
         AgencyBusinessRoute = 'Forbidden'
+        SelfPasswordRoute = 'Reachable; non-mutating invalid-current-password probe returned HTTP 400'
         CredentialStorage = 'Windows user-bound encrypted CLIXML; secret omitted'
     }
 

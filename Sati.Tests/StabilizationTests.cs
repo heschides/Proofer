@@ -206,7 +206,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.5", version);
+        Assert.Equal("1.2.6", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Reliable review and incident recovery", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
@@ -216,6 +216,22 @@ public sealed class StabilizationTests
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Safety and reliability" &&
             section.Items.Any(item => item.Contains("calendar-day selection", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void AsyncSaveOnCloseDefersTheSecondCloseUntilDispatcherIdle()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        foreach (var file in new[] { "ShellWindow.xaml.cs", "SettingsWindow.xaml.cs" })
+        {
+            var source = File.ReadAllText(Path.Combine(directory!.FullName, "Views", file));
+            Assert.Contains("Dispatcher.BeginInvoke", source);
+            Assert.Contains("DispatcherPriority.ApplicationIdle", source);
+        }
     }
 
     [Fact]

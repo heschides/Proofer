@@ -152,6 +152,15 @@ The exact 1.2.5 installer passed isolated installation, version 1.2.5.0, 15-seco
 and cleanup checks; SHA-256 is
 `86a16127cb595cae70af8e709de681e2afabf00561aed65b5decb2f196a17737`.
 
+Release 1.2.6 follows 1.2.5 with two focused corrections: the desktop defers its second
+save-on-close request until the Windows dispatcher is idle, and the platform operator may use
+only the authenticated self-service password endpoint in addition to its existing platform
+surface. API 1.2.6 was deployed with OneDeploy deployment
+`60119571fdb84ab1a1e6dac52cacf93f`; live, ready, exact-version, platform-role,
+agency-route-denial, and non-mutating self-password-route checks passed. The exact 1.2.6
+installer passed isolated installation, version 1.2.6.0, 15-second responsiveness, and cleanup;
+SHA-256 is `5bba56cf90f80a44089a7d47fe9a0ca330272ec33841c4d8c8c63d492b1e0929`.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

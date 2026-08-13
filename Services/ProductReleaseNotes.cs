@@ -22,6 +22,7 @@ public static class ProductReleaseNotes
             "Safety and reliability",
             [
                 "Fixed repeated close requests so the main and Settings windows cannot crash while completing their save-on-close work.",
+                "Corrected the final save-on-close handoff so Windows fully finishes the original close request before Sati closes the saved window.",
                 "Incident reports are now saved to a durable local outbox and retried after sign-in when a connection or process interruption prevented delivery.",
                 "An unclean prior shutdown is reported on the next matching sign-in, including terminations that an in-process exception handler cannot observe.",
                 "An empty incident feed now says No telemetry instead of incorrectly reporting a perfect health score.",
@@ -46,6 +47,7 @@ public static class ProductReleaseNotes
                 "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
                 "Global Admin desktop failures are accepted as platform-scoped incidents without exposing agency business routes or blaming an individual tenant.",
+                "Global Admin can change its own password while remaining blocked from agency user-management and business-data endpoints.",
                 "Agency Admins can review a PHI-minimized incident table and explainable 30-day Incident Health score; a separately controlled platform operator sees audited cross-agency health.",
                 "Incident reports now aggregate safely during simultaneous failures, and Admins can search, filter, investigate, resolve, and see explicit alert thresholds.",
                 "Expanded automated coverage across authorization, integration, migration, reporting, and domain behavior."

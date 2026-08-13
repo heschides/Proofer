@@ -30,7 +30,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.5", release["releaseVersion"]);
+        Assert.Equal("1.2.6", release["releaseVersion"]);
     }
 
     [Fact]
@@ -128,6 +128,24 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
             (await platform.GetAsync("/api/v1/users/switchable")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
             (await platform.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task PlatformOperatorMayReachOnlyItsSelfServicePasswordEndpoint()
+    {
+        using var platform = await _factory.CreateAuthenticatedClientAsync("platform-operator");
+
+        var response = await platform.PutAsJsonAsync(
+            "/api/v1/users/me/password",
+            new ChangePasswordRequest("deliberately-wrong", "NewPassword123!"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("invalid_current_password", error!.Code);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await platform.PutAsJsonAsync(
+                "/api/v1/users/11/password",
+                new ResetPasswordRequest("NewPassword123!"))).StatusCode);
     }
 
     [Fact]
