@@ -104,6 +104,7 @@ internal static class ContractMapper
         note.OverrideReason,
         note.OverrideApprovedById,
         note.OverrideApprovedAt,
+        note.Revision,
         person is null ? null : new PersonReferenceDto(person.Id, person.UserId, person.FirstName, person.LastName));
 
     public static PersonContactDto ToPersonContact(ServerPersonContact contact) => new(

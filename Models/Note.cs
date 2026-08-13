@@ -12,6 +12,7 @@ namespace Sati.Models
         public NoteStatus? Status { get; set; }
         public int? Minutes { get; set; }
         public int? StartTime { get; set; } // minutes offset from 7AM, e.g. 60 = 8AM
+        public int Revision { get; set; } = 1;
         public int PersonId { get; set; }
         public Person Person { get; set; } = null!;
         public FormType? FormType { get; set; }

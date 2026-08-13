@@ -32,12 +32,30 @@ public sealed class CloudNoteService(CloudApiClient api) : INoteService
         CloudContractMapper.ToNote(await api.PostAsync<SaveNoteRequest, NoteDto>(
             "/api/v1/notes", CloudContractMapper.ToSaveNoteRequest(note)));
 
-    public Task DeleteNoteAsync(Note note) => api.DeleteAsync($"/api/v1/notes/{note.Id}");
+    public async Task DeleteNoteAsync(Note note)
+    {
+        try
+        {
+            await api.DeleteAsync($"/api/v1/notes/{note.Id}?expectedRevision={note.Revision}");
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_note")
+        {
+            throw new NoteConcurrencyException(ex);
+        }
+    }
 
     public async Task UpdateNoteAsync(Note note)
     {
-        _ = await api.PutAsync<SaveNoteRequest, NoteDto>(
-            $"/api/v1/notes/{note.Id}", CloudContractMapper.ToSaveNoteRequest(note));
+        try
+        {
+            var updated = await api.PutAsync<SaveNoteRequest, NoteDto>(
+                $"/api/v1/notes/{note.Id}", CloudContractMapper.ToSaveNoteRequest(note));
+            note.Revision = updated.Revision;
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_note")
+        {
+            throw new NoteConcurrencyException(ex);
+        }
     }
 
     public async Task<List<Note>> GetAllByPersonAsync(int personId) =>

@@ -49,6 +49,12 @@ Comprehensive Assessments carry a `Revision` concurrency token. Save and submit 
 the revision the user opened. A stale revision returns HTTP 409 and does not overwrite the newer
 record. The successful response supplies the next revision to the client.
 
+Notes use the same fail-closed revision contract for edits, deletes, supervisor decisions, and
+automated abandonment. Every successful transition increments the Note revision. A stale caller
+receives `409 stale_note`; the desktop keeps an in-progress narrative draft, reloads the latest
+saved Note, and identifies fields that differ before the user decides whether to save again.
+Older clients that omit the expected revision do not receive a compatibility bypass.
+
 Claim lines have a unique database index on `NoteId`. Creating the monthly period, claim line, and
 audit event happens in one save, and a repeated command returns HTTP 409 instead of charging the
 same service note twice.

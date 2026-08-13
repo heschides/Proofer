@@ -455,6 +455,7 @@ internal static class ApiEndpoints
 
         api.MapPost("/supervisor/notes/{noteId:int}/approve", async Task<IResult> (
             int noteId,
+            SupervisorNoteActionRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
             AuditTrail auditTrail,
@@ -464,6 +465,8 @@ internal static class ApiEndpoints
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+            if (request.ExpectedRevision != row.Note.Revision)
+                return StaleNoteConflict();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
@@ -481,8 +484,16 @@ internal static class ApiEndpoints
             row.Note.Status = 6;
             row.Note.ApprovedById = actor.UserId;
             row.Note.ApprovedAt = DateTime.UtcNow;
+            row.Note.Revision++;
             auditTrail.Record(actor, AuditActions.NoteApproved, "Note", noteId);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleNoteConflict();
+            }
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
 
@@ -507,6 +518,8 @@ internal static class ApiEndpoints
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+            if (request.ExpectedRevision != row.Note.Revision)
+                return StaleNoteConflict();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
@@ -518,8 +531,16 @@ internal static class ApiEndpoints
             row.Note.OverrideReason = reason;
             row.Note.OverrideApprovedById = actor.UserId;
             row.Note.OverrideApprovedAt = now;
+            row.Note.Revision++;
             auditTrail.Record(actor, AuditActions.NoteApprovalOverridden, "Note", noteId);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleNoteConflict();
+            }
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
 
@@ -544,6 +565,8 @@ internal static class ApiEndpoints
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+            if (request.ExpectedRevision != row.Note.Revision)
+                return StaleNoteConflict();
             if (row.Note.Status != 2)
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be returned.", string.Empty));
 
@@ -551,8 +574,16 @@ internal static class ApiEndpoints
             row.Note.ReturnedById = actor.UserId;
             row.Note.ReturnReason = reason;
             row.Note.ReturnedAt = DateTime.UtcNow;
+            row.Note.Revision++;
             auditTrail.Record(actor, AuditActions.NoteReturned, "Note", noteId);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleNoteConflict();
+            }
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
     }
@@ -1351,6 +1382,8 @@ internal static class ApiEndpoints
                 .SingleOrDefaultAsync(cancellationToken);
             if (row is null || row.Note.PersonId != request.PersonId)
                 return Results.NotFound();
+            if (request.ExpectedRevision != row.Note.Revision)
+                return StaleNoteConflict();
             if (!NoteWorkflow.CanCaseManagerEdit(row.Note.Status))
                 return Results.Conflict(new ApiErrorDto(
                     "note_locked",
@@ -1369,12 +1402,21 @@ internal static class ApiEndpoints
             row.Note.NoteType = noteType;
             row.Note.CaseManagerJustification = request.CaseManagerJustification;
             row.Note.VisitDocumentationJson = request.VisitDocumentationJson;
-            await db.SaveChangesAsync(cancellationToken);
+            row.Note.Revision++;
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleNoteConflict();
+            }
             return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
         });
 
         api.MapDelete("/notes/{id:int}", async (
             int id,
+            int? expectedRevision,
             ClaimsPrincipal principal,
             ApiDbContext db,
             CancellationToken cancellationToken) =>
@@ -1386,6 +1428,8 @@ internal static class ApiEndpoints
                               select candidate).SingleOrDefaultAsync(cancellationToken);
             if (note is null)
                 return Results.NotFound();
+            if (expectedRevision != note.Revision)
+                return StaleNoteConflict();
             if (!NoteWorkflow.CanCaseManagerDelete(note.Status))
                 return Results.Conflict(new ApiErrorDto(
                     "note_retained",
@@ -1393,7 +1437,14 @@ internal static class ApiEndpoints
                     string.Empty));
 
             db.Notes.Remove(note);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleNoteConflict();
+            }
             return Results.NoContent();
         });
 
@@ -1465,7 +1516,9 @@ internal static class ApiEndpoints
             var personIds = db.People.Where(x => x.UserId == actor.UserId).Select(x => x.Id);
             var count = await db.Notes
                 .Where(x => personIds.Contains(x.PersonId) && x.Status == 1 && x.EventDate < threshold)
-                .ExecuteUpdateAsync(x => x.SetProperty(n => n.Status, 8), cancellationToken);
+                .ExecuteUpdateAsync(x => x
+                    .SetProperty(n => n.Status, 8)
+                    .SetProperty(n => n.Revision, n => n.Revision + 1), cancellationToken);
             return TypedResults.Ok(new CountDto(count));
         });
     }
@@ -2497,6 +2550,12 @@ internal static class ApiEndpoints
         Results.Conflict(new ApiErrorDto(
             "stale_person",
             "This person record was changed after you opened it. Reload it before saving.",
+            string.Empty));
+
+    private static IResult StaleNoteConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_note",
+            "This note changed after it was opened. Reload the saved copy before applying your changes.",
             string.Empty));
 
     private static IResult DuplicateClaimLineConflict() =>

@@ -42,7 +42,7 @@ namespace Sati.Data
         // Approval actions
         // -------------------------------------------------------------------------
 
-        public async Task ApproveNoteAsync(int noteId, int supervisorId)
+        public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision)
         {
             await using var context = _contextFactory.CreateDbContext();
 
@@ -52,6 +52,7 @@ namespace Sati.Data
                 .FirstOrDefaultAsync(n => n.Id == noteId)
                 ?? throw new InvalidOperationException($"Note {noteId} not found.");
 
+            EnsureCurrentRevision(note, expectedRevision);
             if (note.Status != NoteStatus.Logged)
                 throw new InvalidOperationException("Only logged notes can be approved.");
 
@@ -67,15 +68,16 @@ namespace Sati.Data
             note.Status = NoteStatus.Approved;
             note.ApprovedById = supervisorId;
             note.ApprovedAt = DateTime.UtcNow;
+            note.Revision++;
 
-            await context.SaveChangesAsync();
+            await SaveNoteTransitionAsync(context);
         }
 
         // Override path — for notes in the non-compliant queue where the
         // supervisor has judged that billing is appropriate despite the gap.
         // Requires a written justification. Creates a flagged claim line that
         // the billing department must acknowledge before submission.
-        public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason)
+        public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason, int expectedRevision)
         {
             if (string.IsNullOrWhiteSpace(overrideReason))
                 throw new ArgumentException("Override reason is required.", nameof(overrideReason));
@@ -87,6 +89,7 @@ namespace Sati.Data
                 .FirstOrDefaultAsync(n => n.Id == noteId)
                 ?? throw new InvalidOperationException($"Note {noteId} not found.");
 
+            EnsureCurrentRevision(note, expectedRevision);
             if (note.Status != NoteStatus.Logged)
                 throw new InvalidOperationException("Only logged notes can be approved.");
 
@@ -97,16 +100,18 @@ namespace Sati.Data
             note.OverrideReason = overrideReason;
             note.OverrideApprovedById = supervisorId;
             note.OverrideApprovedAt = DateTime.UtcNow;
+            note.Revision++;
 
-            await context.SaveChangesAsync();
+            await SaveNoteTransitionAsync(context);
         }
 
-        public async Task ReturnNoteAsync(int noteId, int supervisorId, string reason)
+        public async Task ReturnNoteAsync(int noteId, int supervisorId, string reason, int expectedRevision)
         {
             await using var context = _contextFactory.CreateDbContext();
             var note = await context.Notes.FindAsync(noteId)
                 ?? throw new InvalidOperationException($"Note {noteId} not found.");
 
+            EnsureCurrentRevision(note, expectedRevision);
             if (note.Status != NoteStatus.Logged)
                 throw new InvalidOperationException("Only logged notes can be returned.");
 
@@ -114,8 +119,27 @@ namespace Sati.Data
             note.ReturnedById = supervisorId;
             note.ReturnReason = reason;
             note.ReturnedAt = DateTime.UtcNow;
+            note.Revision++;
 
-            await context.SaveChangesAsync();
+            await SaveNoteTransitionAsync(context);
+        }
+
+        private static void EnsureCurrentRevision(Note note, int expectedRevision)
+        {
+            if (note.Revision != expectedRevision)
+                throw new NoteConcurrencyException();
+        }
+
+        private static async Task SaveNoteTransitionAsync(SatiContext context)
+        {
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new NoteConcurrencyException(ex);
+            }
         }
 
      

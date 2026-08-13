@@ -172,10 +172,10 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Current next slice — concurrency and audit-operation breadth
 
-- [ ] Extend revision/concurrency tokens from assessments to notes, settings, AT requests, and other
-  records where simultaneous edits could silently lose work.
-- [ ] Add friendly desktop conflict handling that reloads or compares a stale record instead of
-  presenting a generic API error.
+- [ ] Extend revision/concurrency tokens from assessments and notes to settings, AT requests, and
+  other records where simultaneous edits could silently lose work.
+- [ ] Extend the friendly desktop conflict handling now used by notes to the remaining concurrent
+  records instead of presenting generic API errors.
 - [ ] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
 - [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
 
@@ -189,6 +189,18 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Add an assessment `Revision` concurrency token and reject stale save/submit requests with HTTP 409.
 - [x] Make claim-line creation atomic and enforce one claim line per service note with a unique index.
 - [x] Test audit minimization/immutability/tenant scope, stale writes, and repeated billing commands.
+
+### Completed 2026-08-12 — note concurrency slice
+
+- [x] Add a Note `Revision` concurrency token and require the revision read by the caller on every
+  edit, delete, supervisor approve/override/return, and automated abandonment transition.
+- [x] Reject stale Note operations with HTTP 409 before they can overwrite, delete, or supersede a
+  newer copy; increment revisions for every successful state transition.
+- [x] Preserve an open editor's draft after a conflict, identify fields that differ from the latest
+  saved copy, and refresh Notes Log and supervisor queues before another action.
+- [x] Load full Note records in the Notes Log instead of caseload summaries so IDs, narratives,
+  people, and revisions remain available through the cloud API transition.
+- [x] Prove stale note edits, deletes, and supervisor decisions leave the newer record intact.
 
 ### Completed 2026-08-12 — Person lifecycle audit
 
@@ -283,7 +295,8 @@ Address these pressure points when the affected code is next changed:
 - [ ] Define which sensitive read events require auditing without creating an unusable volume of noise.
 - [ ] Add immutable document versions, amendments, attestations, and electronic signatures.
 - [ ] Define retention and legal-hold behavior by record class.
-- [ ] Add optimistic concurrency tokens and user-facing conflict resolution.
+- [ ] Extend optimistic concurrency tokens and user-facing conflict resolution beyond the completed
+  assessment, Person, and Note records.
 - [ ] Make commands retry-safe and idempotent where duplicate execution would cause harm.
 - [ ] Move billing, approval, and submission transitions into explicit server transactions.
 

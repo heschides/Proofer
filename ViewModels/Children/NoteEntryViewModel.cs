@@ -793,7 +793,15 @@ namespace Sati.ViewModels.Children
                 if (caseManagerJustification is not null)
                     note.CaseManagerJustification = caseManagerJustification;
 
-                await _noteService.UpdateNoteAsync(note);
+                try
+                {
+                    await _noteService.UpdateNoteAsync(note);
+                }
+                catch (NoteConcurrencyException)
+                {
+                    await ReconcileNoteConflictAsync(note);
+                    return;
+                }
                 savedFormType = note.FormType;
             }
             else
@@ -820,6 +828,48 @@ namespace Sati.ViewModels.Children
             ClearNoteFields();
 
             NoteSaved?.Invoke(this, EventArgs.Empty);
+        }
+
+        private async Task ReconcileNoteConflictAsync(Note draft)
+        {
+            var latest = (await _noteService.GetAllByPersonAsync(draft.PersonId))
+                .SingleOrDefault(note => note.Id == draft.Id);
+            if (latest is null)
+            {
+                MessageBox.Show(
+                    "This note was removed or is no longer available. Your draft remains on screen so you can copy it before cancelling the edit.",
+                    "Note No Longer Available",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var differingFields = GetDifferingNoteFields(draft, latest);
+            _editingNote = latest;
+            var differenceSummary = differingFields.Count == 0
+                ? "Only its revision changed; the editable fields now match your draft."
+                : $"Your draft differs from the latest saved copy in: {string.Join(", ", differingFields)}.";
+            MessageBox.Show(
+                $"This note changed after you opened it. {differenceSummary} " +
+                "Your draft remains on screen and is now attached to the latest revision. " +
+                "Review those areas, then save again only if your draft should replace the saved values.",
+                "Newer Note Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        private static IReadOnlyList<string> GetDifferingNoteFields(Note draft, Note latest)
+        {
+            var fields = new List<string>();
+            if (draft.Narrative != latest.Narrative) fields.Add("narrative");
+            if (draft.EventDate != latest.EventDate) fields.Add("date");
+            if (draft.Minutes != latest.Minutes) fields.Add("minutes");
+            if (draft.Status != latest.Status) fields.Add("status");
+            if (draft.NoteType != latest.NoteType) fields.Add("note type");
+            if (draft.FormType != latest.FormType) fields.Add("form type");
+            if (draft.CaseManagerJustification != latest.CaseManagerJustification) fields.Add("justification");
+            if (draft.VisitDocumentationJson != latest.VisitDocumentationJson) fields.Add("visit documentation");
+            return fields;
         }
 
         // Leaves SelectedPerson in place so several notes can be logged for the

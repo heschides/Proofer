@@ -28,9 +28,9 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Users | `PUT /users/me/password` | User's `AgencyId` | Own user plus current-password verification. |
 | Supervisor | `GET /supervisor/supervisees` | Case manager user's `AgencyId` | Supervisor sees assigned case managers; Director/Admin role is accepted but the current route returns directly assigned users. |
 | Supervisor | `GET /supervisor/notes` | Note person's owning user's `AgencyId` | Supervisor sees assigned case managers; Director/Admin sees agency case managers. |
-| Supervisor | `POST /supervisor/notes/{noteId}/approve` | Note person's owning user's `AgencyId` | Same supervisory scope; server owns approval transition. |
-| Supervisor | `POST /supervisor/notes/{noteId}/approve-override` | Note person's owning user's `AgencyId` | Same supervisory scope; reason required and server records approver. |
-| Supervisor | `POST /supervisor/notes/{noteId}/return` | Note person's owning user's `AgencyId` | Same supervisory scope; reason required and server records returner. |
+| Supervisor | `POST /supervisor/notes/{noteId}/approve` | Note person's owning user's `AgencyId` | Same supervisory scope; server owns approval transition and requires the caller's expected Note revision. |
+| Supervisor | `POST /supervisor/notes/{noteId}/approve-override` | Note person's owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records approver. |
+| Supervisor | `POST /supervisor/notes/{noteId}/return` | Note person's owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records returner. |
 | Caseload | `GET /caseload` | Target user's `AgencyId` | Accessible case manager only. |
 | Caseload | `GET /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `PUT /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
@@ -64,12 +64,12 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only. |
 | AI context | `POST /people/{personId}/ai-context` | Person's assigned user and agency | Accessible requesting user; person and requested user must agree. |
 | Notes | `POST /notes` | Note person's assigned user and agency | Own caseload only; note agency is assigned server-side. |
-| Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces editable workflow states. |
-| Notes | `DELETE /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces deletable workflow states. |
+| Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces editable workflow states and rejects stale revisions. |
+| Notes | `DELETE /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces deletable workflow states and rejects stale revisions. |
 | Notes | `GET /people/{personId}/notes` | Note person's assigned user and agency | Own caseload only. |
 | Notes | `GET /notes/monthly` | Target user's `AgencyId` | Accessible case manager only. |
 | Notes | `GET /notes/year/{year}` | Own user and caseload | Own user only. |
-| Notes | `POST /notes/abandon-overdue` | Own user and caseload | Own user only; only that user's eligible notes are transitioned. |
+| Notes | `POST /notes/abandon-overdue` | Own user and caseload | Own user only; only that user's eligible notes are transitioned, with each revision incremented. |
 | Settings | `GET /settings` | Settings `AgencyId` | Actor's agency only. |
 | Settings | `PUT /settings` | Settings `AgencyId` | Admin only in actor's agency; provider references must share the agency. |
 | Scratchpad | `GET /scratchpad/today` | Scratchpad `UserId` | Own user only. |

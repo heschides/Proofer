@@ -148,6 +148,23 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void NoteRevisionIsAConcurrencyTokenAndItsMigrationIsRegistered()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiNoteRevisionValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var noteRevision = context.Model.FindEntityType(typeof(Note))!
+            .FindProperty(nameof(Note.Revision));
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.NotNull(noteRevision);
+        Assert.True(noteRevision!.IsConcurrencyToken);
+        Assert.Contains("20260812223000_AddNoteRevision", migrations.Migrations.Keys);
+    }
+
+    [Fact]
     public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;

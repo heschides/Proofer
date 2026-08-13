@@ -258,6 +258,26 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 {
                     Id = 502, PersonId = 101, AgencyId = 1, Narrative = "Approved agency one note",
                     EventDate = new DateTime(2026, 8, 3), Minutes = 60, Status = 6
+                },
+                new ServerNote
+                {
+                    Id = 503, PersonId = 101, AgencyId = 1, Narrative = "Editable concurrency note",
+                    EventDate = new DateTime(2026, 7, 13), Minutes = 30, Status = 1
+                },
+                new ServerNote
+                {
+                    Id = 504, PersonId = 101, AgencyId = 1, Narrative = "Delete concurrency note",
+                    EventDate = new DateTime(2026, 7, 14), Minutes = 30, Status = 1
+                },
+                new ServerNote
+                {
+                    Id = 505, PersonId = 101, AgencyId = 1, Narrative = "Supervisor concurrency note",
+                    EventDate = new DateTime(2026, 7, 15), Minutes = 30, Status = 2
+                },
+                new ServerNote
+                {
+                    Id = 506, PersonId = 101, AgencyId = 1, Narrative = "Legacy client guard note",
+                    EventDate = new DateTime(2026, 7, 16), Minutes = 30, Status = 1
                 });
             db.ComprehensiveAssessments.AddRange(
                 new ServerComprehensiveAssessment

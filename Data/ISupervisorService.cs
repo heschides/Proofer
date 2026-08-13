@@ -13,12 +13,12 @@ namespace Sati.Data
         // These sit here until compliance is met or abandonment threshold passes.
         Task<IEnumerable<Note>> GetNonCompliantNotesAsync(int supervisorId, bool allSupervisees = false);
 
-        Task ApproveNoteAsync(int noteId, int supervisorId);
+        Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision);
 
         // Override path — supervisor judges billing appropriate despite compliance gap.
         // Requires written justification. Creates a flagged claim visible to billing.
-        Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason);
+        Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason, int expectedRevision);
 
-        Task ReturnNoteAsync(int noteId, int supervisorId, string reason);
+        Task ReturnNoteAsync(int noteId, int supervisorId, string reason, int expectedRevision);
     }
 }

@@ -112,9 +112,13 @@ namespace Sati.ViewModels.Supervisor
             try
             {
                 var supervisor = _sessionService.CurrentUser!;
-                await _supervisorService.ApproveNoteAsync(note.NoteId, supervisor.Id);
+                await _supervisorService.ApproveNoteAsync(note.NoteId, supervisor.Id, note.Revision);
                 PendingNotes.Remove(note);
                 OnPropertyChanged(nameof(HasPending));
+            }
+            catch (NoteConcurrencyException)
+            {
+                await HandleNoteConflictAsync();
             }
             catch (Exception ex)
             {
@@ -145,13 +149,18 @@ namespace Sati.ViewModels.Supervisor
                 await _supervisorService.ApproveWithOverrideAsync(
                     OverrideNote.NoteId,
                     supervisor.Id,
-                    OverrideReason);
+                    OverrideReason,
+                    OverrideNote.Revision);
 
                 NonCompliantNotes.Remove(OverrideNote);
                 IsOverrideDialogVisible = false;
                 OverrideNote = null;
                 OverrideReason = string.Empty;
                 OnPropertyChanged(nameof(HasNonCompliant));
+            }
+            catch (NoteConcurrencyException)
+            {
+                await HandleNoteConflictAsync();
             }
             catch (Exception ex)
             {
@@ -191,13 +200,18 @@ namespace Sati.ViewModels.Supervisor
                 await _supervisorService.ReturnNoteAsync(
                     SelectedNote.NoteId,
                     supervisor.Id,
-                    ReturnReason);
+                    ReturnReason,
+                    SelectedNote.Revision);
 
                 PendingNotes.Remove(SelectedNote);
                 IsReturnDialogVisible = false;
                 SelectedNote = null;
                 ReturnReason = string.Empty;
                 OnPropertyChanged(nameof(HasPending));
+            }
+            catch (NoteConcurrencyException)
+            {
+                await HandleNoteConflictAsync();
             }
             catch (Exception ex)
             {
@@ -212,6 +226,20 @@ namespace Sati.ViewModels.Supervisor
             SelectedNote = null;
             ReturnReason = string.Empty;
         }
+
+        private async Task HandleNoteConflictAsync()
+        {
+            IsOverrideDialogVisible = false;
+            IsReturnDialogVisible = false;
+            OverrideNote = null;
+            SelectedNote = null;
+            await LoadAsync();
+            System.Windows.MessageBox.Show(
+                "This note changed after you opened the approval queue. The queue has been refreshed; review the latest copy before acting.",
+                "Note Updated",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -221,6 +249,7 @@ namespace Sati.ViewModels.Supervisor
     public class PendingNoteViewModel
     {
         public int NoteId { get; }
+        public int Revision { get; }
         public string ClientName { get; }
         public int PersonId { get; }
         public int CaseManagerUserId { get; }
@@ -233,6 +262,7 @@ namespace Sati.ViewModels.Supervisor
         public PendingNoteViewModel(Note note)
         {
             NoteId = note.Id;
+            Revision = note.Revision;
             ClientName = note.Person.FullName;
             PersonId = note.PersonId;
             CaseManagerUserId = note.Person.UserId;

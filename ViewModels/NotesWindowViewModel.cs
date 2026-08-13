@@ -149,7 +149,7 @@ namespace Sati.ViewModels
         {
             if (SelectedNote is null) return;
             SelectedNote.Status = NoteStatus.Logged;
-            await _noteService.UpdateNoteAsync(SelectedNote);
+            if (!await TryUpdateNoteAsync(SelectedNote)) return;
             RefreshView();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -162,7 +162,7 @@ namespace Sati.ViewModels
                 ? NoteStatus.ComplianceBlocked
                 : NoteStatus.HeldForCompliance;
             _dialogIsWindowBlock = false;
-            await _noteService.UpdateNoteAsync(SelectedNote);
+            if (!await TryUpdateNoteAsync(SelectedNote)) return;
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             RefreshView();
@@ -177,7 +177,7 @@ namespace Sati.ViewModels
 
             SelectedNote.Status = NoteStatus.Logged;
             SelectedNote.CaseManagerJustification = PendingJustification;
-            await _noteService.UpdateNoteAsync(SelectedNote);
+            if (!await TryUpdateNoteAsync(SelectedNote)) return;
             _dialogIsWindowBlock = false;
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
@@ -214,7 +214,7 @@ namespace Sati.ViewModels
         private async Task LoadAsync()
         {
             var userId = _sessionService.CurrentUser!.Id;
-            var people = await _personService.GetAllPeopleAsync(userId);
+            var people = await LoadPeopleWithFullNotesAsync(userId);
 
             foreach (var person in people)
             {
@@ -231,7 +231,7 @@ namespace Sati.ViewModels
             FilterPeople.Add(AllPersonsSentinel);
 
             var userId = _sessionService.CurrentUser!.Id;
-            var people = await _personService.GetAllPeopleAsync(userId);
+            var people = await LoadPeopleWithFullNotesAsync(userId);
 
             foreach (var person in people)
             {
@@ -250,6 +250,39 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(HasReturned));
             OnPropertyChanged(nameof(HasHeld));
             OnPropertyChanged(nameof(HasAttentionItems));
+        }
+
+        private async Task<List<Person>> LoadPeopleWithFullNotesAsync(int userId)
+        {
+            var people = await _personService.GetAllPeopleAsync(userId);
+            await Task.WhenAll(people.Select(async person =>
+            {
+                var notes = await _noteService.GetAllByPersonAsync(person.Id);
+                foreach (var note in notes)
+                    note.Person = person;
+                person.Notes = notes;
+            }));
+            return people;
+        }
+
+        private async Task<bool> TryUpdateNoteAsync(Note note)
+        {
+            try
+            {
+                await _noteService.UpdateNoteAsync(note);
+                return true;
+            }
+            catch (NoteConcurrencyException)
+            {
+                await ReloadAsync();
+                SelectedNote = null;
+                MessageBox.Show(
+                    "This note changed after the log was opened. The log has been refreshed; review the latest copy before changing its status.",
+                    "Note Updated",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return false;
+            }
         }
 
         private void RefreshView()

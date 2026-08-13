@@ -97,6 +97,7 @@ internal static class CloudContractMapper
         note.OverrideReason = dto.OverrideReason;
         note.OverrideApprovedById = dto.OverrideApprovedById;
         note.OverrideApprovedAt = dto.OverrideApprovedAt;
+        note.Revision = dto.Revision;
         if (dto.Person is not null)
         {
             note.Person = Person.Rehydrate(dto.Person.Id, dto.Person.UserId);
@@ -235,7 +236,8 @@ internal static class CloudContractMapper
         note.FormType?.ToString(),
         note.NoteType?.ToString(),
         note.CaseManagerJustification,
-        note.VisitDocumentationJson);
+        note.VisitDocumentationJson,
+        note.Revision);
 
     public static SavePersonRequest ToSavePersonRequest(Person person) => new(
         person.FirstName ?? string.Empty,

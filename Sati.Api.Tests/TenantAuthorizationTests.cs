@@ -268,6 +268,105 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task StaleNoteSaveIsRejectedWithoutErasingTheNewerCopy()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var notes = await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes");
+        var original = Assert.Single(notes!, note => note.Id == 503);
+
+        var firstResponse = await client.PutAsJsonAsync(
+            "/api/v1/notes/503",
+            NoteRequest(original, "Newer saved narrative", original.Revision));
+        var staleResponse = await client.PutAsJsonAsync(
+            "/api/v1/notes/503",
+            NoteRequest(original, "Stale narrative", original.Revision));
+        var stored = Assert.Single(
+            (await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes"))!,
+            note => note.Id == 503);
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var updated = await firstResponse.Content.ReadFromJsonAsync<NoteDto>();
+        Assert.Equal(2, updated!.Revision);
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        var error = await staleResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("stale_note", error!.Code);
+        Assert.Equal("Newer saved narrative", stored.Narrative);
+        Assert.Equal(2, stored.Revision);
+    }
+
+    [Fact]
+    public async Task StaleNoteDeleteIsRejectedWithoutRemovingTheNewerCopy()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var notes = await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes");
+        var original = Assert.Single(notes!, note => note.Id == 504);
+        var updateResponse = await client.PutAsJsonAsync(
+            "/api/v1/notes/504",
+            NoteRequest(original, "Newer copy must survive", original.Revision));
+
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/v1/notes/504?expectedRevision={original.Revision}");
+        var stored = Assert.Single(
+            (await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes"))!,
+            note => note.Id == 504);
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, deleteResponse.StatusCode);
+        Assert.Equal("Newer copy must survive", stored.Narrative);
+        Assert.Equal(2, stored.Revision);
+    }
+
+    [Fact]
+    public async Task NoteUpdateWithoutAnExpectedRevisionFailsClosed()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var notes = await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes");
+        var original = Assert.Single(notes!, note => note.Id == 506);
+        var legacyRequest = new
+        {
+            narrative = "An older client attempted this update",
+            eventDate = original.EventDate,
+            status = original.Status,
+            minutes = original.Minutes,
+            startTime = original.StartTime,
+            personId = original.PersonId,
+            formType = original.FormType,
+            noteType = original.NoteType,
+            caseManagerJustification = original.CaseManagerJustification,
+            visitDocumentationJson = original.VisitDocumentationJson
+        };
+
+        var response = await client.PutAsJsonAsync("/api/v1/notes/506", legacyRequest);
+        var stored = Assert.Single(
+            (await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/people/101/notes"))!,
+            note => note.Id == 506);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("Legacy client guard note", stored.Narrative);
+        Assert.Equal(1, stored.Revision);
+    }
+
+    [Fact]
+    public async Task StaleSupervisorDecisionCannotReplaceTheCompletedDecision()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
+
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/supervisor/notes/505/return",
+            new SupervisorNoteActionRequest("Needs correction", 1));
+        var staleResponse = await client.PostAsJsonAsync(
+            "/api/v1/supervisor/notes/505/return",
+            new SupervisorNoteActionRequest("Stale second decision", 1));
+        var events = await _factory.GetAuditEventsAsync("note.returned");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var returned = await firstResponse.Content.ReadFromJsonAsync<NoteDto>();
+        Assert.Equal(2, returned!.Revision);
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        Assert.Single(events, candidate => candidate.ResourceId == "505");
+    }
+
+    [Fact]
     public async Task RejectedCrossAgencyActionDoesNotCreateASuccessAuditEvent()
     {
         var before = await _factory.GetAuditEventsAsync("note.returned");
@@ -422,6 +521,19 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
     private static SaveProviderRequest ProviderRequest(string name) => new(
         "Other", name, null, null, null, null, null, null, 0, false, null, null, null);
+
+    private static SaveNoteRequest NoteRequest(NoteDto note, string narrative, int expectedRevision) => new(
+        narrative,
+        note.EventDate,
+        note.Status,
+        note.Minutes,
+        note.StartTime,
+        note.PersonId,
+        note.FormType,
+        note.NoteType,
+        note.CaseManagerJustification,
+        note.VisitDocumentationJson,
+        expectedRevision);
 
     private static SavePersonRequest PersonRequest(PersonDto person, string firstName, string bio) => new(
         firstName,

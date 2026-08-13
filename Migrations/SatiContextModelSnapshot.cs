@@ -484,6 +484,10 @@ namespace Sati.Migrations
                     b.Property<string>("ReturnReason")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ReturnedAt")
                         .HasColumnType("datetime2");
 

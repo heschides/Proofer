@@ -216,6 +216,7 @@ namespace Sati.Data
             modelBuilder.Entity<Note>(entity =>
             {
                 entity.HasKey(n => n.Id);
+                entity.Property(n => n.Revision).IsConcurrencyToken();
                 entity.Property(n => n.Narrative)
                       .IsRequired();
                 entity.Property(n => n.VisitDocumentationJson);

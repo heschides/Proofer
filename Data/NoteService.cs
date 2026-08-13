@@ -24,15 +24,62 @@ namespace Sati.Data
         public async Task DeleteNoteAsync(Note note)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Notes.Remove(note);
-            await context.SaveChangesAsync();
+            var stored = await context.Notes.SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
+            if (stored is null || stored.Revision != note.Revision)
+                throw new NoteConcurrencyException();
+            context.Notes.Remove(stored);
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new NoteConcurrencyException(ex);
+            }
         }
 
         public async Task UpdateNoteAsync(Note note)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Notes.Update(note);
-            await context.SaveChangesAsync();
+            var stored = await context.Notes.SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
+            if (stored is null || stored.Revision != note.Revision)
+                throw new NoteConcurrencyException();
+
+            CopyNoteValues(note, stored);
+            stored.Revision++;
+            try
+            {
+                await context.SaveChangesAsync();
+                note.Revision = stored.Revision;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new NoteConcurrencyException(ex);
+            }
+        }
+
+        private static void CopyNoteValues(Note source, Note target)
+        {
+            target.Narrative = source.Narrative;
+            target.EventDate = source.EventDate;
+            target.Status = source.Status;
+            target.Minutes = source.Minutes;
+            target.StartTime = source.StartTime;
+            target.PersonId = source.PersonId;
+            target.FormType = source.FormType;
+            target.NoteType = source.NoteType;
+            target.AgencyId = source.AgencyId;
+            target.ReturnReason = source.ReturnReason;
+            target.ReturnedById = source.ReturnedById;
+            target.ApprovedById = source.ApprovedById;
+            target.ApprovedAt = source.ApprovedAt;
+            target.ReturnedAt = source.ReturnedAt;
+            target.CaseManagerJustification = source.CaseManagerJustification;
+            target.VisitDocumentationJson = source.VisitDocumentationJson;
+            target.ComplianceOverride = source.ComplianceOverride;
+            target.OverrideReason = source.OverrideReason;
+            target.OverrideApprovedById = source.OverrideApprovedById;
+            target.OverrideApprovedAt = source.OverrideApprovedAt;
         }
 
         public async Task<List<Note>> GetAllByPersonAsync(int personId)
@@ -54,7 +101,10 @@ namespace Sati.Data
                 .ToListAsync();
 
             foreach (var note in abandonedNotes)
+            {
                 note.Status = NoteStatus.Abandoned;
+                note.Revision++;
+            }
 
             await context.SaveChangesAsync();
         }

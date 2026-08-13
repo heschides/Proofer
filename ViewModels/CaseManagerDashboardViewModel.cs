@@ -513,7 +513,25 @@ StatisticsViewModel statisticsViewModel,
             if (SelectedNote is null)
                 return;
 
-            await _noteService.DeleteNoteAsync(SelectedNote);
+            try
+            {
+                await _noteService.DeleteNoteAsync(SelectedNote);
+            }
+            catch (NoteConcurrencyException)
+            {
+                SelectedNote = null;
+                await LoadMonthlyNotesAsync();
+                await LoadUpcomingEventsAsync();
+                await Calendar.InitializeAsync();
+                await NotesLog.ReloadAsync();
+                await Clients.ReloadAsync();
+                MessageBox.Show(
+                    "This note changed after it was selected, so it was not deleted. The note lists have been refreshed; review the latest copy before trying again.",
+                    "Note Updated",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
             Notes.Remove(SelectedNote);
             SelectedPerson?.Notes.Remove(SelectedNote);
             await LoadExemptDatesAsync();

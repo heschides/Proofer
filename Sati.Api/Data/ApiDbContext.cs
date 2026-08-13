@@ -58,6 +58,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Notes");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
         });
 
         modelBuilder.Entity<ServerSettings>(entity =>
@@ -312,6 +313,7 @@ internal sealed class ServerNote
     public int? Status { get; set; }
     public int? Minutes { get; set; }
     public int? StartTime { get; set; }
+    public int Revision { get; set; } = 1;
     public int PersonId { get; set; }
     public int? FormType { get; set; }
     public int? NoteType { get; set; }

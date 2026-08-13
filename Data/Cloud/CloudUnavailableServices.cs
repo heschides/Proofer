@@ -108,17 +108,32 @@ public sealed class CloudSupervisorService(CloudApiClient api) : ISupervisorServ
         .Select(CloudContractMapper.ToNote)
         .ToList();
 
-    public async Task ApproveNoteAsync(int noteId, int supervisorId) =>
-        _ = await api.PostAsync<SupervisorNoteActionRequest, NoteDto>(
-            $"/api/v1/supervisor/notes/{noteId}/approve", new SupervisorNoteActionRequest(null));
+    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision) =>
+        _ = await SendNoteActionAsync(
+            $"/api/v1/supervisor/notes/{noteId}/approve",
+            new SupervisorNoteActionRequest(null, expectedRevision));
 
-    public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason) =>
-        _ = await api.PostAsync<SupervisorNoteActionRequest, NoteDto>(
-            $"/api/v1/supervisor/notes/{noteId}/approve-override", new SupervisorNoteActionRequest(overrideReason));
+    public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason, int expectedRevision) =>
+        _ = await SendNoteActionAsync(
+            $"/api/v1/supervisor/notes/{noteId}/approve-override",
+            new SupervisorNoteActionRequest(overrideReason, expectedRevision));
 
-    public async Task ReturnNoteAsync(int noteId, int supervisorId, string reason) =>
-        _ = await api.PostAsync<SupervisorNoteActionRequest, NoteDto>(
-            $"/api/v1/supervisor/notes/{noteId}/return", new SupervisorNoteActionRequest(reason));
+    public async Task ReturnNoteAsync(int noteId, int supervisorId, string reason, int expectedRevision) =>
+        _ = await SendNoteActionAsync(
+            $"/api/v1/supervisor/notes/{noteId}/return",
+            new SupervisorNoteActionRequest(reason, expectedRevision));
+
+    private async Task<NoteDto> SendNoteActionAsync(string path, SupervisorNoteActionRequest request)
+    {
+        try
+        {
+            return await api.PostAsync<SupervisorNoteActionRequest, NoteDto>(path, request);
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_note")
+        {
+            throw new NoteConcurrencyException(ex);
+        }
+    }
 }
 
 public sealed class CloudReviewItemService(CloudApiClient api) : IReviewItemService

@@ -165,6 +165,7 @@ public sealed record NoteDto(
     string? OverrideReason,
     int? OverrideApprovedById,
     DateTime? OverrideApprovedAt,
+    int Revision,
     PersonReferenceDto? Person);
 
 public sealed record SaveNoteRequest(
@@ -177,11 +178,12 @@ public sealed record SaveNoteRequest(
     string? FormType,
     string? NoteType,
     string? CaseManagerJustification,
-    string? VisitDocumentationJson);
+    string? VisitDocumentationJson,
+    int ExpectedRevision = 0);
 
 public sealed record PersonReferenceDto(int Id, int UserId, string? FirstName, string? LastName);
 
-public sealed record SupervisorNoteActionRequest(string? Reason);
+public sealed record SupervisorNoteActionRequest(string? Reason, int ExpectedRevision = 0);
 
 public sealed record SettingsDto(
     int Id,
