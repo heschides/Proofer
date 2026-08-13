@@ -197,9 +197,12 @@ make server persistence/migrations authoritative so `SatiContext` and `ApiDbCont
 
 The WPF shell exposes these server capabilities through an Admin-only dashboard. `IAdminService`
 is the client seam: `CloudAdminService` calls the protected API, while `AdminService` supports the
-transitional local-development database. The panel shows agency-scoped counts and activity,
-provides a Person history timeline, and saves the same protected lifecycle PDF. Menu visibility is
-only presentation; both service implementations and all API routes independently require Admin.
+transitional local-development database. The panel shows agency-scoped counts and activity, provides a Person history timeline, and saves the
+same protected lifecycle PDF. It also exposes database/retention status and a bounded, reason-gated
+audit CSV export. Retention is explicitly reported as `PolicyOnly`; `OPERATIONS.md` defines the
+legal-hold gate, SQL-principal split, monitoring expectations, and remaining enforcement work.
+Menu visibility is only presentation; both service implementations and all API routes independently
+require Admin.
 
 ---
 

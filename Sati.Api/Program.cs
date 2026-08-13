@@ -35,6 +35,13 @@ if (authentication.SigningKey.Length < 32)
 if (authentication.TokenMinutes is < 5 or > 60)
     throw new InvalidOperationException("Authentication:TokenMinutes must be between 5 and 60.");
 
+var satiOptions = builder.Configuration.GetSection(SatiApiOptions.SectionName).Get<SatiApiOptions>()
+    ?? throw new InvalidOperationException("Sati configuration is required.");
+if (satiOptions.AuditRetentionDays is < 365 or > 3_650)
+    throw new InvalidOperationException("Sati:AuditRetentionDays must be between 365 and 3650.");
+if (satiOptions.EdiReplayRetentionDays is < 30 or > 365)
+    throw new InvalidOperationException("Sati:EdiReplayRetentionDays must be between 30 and 365.");
+
 builder.Services.Configure<ApiAuthenticationOptions>(builder.Configuration.GetSection(ApiAuthenticationOptions.SectionName));
 builder.Services.Configure<SatiApiOptions>(builder.Configuration.GetSection(SatiApiOptions.SectionName));
 builder.Services.AddHttpContextAccessor();

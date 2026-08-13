@@ -154,6 +154,45 @@ internal static class ApiEndpoints
                 auditEventsToday, lastActivity));
         });
 
+        api.MapGet("/admin/operations", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            Microsoft.Extensions.Options.IOptions<SatiApiOptions> options,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            PreventSensitiveResponseCaching(httpContext);
+            var auditCount = await db.AuditEvents.AsNoTracking()
+                .LongCountAsync(candidate => candidate.AgencyId == actor.AgencyId, cancellationToken);
+            var ediCount = await db.EdiGenerations.AsNoTracking()
+                .LongCountAsync(candidate => candidate.AgencyId == actor.AgencyId, cancellationToken);
+            var ediCharacters = await db.EdiGenerations.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == actor.AgencyId)
+                .SumAsync(candidate => (long?)candidate.Content.Length, cancellationToken) ?? 0;
+            var oldestAudit = await db.AuditEvents.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == actor.AgencyId)
+                .MinAsync(candidate => (DateTime?)candidate.OccurredAtUtc, cancellationToken);
+            var oldestEdi = await db.EdiGenerations.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == actor.AgencyId)
+                .MinAsync(candidate => (DateTime?)candidate.CreatedAtUtc, cancellationToken);
+
+            return Results.Ok(new AdminOperationsDto(
+                DateTime.UtcNow,
+                "Healthy",
+                "PolicyOnly",
+                options.Value.AuditRetentionDays,
+                options.Value.EdiReplayRetentionDays,
+                auditCount,
+                ediCount,
+                ediCharacters,
+                oldestAudit,
+                oldestEdi));
+        });
+
         api.MapGet("/admin/people", async Task<IResult> (
             ClaimsPrincipal principal,
             ApiDbContext db,
@@ -218,6 +257,68 @@ internal static class ApiEndpoints
                 .Take(limit)
                 .ToListAsync(cancellationToken);
             return Results.Ok(activity);
+        });
+
+        api.MapPost("/admin/audit-export.csv", async Task<IResult> (
+            AdminAuditExportRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            PreventSensitiveResponseCaching(httpContext);
+            var start = request.FromUtc.ToUniversalTime();
+            var end = request.ToUtc.ToUniversalTime();
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (end < start || (end - start).TotalDays > 366 || end > DateTime.UtcNow.AddMinutes(5) ||
+                reason.Length is < 10 or > 250)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["export"] = ["Use a window no longer than one year ending no later than now and provide a 10-250 character reason."]
+                });
+            }
+
+            var rows = await (
+                from auditEvent in db.AuditEvents.AsNoTracking()
+                join user in db.Users.AsNoTracking() on auditEvent.ActorUserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                where auditEvent.AgencyId == actor.AgencyId &&
+                      auditEvent.OccurredAtUtc >= start && auditEvent.OccurredAtUtc <= end
+                orderby auditEvent.OccurredAtUtc, auditEvent.Id
+                select new AuditExportRow(
+                    auditEvent.EventId,
+                    auditEvent.OccurredAtUtc,
+                    auditEvent.ActorUserId,
+                    user == null ? $"User {auditEvent.ActorUserId}" : user.DisplayName,
+                    auditEvent.Action,
+                    auditEvent.ResourceType,
+                    auditEvent.ResourceId,
+                    auditEvent.CorrelationId))
+                .Take(10_000)
+                .ToListAsync(cancellationToken);
+
+            var exportedAt = DateTime.UtcNow;
+            var metadata = JsonSerializer.Serialize(new
+            {
+                fromUtc = start,
+                toUtc = end,
+                rowCount = rows.Count
+            });
+            auditTrail.Record(actor, AuditActions.AuditExported, "AuditEvent", metadataJson: metadata);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var content = BuildAuditCsv(rows, reason, exportedAt);
+            var fileName = $"sati-audit-{start:yyyyMMdd}-{end:yyyyMMdd}.csv";
+            return Results.File(
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetBytes(content),
+                "text/csv; charset=utf-8",
+                fileName);
         });
     }
 
@@ -2725,6 +2826,45 @@ internal static class ApiEndpoints
         || exception.InnerException?.Message.Contains(
             "EdiGenerations.AgencyId, EdiGenerations.ActorUserId, EdiGenerations.IdempotencyKey",
             StringComparison.Ordinal) == true;
+
+    private static string BuildAuditCsv(
+        IReadOnlyList<AuditExportRow> rows,
+        string reason,
+        DateTime exportedAtUtc)
+    {
+        var csv = new StringBuilder();
+        csv.AppendLine("ExportReason,ExportedAtUtc,EventId,OccurredAtUtc,ActorUserId,ActorDisplayName,Action,ResourceType,ResourceId,CorrelationId");
+        foreach (var row in rows)
+        {
+            csv.AppendLine(string.Join(',', new[]
+            {
+                Csv(reason),
+                Csv(exportedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.EventId.ToString()),
+                Csv(row.OccurredAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.ActorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.ActorDisplayName),
+                Csv(row.Action),
+                Csv(row.ResourceType),
+                Csv(row.ResourceId),
+                Csv(row.CorrelationId)
+            }));
+        }
+        return csv.ToString();
+    }
+
+    private static string Csv(string? value) =>
+        $"\"{(value ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
+    private sealed record AuditExportRow(
+        Guid EventId,
+        DateTime OccurredAtUtc,
+        int ActorUserId,
+        string ActorDisplayName,
+        string Action,
+        string ResourceType,
+        string? ResourceId,
+        string CorrelationId);
 
     private sealed record BillingLossPersonRow(
         int Id,

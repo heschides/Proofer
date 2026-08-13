@@ -49,6 +49,17 @@ public sealed class CloudApiClient(HttpClient httpClient)
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
+    public async Task<byte[]> PostBytesAsync<TRequest>(
+        string path,
+        TRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, path, body);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
     private async Task<TResponse> SendAsync<TResponse>(
         HttpMethod method,
         string path,

@@ -25,6 +25,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -145,7 +146,75 @@
             </Border>
         </UniformGrid>
 
-        <Grid Grid.Row="3">
+        <Border Grid.Row="3"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="10"
+                Margin="0,0,8,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,22,0">
+                    <TextBlock Text="DATABASE" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Operations.DatabaseStatus, TargetNullValue=Not checked}"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,22,0">
+                    <TextBlock Text="AUDIT RETENTION" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
+                        <Run Text="{Binding Operations.AuditRetentionDays, TargetNullValue=&#x2014;}" />
+                        <Run Text=" days" />
+                    </TextBlock>
+                    <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
+                        <Run Text="{Binding Operations.AuditEventCount, TargetNullValue=&#x2014;}" />
+                        <Run Text=" retained" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding Operations.OldestAuditEventUtc, StringFormat={}Oldest {0:yyyy-MM-dd}, TargetNullValue=No records}"
+                               FontSize="9" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="0,0,22,0">
+                    <TextBlock Text="EDI REPLAY RETENTION" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
+                        <Run Text="{Binding Operations.EdiReplayRetentionDays, TargetNullValue=&#x2014;}" />
+                        <Run Text=" days" />
+                    </TextBlock>
+                    <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
+                        <Run Text="{Binding Operations.EdiReplayCount, TargetNullValue=&#x2014;}" />
+                        <Run Text=" files / " />
+                        <Run Text="{Binding Operations.EdiReplayCharacters, TargetNullValue=&#x2014;}" />
+                        <Run Text=" chars" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding Operations.OldestEdiReplayUtc, StringFormat={}Oldest {0:yyyy-MM-dd}, TargetNullValue=No records}"
+                               FontSize="9" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Margin="0,0,22,0">
+                    <TextBlock Text="ENFORCEMENT" Style="{StaticResource AdminMetricLabel}" />
+                    <TextBlock Text="{Binding Operations.RetentionEnforcementMode, TargetNullValue=Not checked}"
+                               FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="4" Margin="0,0,10,0">
+                    <TextBlock Text="EXPORT REASON (required; last 30 days)"
+                               Style="{StaticResource AdminMetricLabel}" />
+                    <TextBox Text="{Binding AuditExportReason, UpdateSourceTrigger=PropertyChanged}"
+                             MinWidth="240" Padding="6,4"
+                             AutomationProperties.Name="Audit export reason" />
+                </StackPanel>
+                <Button Grid.Column="5" Content="Download CSV"
+                        Command="{Binding ExportAuditCsvCommand}"
+                        Style="{StaticResource SmallButton}"
+                        VerticalAlignment="Bottom"
+                        AutomationProperties.Name="Download agency audit activity CSV" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.05*" MinWidth="260" />
                 <ColumnDefinition Width="8" />

@@ -7,6 +7,19 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
     public Task<AdminOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default) =>
         api.GetAsync<AdminOverviewDto>("/api/v1/admin/overview", cancellationToken);
 
+    public Task<AdminOperationsDto> GetOperationsAsync(CancellationToken cancellationToken = default) =>
+        api.GetAsync<AdminOperationsDto>("/api/v1/admin/operations", cancellationToken);
+
+    public Task<byte[]> ExportAuditCsvAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        api.PostBytesAsync(
+            "/api/v1/admin/audit-export.csv",
+            new AdminAuditExportRequest(fromUtc, toUtc, reason),
+            cancellationToken);
+
     public Task<List<AdminPersonListItemDto>> GetPeopleAsync(CancellationToken cancellationToken = default) =>
         api.GetAsync<List<AdminPersonListItemDto>>("/api/v1/admin/people", cancellationToken);
 

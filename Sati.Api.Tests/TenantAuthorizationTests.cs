@@ -571,8 +571,89 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.All(activity!, item => Assert.NotEqual(21, item.ActorUserId));
     }
 
+    [Fact]
+    public async Task AdministratorOperationsStatusIsAgencyScopedAndReportsPolicy()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var response = await client.GetAsync("/api/v1/admin/operations");
+        var operations = await response.Content.ReadFromJsonAsync<AdminOperationsDto>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+        Assert.NotNull(operations);
+        Assert.Equal("Healthy", operations.DatabaseStatus);
+        Assert.Equal("PolicyOnly", operations.RetentionEnforcementMode);
+        Assert.Equal(OperationalPolicyDefaults.AuditRetentionDays, operations.AuditRetentionDays);
+        Assert.Equal(OperationalPolicyDefaults.EdiReplayRetentionDays, operations.EdiReplayRetentionDays);
+        Assert.True(operations.AuditEventCount > 0);
+        Assert.True(operations.EdiReplayCount >= 0);
+        Assert.True(operations.EdiReplayCharacters >= 0);
+    }
+
+    [Fact]
+    public async Task AuditExportIsTenantScopedReasonGatedAndAudited()
+    {
+        const string reason = "Quarterly internal compliance review";
+        using var otherAgencyClient = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var before = await _factory.GetAuditEventsAsync("audit.exported");
+        var request = new AdminAuditExportRequest(
+            DateTime.UtcNow.AddDays(-1),
+            DateTime.UtcNow,
+            reason);
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/audit-export.csv", request);
+        var csv = System.Text.Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
+        var after = await _factory.GetAuditEventsAsync("audit.exported");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Contains("admin-one", csv);
+        Assert.DoesNotContain("admin-two", csv);
+        Assert.Contains(reason, csv);
+        Assert.Equal(before.Count + 1, after.Count);
+        var exportEvent = after[^1];
+        Assert.Equal(1, exportEvent.AgencyId);
+        Assert.Equal(11, exportEvent.ActorUserId);
+        Assert.Equal("AuditEvent", exportEvent.ResourceType);
+        Assert.DoesNotContain(reason, exportEvent.MetadataJson);
+        Assert.Contains("rowCount", exportEvent.MetadataJson);
+    }
+
+    [Fact]
+    public async Task AuditExportRejectsMissingBusinessReason()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var before = await _factory.GetAuditEventsAsync("audit.exported");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/admin/audit-export.csv",
+            new AdminAuditExportRequest(DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, "short"));
+        var after = await _factory.GetAuditEventsAsync("audit.exported");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(before.Count, after.Count);
+    }
+
+    [Fact]
+    public async Task CaseManagerCannotExportAgencyAuditActivity()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/admin/audit-export.csv",
+            new AdminAuditExportRequest(
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                "Internal compliance review"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
     [Theory]
     [InlineData("/api/v1/admin/overview")]
+    [InlineData("/api/v1/admin/operations")]
     [InlineData("/api/v1/admin/people")]
     [InlineData("/api/v1/admin/activity")]
     public async Task CaseManagerCannotOpenAdministratorDashboard(string path)

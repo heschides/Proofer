@@ -28,10 +28,11 @@ for content; the audit event is only its activity index.
 - `note.approved`, `note.approval-overridden`, `note.returned`
 - `assessment.created`, `assessment.updated`, `assessment.submitted`
 - `person.created`, `person.updated`, `person.journal-updated`
-- `person.history-viewed`, `person.history-pdf-generated`
+- `person-history.viewed`, `person-history-pdf.generated`
 - `settings.updated`
 - `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
+- `audit.exported`
 
 The state change and its event share one EF Core `SaveChanges` transaction. If either fails, neither
 is committed. EDI generation records the event before the file response is returned.
@@ -41,8 +42,10 @@ is committed. EDI generation records the event before the file response is retur
 - Only an Admin can call `GET /api/v1/audit-events`.
 - The API always restricts the query to the actor's agency and limits the date window and row count.
 - Both application database contexts reject tracked updates or deletes of `AuditEvent` rows.
-- Production still needs SQL-principal permissions and a documented retention/legal-hold process;
-  application-level append-only enforcement does not make a database administrator powerless.
+- Production SQL-principal separation, retention classes, the legal-hold gate, export controls, and
+  monitoring expectations are defined in `OPERATIONS.md`. Enforcement remains `PolicyOnly` until
+  legal-hold controls exist; application-level append-only enforcement does not make a database
+  administrator powerless.
 
 ## Concurrency and duplicate protection introduced with this slice
 
@@ -107,6 +110,6 @@ the old and new value for every changed field. Related notes, contacts, forms, a
 billing items retain their own histories and are not silently folded into the Person profile ledger.
 
 The WPF client's Admin tab is the supported human-facing entry point. It summarizes agency usage,
-renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the
-protected PDF export. The UI does not broaden access: cloud requests remain subject to the API's
+renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the protected PDF export. It also reports database/retention status and creates a
+reason-gated, bounded agency audit CSV whose use is itself recorded. The UI does not broaden access: cloud requests remain subject to the API's
 Admin and tenant checks, and the transitional local service repeats the Admin/agency restrictions.

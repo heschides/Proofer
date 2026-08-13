@@ -1,4 +1,4 @@
-﻿
+
 
 # Sati — Refactor Agenda
 
@@ -177,8 +177,19 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [ ] Extend the friendly desktop conflict handling now used by notes, settings, and scratchpads to the remaining concurrent
   records instead of presenting generic API errors.
 - [x] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
-- [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
+- [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
+- [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
 
+### Completed 2026-08-12 -- operations visibility and records governance
+
+- [x] Add an Admin-only, agency-scoped operations status view with database status, retained audit/EDI
+  counts, oldest-record timestamps, and explicit audit/EDI retention policy values.
+- [x] Add a reason-gated, one-year/10,000-row bounded audit CSV export; mark it no-store and audit the
+  export without copying its business reason into server metadata.
+- [x] Publish `OPERATIONS.md` with the legal-hold prerequisite, production SQL-principal separation,
+  monitoring/alert expectations, operator checks, and an honest `PolicyOnly` enforcement state.
+- [x] Preserve local-development/cloud parity while keeping retention destructive actions disabled
+  until legal-hold controls and production authorization are reviewed.
 ### Completed 2026-08-12 -- billing retry safety
 
 - [x] Give each WPF EDI-generation attempt a stable retry key and preserve it across ambiguous

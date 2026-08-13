@@ -330,6 +330,29 @@ public sealed record AdminOverviewDto(
     int AuditEventsToday,
     DateTime? LastActivityUtc);
 
+public static class OperationalPolicyDefaults
+{
+    public const int AuditRetentionDays = 2_555;
+    public const int EdiReplayRetentionDays = 90;
+}
+
+public sealed record AdminOperationsDto(
+    DateTime ObservedAtUtc,
+    string DatabaseStatus,
+    string RetentionEnforcementMode,
+    int AuditRetentionDays,
+    int EdiReplayRetentionDays,
+    long AuditEventCount,
+    long EdiReplayCount,
+    long EdiReplayCharacters,
+    DateTime? OldestAuditEventUtc,
+    DateTime? OldestEdiReplayUtc);
+
+public sealed record AdminAuditExportRequest(
+    DateTime FromUtc,
+    DateTime ToUtc,
+    string Reason);
+
 public sealed record AdminPersonListItemDto(
     int PersonId,
     string DisplayName,

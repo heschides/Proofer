@@ -18,6 +18,8 @@ public partial class AdminDashboardViewModel(
     public ObservableCollection<PersonVersionDto> PersonHistory { get; } = [];
 
     [ObservableProperty] private AdminOverviewDto? overview;
+    [ObservableProperty] private AdminOperationsDto? operations;
+    [ObservableProperty] private string auditExportReason = "Internal compliance review";
     [ObservableProperty] private AdminPersonListItemDto? selectedPerson;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string statusMessage = string.Empty;
@@ -31,6 +33,7 @@ public partial class AdminDashboardViewModel(
         : $"Updated {LastRefreshedAt:MMM d, h:mm tt}";
 
     public event EventHandler<AdminPdfReadyEventArgs>? PdfReady;
+    public event EventHandler<AdminCsvReadyEventArgs>? CsvReady;
 
     public async Task InitializeAsync()
     {
@@ -57,9 +60,11 @@ public partial class AdminDashboardViewModel(
             var overviewTask = adminService.GetOverviewAsync();
             var peopleTask = adminService.GetPeopleAsync();
             var activityTask = adminService.GetActivityAsync(30, 150);
-            await Task.WhenAll(overviewTask, peopleTask, activityTask);
+            var operationsTask = adminService.GetOperationsAsync();
+            await Task.WhenAll(overviewTask, peopleTask, activityTask, operationsTask);
 
             Overview = await overviewTask;
+            Operations = await operationsTask;
             Replace(People, await peopleTask);
             Replace(RecentActivity, (await activityTask).Select(item => new AdminActivityRow(item)));
             LastRefreshedAt = DateTime.Now;
@@ -88,7 +93,14 @@ public partial class AdminDashboardViewModel(
         _ = LoadHistoryAsync(value, _historyCancellation.Token);
     }
 
-    partial void OnIsBusyChanged(bool value) => ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
+    partial void OnIsBusyChanged(bool value)
+    {
+        ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
+        ExportAuditCsvCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnAuditExportReasonChanged(string value) =>
+        ExportAuditCsvCommand.NotifyCanExecuteChanged();
     partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasError));
     partial void OnLastRefreshedAtChanged(DateTime? value) => OnPropertyChanged(nameof(LastRefreshedLabel));
 
@@ -150,6 +162,42 @@ public partial class AdminDashboardViewModel(
         }
     }
 
+    private bool CanExportAuditCsv() =>
+        !IsBusy && (AuditExportReason?.Trim().Length ?? 0) is >= 10 and <= 250;
+
+    [RelayCommand(CanExecute = nameof(CanExportAuditCsv))]
+    private async Task ExportAuditCsvAsync()
+    {
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            var toUtc = DateTime.UtcNow;
+            var fromUtc = toUtc.AddDays(-30);
+            var csv = await adminService.ExportAuditCsvAsync(
+                fromUtc,
+                toUtc,
+                AuditExportReason.Trim());
+            CsvReady?.Invoke(this, new AdminCsvReadyEventArgs(
+                csv,
+                $"sati-audit-{fromUtc:yyyyMMdd}-{toUtc:yyyyMMdd}.csv"));
+            var activityTask = adminService.GetActivityAsync(30, 150);
+            var overviewTask = adminService.GetOverviewAsync();
+            var operationsTask = adminService.GetOperationsAsync();
+            await Task.WhenAll(activityTask, overviewTask, operationsTask);
+            Replace(RecentActivity, (await activityTask).Select(item => new AdminActivityRow(item)));
+            Overview = await overviewTask;
+            Operations = await operationsTask;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The audit activity export could not be created. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
     private static string SafeFileName(string value)
     {
         var safe = new string(value.Select(character =>
@@ -181,6 +229,7 @@ public sealed class AdminActivityRow(AdminActivityDto activity)
         "person.journal-updated" => "Updated Person journal",
         "person-history.viewed" => "Viewed Person history",
         "person-history-pdf.generated" => "Exported Person audit PDF",
+        "audit.exported" => "Exported audit activity",
         "user.created" => "Created user",
         "user.updated" => "Updated user",
         "user.password-reset" => "Reset user password",
@@ -205,6 +254,11 @@ public sealed class AdminActivityRow(AdminActivityDto activity)
     public string CorrelationId => activity.CorrelationId;
 }
 
+public sealed class AdminCsvReadyEventArgs(byte[] content, string suggestedFileName) : EventArgs
+{
+    public byte[] Content { get; } = content;
+    public string SuggestedFileName { get; } = suggestedFileName;
+}
 public sealed class AdminPdfReadyEventArgs(byte[] content, string suggestedFileName) : EventArgs
 {
     public byte[] Content { get; } = content;

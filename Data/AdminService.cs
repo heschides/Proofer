@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
 using Sati.Models;
@@ -64,6 +66,92 @@ public sealed class AdminService(
             auditEventsToday, lastActivity);
     }
 
+    public async Task<AdminOperationsDto> GetOperationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        await using var context = contextFactory.CreateDbContext();
+        var auditCount = await context.AuditEvents.AsNoTracking()
+            .LongCountAsync(candidate => candidate.AgencyId == actor.AgencyId, cancellationToken);
+        var ediCount = await context.EdiGenerations.AsNoTracking()
+            .LongCountAsync(candidate => candidate.AgencyId == actor.AgencyId, cancellationToken);
+        var ediCharacters = await context.EdiGenerations.AsNoTracking()
+            .Where(candidate => candidate.AgencyId == actor.AgencyId)
+            .SumAsync(candidate => (long?)candidate.Content.Length, cancellationToken) ?? 0;
+        var oldestAudit = await context.AuditEvents.AsNoTracking()
+            .Where(candidate => candidate.AgencyId == actor.AgencyId)
+            .MinAsync(candidate => (DateTime?)candidate.OccurredAtUtc, cancellationToken);
+        var oldestEdi = await context.EdiGenerations.AsNoTracking()
+            .Where(candidate => candidate.AgencyId == actor.AgencyId)
+            .MinAsync(candidate => (DateTime?)candidate.CreatedAtUtc, cancellationToken);
+
+        return new AdminOperationsDto(
+            DateTime.UtcNow,
+            "Healthy",
+            "PolicyOnly",
+            OperationalPolicyDefaults.AuditRetentionDays,
+            OperationalPolicyDefaults.EdiReplayRetentionDays,
+            auditCount,
+            ediCount,
+            ediCharacters,
+            oldestAudit,
+            oldestEdi);
+    }
+
+    public async Task<byte[]> ExportAuditCsvAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        var start = fromUtc.ToUniversalTime();
+        var end = toUtc.ToUniversalTime();
+        reason = reason?.Trim() ?? string.Empty;
+        if (end < start || (end - start).TotalDays > 366 || end > DateTime.UtcNow.AddMinutes(5) ||
+            reason.Length is < 10 or > 250)
+        {
+            throw new ArgumentException(
+                "Use a window no longer than one year ending no later than now and provide a 10-250 character reason.",
+                nameof(reason));
+        }
+
+        await using var context = contextFactory.CreateDbContext();
+        var rows = await (
+            from auditEvent in context.AuditEvents.AsNoTracking()
+            join user in context.Users.AsNoTracking() on auditEvent.ActorUserId equals user.Id into users
+            from user in users.DefaultIfEmpty()
+            where auditEvent.AgencyId == actor.AgencyId &&
+                  auditEvent.OccurredAtUtc >= start && auditEvent.OccurredAtUtc <= end
+            orderby auditEvent.OccurredAtUtc, auditEvent.Id
+            select new LocalAuditExportRow(
+                auditEvent.EventId,
+                auditEvent.OccurredAtUtc,
+                auditEvent.ActorUserId,
+                user == null ? $"User {auditEvent.ActorUserId}" : user.DisplayName,
+                auditEvent.Action,
+                auditEvent.ResourceType,
+                auditEvent.ResourceId,
+                auditEvent.CorrelationId))
+            .Take(10_000)
+            .ToListAsync(cancellationToken);
+
+        var exportedAt = DateTime.UtcNow;
+        LocalAuditTrail.Record(
+            context,
+            actor,
+            LocalAuditActions.AuditExported,
+            "AuditEvent",
+            metadataJson: JsonSerializer.Serialize(new
+            {
+                fromUtc = start,
+                toUtc = end,
+                rowCount = rows.Count
+            }));
+        await context.SaveChangesAsync(cancellationToken);
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)
+            .GetBytes(BuildAuditCsv(rows, reason, exportedAt));
+    }
     public async Task<List<AdminPersonListItemDto>> GetPeopleAsync(
         CancellationToken cancellationToken = default)
     {
@@ -147,6 +235,44 @@ public sealed class AdminService(
         return pdfExporter.Generate(person, history, agency, actor, DateTime.UtcNow);
     }
 
+    private static string BuildAuditCsv(
+        IReadOnlyList<LocalAuditExportRow> rows,
+        string reason,
+        DateTime exportedAtUtc)
+    {
+        var csv = new StringBuilder();
+        csv.AppendLine("ExportReason,ExportedAtUtc,EventId,OccurredAtUtc,ActorUserId,ActorDisplayName,Action,ResourceType,ResourceId,CorrelationId");
+        foreach (var row in rows)
+        {
+            csv.AppendLine(string.Join(',', new[]
+            {
+                Csv(reason),
+                Csv(exportedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.EventId.ToString()),
+                Csv(row.OccurredAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.ActorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Csv(row.ActorDisplayName),
+                Csv(row.Action),
+                Csv(row.ResourceType),
+                Csv(row.ResourceId),
+                Csv(row.CorrelationId)
+            }));
+        }
+        return csv.ToString();
+    }
+
+    private static string Csv(string? value) =>
+        $"\"{(value ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
+    private sealed record LocalAuditExportRow(
+        Guid EventId,
+        DateTime OccurredAtUtc,
+        int ActorUserId,
+        string ActorDisplayName,
+        string Action,
+        string ResourceType,
+        string? ResourceId,
+        string CorrelationId);
     private static Task<Person?> LoadPersonAsync(
         SatiContext context,
         User actor,

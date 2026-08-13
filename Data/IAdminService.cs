@@ -5,6 +5,12 @@ namespace Sati.Data;
 public interface IAdminService
 {
     Task<AdminOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default);
+    Task<AdminOperationsDto> GetOperationsAsync(CancellationToken cancellationToken = default);
+    Task<byte[]> ExportAuditCsvAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        string reason,
+        CancellationToken cancellationToken = default);
     Task<List<AdminPersonListItemDto>> GetPeopleAsync(CancellationToken cancellationToken = default);
     Task<List<AdminActivityDto>> GetActivityAsync(
         int days = 30,

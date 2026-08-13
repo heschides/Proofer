@@ -9,7 +9,8 @@ internal static class LocalAuditTrail
         User actor,
         string action,
         string resourceType,
-        int? resourceId = null)
+        int? resourceId = null,
+        string metadataJson = "{}")
     {
         context.AuditEvents.Add(new AuditEvent
         {
@@ -19,7 +20,7 @@ internal static class LocalAuditTrail
             ResourceType = resourceType,
             ResourceId = resourceId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
             CorrelationId = $"desktop-{Guid.NewGuid():N}",
-            MetadataJson = "{}"
+            MetadataJson = metadataJson
         });
     }
 }
@@ -32,4 +33,5 @@ internal static class LocalAuditActions
     public const string PersonJournalUpdated = "person.journal-updated";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
+    public const string AuditExported = "audit.exported";
 }
