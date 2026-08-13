@@ -103,8 +103,20 @@ public sealed class CloudScratchpadService(CloudApiClient api) : IScratchpadServ
         CloudContractMapper.ToScratchpadComment(await api.PostAsync<AddScratchpadCommentRequest, ScratchpadCommentDto>(
             $"/api/v1/scratchpad/{scratchpadId}/comments", new AddScratchpadCommentRequest(content)));
 
-    public Task SaveAsync(Scratchpad scratchpad) =>
-        api.PutAsync("/api/v1/scratchpad", new SaveScratchpadRequest(scratchpad.Id, scratchpad.Content));
+    public async Task SaveAsync(Scratchpad scratchpad)
+    {
+        try
+        {
+            var saved = await api.PutAsync<SaveScratchpadRequest, ScratchpadDto>(
+                "/api/v1/scratchpad",
+                new SaveScratchpadRequest(scratchpad.Id, scratchpad.Content, scratchpad.Revision));
+            scratchpad.Revision = saved.Revision;
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_scratchpad")
+        {
+            throw new ScratchpadConcurrencyException(ex);
+        }
+    }
 }
 
 public sealed class CloudExemptDateService(CloudApiClient api) : IExemptDateService

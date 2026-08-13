@@ -38,6 +38,7 @@ internal static class AuditActions
     public const string AssessmentUpdated = "assessment.updated";
     public const string AssessmentSubmitted = "assessment.submitted";
     public const string SettingsUpdated = "settings.updated";
+    public const string ScratchpadUpdated = "scratchpad.updated";
     public const string PersonCreated = "person.created";
     public const string PersonUpdated = "person.updated";
     public const string PersonJournalUpdated = "person.journal-updated";

@@ -737,6 +737,10 @@ namespace Sati.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 

@@ -192,6 +192,7 @@ public sealed class AdminActivityRow(AdminActivityDto activity)
         "assessment.updated" => "Updated assessment",
         "assessment.submitted" => "Submitted assessment",
         "settings.updated" => "Updated settings",
+        "scratchpad.updated" => "Updated scratchpad",
         "billing-period.submitted" => "Submitted billing period",
         "billing-claim-line.created" => "Created claim line",
         "billing-edi.generated" => "Generated EDI file",

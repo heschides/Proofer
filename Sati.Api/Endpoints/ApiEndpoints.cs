@@ -1630,17 +1630,45 @@ internal static class ApiEndpoints
             return pads.Select(x => ContractMapper.ToScratchpad(x, byPad.GetValueOrDefault(x.Id) ?? [])).ToList();
         });
 
-        api.MapPut("/scratchpad", async Task<Results<NoContent, NotFound>> (
+        api.MapPut("/scratchpad", async Task<IResult> (
             SaveScratchpadRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            var count = await db.Scratchpads
-                .Where(x => x.Id == request.Id && x.UserId == actor.UserId)
-                .ExecuteUpdateAsync(x => x.SetProperty(p => p.Content, request.Content ?? string.Empty), cancellationToken);
-            return count == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+            var content = request.Content ?? string.Empty;
+            if (content.Length > 1_000_000)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["content"] = ["Scratchpad content must not exceed 1,000,000 characters."]
+                });
+
+            var scratchpad = await db.Scratchpads.SingleOrDefaultAsync(
+                x => x.Id == request.Id && x.UserId == actor.UserId,
+                cancellationToken);
+            if (scratchpad is null)
+                return Results.NotFound();
+            if (request.ExpectedRevision != scratchpad.Revision)
+                return StaleScratchpadConflict();
+
+            if (scratchpad.Content == content)
+                return Results.Ok(ContractMapper.ToScratchpad(scratchpad, []));
+
+            scratchpad.Content = content;
+            scratchpad.Revision++;
+            auditTrail.Record(actor, AuditActions.ScratchpadUpdated, "Scratchpad", scratchpad.Id);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleScratchpadConflict();
+            }
+
+            return Results.Ok(ContractMapper.ToScratchpad(scratchpad, []));
         });
 
         api.MapPost("/scratchpad/{scratchpadId:int}/comments", async Task<Results<Ok<ScratchpadCommentDto>, NotFound, ValidationProblem>> (
@@ -2600,6 +2628,12 @@ internal static class ApiEndpoints
         Results.Conflict(new ApiErrorDto(
             "stale_settings",
             "Agency settings changed after this window was opened. Review the latest settings before trying again.",
+            string.Empty));
+
+    private static IResult StaleScratchpadConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_scratchpad",
+            "Your scratchpad changed in another Sati session. Reload the saved copy before trying again.",
             string.Empty));
 
     private static IResult DuplicateClaimLineConflict() =>

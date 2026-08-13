@@ -177,8 +177,9 @@ The mutation and audit insert share one EF Core save transaction, and applicatio
 updates or deletes to existing audit rows. Admin audit queries are bounded and agency-scoped.
 Comprehensive Assessments are the first aggregate with an explicit `Revision` concurrency token;
 the API rejects stale saves/submissions with HTTP 409. Notes, AT requests (including their line
-items), and agency Settings use the same revision-and-409 boundary. Settings also keeps the desktop
-window open after a conflict so the administrator's attempted values are not silently discarded.
+items), agency Settings, and daily per-user Scratchpads use the same revision-and-409 boundary.
+Settings and Scratchpad keep attempted work visible after a conflict; Scratchpad also stops repeat
+autosaves and requires an explicit reload so shutdown cannot silently discard the draft.
 Claim-line duplication is prevented by a unique `NoteId` index as well as a readable conflict response.
 
 Person profile changes additionally use a purpose-built `PersonVersion` ledger. Unlike the
@@ -489,6 +490,14 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   with `409 stale_settings`, and successful revision advancement shares the same save transaction as
   the audit event. User-specific overrides are deliberately absent until a concrete requirement exists.
 
+### `ScratchpadService`
+- Owns one daily Scratchpad per user plus append-only retrospective comments. Scratchpad content
+  carries a `Revision`; saves load the current user's tracked row and reject stale copies instead
+  of updating a detached object graph.
+- The API returns `409 stale_scratchpad` for stale or legacy autosaves. Content-identical autosaves
+  return the current revision without a database write or audit event; accepted changes and their
+  PHI-minimized `scratchpad.updated` event share one save transaction.
+
 ### `AuthService`
 - **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI
   (`UserService` does it correctly). Hasher non-swappable for auth without editing `AuthService`.
@@ -736,7 +745,9 @@ and confirmation; the API owns hashing and salting. Summary/overview VMs clean.
 ### Children ViewModels
 `CalendarViewModel`: `ToggleExempt` fires `ExemptDateChanged` (correct cross-VM coordination);
 `BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: 10-min auto-save from
-`InitializeAsync`; explicit shutdown save; diagnostics omit scratchpad content.
+`InitializeAsync`; explicit shutdown save; diagnostics omit scratchpad content. A save conflict
+stops the timer, preserves the draft, blocks shutdown/user switching, and exposes Reload Latest;
+identical autosaves are server-side no-ops.
 `GuidanceViewModel`/`HelpersViewModel`: static content.
 
 ### Billing ViewModels

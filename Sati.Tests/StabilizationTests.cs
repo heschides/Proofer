@@ -199,6 +199,23 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void ScratchpadRevisionIsAConcurrencyTokenAndItsMigrationIsRegistered()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiScratchpadRevisionValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var revision = context.Model.FindEntityType(typeof(Scratchpad))!
+            .FindProperty(nameof(Scratchpad.Revision));
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.NotNull(revision);
+        Assert.True(revision!.IsConcurrencyToken);
+        Assert.Contains("20260812234500_AddScratchpadRevision", migrations.Migrations.Keys);
+    }
+
+    [Fact]
     public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;

@@ -7,10 +7,11 @@ namespace Sati.Data
     public class ScratchpadService : IScratchpadService
     {
         private readonly IDbContextFactory<SatiContext> _contextFactory;
-
-        public ScratchpadService(IDbContextFactory<SatiContext> contextFactory)
+        private readonly ISessionService _sessionService;
+        public ScratchpadService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
         {
             _contextFactory = contextFactory;
+            _sessionService = sessionService;
         }
 
         public async Task<Scratchpad> LoadTodayAsync(int userId)
@@ -80,8 +81,31 @@ namespace Sati.Data
         public async Task SaveAsync(Scratchpad scratchpad)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.Scratchpad.Update(scratchpad);
-            await context.SaveChangesAsync();
+            var userId = CurrentUserId();
+            var tracked = await context.Scratchpad.SingleOrDefaultAsync(
+                candidate => candidate.Id == scratchpad.Id && candidate.UserId == userId)
+                ?? throw new InvalidOperationException("The scratchpad is outside the current user.");
+
+            if (tracked.Revision != scratchpad.Revision)
+                throw new ScratchpadConcurrencyException();
+
+            if (tracked.Content == scratchpad.Content)
+                return;
+
+            tracked.Content = scratchpad.Content;
+            tracked.Revision++;
+            try
+            {
+                await context.SaveChangesAsync();
+                scratchpad.Revision = tracked.Revision;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new ScratchpadConcurrencyException(ex);
+            }
         }
+
+        private int CurrentUserId() => _sessionService.CurrentUser?.Id
+            ?? throw new InvalidOperationException("A signed-in user is required to access the scratchpad.");
     }
 }

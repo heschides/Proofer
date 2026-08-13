@@ -11,6 +11,7 @@ namespace Sati.Models
         public int Id { get; set; }
         public int UserId { get; set; }
         public DateTime Date { get; set; }
+        public int Revision { get; set; } = 1;
         public string Content { get; set; } = string.Empty;
         public ObservableCollection<ScratchpadComment> Comments { get; set; } = [];
 

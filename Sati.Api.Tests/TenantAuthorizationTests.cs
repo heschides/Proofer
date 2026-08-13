@@ -648,6 +648,73 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.Equal("Settings", savedEvent.ResourceType);
     }
 
+    [Fact]
+    public async Task ScratchpadAutosaveRejectsStaleAndLegacyWritesWithoutLosingWork()
+    {
+        using var firstSession = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var secondSession = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var otherUser = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
+        var firstCopy = await firstSession.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var staleCopy = await secondSession.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var otherOriginal = await otherUser.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var auditBefore = await _factory.GetAuditEventsAsync("scratchpad.updated");
+
+        var savedResponse = await firstSession.PutAsJsonAsync(
+            "/api/v1/scratchpad",
+            new SaveScratchpadRequest(firstCopy!.Id, "Newer scratchpad work", firstCopy.Revision));
+        var saved = await savedResponse.Content.ReadFromJsonAsync<ScratchpadDto>();
+
+        Assert.Equal(HttpStatusCode.OK, savedResponse.StatusCode);
+        Assert.Equal(firstCopy.Revision + 1, saved!.Revision);
+        Assert.Equal("Newer scratchpad work", saved.Content);
+
+        var staleResponse = await secondSession.PutAsJsonAsync(
+            "/api/v1/scratchpad",
+            new SaveScratchpadRequest(staleCopy!.Id, "Stale work must survive locally", staleCopy.Revision));
+        var staleError = await staleResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        Assert.Equal("stale_scratchpad", staleError!.Code);
+
+        var legacyRequest = System.Text.Json.JsonSerializer.SerializeToNode(
+            new SaveScratchpadRequest(saved.Id, "Legacy overwrite", saved.Revision),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!.AsObject();
+        legacyRequest.Remove("expectedRevision");
+
+        var legacyResponse = await firstSession.PutAsJsonAsync("/api/v1/scratchpad", legacyRequest);
+        var legacyError = await legacyResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+
+        Assert.Equal(HttpStatusCode.Conflict, legacyResponse.StatusCode);
+        Assert.Equal("stale_scratchpad", legacyError!.Code);
+
+        var noOpResponse = await firstSession.PutAsJsonAsync(
+            "/api/v1/scratchpad",
+            new SaveScratchpadRequest(saved.Id, saved.Content, saved.Revision));
+        var noOp = await noOpResponse.Content.ReadFromJsonAsync<ScratchpadDto>();
+
+        Assert.Equal(HttpStatusCode.OK, noOpResponse.StatusCode);
+        Assert.Equal(saved.Revision, noOp!.Revision);
+
+        var crossUserResponse = await otherUser.PutAsJsonAsync(
+            "/api/v1/scratchpad",
+            new SaveScratchpadRequest(saved.Id, "Cross-user overwrite", otherOriginal!.Revision));
+        Assert.Equal(HttpStatusCode.NotFound, crossUserResponse.StatusCode);
+
+        var stored = await firstSession.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var otherStored = await otherUser.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var auditAfter = await _factory.GetAuditEventsAsync("scratchpad.updated");
+
+        Assert.Equal("Newer scratchpad work", stored!.Content);
+        Assert.Equal(saved.Revision, stored.Revision);
+        Assert.Equal(otherOriginal.Content, otherStored!.Content);
+        Assert.Equal(otherOriginal.Revision, otherStored.Revision);
+        Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
+        var savedEvent = auditAfter[^1];
+        Assert.Equal(1, savedEvent.AgencyId);
+        Assert.Equal(12, savedEvent.ActorUserId);
+        Assert.Equal("Scratchpad", savedEvent.ResourceType);
+    }
+
     private static SaveProviderRequest ProviderRequest(string name) => new(
         "Other", name, null, null, null, null, null, null, 0, false, null, null, null);
 

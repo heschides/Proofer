@@ -151,7 +151,8 @@ internal static class ContractMapper
         scratchpad.UserId,
         scratchpad.Date,
         scratchpad.Content,
-        comments.Select(ToScratchpadComment).ToList());
+        comments.Select(ToScratchpadComment).ToList(),
+        scratchpad.Revision);
 
     public static ScratchpadCommentDto ToScratchpadComment(ServerScratchpadComment comment) => new(
         comment.Id,

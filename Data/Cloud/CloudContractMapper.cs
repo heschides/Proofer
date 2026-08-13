@@ -193,7 +193,8 @@ internal static class CloudContractMapper
         UserId = dto.UserId,
         Date = dto.Date,
         Content = dto.Content,
-        Comments = new ObservableCollection<ScratchpadComment>(dto.Comments.Select(ToScratchpadComment))
+        Comments = new ObservableCollection<ScratchpadComment>(dto.Comments.Select(ToScratchpadComment)),
+        Revision = dto.Revision
     };
 
     public static ScratchpadComment ToScratchpadComment(ScratchpadCommentDto dto) => new()

@@ -249,7 +249,8 @@ public sealed record ScratchpadDto(
     int UserId,
     DateTime Date,
     string Content,
-    IReadOnlyList<ScratchpadCommentDto> Comments);
+    IReadOnlyList<ScratchpadCommentDto> Comments,
+    int Revision);
 
 public sealed record ScratchpadCommentDto(
     int Id,
@@ -259,7 +260,7 @@ public sealed record ScratchpadCommentDto(
     DateTime CreatedAtUtc,
     string Content);
 
-public sealed record SaveScratchpadRequest(int Id, string Content);
+public sealed record SaveScratchpadRequest(int Id, string Content, int ExpectedRevision = 0);
 public sealed record AddScratchpadCommentRequest(string Content);
 public sealed record SaveJournalRequest(string? Journal);
 

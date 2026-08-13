@@ -385,6 +385,7 @@ namespace Sati.Data
             modelBuilder.Entity<Scratchpad>(entity =>
             {
                 entity.HasKey(s => s.Id);
+                entity.Property(s => s.Revision).IsConcurrencyToken();
                 entity.HasIndex(s => new { s.UserId, s.Date })
                       .IsUnique();
             });

@@ -172,12 +172,23 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Current next slice — concurrency and audit-operation breadth
 
-- [ ] Extend revision/concurrency tokens from assessments, notes, AT requests, and settings to
+- [ ] Extend revision/concurrency tokens from assessments, notes, AT requests, settings, and scratchpads to
   other records where simultaneous edits could silently lose work.
-- [ ] Extend the friendly desktop conflict handling now used by notes and settings to the remaining concurrent
+- [ ] Extend the friendly desktop conflict handling now used by notes, settings, and scratchpads to the remaining concurrent
   records instead of presenting generic API errors.
 - [ ] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
 - [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
+
+### Completed 2026-08-12 -- scratchpad concurrency boundary
+
+- [x] Protect each user's daily Scratchpad with a `Revision` token across local SQL, cloud
+  contracts, and the API; reject stale and older-client autosaves with `409 stale_scratchpad`.
+- [x] Treat unchanged ten-minute autosaves as no-ops so they create neither revision churn nor
+  misleading audit activity.
+- [x] Preserve the unsaved text after a conflict, stop repeated autosave warnings, block shutdown
+  and user switching from discarding it, and provide an explicit Reload Latest recovery action.
+- [x] Record only accepted content changes in the PHI-minimized audit envelope and prove stale,
+  legacy, cross-user, no-op, migration, and recovery-boundary behavior.
 
 ### Completed 2026-08-12 -- settings concurrency boundary
 

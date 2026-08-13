@@ -117,7 +117,11 @@ namespace Sati.Views
                 _isSavingOnClose = true;
 
                 var content = _shellViewModel.Scratchpad.ScratchpadContent;
-                await _shellViewModel.Scratchpad.SaveScratchpadAsync(content);
+                if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                {
+                    _isSavingOnClose = false;
+                    return;
+                }
 
                 Close();
             };
@@ -132,7 +136,8 @@ namespace Sati.Views
         private async Task OpenSwitchUserFlowAsync()
         {
             var content = _shellViewModel.Scratchpad.ScratchpadContent;
-            await _shellViewModel.Scratchpad.SaveScratchpadAsync(content);
+            if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                return;
             await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
 
             var win = _switchUserWindowFactory();

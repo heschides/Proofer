@@ -9,6 +9,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -58,9 +59,36 @@
                 </Button>
             </StackPanel>
 
+            <Border Grid.Row="1"
+                    Margin="0,0,0,8"
+                    Padding="8"
+                    Background="{DynamicResource WarningFillBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Visibility="{Binding HasScratchpadConflict,
+                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding ScratchpadConflictMessage}"
+                               Foreground="{DynamicResource WarningBrush}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Margin="8,0,0,0"
+                            Padding="8,4"
+                            Content="Reload Latest"
+                            Command="{Binding ReloadLatestScratchpadCommand}"
+                            AutomationProperties.Name="Reload latest saved scratchpad" />
+                </Grid>
+            </Border>
+
             <!-- Scratchpad text area -->
             <TextBox AutomationProperties.Name="Today's scratchpad" x:Name="TodaysWorkBox"
-                     Grid.Row="1"
+                     Grid.Row="2"
                      FontFamily="{StaticResource NarrativeFont}"
                      FontSize="{Binding ScratchpadFontSize}"
                      AcceptsReturn="True"

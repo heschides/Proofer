@@ -77,6 +77,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Scratchpad");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasIndex(x => new { x.UserId, x.Date }).IsUnique();
         });
 
@@ -397,6 +398,7 @@ internal sealed class ServerSettings
 
 internal sealed class ServerScratchpad
 {
+    public int Revision { get; set; } = 1;
     public int Id { get; set; }
     public int UserId { get; set; }
     public DateTime Date { get; set; }

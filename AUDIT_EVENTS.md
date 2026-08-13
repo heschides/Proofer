@@ -30,6 +30,7 @@ for content; the audit event is only its activity index.
 - `person.created`, `person.updated`, `person.journal-updated`
 - `person.history-viewed`, `person.history-pdf-generated`
 - `settings.updated`
+- `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
 
 The state change and its event share one EF Core `SaveChanges` transaction. If either fails, neither
@@ -60,6 +61,12 @@ money, dates, status, or the item collection replaces that aggregate in one EF t
 increments the revision. Stale updates and deletes receive `409 stale_at_request`, including older
 clients that omit the expected revision. The desktop AT screen does not yet expose persistence;
 its typed conflict is ready for the deliberately deferred Save/Open/Delete + PDF-publishing slice.
+
+Scratchpads use a per-user daily `Revision`. Stale autosaves receive
+`409 stale_scratchpad`; older clients that omit the expected revision fail closed. The desktop
+keeps the attempted text visible, stops repeat autosaves, and requires an explicit reload of the
+newer saved copy. An unchanged autosave returns the current revision without writing a row or an
+audit event.
 
 Claim lines have a unique database index on `NoteId`. Creating the monthly period, claim line, and
 audit event happens in one save, and a repeated command returns HTTP 409 instead of charging the
