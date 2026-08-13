@@ -204,6 +204,12 @@ legal-hold gate, SQL-principal split, monitoring expectations, and remaining enf
 Menu visibility is only presentation; both service implementations and all API routes independently
 require Admin.
 
+Unexpected desktop failures produce a short support reference rather than displaying stack traces.
+The local JSON-lines diagnostic entry records exception type, HRESULT, target, and stack but omits
+exception messages because they may contain Person names or workflow context. The Demo artifact and
+preflight procedures are reproducible through `scripts/Publish-Demo.ps1`,
+`scripts/Test-DemoReadiness.ps1`, and `DEMO_RUNBOOK.md`.
+
 ---
 
 ## Domain Model Overview

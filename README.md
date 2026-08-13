@@ -81,7 +81,8 @@ The following are product constraints, not optional enhancements:
    migrations, and record integrity need regression coverage before production use.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md),
-[AGENDA.md](AGENDA.md), and [REGULATORY_CONCERNS.md](REGULATORY_CONCERNS.md).
+[AGENDA.md](AGENDA.md), [REGULATORY_CONCERNS.md](REGULATORY_CONCERNS.md), and the
+[company Demo runbook](DEMO_RUNBOOK.md).
 
 ## Current technology
 

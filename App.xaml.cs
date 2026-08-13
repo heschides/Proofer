@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,9 +47,11 @@ namespace Sati
                 _isShowingUnhandledException = true;
                 try
                 {
+                    var reference = AppErrorLog.Record(args.Exception, "dispatcher.unhandled");
                     MessageBox.Show(
-                        $"Unhandled exception:\n\n{args.Exception}",
-                        "Sati Error",
+                        "Sati encountered an unexpected problem. Your current action may not have completed. " +
+                        $"Please close and reopen Sati, and give support error reference {reference}.",
+                        "Sati Could Not Complete the Action",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                 }
@@ -242,9 +244,11 @@ namespace Sati
             }
             catch (Exception ex)
             {
+                var reference = AppErrorLog.Record(ex, "application.startup");
                 MessageBox.Show(
-                    $"Startup failed:\n\n{ex}",
-                    "Sati Startup Error",
+                    "Sati could not finish starting safely. No work session was opened. " +
+                    $"Please give support error reference {reference}.",
+                    "Sati Could Not Start",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 Shutdown();

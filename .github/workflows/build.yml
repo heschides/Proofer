@@ -23,5 +23,8 @@ jobs:
       - name: Build
         run: dotnet build Sati.slnx --configuration Release --no-restore
 
+      - name: Build Demo client configuration
+        run: dotnet build Sati.csproj --configuration Demo --no-restore
+
       - name: Test
         run: dotnet test Sati.slnx --configuration Release --no-build --no-restore

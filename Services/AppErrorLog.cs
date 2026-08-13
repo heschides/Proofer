@@ -1,0 +1,64 @@
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Text.Json;
+
+namespace Sati.Services;
+
+internal static class AppErrorLog
+{
+    private static readonly object Sync = new();
+
+    public static string Record(
+        Exception exception,
+        string area,
+        string? directoryOverride = null)
+    {
+        var reference = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        try
+        {
+            var directory = directoryOverride ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Satilogica",
+                "Sati",
+                "Logs");
+            Directory.CreateDirectory(directory);
+            var entry = BuildEntry(exception, area, reference);
+            var path = Path.Combine(directory, $"sati-{DateTime.UtcNow:yyyyMMdd}.jsonl");
+            lock (Sync)
+                File.AppendAllText(path, JsonSerializer.Serialize(entry) + Environment.NewLine);
+        }
+        catch (Exception loggingException)
+        {
+            Debug.WriteLine(
+                $"Sati error {reference} could not be written. Logger failure type: {loggingException.GetType().FullName}");
+        }
+
+        return reference;
+    }
+
+    private static object BuildEntry(Exception exception, string area, string reference) => new
+    {
+        timestampUtc = DateTime.UtcNow,
+        reference,
+        area = SafeArea(area),
+        applicationVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(),
+        exceptionType = exception.GetType().FullName,
+        hResult = $"0x{exception.HResult:X8}",
+        target = exception.TargetSite?.DeclaringType?.FullName,
+        stackTrace = exception.StackTrace,
+        innerExceptionType = exception.InnerException?.GetType().FullName,
+        innerHResult = exception.InnerException is null
+            ? null
+            : $"0x{exception.InnerException.HResult:X8}"
+    };
+
+    private static string SafeArea(string area)
+    {
+        var safe = new string((area ?? string.Empty)
+            .Where(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_')
+            .Take(80)
+            .ToArray());
+        return string.IsNullOrWhiteSpace(safe) ? "unknown" : safe;
+    }
+}

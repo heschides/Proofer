@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Services;
@@ -262,7 +262,12 @@ namespace Sati.ViewModels.Supervisor
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Init failed: {ex.Message}\n{ex.StackTrace}");
+                var reference = AppErrorLog.Record(ex, "supervisor.dashboard.initialize");
+                System.Windows.MessageBox.Show(
+                    $"The supervisor dashboard could not be loaded. Error reference: {reference}",
+                    "Dashboard Not Loaded",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
                 Debug.WriteLine($"SupervisorDashboardViewModel.InitializeAsync failed: {ex.Message}");
             }
         }

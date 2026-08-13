@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Configurations>Debug;Release;Demo</Configurations>
@@ -57,6 +57,10 @@
 
   <ItemGroup>
     <ProjectReference Include="Sati.Contracts\Sati.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sati.Tests" />
   </ItemGroup>
 
   <ItemGroup>

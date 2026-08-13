@@ -180,6 +180,18 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
 - [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
 
+### Completed 2026-08-12 -- Demo recovery and acceptance tooling
+
+- [x] Replace user-visible exception/stack-trace dumps with calm reference-number messages and a
+  PHI-minimized local JSON-lines diagnostic record that excludes exception messages.
+- [x] Add a reproducible self-contained Demo publish script that refuses dirty output folders,
+  requires the tracked HTTPS endpoint, hashes the executable, and rejects private appsettings.
+- [x] Add read-only deployed health/Admin preflight tooling, a ten-minute company-demo runbook,
+  recovery guardrails, and explicit final acceptance gates.
+- [x] Compile the real `Demo` configuration in CI and locally; produce and inspect a 263 MB
+  self-contained artifact; confirm deployed liveness/readiness after an 80-second Free-tier wake-up.
+- [ ] Deploy the current client/API pair, run authenticated preflight, launch the package on a clean
+  external Windows machine, rehearse the designated synthetic path, and prove canonical reset.
 ### Completed 2026-08-12 -- local authorization parity
 
 - [x] Require the signed-in case manager at the local assessment service boundary; reject caller ID

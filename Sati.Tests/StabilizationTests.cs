@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Sati.Contracts.V1;
 using Sati.Reporting;
+using Sati.Services;
 using PdfSharp.Fonts;
 using Xunit;
 
@@ -56,6 +57,31 @@ public sealed class StabilizationTests
         Assert.False(NoteWorkflow.CanCaseManagerDelete(7));
     }
 
+    [Fact]
+    public void UnexpectedErrorLogOmitsExceptionMessagesAndReturnsAReference()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"sati-error-log-{Guid.NewGuid():N}");
+        const string sensitiveMessage = "Person Jane Example has private narrative text";
+        try
+        {
+            var reference = AppErrorLog.Record(
+                new InvalidOperationException(sensitiveMessage),
+                "test/unsafe area",
+                directory);
+            var log = File.ReadAllText(Assert.Single(Directory.GetFiles(directory, "*.jsonl")));
+
+            Assert.Equal(12, reference.Length);
+            Assert.Contains(reference, log);
+            Assert.Contains("System.InvalidOperationException", log);
+            Assert.Contains("testunsafearea", log);
+            Assert.DoesNotContain(sensitiveMessage, log);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
     [Fact]
     public void ApiPasswordHasherProducesVerifiableSaltedCredentials()
     {
