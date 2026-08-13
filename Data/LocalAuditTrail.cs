@@ -34,4 +34,10 @@ internal static class LocalAuditActions
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
     public const string AuditExported = "audit.exported";
+    public const string AssessmentCreated = "assessment.created";
+    public const string AssessmentUpdated = "assessment.updated";
+    public const string AssessmentSubmitted = "assessment.submitted";
+    public const string NoteApproved = "note.approved";
+    public const string NoteApprovalOverridden = "note.approval-overridden";
+    public const string NoteReturned = "note.returned";
 }

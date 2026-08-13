@@ -37,6 +37,10 @@ for content; the audit event is only its activity index.
 The state change and its event share one EF Core `SaveChanges` transaction. If either fails, neither
 is committed. EDI generation records the event before the file response is returned.
 
+The transitional local assessment and supervisor services apply the same rule and derive the actor
+from the signed-in session. Caller-supplied author/reviewer IDs cannot change event attribution or
+broaden assignment or agency scope.
+
 ## Access and immutability
 
 - Only an Admin can call `GET /api/v1/audit-events`.

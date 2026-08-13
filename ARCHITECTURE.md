@@ -270,8 +270,9 @@ require Admin.
   with another concrete support and explanatory detail.
 - Needs are independent records inside the JSON aggregate. The current provider link is a name
   snapshot placeholder; relational consumer/provider selection is deferred.
-- The current first slice does not yet implement supervisor flags/approval, PDF/signatures,
-  audit events, attachment storage, or full version creation after return/approval.
+- The current slice records general activity audit events but does not yet implement supervisor
+  flags/approval, PDF/signatures, attachment storage, or immutable document versions after
+  return/approval.
 
 **Deadline owner remains `Form` + `FormDueDateCalculator`.** The assessment table does not
 introduce another due-date field. `Settings.CompAssessmentDaysBeforeAnniversary` now defaults to
@@ -459,17 +460,20 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 - Owns assessment draft creation, JSON document persistence, and author submission.
 - Uses `IDbContextFactory<SatiContext>` with one context per call.
 - Approved and Superseded records are write-protected by `SaveDocumentAsync`.
-- `SubmitForReviewAsync` enforces author identity and workflow state.
-- **Pending:** supervisor return/approval, append-only audit history, attachment/PDF storage,
-  actor-aware authorization on every write, concurrency token, and transactionally marking the
-  corresponding legacy `Form` complete on approval.
+- The local and cloud implementations derive actor identity from the signed-in session/token and
+  require the assigned case manager and agency on create, save, and submission.
+- Successful create/update/submit transitions are audited; `Revision` rejects stale writes.
+- **Pending:** supervisor return/approval, immutable document-version history, attachment/PDF
+  storage, and transactionally marking the corresponding legacy `Form` complete on approval.
 
 ### `SupervisorService`
 - Owns approval/return/override for `Logged` notes. No duplicated compliance logic — delegates to
   `person.EvaluateComplianceGate`. `ApproveNoteAsync` enforces compliance as a hard throw.
 - `ApproveWithOverrideAsync` stamps `ComplianceOverride = true`; the `ClaimLine` carries
   `IsComplianceException = true`.
-- When `allSupervisees = true`, returns ALL CaseManager users (intentional for director views).
+- Supervisor scope is limited to assigned case managers in the same agency; Director/Admin scope
+  may include all case managers in that agency but never another agency. Caller IDs cannot override
+  the signed-in reviewer, and successful decisions are audited with the note transition.
 
 ### `NoteService`
 - Owns `Note` CRUD and status transitions. `UpdateAbandonedNotesAsync` (startup sweep) moves stale

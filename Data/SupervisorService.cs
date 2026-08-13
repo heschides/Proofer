@@ -1,176 +1,192 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Sati.Models;
 
-namespace Sati.Data
+namespace Sati.Data;
+
+public sealed class SupervisorService(
+    IDbContextFactory<SatiContext> contextFactory,
+    ISessionService sessionService) : ISupervisorService
 {
-    public class SupervisorService : ISupervisorService
+    public async Task<IEnumerable<Note>> GetPendingNotesAsync(
+        int supervisorId,
+        bool allSupervisees = false)
     {
-        private readonly IDbContextFactory<SatiContext> _contextFactory;
-        private readonly IUserService _userService;
+        var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
+        var today = DateTime.Today;
+        return notes.Where(note => note.Person.EvaluateComplianceGate(today).Passed);
+    }
 
-        public SupervisorService(IDbContextFactory<SatiContext> contextFactory, IUserService userService)
+    public async Task<IEnumerable<Note>> GetNonCompliantNotesAsync(
+        int supervisorId,
+        bool allSupervisees = false)
+    {
+        var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
+        var today = DateTime.Today;
+        return notes.Where(note => !note.Person.EvaluateComplianceGate(today).Passed);
+    }
+
+    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision)
+    {
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var note = await LoadReviewableNoteAsync(context, actor, noteId)
+            ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
+
+        EnsureCurrentRevision(note, expectedRevision);
+        if (note.Status != NoteStatus.Logged)
+            throw new InvalidOperationException("Only logged notes can be approved.");
+
+        var (passed, reasons) = note.Person.EvaluateComplianceGate(DateTime.Today);
+        if (!passed)
         {
-            _contextFactory = contextFactory;
-            _userService = userService;
+            throw new InvalidOperationException(
+                $"Cannot approve note {noteId}: {note.Person.FullName} does not meet " +
+                $"compliance requirements. Failures: {string.Join("; ", reasons)}. " +
+                "Use ApproveWithOverrideAsync if a supervisor exception is warranted.");
         }
 
-        // -------------------------------------------------------------------------
-        // Queue retrieval
-        // -------------------------------------------------------------------------
+        note.Status = NoteStatus.Approved;
+        note.ApprovedById = actor.Id;
+        note.ApprovedAt = DateTime.UtcNow;
+        note.Revision++;
+        await SaveNoteTransitionAsync(
+            context, actor, LocalAuditActions.NoteApproved, noteId);
+    }
 
-        // Returns Logged notes whose consumer passes the compliance gate.
-        // These go to the supervisor approval queue — content review only,
-        // structural compliance already verified.
-        public async Task<IEnumerable<Note>> GetPendingNotesAsync(int supervisorId, bool allSupervisees = false)
+    public async Task ApproveWithOverrideAsync(
+        int noteId,
+        int supervisorId,
+        string overrideReason,
+        int expectedRevision)
+    {
+        var reason = overrideReason?.Trim() ?? string.Empty;
+        if (reason.Length is < 1 or > 4_000)
+            throw new ArgumentException("Override reason is required and must not exceed 4,000 characters.", nameof(overrideReason));
+
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var note = await LoadReviewableNoteAsync(context, actor, noteId)
+            ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
+
+        EnsureCurrentRevision(note, expectedRevision);
+        if (note.Status != NoteStatus.Logged)
+            throw new InvalidOperationException("Only logged notes can be approved.");
+
+        var now = DateTime.UtcNow;
+        note.Status = NoteStatus.Approved;
+        note.ApprovedById = actor.Id;
+        note.ApprovedAt = now;
+        note.ComplianceOverride = true;
+        note.OverrideReason = reason;
+        note.OverrideApprovedById = actor.Id;
+        note.OverrideApprovedAt = now;
+        note.Revision++;
+        await SaveNoteTransitionAsync(
+            context, actor, LocalAuditActions.NoteApprovalOverridden, noteId);
+    }
+
+    public async Task ReturnNoteAsync(
+        int noteId,
+        int supervisorId,
+        string reason,
+        int expectedRevision)
+    {
+        reason = reason?.Trim() ?? string.Empty;
+        if (reason.Length is < 1 or > 4_000)
+            throw new ArgumentException("A return reason is required and must not exceed 4,000 characters.", nameof(reason));
+
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var note = await LoadReviewableNoteAsync(context, actor, noteId)
+            ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
+
+        EnsureCurrentRevision(note, expectedRevision);
+        if (note.Status != NoteStatus.Logged)
+            throw new InvalidOperationException("Only logged notes can be returned.");
+
+        note.Status = NoteStatus.Returned;
+        note.ReturnedById = actor.Id;
+        note.ReturnReason = reason;
+        note.ReturnedAt = DateTime.UtcNow;
+        note.Revision++;
+        await SaveNoteTransitionAsync(
+            context, actor, LocalAuditActions.NoteReturned, noteId);
+    }
+
+    private async Task<List<Note>> GetLoggedNotesAsync(int supervisorId, bool allSupervisees)
+    {
+        _ = allSupervisees;
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var canReviewAgency = actor.Role is UserRole.Director or UserRole.Admin;
+        var caseManagerIds = await context.Users.AsNoTracking()
+            .Where(user => user.AgencyId == actor.AgencyId &&
+                user.Role == UserRole.CaseManager &&
+                (canReviewAgency || user.SupervisorId == actor.Id))
+            .Select(user => user.Id)
+            .ToListAsync();
+
+        return await context.Notes.AsNoTracking()
+            .Include(note => note.Person)
+                .ThenInclude(person => person.Forms)
+            .Where(note => note.Status == NoteStatus.Logged &&
+                note.Person.AgencyId == actor.AgencyId &&
+                caseManagerIds.Contains(note.Person.UserId))
+            .OrderBy(note => note.EventDate)
+            .ToListAsync();
+    }
+
+    private static Task<Note?> LoadReviewableNoteAsync(
+        SatiContext context,
+        User actor,
+        int noteId)
+    {
+        var canReviewAgency = actor.Role is UserRole.Director or UserRole.Admin;
+        return context.Notes
+            .Include(note => note.Person)
+                .ThenInclude(person => person.Forms)
+            .SingleOrDefaultAsync(note =>
+                note.Id == noteId &&
+                note.Person.AgencyId == actor.AgencyId &&
+                context.Users.Any(user =>
+                    user.Id == note.Person.UserId &&
+                    user.AgencyId == actor.AgencyId &&
+                    user.Role == UserRole.CaseManager &&
+                    (canReviewAgency || user.SupervisorId == actor.Id)));
+    }
+
+    private User CurrentReviewer(int requestedReviewerId)
+    {
+        var actor = sessionService.CurrentUser
+            ?? throw new UnauthorizedAccessException("A signed-in reviewer is required.");
+        if (actor.Id != requestedReviewerId ||
+            actor.Role is not (UserRole.Supervisor or UserRole.Director or UserRole.Admin))
         {
-            var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
-            var today = DateTime.Today;
-            return notes.Where(n => n.Person.EvaluateComplianceGate(today).Passed);
+            throw new UnauthorizedAccessException("Only the signed-in reviewer may perform this action.");
         }
+        return actor;
+    }
 
-        // Returns Logged notes whose consumer fails the compliance gate.
-        // These sit in the non-compliant queue until compliance is met or
-        // the abandonment threshold passes.
-        public async Task<IEnumerable<Note>> GetNonCompliantNotesAsync(int supervisorId, bool allSupervisees = false)
+    private static void EnsureCurrentRevision(Note note, int expectedRevision)
+    {
+        if (note.Revision != expectedRevision)
+            throw new NoteConcurrencyException();
+    }
+
+    private static async Task SaveNoteTransitionAsync(
+        SatiContext context,
+        User actor,
+        string action,
+        int noteId)
+    {
+        LocalAuditTrail.Record(context, actor, action, "Note", noteId);
+        try
         {
-            var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
-            var today = DateTime.Today;
-            return notes.Where(n => !n.Person.EvaluateComplianceGate(today).Passed);
+            await context.SaveChangesAsync();
         }
-
-        // -------------------------------------------------------------------------
-        // Approval actions
-        // -------------------------------------------------------------------------
-
-        public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision)
+        catch (DbUpdateConcurrencyException ex)
         {
-            await using var context = _contextFactory.CreateDbContext();
-
-            var note = await context.Notes
-                .Include(n => n.Person)
-                    .ThenInclude(p => p.Forms)
-                .FirstOrDefaultAsync(n => n.Id == noteId)
-                ?? throw new InvalidOperationException($"Note {noteId} not found.");
-
-            EnsureCurrentRevision(note, expectedRevision);
-            if (note.Status != NoteStatus.Logged)
-                throw new InvalidOperationException("Only logged notes can be approved.");
-
-            // Hard compliance guard — service enforces the rule even if UI
-            // pre-filters. Cannot be bypassed by calling this method directly.
-            var (passed, reasons) = note.Person.EvaluateComplianceGate(DateTime.Today);
-            if (!passed)
-                throw new InvalidOperationException(
-                    $"Cannot approve note {noteId}: {note.Person.FullName} does not meet " +
-                    $"compliance requirements. Failures: {string.Join("; ", reasons)}. " +
-                    $"Use ApproveWithOverrideAsync if a supervisor exception is warranted.");
-
-            note.Status = NoteStatus.Approved;
-            note.ApprovedById = supervisorId;
-            note.ApprovedAt = DateTime.UtcNow;
-            note.Revision++;
-
-            await SaveNoteTransitionAsync(context);
-        }
-
-        // Override path — for notes in the non-compliant queue where the
-        // supervisor has judged that billing is appropriate despite the gap.
-        // Requires a written justification. Creates a flagged claim line that
-        // the billing department must acknowledge before submission.
-        public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason, int expectedRevision)
-        {
-            if (string.IsNullOrWhiteSpace(overrideReason))
-                throw new ArgumentException("Override reason is required.", nameof(overrideReason));
-
-            await using var context = _contextFactory.CreateDbContext();
-
-            var note = await context.Notes
-                .Include(n => n.Person)
-                .FirstOrDefaultAsync(n => n.Id == noteId)
-                ?? throw new InvalidOperationException($"Note {noteId} not found.");
-
-            EnsureCurrentRevision(note, expectedRevision);
-            if (note.Status != NoteStatus.Logged)
-                throw new InvalidOperationException("Only logged notes can be approved.");
-
-            note.Status = NoteStatus.Approved;
-            note.ApprovedById = supervisorId;
-            note.ApprovedAt = DateTime.UtcNow;
-            note.ComplianceOverride = true;
-            note.OverrideReason = overrideReason;
-            note.OverrideApprovedById = supervisorId;
-            note.OverrideApprovedAt = DateTime.UtcNow;
-            note.Revision++;
-
-            await SaveNoteTransitionAsync(context);
-        }
-
-        public async Task ReturnNoteAsync(int noteId, int supervisorId, string reason, int expectedRevision)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var note = await context.Notes.FindAsync(noteId)
-                ?? throw new InvalidOperationException($"Note {noteId} not found.");
-
-            EnsureCurrentRevision(note, expectedRevision);
-            if (note.Status != NoteStatus.Logged)
-                throw new InvalidOperationException("Only logged notes can be returned.");
-
-            note.Status = NoteStatus.Returned;
-            note.ReturnedById = supervisorId;
-            note.ReturnReason = reason;
-            note.ReturnedAt = DateTime.UtcNow;
-            note.Revision++;
-
-            await SaveNoteTransitionAsync(context);
-        }
-
-        private static void EnsureCurrentRevision(Note note, int expectedRevision)
-        {
-            if (note.Revision != expectedRevision)
-                throw new NoteConcurrencyException();
-        }
-
-        private static async Task SaveNoteTransitionAsync(SatiContext context)
-        {
-            try
-            {
-                await context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new NoteConcurrencyException(ex);
-            }
-        }
-
-     
-      
-        // -------------------------------------------------------------------------
-        // Private helpers
-        // -------------------------------------------------------------------------
-
-        // Shared query for both queue methods — loads Logged notes with Person
-        // and Forms included so IsComplianceGatePassed can evaluate in memory
-        // without additional DB round trips.
-        private async Task<IEnumerable<Note>> GetLoggedNotesAsync(int supervisorId, bool allSupervisees)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-
-            var superviseeIds = allSupervisees
-                ? await context.Users
-                    .Where(u => u.Role == UserRole.CaseManager)
-                    .Select(u => u.Id)
-                    .ToListAsync()
-                : (await _userService.GetSuperviseesAsync(supervisorId))
-                    .Select(u => u.Id)
-                    .ToList();
-
-            return await context.Notes
-                .Include(n => n.Person)
-                    .ThenInclude(p => p.Forms)
-                .Where(n => n.Status == NoteStatus.Logged
-                         && superviseeIds.Contains(n.Person.UserId))
-                .OrderBy(n => n.EventDate)
-                .ToListAsync();
+            throw new NoteConcurrencyException(ex);
         }
     }
 }

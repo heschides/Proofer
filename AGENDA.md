@@ -180,6 +180,16 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Define audit retention, legal-hold gate, controlled export, SQL-principal permissions, and monitoring.
 - [ ] Implement legal-hold enforcement, production SQL grants/denies, retention jobs, and external alert routing.
 
+### Completed 2026-08-12 -- local authorization parity
+
+- [x] Require the signed-in case manager at the local assessment service boundary; reject caller ID
+  spoofing, unassigned People, cross-agency People, and attempts to alter another author's draft.
+- [x] Restrict local supervisor queues and note decisions to the signed-in reviewer, their agency,
+  and either assigned supervisees or agency-wide Director/Admin scope.
+- [x] Record successful local assessment and supervisor transitions in the same database save as the
+  protected state change.
+- [x] Add SQLite service-level regression tests for author, reviewer, assignment, agency, and audit
+  boundaries while preserving the cloud API as the production authority.
 ### Completed 2026-08-12 -- operations visibility and records governance
 
 - [x] Add an Admin-only, agency-scoped operations status view with database status, retained audit/EDI
