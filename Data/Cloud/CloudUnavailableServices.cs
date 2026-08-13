@@ -183,9 +183,31 @@ public sealed class CloudAtRequestService(CloudApiClient api) : IATRequestServic
     }
     public async Task<ATRequest> AddAsync(ATRequest request) => CloudContractMapper.ToAtRequest(
         await api.PostAsync<SaveAtRequestRequest, AtRequestDto>("/api/v1/at-requests", CloudContractMapper.ToSaveAtRequestRequest(request)));
-    public async Task<ATRequest> UpdateAsync(ATRequest request) => CloudContractMapper.ToAtRequest(
-        await api.PutAsync<SaveAtRequestRequest, AtRequestDto>($"/api/v1/at-requests/{request.Id}", CloudContractMapper.ToSaveAtRequestRequest(request)));
-    public Task DeleteAsync(ATRequest request) => api.DeleteAsync($"/api/v1/at-requests/{request.Id}");
+    public async Task<ATRequest> UpdateAsync(ATRequest request)
+    {
+        try
+        {
+            return CloudContractMapper.ToAtRequest(
+                await api.PutAsync<SaveAtRequestRequest, AtRequestDto>(
+                    $"/api/v1/at-requests/{request.Id}", CloudContractMapper.ToSaveAtRequestRequest(request)));
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_at_request")
+        {
+            throw new AtRequestConcurrencyException(ex);
+        }
+    }
+
+    public async Task DeleteAsync(ATRequest request)
+    {
+        try
+        {
+            await api.DeleteAsync($"/api/v1/at-requests/{request.Id}?expectedRevision={request.Revision}");
+        }
+        catch (CloudApiException ex) when (ex.Code == "stale_at_request")
+        {
+            throw new AtRequestConcurrencyException(ex);
+        }
+    }
 }
 
 public sealed class CloudProviderService(CloudApiClient api) : IProviderService

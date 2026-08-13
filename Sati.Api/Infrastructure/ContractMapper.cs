@@ -193,7 +193,8 @@ internal static class ContractMapper
         a.Id, a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,
         a.CaseManagerPhone, a.CaseManagerAgency, a.VendorName, a.VendorBillingLocation,
         a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SubmittedDate, a.DecisionDate,
-        a.Status, a.Items.Select(i => new AtRequestItemDto(i.Id, i.ATRequestId, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList());
+        a.Status, a.Revision,
+        a.Items.Select(i => new AtRequestItemDto(i.Id, i.ATRequestId, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList());
 
     public static SettingsDto ToSettings(ServerSettings s) => new(
         s.Id, s.AbandonedAfterDays, s.ProductivityThreshold, s.BaseIncentive, s.PerUnitIncentive,

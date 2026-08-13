@@ -306,6 +306,22 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 },
                 new ServerAtRequest
                 {
+                    Id = 902, PersonId = 101, ClientName = "Person One", CaseManagerName = "case-manager-one",
+                    VendorName = "Original Vendor", Status = "Development",
+                    Items = [new ServerAtRequestItem { Id = 905, Name = "Original Item", ItemCost = 25m, Quantity = 1 }]
+                },
+                new ServerAtRequest
+                {
+                    Id = 903, PersonId = 101, ClientName = "Person One", CaseManagerName = "case-manager-one",
+                    VendorName = "Delete Guard Vendor", Status = "Development"
+                },
+                new ServerAtRequest
+                {
+                    Id = 904, PersonId = 101, ClientName = "Person One", CaseManagerName = "case-manager-one",
+                    VendorName = "Legacy Guard Vendor", Status = "Development"
+                },
+                new ServerAtRequest
+                {
                     Id = 1001, PersonId = 201, ClientName = "Person Two", CaseManagerName = "case-manager-two",
                     Status = "Development", SnapshotPng = [4, 5, 6]
                 });

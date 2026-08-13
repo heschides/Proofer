@@ -80,6 +80,10 @@ namespace Sati.Migrations
                     b.Property<int>("PersonId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.Property<decimal>("SalesTax")
                         .HasColumnType("decimal(18,2)");
 

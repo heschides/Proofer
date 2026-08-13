@@ -173,6 +173,83 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task StaleAtRequestSaveCannotReplaceNewerFinancialDetailsOrItems()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var original = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/902");
+
+        var firstResponse = await client.PutAsJsonAsync(
+            "/api/v1/at-requests/902",
+            AtRequestRequest(original!, "Newer Vendor", "Newer Item", original!.Revision));
+        var staleResponse = await client.PutAsJsonAsync(
+            "/api/v1/at-requests/902",
+            AtRequestRequest(original, "Stale Vendor", "Stale Item", original.Revision));
+        var stored = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/902");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var updated = await firstResponse.Content.ReadFromJsonAsync<AtRequestDto>();
+        Assert.Equal(2, updated!.Revision);
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        var error = await staleResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("stale_at_request", error!.Code);
+        Assert.Equal("Newer Vendor", stored!.VendorName);
+        Assert.Equal("Newer Item", Assert.Single(stored.Items).Name);
+        Assert.Equal(2, stored.Revision);
+    }
+
+    [Fact]
+    public async Task StaleAtRequestDeleteCannotRemoveTheNewerCopy()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var original = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/903");
+        var updateResponse = await client.PutAsJsonAsync(
+            "/api/v1/at-requests/903",
+            AtRequestRequest(original!, "Newer Delete Guard", "Guard Item", original!.Revision));
+
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/v1/at-requests/903?expectedRevision={original.Revision}");
+        var stored = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/903");
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, deleteResponse.StatusCode);
+        Assert.Equal("Newer Delete Guard", stored!.VendorName);
+        Assert.Equal(2, stored.Revision);
+    }
+
+    [Fact]
+    public async Task AtRequestUpdateWithoutAnExpectedRevisionFailsClosed()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var original = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/904");
+        var legacyRequest = new
+        {
+            personId = original!.PersonId,
+            clientName = original.ClientName,
+            clientEvergreenId = original.ClientEvergreenId,
+            caseManagerName = original.CaseManagerName,
+            caseManagerEmail = original.CaseManagerEmail,
+            caseManagerPhone = original.CaseManagerPhone,
+            caseManagerAgency = original.CaseManagerAgency,
+            vendorName = "Legacy overwrite attempt",
+            vendorBillingLocation = original.VendorBillingLocation,
+            vendorProgramContact = original.VendorProgramContact,
+            vendorBillingContact = original.VendorBillingContact,
+            salesTax = original.SalesTax,
+            submittedDate = original.SubmittedDate,
+            decisionDate = original.DecisionDate,
+            status = original.Status,
+            items = original.Items
+        };
+
+        var response = await client.PutAsJsonAsync("/api/v1/at-requests/904", legacyRequest);
+        var stored = await client.GetFromJsonAsync<AtRequestDto>("/api/v1/at-requests/904");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("Legacy Guard Vendor", stored!.VendorName);
+        Assert.Equal(1, stored.Revision);
+    }
+
+    [Fact]
     public async Task AnotherAgencysAssessmentCannotBeChanged()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
@@ -533,6 +610,29 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         note.NoteType,
         note.CaseManagerJustification,
         note.VisitDocumentationJson,
+        expectedRevision);
+
+    private static SaveAtRequestRequest AtRequestRequest(
+        AtRequestDto request,
+        string vendorName,
+        string itemName,
+        int expectedRevision) => new(
+        request.PersonId,
+        request.ClientName,
+        request.ClientEvergreenId,
+        request.CaseManagerName,
+        request.CaseManagerEmail,
+        request.CaseManagerPhone,
+        request.CaseManagerAgency,
+        vendorName,
+        request.VendorBillingLocation,
+        request.VendorProgramContact,
+        request.VendorBillingContact,
+        request.SalesTax,
+        request.SubmittedDate,
+        request.DecisionDate,
+        request.Status,
+        [new SaveAtRequestItemRequest(0, itemName, 50m, 2, null)],
         expectedRevision);
 
     private static SavePersonRequest PersonRequest(PersonDto person, string firstName, string bio) => new(

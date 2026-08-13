@@ -86,16 +86,65 @@ namespace Sati.Data
         public async Task<ATRequest> UpdateAsync(ATRequest request)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.ATRequests.Update(request);
-            await context.SaveChangesAsync();
+            var stored = await context.ATRequests
+                .Include(candidate => candidate.Items)
+                .SingleOrDefaultAsync(candidate => candidate.Id == request.Id);
+            if (stored is null || stored.Revision != request.Revision)
+                throw new AtRequestConcurrencyException();
+
+            CopyMutableValues(request, stored);
+            stored.Revision++;
+            try
+            {
+                await context.SaveChangesAsync();
+                request.Revision = stored.Revision;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new AtRequestConcurrencyException(ex);
+            }
             return request;
         }
 
         public async Task DeleteAsync(ATRequest request)
         {
             await using var context = _contextFactory.CreateDbContext();
-            context.ATRequests.Remove(request);
-            await context.SaveChangesAsync();
+            var stored = await context.ATRequests.SingleOrDefaultAsync(candidate => candidate.Id == request.Id);
+            if (stored is null || stored.Revision != request.Revision)
+                throw new AtRequestConcurrencyException();
+            context.ATRequests.Remove(stored);
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new AtRequestConcurrencyException(ex);
+            }
+        }
+
+        private static void CopyMutableValues(ATRequest source, ATRequest target)
+        {
+            target.VendorName = source.VendorName;
+            target.VendorBillingLocation = source.VendorBillingLocation;
+            target.VendorProgramContact = source.VendorProgramContact;
+            target.VendorBillingContact = source.VendorBillingContact;
+            target.SalesTax = source.SalesTax;
+            target.SubmittedDate = source.SubmittedDate;
+            target.DecisionDate = source.DecisionDate;
+            target.SetStatus(source.Status);
+
+            target.Items.Clear();
+            foreach (var item in source.Items)
+            {
+                target.Items.Add(new ATRequestItem
+                {
+                    Name = item.Name,
+                    ItemCost = item.ItemCost,
+                    Quantity = item.Quantity,
+                    Url = item.Url
+                });
+            }
         }
     }
 }

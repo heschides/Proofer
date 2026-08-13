@@ -60,8 +60,8 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | AT | `GET /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only. |
 | AT | `GET /at-requests/{id}/snapshot` | Request person's assigned user and agency | Accessible case manager only; generated binary stays behind the same check. |
 | AT | `POST /at-requests` | Request person's assigned user and agency | Accessible case manager only; person controls ownership. |
-| AT | `PUT /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; person cannot be changed. |
-| AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only. |
+| AT | `PUT /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; person cannot be changed and the expected aggregate revision is required. |
+| AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; stale or omitted revisions are rejected. |
 | AI context | `POST /people/{personId}/ai-context` | Person's assigned user and agency | Accessible requesting user; person and requested user must agree. |
 | Notes | `POST /notes` | Note person's assigned user and agency | Own caseload only; note agency is assigned server-side. |
 | Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces editable workflow states and rejects stale revisions. |

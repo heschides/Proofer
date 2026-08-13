@@ -177,6 +177,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         modelBuilder.Entity<ServerAtRequest>(entity =>
         {
             entity.ToTable("ATRequests"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.Property(x => x.Status).HasMaxLength(20);
             entity.Property(x => x.SalesTax).HasColumnType("decimal(18,2)");
             entity.HasMany(x => x.Items).WithOne().HasForeignKey(x => x.ATRequestId).OnDelete(DeleteBehavior.Cascade);
@@ -546,6 +547,7 @@ internal sealed class ServerProvider
 internal sealed class ServerAtRequest
 {
     public int Id { get; set; }
+    public int Revision { get; set; } = 1;
     public int PersonId { get; set; }
     public string? ClientName { get; set; }
     public string? ClientEvergreenId { get; set; }

@@ -395,6 +395,7 @@ internal static class CloudContractMapper
         request.VendorName = dto.VendorName; request.VendorBillingLocation = dto.VendorBillingLocation;
         request.VendorProgramContact = dto.VendorProgramContact; request.VendorBillingContact = dto.VendorBillingContact;
         request.SalesTax = dto.SalesTax; request.SubmittedDate = dto.SubmittedDate; request.DecisionDate = dto.DecisionDate;
+        request.Revision = dto.Revision;
         request.Items = dto.Items.Select(i => { var item = ATRequestItem.Rehydrate(i.Id); item.ATRequestId = i.AtRequestId;
             item.Name = i.Name; item.ItemCost = i.ItemCost; item.Quantity = i.Quantity; item.Url = i.Url; return item; }).ToList();
         return request;
@@ -404,7 +405,8 @@ internal static class CloudContractMapper
         a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,
         a.CaseManagerPhone, a.CaseManagerAgency, a.VendorName, a.VendorBillingLocation,
         a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SubmittedDate, a.DecisionDate,
-        a.Status.ToString(), a.Items.Select(i => new SaveAtRequestItemRequest(i.Id, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList());
+        a.Status.ToString(), a.Items.Select(i => new SaveAtRequestItemRequest(i.Id, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList(),
+        a.Revision);
 
     private static Note ToNoteSummary(NoteSummaryDto dto)
     {

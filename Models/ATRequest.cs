@@ -16,6 +16,7 @@ namespace Sati.Models
     public class ATRequest
     {
         public int Id { get; private set; }
+        public int Revision { get; set; } = 1;
 
         // Live link to the client, kept for navigation/filtering. The snapshot
         // columns below are what actually print — this FK is NOT the render

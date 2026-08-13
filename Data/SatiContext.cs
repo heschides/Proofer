@@ -283,6 +283,7 @@ namespace Sati.Data
             modelBuilder.Entity<ATRequest>(entity =>
             {
                 entity.HasKey(a => a.Id);
+                entity.Property(a => a.Revision).IsConcurrencyToken();
 
                 // Status persisted as its enum name ("Approved"), not an ordinal.
                 // Chosen for a financial record's readability and to avoid the

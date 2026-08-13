@@ -165,6 +165,23 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void AtRequestRevisionProtectsTheWholeAggregateAndItsMigrationIsRegistered()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiAtRevisionValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var revision = context.Model.FindEntityType(typeof(ATRequest))!
+            .FindProperty(nameof(ATRequest.Revision));
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.NotNull(revision);
+        Assert.True(revision!.IsConcurrencyToken);
+        Assert.Contains("20260812230000_AddAtRequestRevision", migrations.Migrations.Keys);
+    }
+
+    [Fact]
     public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;

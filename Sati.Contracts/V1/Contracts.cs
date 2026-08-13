@@ -433,6 +433,7 @@ public sealed record AtRequestDto(
     string? CaseManagerName, string? CaseManagerEmail, string? CaseManagerPhone, string? CaseManagerAgency,
     string? VendorName, string? VendorBillingLocation, string? VendorProgramContact, string? VendorBillingContact,
     decimal SalesTax, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
+    int Revision,
     IReadOnlyList<AtRequestItemDto> Items);
 public sealed record AtRequestListItemDto(
     int Id, string? ClientName, string Status, decimal TotalCost, DateTime? SubmittedDate,
@@ -443,7 +444,8 @@ public sealed record SaveAtRequestRequest(
     string? CaseManagerName, string? CaseManagerEmail, string? CaseManagerPhone, string? CaseManagerAgency,
     string? VendorName, string? VendorBillingLocation, string? VendorProgramContact, string? VendorBillingContact,
     decimal SalesTax, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
-    IReadOnlyList<SaveAtRequestItemRequest> Items);
+    IReadOnlyList<SaveAtRequestItemRequest> Items,
+    int ExpectedRevision = 0);
 public sealed record BinaryPayloadDto(string? Base64);
 
 public sealed record ClientAiContextSourceDto(string Category, string Description);

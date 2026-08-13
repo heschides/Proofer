@@ -1235,13 +1235,34 @@ internal static class ApiEndpoints
         {
             var request = await LoadAccessibleAtRequestAsync(db, Actor.From(principal), id, cancellationToken);
             if (request is null || request.PersonId != input.PersonId) return Results.NotFound();
+            if (request.Revision != input.ExpectedRevision) return StaleAtRequestConflict();
             var errors = ValidateAtRequest(input); if (errors.Count > 0) return Results.ValidationProblem(errors);
-            ApplyAtRequest(request, input); await db.SaveChangesAsync(cancellationToken); return Results.Ok(ContractMapper.ToAtRequest(request));
+            ApplyAtRequest(request, input); request.Revision++;
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAtRequestConflict();
+            }
+            return Results.Ok(ContractMapper.ToAtRequest(request));
         });
-        api.MapDelete("/at-requests/{id:int}", async Task<IResult> (int id, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+        api.MapDelete("/at-requests/{id:int}", async Task<IResult> (int id, int? expectedRevision, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var request = await LoadAccessibleAtRequestAsync(db, Actor.From(principal), id, cancellationToken);
-            if (request is null) return Results.NotFound(); db.AtRequests.Remove(request); await db.SaveChangesAsync(cancellationToken); return Results.NoContent();
+            if (request is null) return Results.NotFound();
+            if (request.Revision != expectedRevision) return StaleAtRequestConflict();
+            db.AtRequests.Remove(request);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAtRequestConflict();
+            }
+            return Results.NoContent();
         });
     }
 
@@ -2556,6 +2577,12 @@ internal static class ApiEndpoints
         Results.Conflict(new ApiErrorDto(
             "stale_note",
             "This note changed after it was opened. Reload the saved copy before applying your changes.",
+            string.Empty));
+
+    private static IResult StaleAtRequestConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_at_request",
+            "This AT request changed after it was opened. Reload the saved request before applying your changes.",
             string.Empty));
 
     private static IResult DuplicateClaimLineConflict() =>

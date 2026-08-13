@@ -172,7 +172,7 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ### Current next slice — concurrency and audit-operation breadth
 
-- [ ] Extend revision/concurrency tokens from assessments and notes to settings, AT requests, and
+- [ ] Extend revision/concurrency tokens from assessments, notes, and AT requests to settings and
   other records where simultaneous edits could silently lose work.
 - [ ] Extend the friendly desktop conflict handling now used by notes to the remaining concurrent
   records instead of presenting generic API errors.
@@ -201,6 +201,17 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Load full Note records in the Notes Log instead of caseload summaries so IDs, narratives,
   people, and revisions remain available through the cloud API transition.
 - [x] Prove stale note edits, deletes, and supervisor decisions leave the newer record intact.
+
+### Completed 2026-08-12 — AT request concurrency boundary
+
+- [x] Treat an AT request and all of its line items as one revisioned financial aggregate.
+- [x] Require the caller's expected revision for update and delete through local and cloud
+  persistence; reject stale or legacy writes with `409 stale_at_request`.
+- [x] Replace line items and increment the parent revision in one EF transaction so a stale
+  aggregate cannot partially alter vendor, money, status, dates, or item details.
+- [x] Add a typed desktop-service conflict for the future Save/Open/Delete workflow without
+  prematurely separating Save from the deliberately bundled PDF-publishing feature slice.
+- [x] Prove stale aggregate replacement and deletion preserve the newer request and its items.
 
 ### Completed 2026-08-12 — Person lifecycle audit
 
@@ -296,7 +307,8 @@ Address these pressure points when the affected code is next changed:
 - [ ] Add immutable document versions, amendments, attestations, and electronic signatures.
 - [ ] Define retention and legal-hold behavior by record class.
 - [ ] Extend optimistic concurrency tokens and user-facing conflict resolution beyond the completed
-  assessment, Person, and Note records.
+  assessment, Person, Note, and AT persistence records. AT desktop conflict recovery lands with its
+  still-deferred Save/Open/Delete and PDF-publishing workflow.
 - [ ] Make commands retry-safe and idempotent where duplicate execution would cause harm.
 - [ ] Move billing, approval, and submission transitions into explicit server transactions.
 
@@ -845,7 +857,8 @@ audit evidence, accessibility, and policy acceptance are the substantive work.
       export batch (both are the same trip to disk).
 - [ ] **AT request Save + Publish PDF.** Still unbuilt by design. `NewRequest` builds
       in memory; `CloseEditor` discards; nothing calls `AddAsync`/`UpdateAsync` yet.
-      Save lands with PDF export as one batch.
+      Save lands with PDF export as one batch. The persistence boundary now has aggregate
+      revision enforcement and a typed conflict ready for that workflow.
 
 ### Deferred (needs a later slice)
 - [ ] **Client<->provider association.** The AT dropdown can only list *all* passthrough

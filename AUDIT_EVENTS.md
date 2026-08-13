@@ -55,6 +55,12 @@ receives `409 stale_note`; the desktop keeps an in-progress narrative draft, rel
 saved Note, and identifies fields that differ before the user decides whether to save again.
 Older clients that omit the expected revision do not receive a compatibility bypass.
 
+AT requests use one parent `Revision` for the request and all line items. Updating vendor details,
+money, dates, status, or the item collection replaces that aggregate in one EF transaction and
+increments the revision. Stale updates and deletes receive `409 stale_at_request`, including older
+clients that omit the expected revision. The desktop AT screen does not yet expose persistence;
+its typed conflict is ready for the deliberately deferred Save/Open/Delete + PDF-publishing slice.
+
 Claim lines have a unique database index on `NoteId`. Creating the monthly period, claim line, and
 audit event happens in one save, and a repeated command returns HTTP 409 instead of charging the
 same service note twice.
