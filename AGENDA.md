@@ -176,8 +176,21 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   other records where simultaneous edits could silently lose work.
 - [ ] Extend the friendly desktop conflict handling now used by notes, settings, and scratchpads to the remaining concurrent
   records instead of presenting generic API errors.
-- [ ] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
+- [x] Add idempotency keys for externally retried commands beyond the database-enforced claim-line rule.
 - [ ] Define audit retention, legal hold, controlled export, SQL-principal permissions, and monitoring.
+
+### Completed 2026-08-12 -- billing retry safety
+
+- [x] Give each WPF EDI-generation attempt a stable retry key and preserve it across ambiguous
+  failures until the exact file has been returned and saved.
+- [x] Persist the exact EDI response behind a tenant-, actor-, and key-scoped unique index so a
+  repeated API request replays one file and creates only one success audit event.
+- [x] Reject reuse of an EDI retry key for a different period or test/production mode.
+- [x] Make billing-period submission repeatable: an already-submitted period returns its original
+  success state, while a database concurrency token prevents simultaneous submissions from
+  producing duplicate state changes or audit events.
+- [x] Carry the retry contract through the shared API contracts and local service boundary without
+  beginning the deliberately post-pilot MAUI/Avalonia business-logic extraction.
 
 ### Completed 2026-08-12 -- scratchpad concurrency boundary
 

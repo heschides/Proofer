@@ -30,13 +30,11 @@ namespace Sati.Helpers
         private const string VersionCode = "005010X222A1";
         private const string TaxonomyCode = "251B00000X"; // Case Management
 
-        public static string Generate(BillingPeriod period, string submitterId, bool isTest = true)
+        public static string Generate(BillingPeriod period, string submitterId, bool isTest, DateTime generatedAt, string controlNumber)
         {
-            var today = DateTime.Today;
-            var now = DateTime.Now;
-            var dateStr = today.ToString("yyyyMMdd");
-            var timeStr = now.ToString("HHmm");
-            var icn = today.ToString("yyMMdd") + now.ToString("HHmmss"); // interchange control number
+            var dateStr = generatedAt.ToString("yyyyMMdd");
+            var timeStr = generatedAt.ToString("HHmm");
+            var icn = controlNumber; // interchange control number
             var gcn = "1"; // group control number — one group per file
 
             // Group claim lines by consumer so each consumer gets one 2000B loop

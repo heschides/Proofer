@@ -387,7 +387,7 @@ public sealed record ClaimLineDto(
 
 public sealed record BillingCandidateDto(NoteDto Note, IReadOnlyList<string> Errors);
 public sealed record CreateClaimLineRequest(int NoteId, bool IsComplianceException, string? ComplianceExceptionReason);
-public sealed record GenerateEdiRequest(bool IsTest);
+public sealed record GenerateEdiRequest(bool IsTest, string IdempotencyKey);
 public sealed record EdiFileDto(string FileName, string Content);
 
 public sealed record AppointmentDto(int Id, int ReviewItemId, DateTime Date, string? ProviderName);

@@ -127,7 +127,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         var response = await client.PostAsJsonAsync(
             "/api/v1/billing/periods/1201/edi",
-            new GenerateEdiRequest(true));
+            new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -140,7 +140,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         var response = await client.PostAsJsonAsync(
             "/api/v1/billing/periods/1101/edi",
-            new GenerateEdiRequest(true));
+            new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -158,6 +158,63 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
         Assert.Single(auditEvents, candidate => candidate.ResourceId == "502");
+    }
+
+    [Fact]
+    public async Task RetryingEdiGenerationReplaysTheExactFileAndAuditsOnce()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        var key = Guid.NewGuid().ToString("N");
+        var auditBefore = await _factory.GetAuditEventsAsync("billing-edi.generated");
+
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/billing/periods/1201/edi",
+            new GenerateEdiRequest(true, key));
+        var retryResponse = await client.PostAsJsonAsync(
+            "/api/v1/billing/periods/1201/edi",
+            new GenerateEdiRequest(true, key));
+        var reusedResponse = await client.PostAsJsonAsync(
+            "/api/v1/billing/periods/1201/edi",
+            new GenerateEdiRequest(false, key));
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync<EdiFileDto>();
+        var retry = await retryResponse.Content.ReadFromJsonAsync<EdiFileDto>();
+        Assert.Equal(first, retry);
+        Assert.Equal(HttpStatusCode.Conflict, reusedResponse.StatusCode);
+        var reusedError = await reusedResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("idempotency_key_reused", reusedError!.Code);
+        Assert.Equal(1, await _factory.GetEdiGenerationCountAsync(key));
+        var auditAfter = await _factory.GetAuditEventsAsync("billing-edi.generated");
+        Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
+        Assert.Single(auditAfter, candidate => candidate.ResourceId == "1201");
+    }
+
+    [Fact]
+    public async Task RetryingBillingPeriodSubmissionReturnsTheOriginalSuccessAndAuditsOnce()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        var auditBefore = await _factory.GetAuditEventsAsync("billing-period.submitted");
+
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/billing/periods/1201/submit",
+            new { });
+        var retryResponse = await client.PostAsJsonAsync(
+            "/api/v1/billing/periods/1201/submit",
+            new { });
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync<BillingPeriodDto>();
+        var retry = await retryResponse.Content.ReadFromJsonAsync<BillingPeriodDto>();
+        Assert.Equal(first!.Id, retry!.Id);
+        Assert.Equal(first.Status, retry.Status);
+        Assert.Equal(first.SubmittedAt, retry.SubmittedAt);
+        Assert.Equal(first.Lines.Select(line => line.Id), retry.Lines.Select(line => line.Id));
+        var auditAfter = await _factory.GetAuditEventsAsync("billing-period.submitted");
+        Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
+        Assert.Single(auditAfter, candidate => candidate.ResourceId == "1201");
     }
 
     [Theory]

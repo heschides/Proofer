@@ -2148,12 +2148,28 @@ internal static class ApiEndpoints
                                 select candidate).SingleOrDefaultAsync(cancellationToken);
             if (period is null)
                 return Results.NotFound();
+            if (period.Status == 1)
+                return Results.Ok(ContractMapper.ToBillingPeriod(period));
             if (period.Status != 0)
                 return Results.Conflict(new ApiErrorDto("invalid_period_status", "Only draft billing periods can be submitted.", string.Empty));
             period.Status = 1;
             period.SubmittedAt = DateTime.UtcNow;
             auditTrail.Record(actor, AuditActions.BillingPeriodSubmitted, "BillingPeriod", periodId);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                db.ChangeTracker.Clear();
+                var completed = await (from candidate in db.BillingPeriods.AsNoTracking().Include(value => value.Lines)
+                                       join owner in db.Users.AsNoTracking() on candidate.UserId equals owner.Id
+                                       where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
+                                       select candidate).SingleOrDefaultAsync(cancellationToken);
+                if (completed?.Status == 1)
+                    return Results.Ok(ContractMapper.ToBillingPeriod(completed));
+                return Results.Conflict(new ApiErrorDto("billing_period_changed", "The billing period changed while it was being submitted.", string.Empty));
+            }
             return Results.Ok(ContractMapper.ToBillingPeriod(period));
         });
 
@@ -2168,6 +2184,20 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             if (actor.Role != "Admin")
                 return Results.Forbid();
+            if (!Guid.TryParse(request.IdempotencyKey, out var parsedKey))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["idempotencyKey"] = ["A valid idempotency key is required."]
+                });
+            }
+            var normalizedKey = parsedKey.ToString("N");
+            var previous = await db.EdiGenerations.AsNoTracking().SingleOrDefaultAsync(generation =>
+                generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.UserId &&
+                generation.IdempotencyKey == normalizedKey, cancellationToken);
+            if (previous is not null)
+                return ReplayEdiOrConflict(previous, periodId, request.IsTest);
+
             var period = await (from candidate in db.BillingPeriods.AsNoTracking().Include(value => value.Lines)
                                 join owner in db.Users.AsNoTracking() on candidate.UserId equals owner.Id
                                 where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
@@ -2197,12 +2227,38 @@ internal static class ApiEndpoints
             var notes = sourceRows.Select(row => row.Note).ToList();
             var people = sourceRows.Select(row => row.Person).DistinctBy(person => person.Id).ToList();
             var agency = await db.Agencies.AsNoTracking().SingleAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
-            var content = ServerEdiGenerator.Generate(period, notes, people, agency, "010278395", request.IsTest);
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+            var generatedAt = DateTime.Now;
+            var controlNumber = CreateEdiControlNumber(normalizedKey);
+            var content = ServerEdiGenerator.Generate(
+                period, notes, people, agency, "010278395", request.IsTest, generatedAt, controlNumber);
+            var timestamp = generatedAt.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
             var testMarker = request.IsTest ? ".OATEST" : string.Empty;
+            var file = new EdiFileDto($"837P{testMarker}_{period.Year}{period.Month:D2}_{timestamp}_{normalizedKey[..8]}.txt", content);
+            db.EdiGenerations.Add(new ServerEdiGeneration
+            {
+                AgencyId = actor.AgencyId,
+                ActorUserId = actor.UserId,
+                BillingPeriodId = periodId,
+                IdempotencyKey = normalizedKey,
+                IsTest = request.IsTest,
+                FileName = file.FileName,
+                Content = file.Content,
+                CreatedAtUtc = DateTime.UtcNow
+            });
             auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
-            await db.SaveChangesAsync(cancellationToken);
-            return Results.Ok(new EdiFileDto($"837P{testMarker}_{period.Year}{period.Month:D2}_{timestamp}.txt", content));
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsDuplicateEdiGeneration(exception))
+            {
+                db.ChangeTracker.Clear();
+                var completed = await db.EdiGenerations.AsNoTracking().SingleAsync(generation =>
+                    generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.UserId &&
+                    generation.IdempotencyKey == normalizedKey, cancellationToken);
+                return ReplayEdiOrConflict(completed, periodId, request.IsTest);
+            }
+            return Results.Ok(file);
         });
     }
 
@@ -2646,6 +2702,29 @@ internal static class ApiEndpoints
         exception.InnerException is SqlException sqlException &&
         sqlException.Number is 2601 or 2627 &&
         sqlException.Message.Contains("IX_ClaimLines_NoteId", StringComparison.Ordinal);
+
+    private static IResult ReplayEdiOrConflict(
+        ServerEdiGeneration generation,
+        int billingPeriodId,
+        bool isTest) =>
+        generation.BillingPeriodId == billingPeriodId && generation.IsTest == isTest
+            ? Results.Ok(new EdiFileDto(generation.FileName, generation.Content))
+            : Results.Conflict(new ApiErrorDto(
+                "idempotency_key_reused",
+                "This retry key was already used for a different EDI request.",
+                string.Empty));
+
+    private static string CreateEdiControlNumber(string normalizedKey) =>
+        (Convert.ToUInt32(normalizedKey[..8], 16) % 1_000_000_000)
+        .ToString("D9", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static bool IsDuplicateEdiGeneration(DbUpdateException exception) =>
+        exception.InnerException is SqlException sqlException &&
+        sqlException.Number is 2601 or 2627 &&
+        sqlException.Message.Contains("IX_EdiGenerations_AgencyId_ActorUserId_IdempotencyKey", StringComparison.Ordinal)
+        || exception.InnerException?.Message.Contains(
+            "EdiGenerations.AgencyId, EdiGenerations.ActorUserId, EdiGenerations.IdempotencyKey",
+            StringComparison.Ordinal) == true;
 
     private sealed record BillingLossPersonRow(
         int Id,

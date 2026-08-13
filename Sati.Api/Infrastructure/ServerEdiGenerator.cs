@@ -16,7 +16,9 @@ internal static class ServerEdiGenerator
         IReadOnlyList<ServerPerson> people,
         ServerAgency agency,
         string submitterId,
-        bool isTest)
+        bool isTest,
+        DateTime generatedAt,
+        string controlNumber)
     {
         var notesById = notes.ToDictionary(note => note.Id);
         var peopleById = people.ToDictionary(person => person.Id);
@@ -29,11 +31,11 @@ internal static class ServerEdiGenerator
         }).ToList();
 
         ValidateAgency(agency);
-        var now = DateTime.Now;
+        var now = generatedAt;
         var date = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var time = now.ToString("HHmm", CultureInfo.InvariantCulture);
-        var interchange = now.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture);
-        var control = interchange.PadLeft(9, '0')[..9];
+        var interchange = controlNumber;
+        var control = controlNumber;
         var builder = new StringBuilder();
 
         builder.AppendLine(Segment("ISA", "00", "          ", "00", "          ", "ZZ",

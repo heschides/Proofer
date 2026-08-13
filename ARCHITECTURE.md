@@ -221,6 +221,7 @@ only presentation; both service implementations and all API routes independently
 | `UpcomingEvent` | `Sati.Models` | Ephemeral record. Never persisted. Derived at runtime. |
 | `BillingPeriod` | `Sati.Models.Billing` | Monthly billing container. Has many `ClaimLine`s. |
 | `ClaimLine` | `Sati.Models.Billing` | One billable service note within a billing period. |
+| `EdiGeneration` | `Sati.Models.Billing` | Exact 837P response retained for tenant- and actor-scoped idempotent replay. |
 | `BillingValidationResult` | `Sati.Models.Billing` | Immutable result record from billing validation. |
 | `ComprehensiveAssessment` | `Sati.Models.Assessments` | Versioned assessment envelope: ownership, workflow, timestamps, and serialized document aggregate. |
 | `AssessmentDocument` | `Sati.Models.Assessments` | JSON aggregate containing contributors, keyed answers, dissent, support characteristics, and identified needs. |
@@ -511,6 +512,10 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 ### `EdiService`
 - Owns 837P generation/output. Output dir hardcoded `C:\Published\Sati\Contained\EDI`. Delegates
   content to `EdiGenerator.Generate()`.
+- A generation attempt carries a stable GUID retry key. The exact file name and content are stored
+  under a unique `(AgencyId, ActorUserId, IdempotencyKey)` boundary before the response is returned;
+  an ambiguous network retry therefore replays the same 837P instead of creating another file or
+  success audit event. Reusing a key for different inputs is rejected.
 
 ---
 
@@ -764,6 +769,10 @@ Overview/Remittances/Alerts are stubs.
 
 **`EdiGenerator`** — pure static translation. Caller (`EdiService`) loads
 `BillingPeriod → Lines → Note → Person → Agency`; missing navigation → runtime throw.
+
+The generation timestamp is supplied by the caller so the persisted response, control numbers,
+and filename describe one atomic attempt. Billing-period submission uses `Status` as an EF
+concurrency token and treats a retry of an already-successful submission as the same success.
 
 **Pre-live checklist (before first real submission):**
 1. Replace hardcoded `PER04` phone (`"3609787000"`) with the agency's contact number (source from `Agency`).

@@ -18,6 +18,7 @@ namespace Sati.Data
         public DbSet<Incentive> Incentives { get; set; }
         public DbSet<BillingPeriod> BillingPeriods { get; set; }
         public DbSet<ClaimLine> ClaimLines { get; set; }
+        public DbSet<EdiGeneration> EdiGenerations { get; set; }
         public DbSet<ExemptDate> ExemptDates { get; set; }
         public DbSet<ReviewItem> ReviewItems { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
@@ -408,6 +409,7 @@ namespace Sati.Data
             modelBuilder.Entity<BillingPeriod>(entity =>
             {
                 entity.HasKey(b => b.Id);
+                entity.Property(b => b.Status).IsConcurrencyToken();
                 entity.HasOne(b => b.User)
                       .WithMany()
                       .HasForeignKey(b => b.UserId)
@@ -428,6 +430,25 @@ namespace Sati.Data
                 entity.HasOne(c => c.Note)
                       .WithMany()
                       .HasForeignKey(c => c.NoteId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<EdiGeneration>(entity =>
+            {
+                entity.HasKey(generation => generation.Id);
+                entity.HasIndex(generation => new
+                    { generation.AgencyId, generation.ActorUserId, generation.IdempotencyKey })
+                    .IsUnique();
+                entity.Property(generation => generation.IdempotencyKey)
+                      .IsRequired()
+                      .HasMaxLength(32);
+                entity.Property(generation => generation.FileName)
+                      .IsRequired()
+                      .HasMaxLength(260);
+                entity.Property(generation => generation.Content).IsRequired();
+                entity.HasOne(generation => generation.BillingPeriod)
+                      .WithMany()
+                      .HasForeignKey(generation => generation.BillingPeriodId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
         }

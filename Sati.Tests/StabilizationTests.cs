@@ -1,7 +1,11 @@
 using Sati.Api.Security;
 using Sati.Data;
+using Sati.Data.Billing;
+using Sati.Edi;
 using Sati.Helpers;
 using Sati.Models;
+using Sati.Models.Billing;
+using Sati.ViewModels.Billing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Sati.Contracts.V1;
@@ -216,6 +220,52 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void BillingSubmissionAndEdiGenerationHaveDatabaseRetryGuards()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiEdiIdempotencyValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var billingStatus = context.Model.FindEntityType(typeof(BillingPeriod))!
+            .FindProperty(nameof(BillingPeriod.Status));
+        var generation = context.Model.FindEntityType(typeof(EdiGeneration))!;
+        var retryIndex = Assert.Single(generation.GetIndexes(), index =>
+            index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(EdiGeneration.AgencyId),
+                nameof(EdiGeneration.ActorUserId),
+                nameof(EdiGeneration.IdempotencyKey)]));
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+
+        Assert.NotNull(billingStatus);
+        Assert.True(billingStatus!.IsConcurrencyToken);
+        Assert.True(retryIndex.IsUnique);
+        Assert.Contains("20260812235500_AddEdiIdempotency", migrations.Migrations.Keys);
+    }
+
+    [Fact]
+    public async Task DesktopKeepsTheSameEdiRetryKeyUntilGenerationSucceeds()
+    {
+        var edi = new RetryRecordingEdiService();
+        var viewModel = new BillingSubmissionsViewModel(
+            new StubBillingService(),
+            edi,
+            new SessionService())
+        {
+            SelectedPeriod = new BillingPeriod { Id = 99 }
+        };
+
+        await viewModel.GenerateEdiCommand.ExecuteAsync(null);
+        await viewModel.GenerateEdiCommand.ExecuteAsync(null);
+        await viewModel.GenerateEdiCommand.ExecuteAsync(null);
+
+        Assert.Equal(3, edi.Keys.Count);
+        Assert.Equal(edi.Keys[0], edi.Keys[1]);
+        Assert.NotEqual(edi.Keys[1], edi.Keys[2]);
+        Assert.All(edi.Keys, key => Assert.True(Guid.TryParse(key, out _)));
+    }
+
+    [Fact]
     public async Task DesktopAdminAuditExporterCreatesAReadablePdf()
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;
@@ -267,5 +317,35 @@ public sealed class StabilizationTests
             Directory.CreateDirectory(Path.GetDirectoryName(qaOutput)!);
             await File.WriteAllBytesAsync(qaOutput, pdf);
         }
+    }
+
+    private sealed class RetryRecordingEdiService : IEdiService
+    {
+        public List<string> Keys { get; } = [];
+
+        public Task<string> GenerateAndSaveAsync(int billingPeriodId, bool isTest, string idempotencyKey)
+        {
+            Keys.Add(idempotencyKey);
+            if (Keys.Count == 1)
+                throw new HttpRequestException("Simulated ambiguous network failure.");
+            return Task.FromResult(@"C:\Sati\retry-safe-837p.txt");
+        }
+    }
+
+    private sealed class StubBillingService : IBillingService
+    {
+        public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year) =>
+            throw new NotSupportedException();
+        public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId) =>
+            throw new NotSupportedException();
+        public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync() =>
+            throw new NotSupportedException();
+        public Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false,
+            string? complianceExceptionReason = null) => throw new NotSupportedException();
+        public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) =>
+            throw new NotSupportedException();
+        public Task SubmitBillingPeriodAsync(int billingPeriodId) => throw new NotSupportedException();
+        public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() => throw new NotSupportedException();
+        public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
     }
 }

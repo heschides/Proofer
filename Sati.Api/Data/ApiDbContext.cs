@@ -17,6 +17,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerAgency> Agencies => Set<ServerAgency>();
     public DbSet<ServerBillingPeriod> BillingPeriods => Set<ServerBillingPeriod>();
     public DbSet<ServerClaimLine> ClaimLines => Set<ServerClaimLine>();
+    public DbSet<ServerEdiGeneration> EdiGenerations => Set<ServerEdiGeneration>();
     public DbSet<ServerReviewItem> ReviewItems => Set<ServerReviewItem>();
     public DbSet<ServerAppointment> Appointments => Set<ServerAppointment>();
     public DbSet<ServerComprehensiveAssessment> ComprehensiveAssessments => Set<ServerComprehensiveAssessment>();
@@ -126,6 +127,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("BillingPeriods");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Status).IsConcurrencyToken();
             entity.HasIndex(x => new { x.UserId, x.Month, x.Year }).IsUnique();
         });
 
@@ -139,6 +141,20 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
                 .WithMany(x => x.Lines)
                 .HasForeignKey(x => x.BillingPeriodId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerEdiGeneration>(entity =>
+        {
+            entity.ToTable("EdiGenerations");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.AgencyId, x.ActorUserId, x.IdempotencyKey }).IsUnique();
+            entity.Property(x => x.IdempotencyKey).IsRequired().HasMaxLength(32);
+            entity.Property(x => x.FileName).IsRequired().HasMaxLength(260);
+            entity.Property(x => x.Content).IsRequired();
+            entity.HasOne<ServerBillingPeriod>()
+                .WithMany()
+                .HasForeignKey(x => x.BillingPeriodId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ServerReviewItem>(entity =>
@@ -489,6 +505,19 @@ internal sealed class ServerClaimLine
     public int PlaceOfService { get; set; }
     public bool IsComplianceException { get; set; }
     public string? ComplianceExceptionReason { get; set; }
+}
+
+internal sealed class ServerEdiGeneration
+{
+    public long Id { get; set; }
+    public int AgencyId { get; set; }
+    public int ActorUserId { get; set; }
+    public int BillingPeriodId { get; set; }
+    public string IdempotencyKey { get; set; } = string.Empty;
+    public bool IsTest { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 internal sealed class ServerReviewItem

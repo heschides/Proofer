@@ -353,11 +353,11 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
 
 public sealed class CloudEdiService(CloudApiClient api) : IEdiService
 {
-    public async Task<string> GenerateAndSaveAsync(int billingPeriodId, bool isTest = true)
+    public async Task<string> GenerateAndSaveAsync(int billingPeriodId, bool isTest, string idempotencyKey)
     {
         var file = await api.PostAsync<GenerateEdiRequest, EdiFileDto>(
             $"/api/v1/billing/periods/{billingPeriodId}/edi",
-            new GenerateEdiRequest(isTest));
+            new GenerateEdiRequest(isTest, idempotencyKey));
         var safeName = Path.GetFileName(file.FileName);
         if (!string.Equals(safeName, file.FileName, StringComparison.Ordinal) ||
             !safeName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))

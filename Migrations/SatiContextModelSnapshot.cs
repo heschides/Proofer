@@ -261,6 +261,7 @@ namespace Sati.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("SubmittedAt")
@@ -333,6 +334,53 @@ namespace Sati.Migrations
                         .IsUnique();
 
                     b.ToTable("ClaimLines");
+                });
+
+            modelBuilder.Entity("Sati.Models.Billing.EdiGeneration", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BillingPeriodId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool>("IsTest")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillingPeriodId");
+
+                    b.HasIndex("AgencyId", "ActorUserId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("EdiGenerations");
                 });
 
             modelBuilder.Entity("Sati.Models.ExemptDate", b =>
@@ -1273,6 +1321,17 @@ namespace Sati.Migrations
                     b.Navigation("BillingPeriod");
 
                     b.Navigation("Note");
+                });
+
+            modelBuilder.Entity("Sati.Models.Billing.EdiGeneration", b =>
+                {
+                    b.HasOne("Sati.Models.Billing.BillingPeriod", "BillingPeriod")
+                        .WithMany()
+                        .HasForeignKey("BillingPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BillingPeriod");
                 });
 
             modelBuilder.Entity("Sati.Models.ExemptDate", b =>

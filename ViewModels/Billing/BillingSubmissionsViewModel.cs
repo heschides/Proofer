@@ -14,6 +14,9 @@ namespace Sati.ViewModels.Billing
         private readonly IBillingService _billingService;
         private readonly IEdiService _ediService;
         private readonly ISessionService _sessionService;
+        private string? _pendingEdiKey;
+        private int? _pendingPeriodId;
+        private bool? _pendingIsTest;
 
         public BillingSubmissionsViewModel(
             IBillingService billingService,
@@ -71,6 +74,13 @@ namespace Sati.ViewModels.Billing
             if (SelectedPeriod is null)
                 return;
 
+            if (_pendingEdiKey is null || _pendingPeriodId != SelectedPeriod.Id || _pendingIsTest != IsTestMode)
+            {
+                _pendingEdiKey = Guid.NewGuid().ToString("N");
+                _pendingPeriodId = SelectedPeriod.Id;
+                _pendingIsTest = IsTestMode;
+            }
+
             try
             {
                 IsGenerating = true;
@@ -78,10 +88,14 @@ namespace Sati.ViewModels.Billing
 
                 var path = await _ediService.GenerateAndSaveAsync(
                     SelectedPeriod.Id,
-                    isTest: IsTestMode);
+                    IsTestMode,
+                    _pendingEdiKey);
 
                 LastGeneratedPath = path;
                 StatusMessage = $"File saved: {path}";
+                _pendingEdiKey = null;
+                _pendingPeriodId = null;
+                _pendingIsTest = null;
             }
             catch (Exception ex)
             {

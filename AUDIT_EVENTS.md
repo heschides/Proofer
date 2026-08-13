@@ -72,6 +72,16 @@ Claim lines have a unique database index on `NoteId`. Creating the monthly perio
 audit event happens in one save, and a repeated command returns HTTP 409 instead of charging the
 same service note twice.
 
+EDI generation uses a caller-supplied GUID retry key. The exact generated filename and 837P content
+are committed with the success audit event behind a unique tenant/actor/key index. Repeating the
+same period and mode with the same key replays that response without another write or event;
+reusing the key for different inputs returns `409 idempotency_key_reused`. Billing-period submission
+is naturally idempotent: repeating an already-successful submit returns the stored submitted state,
+and `BillingPeriod.Status` is a concurrency token for simultaneous requests.
+
+`EdiGeneration` contains protected billing content, unlike the PHI-minimized `AuditEvent` envelope.
+The pending retention/legal-hold policy must explicitly cover these replay records and their access.
+
 ## Person lifecycle history
 
 The general `AuditEvent` envelope says that an operation happened without copying PHI into the

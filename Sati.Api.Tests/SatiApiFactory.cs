@@ -151,6 +151,16 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             .ToListAsync();
     }
 
+    public async Task<int> GetEdiGenerationCountAsync(string idempotencyKey)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var normalizedKey = Guid.Parse(idempotencyKey).ToString("N");
+        return await db.EdiGenerations.AsNoTracking()
+            .CountAsync(candidate => candidate.IdempotencyKey == normalizedKey);
+    }
+
     public async Task TryToModifyFirstAuditEventAsync()
     {
         await EnsureSeededAsync();

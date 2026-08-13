@@ -120,12 +120,28 @@ namespace Sati.Services.Billing
             var period = await context.BillingPeriods.FindAsync(billingPeriodId)
                 ?? throw new InvalidOperationException($"Billing period {billingPeriodId} not found.");
 
+            if (period.Status == BillingStatus.Submitted)
+                return;
+
             if (period.Status != BillingStatus.Draft)
                 throw new InvalidOperationException("Only draft billing periods can be submitted.");
 
             period.Status = BillingStatus.Submitted;
             period.SubmittedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync();
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                context.ChangeTracker.Clear();
+                var completed = await context.BillingPeriods.AsNoTracking()
+                    .SingleOrDefaultAsync(candidate => candidate.Id == billingPeriodId);
+                if (completed?.Status == BillingStatus.Submitted)
+                    return;
+                throw new InvalidOperationException(
+                    "The billing period changed while it was being submitted.");
+            }
         }
 
         public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync()
