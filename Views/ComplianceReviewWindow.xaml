@@ -74,7 +74,7 @@
                        FontSize="13"
                        Margin="0,0,0,16">
                 <Run Text="Based on " />
-                <Run Text="{Binding ClientName}"
+                <Run Text="{Binding ClientName, Mode=OneWay}"
                      FontWeight="SemiBold"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
                 <Run Text="'s effective date, the following forms are assumed compliant. Uncheck any that are not current." />

@@ -27,6 +27,7 @@ namespace Sati
     {
         private IHost? _host;
         private bool _isShowingUnhandledException;
+        private readonly HashSet<string> _shownUnhandledExceptionFingerprints = new(StringComparer.Ordinal);
         public IServiceProvider Services => _host!.Services;
 
         protected override async void OnStartup(StartupEventArgs e)
@@ -41,6 +42,17 @@ namespace Sati
                 if (_isShowingUnhandledException)
                 {
                     Debug.WriteLine($"Suppressed reentrant UI exception: {args.Exception}");
+                    return;
+                }
+
+                // A failed WPF template can be retried on every layout pass. Showing
+                // a modal dialog for every retry traps the user in an endless loop.
+                // Report each technical failure shape once per process, then keep
+                // handling identical retries silently so the user can close Sati.
+                var fingerprint = CreateExceptionFingerprint(args.Exception);
+                if (!_shownUnhandledExceptionFingerprints.Add(fingerprint))
+                {
+                    Debug.WriteLine($"Suppressed repeated UI exception: {fingerprint}");
                     return;
                 }
 
@@ -256,6 +268,14 @@ namespace Sati
 
             base.OnStartup(e);
         }
+
+        internal static string CreateExceptionFingerprint(Exception exception) => string.Join('|',
+            exception.GetType().FullName,
+            exception.HResult.ToString("X8"),
+            exception.TargetSite?.DeclaringType?.FullName,
+            exception.InnerException?.GetType().FullName,
+            exception.InnerException?.HResult.ToString("X8"),
+            exception.InnerException?.TargetSite?.DeclaringType?.FullName);
 
         protected override async void OnExit(ExitEventArgs e)
         {

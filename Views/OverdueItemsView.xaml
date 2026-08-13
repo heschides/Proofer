@@ -100,7 +100,7 @@
                                         <TextBlock FontFamily="Inter"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource WorkflowPurpleBrush}">
-                                            <Run Text="{Binding DaysOverdue}" />
+                                        <Run Text="{Binding DaysOverdue, Mode=OneWay}" />
                                             <Run Text="d overdue" />
                                         </TextBlock>
                                     </Border>

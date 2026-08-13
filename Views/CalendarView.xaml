@@ -69,7 +69,7 @@
                                            TextTrimming="CharacterEllipsis" />
                                 <TextBlock FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{Binding Minutes}" /><Run Text=" min · " /><Run Text="{Binding Units}" /><Run Text=" units" />
+                                    <Run Text="{Binding Minutes, Mode=OneWay}" /><Run Text=" min · " /><Run Text="{Binding Units, Mode=OneWay}" /><Run Text=" units" />
                                 </TextBlock>
                                 <Separator Margin="0,4,0,0"
                                            Background="{DynamicResource BorderBrush}" />

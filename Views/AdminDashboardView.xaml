@@ -169,11 +169,11 @@
                 <StackPanel Grid.Column="1" Margin="0,0,22,0">
                     <TextBlock Text="AUDIT RETENTION" Style="{StaticResource AdminMetricLabel}" />
                     <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
-                        <Run Text="{Binding Operations.AuditRetentionDays, TargetNullValue=&#x2014;}" />
+                        <Run Text="{Binding Operations.AuditRetentionDays, Mode=OneWay, TargetNullValue=&#x2014;}" />
                         <Run Text=" days" />
                     </TextBlock>
                     <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
-                        <Run Text="{Binding Operations.AuditEventCount, TargetNullValue=&#x2014;}" />
+                        <Run Text="{Binding Operations.AuditEventCount, Mode=OneWay, TargetNullValue=&#x2014;}" />
                         <Run Text=" retained" />
                     </TextBlock>
                     <TextBlock Text="{Binding Operations.OldestAuditEventUtc, StringFormat={}Oldest {0:yyyy-MM-dd}, TargetNullValue=No records}"
@@ -182,13 +182,13 @@
                 <StackPanel Grid.Column="2" Margin="0,0,22,0">
                     <TextBlock Text="EDI REPLAY RETENTION" Style="{StaticResource AdminMetricLabel}" />
                     <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
-                        <Run Text="{Binding Operations.EdiReplayRetentionDays, TargetNullValue=&#x2014;}" />
+                        <Run Text="{Binding Operations.EdiReplayRetentionDays, Mode=OneWay, TargetNullValue=&#x2014;}" />
                         <Run Text=" days" />
                     </TextBlock>
                     <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
-                        <Run Text="{Binding Operations.EdiReplayCount, TargetNullValue=&#x2014;}" />
+                        <Run Text="{Binding Operations.EdiReplayCount, Mode=OneWay, TargetNullValue=&#x2014;}" />
                         <Run Text=" files / " />
-                        <Run Text="{Binding Operations.EdiReplayCharacters, TargetNullValue=&#x2014;}" />
+                        <Run Text="{Binding Operations.EdiReplayCharacters, Mode=OneWay, TargetNullValue=&#x2014;}" />
                         <Run Text=" chars" />
                     </TextBlock>
                     <TextBlock Text="{Binding Operations.OldestEdiReplayUtc, StringFormat={}Oldest {0:yyyy-MM-dd}, TargetNullValue=No records}"
@@ -253,9 +253,9 @@
                                                 <TextBlock Text="{Binding ActionLabel}" FontWeight="SemiBold"
                                                            FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
                                                 <TextBlock FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}">
-                                                    <Run Text="{Binding ActorDisplayName}" />
+                                      <Run Text="{Binding ActorDisplayName, Mode=OneWay}" />
                                                     <Run Text="  |  " />
-                                                    <Run Text="{Binding ResourceLabel}" />
+                                      <Run Text="{Binding ResourceLabel, Mode=OneWay}" />
                                                 </TextBlock>
                                             </StackPanel>
                                             <TextBlock Grid.Column="1"
@@ -299,9 +299,9 @@
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Revision " />
-                                        <Run Text="{Binding Revision}" />
+                                      <Run Text="{Binding Revision, Mode=OneWay}" />
                                         <Run Text="  |  " />
-                                        <Run Text="{Binding AssignedUserDisplayName}" />
+                                      <Run Text="{Binding AssignedUserDisplayName, Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                             </DataTemplate>
@@ -349,16 +349,16 @@
                                                 <TextBlock Foreground="{DynamicResource WindowBackgroundBrush}"
                                                            FontSize="11" FontWeight="SemiBold">
                                                     <Run Text="Version " />
-                                                    <Run Text="{Binding Version}" />
+                                      <Run Text="{Binding Version, Mode=OneWay}" />
                                                     <Run Text="  &#x2014;  " />
-                                                    <Run Text="{Binding ChangeKind}" />
+                                      <Run Text="{Binding ChangeKind, Mode=OneWay}" />
                                                 </TextBlock>
                                             </Border>
                                             <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"
                                                        Margin="0,0,0,5">
-                                                <Run Text="{Binding ActorDisplayName}" />
+                                      <Run Text="{Binding ActorDisplayName, Mode=OneWay}" />
                                                 <Run Text="  |  " />
-                                                <Run Text="{Binding ChangedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                                      <Run Text="{Binding ChangedAtUtc, Mode=OneWay, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
                                             </TextBlock>
                                             <ItemsControl ItemsSource="{Binding Changes}">
                                                 <ItemsControl.ItemTemplate>
@@ -369,12 +369,12 @@
                                                             <TextBlock FontSize="10" TextWrapping="Wrap"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}">
                                                                 <Run Text="Previous: " FontWeight="SemiBold" />
-                                                                <Run Text="{Binding PreviousValue, TargetNullValue=Not recorded}" />
+                                      <Run Text="{Binding PreviousValue, Mode=OneWay, TargetNullValue=Not recorded}" />
                                                             </TextBlock>
                                                             <TextBlock FontSize="10" TextWrapping="Wrap"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}">
                                                                 <Run Text="New value: " FontWeight="SemiBold" />
-                                                                <Run Text="{Binding NewValue, TargetNullValue=Not recorded}" />
+                                      <Run Text="{Binding NewValue, Mode=OneWay, TargetNullValue=Not recorded}" />
                                                             </TextBlock>
                                                         </StackPanel>
                                                     </DataTemplate>

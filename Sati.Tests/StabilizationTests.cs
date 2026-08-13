@@ -12,6 +12,7 @@ using Sati.Contracts.V1;
 using Sati.Reporting;
 using Sati.Services;
 using PdfSharp.Fonts;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Sati.Tests;
@@ -181,6 +182,45 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void DisplayOnlyRunBindingsAreExplicitlyOneWay()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var viewRoot = Path.Combine(directory!.FullName, "Views");
+        var bindingPattern = new Regex(
+            "<Run\\s+[^>]*Text=\"\\{Binding(?<binding>[^}]*)\\}\"[^>]*/>",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+        var violations = Directory.GetFiles(viewRoot, "*.xaml", SearchOption.AllDirectories)
+            .SelectMany(path => bindingPattern.Matches(File.ReadAllText(path)).Cast<Match>()
+                .Where(match => !match.Groups["binding"].Value.Contains("Mode=OneWay", StringComparison.Ordinal))
+                .Select(match => $"{Path.GetRelativePath(directory.FullName, path)}: {match.Value}"))
+            .ToList();
+
+        Assert.Empty(violations);
+        Assert.False(typeof(Note).GetProperty(nameof(Note.Units))!.CanWrite);
+        var calendar = File.ReadAllText(Path.Combine(viewRoot, "CalendarView.xaml"));
+        Assert.Contains("{Binding Units, Mode=OneWay}", calendar);
+    }
+
+    [Fact]
+    public void RepeatedUiFailuresHaveAStableTechnicalFingerprint()
+    {
+        var first = new InvalidOperationException("Person-specific text is deliberately irrelevant",
+            new NotSupportedException("first inner text"));
+        var repeated = new InvalidOperationException("different message, same failure shape",
+            new NotSupportedException("second inner text"));
+        var different = new InvalidOperationException("different inner type",
+            new ArgumentException("third inner text"));
+
+        Assert.Equal(App.CreateExceptionFingerprint(first), App.CreateExceptionFingerprint(repeated));
+        Assert.NotEqual(App.CreateExceptionFingerprint(first), App.CreateExceptionFingerprint(different));
+        Assert.DoesNotContain("Person-specific", App.CreateExceptionFingerprint(first));
+    }
+
+    [Fact]
     public void UnexpectedErrorLogOmitsExceptionMessagesAndReturnsAReference()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"sati-error-log-{Guid.NewGuid():N}");
@@ -197,6 +237,8 @@ public sealed class StabilizationTests
             Assert.Contains(reference, log);
             Assert.Contains("System.InvalidOperationException", log);
             Assert.Contains("testunsafearea", log);
+            Assert.Contains("\"innerTarget\"", log);
+            Assert.Contains("\"xamlLineNumber\"", log);
             Assert.DoesNotContain(sensitiveMessage, log);
         }
         finally

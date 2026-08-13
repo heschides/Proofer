@@ -45,14 +45,17 @@
     <Compile Remove="Sati.Api.Tests\**\*.cs" />
     <Compile Remove="Sati.Tests\**\*.cs" />
     <Compile Remove="Sati.Contracts\**\*.cs" />
+    <Compile Remove="tmp\**\*.cs" />
     <EmbeddedResource Remove="Sati.Api\**\*" />
     <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Contracts\**\*" />
+    <EmbeddedResource Remove="tmp\**\*" />
     <None Remove="Sati.Api\**\*" />
     <None Remove="Sati.Api.Tests\**\*" />
     <None Remove="Sati.Tests\**\*" />
     <None Remove="Sati.Contracts\**\*" />
+    <None Remove="tmp\**\*" />
   </ItemGroup>
 
   <ItemGroup>

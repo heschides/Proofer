@@ -540,9 +540,9 @@
                                         <TextBlock FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    Margin="0,3,0,0">
-                                            <Run Text="{Binding Waiver}" />
+                                                            <Run Text="{Binding Waiver, Mode=OneWay}" />
                                             <Run Text=" · " />
-                                            <Run Text="{Binding EffectiveDate, StringFormat={}{0:MM/dd/yyyy}}" />
+                                                            <Run Text="{Binding EffectiveDate, Mode=OneWay, StringFormat={}{0:MM/dd/yyyy}}" />
                                         </TextBlock>
                                     </StackPanel>
                                     <TextBlock Grid.Column="1"

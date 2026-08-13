@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using System.Windows.Markup;
 
 namespace Sati.Services;
 
@@ -48,9 +49,12 @@ internal static class AppErrorLog
         target = exception.TargetSite?.DeclaringType?.FullName,
         stackTrace = exception.StackTrace,
         innerExceptionType = exception.InnerException?.GetType().FullName,
+        innerTarget = exception.InnerException?.TargetSite?.DeclaringType?.FullName,
         innerHResult = exception.InnerException is null
             ? null
-            : $"0x{exception.InnerException.HResult:X8}"
+            : $"0x{exception.InnerException.HResult:X8}",
+        xamlLineNumber = exception is XamlParseException xaml ? (int?)xaml.LineNumber : null,
+        xamlLinePosition = exception is XamlParseException xamlPosition ? (int?)xamlPosition.LinePosition : null
     };
 
     private static string SafeArea(string area)

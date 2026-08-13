@@ -602,7 +602,7 @@
                                                            Foreground="{DynamicResource DangerStrongBrush}"
                                                            FontSize="11">
                                                     <Run Text="Warning: " />
-                                                    <Run Text="{Binding}" />
+                                    <Run Text="{Binding Mode=OneWay}" />
                                                 </TextBlock>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -630,9 +630,9 @@
                                                                        FontSize="11"
                                                                        TextWrapping="Wrap"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}">
-                                                                <Run Text="{Binding Category}" FontWeight="SemiBold" />
+                                    <Run Text="{Binding Category, Mode=OneWay}" FontWeight="SemiBold" />
                                                                 <Run Text=" — " />
-                                                                <Run Text="{Binding Description}" />
+                                    <Run Text="{Binding Description, Mode=OneWay}" />
                                                             </TextBlock>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>

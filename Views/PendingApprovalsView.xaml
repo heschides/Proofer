@@ -480,7 +480,7 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,10">
                         <Run Text="Approving " />
-                        <Run Text="{Binding OverrideNote.ClientName, FallbackValue='this client'}"
+                        <Run Text="{Binding OverrideNote.ClientName, Mode=OneWay, FallbackValue='this client'}"
                              FontWeight="SemiBold" />
                         <Run Text="'s note despite non-compliant status. Provide written justification — this will be recorded on the claim." />
                     </TextBlock>

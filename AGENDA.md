@@ -6,6 +6,16 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 
 ---
 
+## Demo hardening - 2026-08-13
+
+- [x] Stop calendar-day selection from repeatedly raising layout error dialogs. Display-only
+      `Run.Text` bindings are explicitly one-way, repeated identical UI failures are shown once
+      per process, and safe XAML location metadata is included in the local technical log.
+- [x] Reproduce calendar-day rendering in a real WPF window and cover the binding rule with
+      automated regression tests.
+
+---
+
 ## Phase 1 — Fix the Foundation ✅
 *Goal: App starts, login works, no crashes*
 
