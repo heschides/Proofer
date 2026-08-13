@@ -23,7 +23,8 @@ public static class ProductReleaseNotes
             [
                 "Expanded agency, assignment, author, and reviewer authorization checks across cloud and local-development workflows.",
                 "Added conflict protection for assessments, People, notes, AT requests, agency settings, and scratchpads.",
-                "Made billing submission and EDI generation safe to retry without creating duplicate successful results."
+                "Made billing submission and EDI generation safe to retry without creating duplicate successful results.",
+                "Fixed calendar-day selection so note details render without repeated error dialogs."
             ]),
         new(
             "Demo and support",

@@ -73,6 +73,9 @@ public sealed class StabilizationTests
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Safety and reliability" &&
+            section.Items.Any(item => item.Contains("calendar-day selection", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
