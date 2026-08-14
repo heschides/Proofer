@@ -330,10 +330,28 @@
                                             CornerRadius="4"
                                             Padding="8,4"
                                             Margin="0,0,0,10">
-                                        <TextBlock Text="Client does not meet billing compliance requirements. Override requires written justification."
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource DangerStrongBrush}"
-                                                   TextWrapping="Wrap" />
+                                        <StackPanel>
+                                            <TextBlock Text="Client does not meet billing compliance requirements. Override requires written justification."
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource DangerStrongBrush}"
+                                                       TextWrapping="Wrap" />
+                                            <ItemsControl ItemsSource="{Binding ComplianceFailureReasons}"
+                                                          Margin="0,4,0,0"
+                                                          AutomationProperties.Name="Billing compliance failures">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="{DynamicResource DangerStrongBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="8,1,0,0">
+                                                            <Run Text="• " />
+                                                            <Run Text="{Binding Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
                                     </Border>
 
                                     <!-- Header row -->

@@ -22,7 +22,16 @@ public sealed class SupervisorService(
     {
         var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
         var today = DateTime.Today;
-        return notes.Where(note => !note.Person.EvaluateComplianceGate(today).Passed);
+        var nonCompliant = new List<Note>();
+        foreach (var note in notes)
+        {
+            var result = note.Person.EvaluateComplianceGate(today);
+            if (result.Passed)
+                continue;
+            note.ComplianceFailureReasons = result.Reasons;
+            nonCompliant.Add(note);
+        }
+        return nonCompliant;
     }
 
     public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision)

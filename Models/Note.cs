@@ -46,6 +46,11 @@ namespace Sati.Models
         public int? OverrideApprovedById { get; set; }
         public DateTime? OverrideApprovedAt { get; set; }
 
+        // Calculated queue metadata. The reasons travel with supervisor-review
+        // results but are never persisted as part of the clinical note itself.
+        [NotMapped]
+        public IReadOnlyList<string> ComplianceFailureReasons { get; set; } = [];
+
         [NotMapped]
         public int? Units => CalculateUnits(Minutes);
 

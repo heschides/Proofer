@@ -385,6 +385,23 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
     }
 
     [Fact]
+    public async Task SupervisorNonCompliantQueueReturnsTheReasonsUsedByTheGate()
+    {
+        var noteId = await _factory.CreateNonCompliantReviewNoteAsync();
+        using var supervisor = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
+
+        var queue = await supervisor.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/supervisor/notes?compliant=false&allSupervisees=true");
+        var note = Assert.Single(queue!, candidate => candidate.Id == noteId);
+
+        Assert.NotNull(note.ComplianceFailureReasons);
+        Assert.Contains(note.ComplianceFailureReasons!, reason =>
+            reason.Contains("PCP", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(note.ComplianceFailureReasons!, reason =>
+            reason.Contains("Comprehensive Assessment", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task AdministratorCannotGenerateAnotherAgencysBillingFile()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");

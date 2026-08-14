@@ -416,46 +416,13 @@ namespace Sati
         // reason it failed. One pass produces both, so they can't drift.
         public (bool Passed, IReadOnlyList<string> Reasons) EvaluateComplianceGate(DateTime today, FormType? beingCompleted = null)
         {
-            var reasons = new List<string>();
-
-            var requiredAnnual = new[]
-            {
-                FormType.PCP,
-                FormType.ComprehensiveAssessment,
-                FormType.Reclassification,
-                FormType.SafetyPlan
-            };
-
-            foreach (var type in requiredAnnual)
-            {
-                if (type == beingCompleted) continue;
-                var form = GetCurrentCycleForm(type, today);
-                if (form is null || !form.IsCompliant)
-                    reasons.Add($"{FormDisplayName(type)} is not marked compliant for the current cycle.");
-            }
-
-            var boundaries = GetCurrentCycleBoundaries(today);
-            if (boundaries is null)
-            {
-                reasons.Add("No active compliance cycle found. This client may be missing an effective date.");
-                return (false, reasons);
-            }
-
-            var (cycleStart, cycleEnd) = boundaries.Value;
-
-            var pastDueReviews = Forms.Where(f =>
-                IsReviewType(f.Type) &&
-                FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd) &&
-                f.DueDate.Date <= today.Date);
-
-            foreach (var review in pastDueReviews)
-            {
-                if (review.Type == beingCompleted) continue;
-                if (!review.IsCompliant)
-                    reasons.Add($"{FormDisplayName(review.Type)} was due {review.DueDate:MMM d, yyyy} and is not marked compliant.");
-            }
-
-            return (reasons.Count == 0, reasons);
+            var result = Contracts.V1.BillingComplianceGate.Evaluate(
+                EffectiveDate,
+                Forms.Select(form => new Contracts.V1.ComplianceFormSnapshot(
+                    form.Type.ToString(), form.DueDate, form.IsCompliant)),
+                today,
+                beingCompleted?.ToString());
+            return (result.Passed, result.Reasons);
         }
 
         // Forward-looking, date-keyed billing window check: returns gated forms

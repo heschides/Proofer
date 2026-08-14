@@ -687,11 +687,19 @@ internal static class ApiEndpoints
 
             var today = DateTime.Today;
             var result = rows
-                .Where(row => IsPersonCompliant(
-                    row.Person,
-                    formsByPerson.GetValueOrDefault(row.Person.Id) ?? [],
-                    today) == compliant)
-                .Select(row => ContractMapper.ToNote(row.Note, row.Person))
+                .Select(row => new
+                {
+                    Row = row,
+                    Compliance = EvaluatePersonCompliance(
+                        row.Person,
+                        formsByPerson.GetValueOrDefault(row.Person.Id) ?? [],
+                        today)
+                })
+                .Where(row => row.Compliance.Passed == compliant)
+                .Select(row => ContractMapper.ToNote(
+                    row.Row.Note,
+                    row.Row.Person,
+                    row.Compliance.Reasons))
                 .ToList();
             return Results.Ok(result);
         });
@@ -716,7 +724,7 @@ internal static class ApiEndpoints
             var forms = await db.Forms.AsNoTracking()
                 .Where(form => form.PersonId == row.Person.Id)
                 .ToListAsync(cancellationToken);
-            if (!IsPersonCompliant(row.Person, forms, DateTime.Today))
+            if (!EvaluatePersonCompliance(row.Person, forms, DateTime.Today).Passed)
             {
                 return Results.Conflict(new ApiErrorDto(
                     "compliance_required",
@@ -2875,37 +2883,15 @@ internal static class ApiEndpoints
                       select new ReviewableNote(note, person)).SingleOrDefaultAsync(cancellationToken);
     }
 
-    private static bool IsPersonCompliant(
+    private static BillingComplianceResult EvaluatePersonCompliance(
         ServerPerson person,
         IReadOnlyList<ServerForm> forms,
         DateTime today)
-    {
-        if (person.EffectiveDate is not DateTime effectiveDate)
-            return false;
-
-        var yearsElapsed = today.Year - effectiveDate.Year;
-        if (today < effectiveDate.AddYears(yearsElapsed))
-            yearsElapsed--;
-        var cycleStart = effectiveDate.AddYears(yearsElapsed);
-        var cycleEnd = effectiveDate.AddYears(yearsElapsed + 1);
-        var currentForms = forms
-            .Where(form => form.DueDate > cycleStart && form.DueDate <= cycleEnd)
-            .ToList();
-
-        foreach (var requiredType in new[]
-                 {
-                     "PCP", "ComprehensiveAssessment", "Reclassification", "SafetyPlan"
-                 })
-        {
-            if (!currentForms.Any(form => form.Type == requiredType && form.IsCompliant))
-                return false;
-        }
-
-        return !currentForms.Any(form =>
-            form.Type is "Q1R" or "Q2R" or "Q3R" or "Q4R" &&
-            form.DueDate.Date <= today.Date &&
-            !form.IsCompliant);
-    }
+        => BillingComplianceGate.Evaluate(
+            person.EffectiveDate,
+            forms.Select(form => new ComplianceFormSnapshot(
+                form.Type, form.DueDate, form.IsCompliant)),
+            today);
 
     private static IReadOnlyList<string> ValidateBillingCandidate(
         ServerNote note,
@@ -2942,7 +2928,7 @@ internal static class ApiEndpoints
         }
         else
         {
-            if (!IsPersonCompliant(person, forms, today))
+            if (!EvaluatePersonCompliance(person, forms, today).Passed)
                 errors.Add("Consumer does not meet current compliance requirements.");
             if (note.EventDate is DateTime serviceDate)
             {

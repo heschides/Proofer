@@ -475,6 +475,26 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         return nextId;
     }
 
+    public async Task<int> CreateNonCompliantReviewNoteAsync()
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var nextId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        db.Notes.Add(new ServerNote
+        {
+            Id = nextId,
+            PersonId = 102,
+            AgencyId = 1,
+            Narrative = "Non-compliant review explanation test",
+            EventDate = new DateTime(2026, 8, 12),
+            Minutes = 30,
+            Status = 2
+        });
+        await db.SaveChangesAsync();
+        return nextId;
+    }
+
     private static ServerForm CompliantForm(int personId, string type) => new()
     {
         PersonId = personId,

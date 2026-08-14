@@ -257,6 +257,8 @@ namespace Sati.ViewModels.Supervisor
         public NoteType? NoteType { get; }
         public decimal? Units { get; }
         public string Narrative { get; }
+        public IReadOnlyList<string> ComplianceFailureReasons { get; }
+        public bool HasComplianceFailures => ComplianceFailureReasons.Count > 0;
         public bool IsComplianceException => false; // set by non-compliant queue context
 
         public PendingNoteViewModel(Note note)
@@ -270,6 +272,7 @@ namespace Sati.ViewModels.Supervisor
             NoteType = note.NoteType;
             Units = note.Units;
             Narrative = note.Narrative;
+            ComplianceFailureReasons = note.ComplianceFailureReasons;
         }
     }
 }

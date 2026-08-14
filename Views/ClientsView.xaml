@@ -13,6 +13,7 @@
         <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
                                          TrueWidth="16"
                                          FalseWidth="0" />
+        <converters:PersonBillingComplianceConverter x:Key="PersonBillingComplianceConverter" />
         <!-- Dot-grid fill for the Journal. A DrawingBrush tiling a single 2px dot in
              the palette's border tone at a 16px pitch. Viewport is absolute (Viewport
              + ViewportUnits=Absolute), so the dot stays a fixed size and the grid
@@ -514,11 +515,16 @@
                                                 <Trigger Property="IsKeyboardFocusWithin" Value="True">
                                                     <Setter TargetName="ClientCard" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                 </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="ClientCard" Property="Background" Value="{DynamicResource PersonGroupBrush}" />
-                                                    <Setter TargetName="ClientCard" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
+                                                 <Trigger Property="IsSelected" Value="True">
+                                                     <Setter TargetName="ClientCard" Property="Background" Value="{DynamicResource PersonGroupBrush}" />
+                                                     <Setter TargetName="ClientCard" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                 </Trigger>
+                                                 <DataTrigger Binding="{Binding Converter={StaticResource PersonBillingComplianceConverter}}"
+                                                              Value="False">
+                                                     <Setter TargetName="ClientCard" Property="Background" Value="{DynamicResource OverdueFillBrush}" />
+                                                     <Setter TargetName="ClientCard" Property="BorderBrush" Value="{DynamicResource OverdueBorderBrush}" />
+                                                 </DataTrigger>
+                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
@@ -543,6 +549,23 @@
                                                             <Run Text="{Binding Waiver, Mode=OneWay}" />
                                             <Run Text=" · " />
                                                             <Run Text="{Binding EffectiveDate, Mode=OneWay, StringFormat={}{0:MM/dd/yyyy}}" />
+                                        </TextBlock>
+                                        <TextBlock Text="Billing attention required"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource DangerStrongBrush}"
+                                                   Margin="0,3,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Converter={StaticResource PersonBillingComplianceConverter}}"
+                                                                     Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
                                         </TextBlock>
                                     </StackPanel>
                                     <TextBlock Grid.Column="1"
@@ -793,7 +816,43 @@
                                 AutomationProperties.Name="Consumer record sections">
                         <TabItem Header="Overview"
                                  Style="{StaticResource ClientWorkspaceTabItemStyle}">
-                            <Grid>
+                            <DockPanel LastChildFill="True">
+                                <Border DockPanel.Dock="Top"
+                                        Background="{DynamicResource DangerSoftBrush}"
+                                        BorderBrush="{DynamicResource OverdueBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12,9"
+                                        Margin="0,0,0,12"
+                                        Visibility="{Binding HasSelectedPersonComplianceIssues,
+                                            Converter={StaticResource BoolToVisibilityConverter}}"
+                                        AutomationProperties.Name="Selected client billing compliance alert">
+                                    <StackPanel>
+                                        <TextBlock Text="BILLING COMPLIANCE ATTENTION"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource DangerStrongBrush}" />
+                                        <TextBlock Text="Resolve the following before this client can move through ordinary billing approval:"
+                                                   Margin="0,3,0,3"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource DangerStrongBrush}"
+                                                   TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding SelectedPersonComplianceReasons}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Margin="8,1,0,0"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource DangerStrongBrush}"
+                                                               TextWrapping="Wrap">
+                                                        <Run Text="• " />
+                                                        <Run Text="{Binding Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
@@ -1643,9 +1702,18 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0"
-                                       Text="JOURNAL"
-                                       Style="{StaticResource SectionHeader}" />
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="JOURNAL"
+                                           Style="{StaticResource SectionHeader}" />
+                                <TextBlock Text="{Binding JournalSaveWarning}"
+                                           Margin="0,-4,0,6"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource DangerStrongBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasJournalSaveWarning,
+                                               Converter={StaticResource BoolToVisibilityConverter}}"
+                                           AutomationProperties.Name="Journal cloud save warning" />
+                            </StackPanel>
 
                             <!-- Pattern layer sits UNDER the TextBox in the same cell:
                                  the dot brush fills a Border, the TextBox draws over it
@@ -1667,6 +1735,7 @@
                                  * share bounds it and the ScrollViewer takes overflow. -->
                             <TextBox AutomationProperties.Name="Journal" Grid.Row="1"
                                      Text="{Binding Journal, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding CanEditJournal}"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      VerticalScrollBarVisibility="Auto"
@@ -1678,6 +1747,7 @@
                         </Grid>
                     </Grid>
                             </Grid>
+                            </DockPanel>
                         </TabItem>
 
                         <TabItem Header="Comprehensive Assessment"

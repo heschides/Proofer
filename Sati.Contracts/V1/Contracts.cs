@@ -175,7 +175,8 @@ public sealed record NoteDto(
     int? OverrideApprovedById,
     DateTime? OverrideApprovedAt,
     int Revision,
-    PersonReferenceDto? Person);
+    PersonReferenceDto? Person,
+    IReadOnlyList<string>? ComplianceFailureReasons = null);
 
 public sealed record SaveNoteRequest(
     string Narrative,

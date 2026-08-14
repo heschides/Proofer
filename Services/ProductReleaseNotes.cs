@@ -24,6 +24,7 @@ public static class ProductReleaseNotes
             [
                 "Fixed repeated close requests so the main and Settings windows cannot crash while completing their save-on-close work.",
                 "Corrected the final save-on-close handoff so Windows fully finishes the original close request before Sati closes the saved window.",
+                "Journal autosaves and account-switch flushes now run one at a time, preventing overlapping cloud updates from crashing Switch User.",
                 "Incident reports are now saved to a durable local outbox and retried after sign-in when a connection or process interruption prevented delivery.",
                 "An unclean prior shutdown is reported on the next matching sign-in, including terminations that an in-process exception handler cannot observe.",
                 "An empty incident feed now says No telemetry instead of incorrectly reporting a perfect health score.",
@@ -36,6 +37,7 @@ public static class ProductReleaseNotes
             "Billing pipeline",
             [
                 "Note entry now labels Pending as Save as Draft and Logged as Submit for Supervisor Review, with clearly spaced guidance explaining each status's review and billing consequences.",
+                "Non-compliant supervisor cards and client profiles now show the exact forms or reviews blocking billing, and affected clients are visibly marked in the roster.",
                 "Added an end-to-end verification covering draft, supervisory submission, approval, billing-period submission, and test 837P generation.",
                 "Billing administrators can configure the procedure, modifier, unit rate, submitter, payer, and contact values for their agency.",
                 "The billing queue now rechecks approval, current compliance, historical billing gaps, member/provider identifiers, structured claim addresses, and EDI configuration before promotion.",

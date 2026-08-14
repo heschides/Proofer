@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
@@ -36,9 +38,19 @@ namespace Sati.ViewModels
         private DispatcherTimer? _journalSaveTimer;
         private int? _journalPersonId;
         private bool _suppressJournalSave;
+        private int _journalLoadVersion;
+        private readonly JournalSaveCoordinator _journalSaveCoordinator = new();
 
         [ObservableProperty]
         private string? journal;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasJournalSaveWarning))]
+        private string? journalSaveWarning;
+        public bool HasJournalSaveWarning => !string.IsNullOrWhiteSpace(JournalSaveWarning);
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanEditJournal))]
+        private bool isJournalLoading;
+        public bool CanEditJournal => !IsJournalLoading && _journalPersonId is not null;
         // -------------------------------------------------------------------------
         // Events
         // -------------------------------------------------------------------------
@@ -195,7 +207,7 @@ namespace Sati.ViewModels
             // so it can't also fire.
             _journalSaveTimer?.Stop();
             if (_journalPersonId is int leavingId && !_suppressJournalSave)
-                _ = _personService.SaveJournalAsync(leavingId, Journal);
+                _ = TrySaveJournalAsync(leavingId, Journal);
 
             _ = LoadJournalAsync(newValue);
         }
@@ -206,6 +218,8 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ShowClientWorkspace));
             OnPropertyChanged(nameof(SelectedPersonServices));
             OnPropertyChanged(nameof(HasSelectedPersonServices));
+            OnPropertyChanged(nameof(SelectedPersonComplianceReasons));
+            OnPropertyChanged(nameof(HasSelectedPersonComplianceIssues));
             OnPropertyChanged(nameof(ShowsEmploymentTracking));
             OnPropertyChanged(nameof(Q1RDueDate));
             OnPropertyChanged(nameof(Q2RDueDate));
@@ -335,6 +349,12 @@ namespace Sati.ViewModels
         }
 
         public bool HasSelectedPersonServices => SelectedPersonServices.Length > 0;
+        public IReadOnlyList<string> SelectedPersonComplianceReasons =>
+            GetComplianceReasons(SelectedPerson, DateTime.Today);
+        public bool HasSelectedPersonComplianceIssues => SelectedPersonComplianceReasons.Count > 0;
+
+        internal static IReadOnlyList<string> GetComplianceReasons(Person? person, DateTime today) =>
+            person?.EvaluateComplianceGate(today).Reasons ?? [];
 
         // Employed and receiving no employment supports from any funding stream —
         // the population whose employment parameters must be tracked quarterly.
@@ -926,7 +946,7 @@ namespace Sati.ViewModels
             {
                 timer.Stop();
                 if (_journalPersonId is int id)
-                    await _personService.SaveJournalAsync(id, Journal);
+                    await TrySaveJournalAsync(id, Journal);
             };
             return timer;
         }
@@ -937,31 +957,70 @@ namespace Sati.ViewModels
         // against the right record.
         private async Task LoadJournalAsync(Person? person)
         {
+            var loadVersion = Interlocked.Increment(ref _journalLoadVersion);
+            _suppressJournalSave = true;
+            Journal = string.Empty;
+            _journalPersonId = null;
+            _suppressJournalSave = false;
+            OnPropertyChanged(nameof(CanEditJournal));
+
             if (person is null)
             {
-                _suppressJournalSave = true;
-                Journal = string.Empty;
-                _journalPersonId = null;
-                _suppressJournalSave = false;
+                IsJournalLoading = false;
                 return;
             }
 
-            var text = await _personService.GetJournalAsync(person.Id);
+            IsJournalLoading = true;
+            try
+            {
+                var text = await _personService.GetJournalAsync(person.Id);
+                if (loadVersion != _journalLoadVersion || SelectedPerson?.Id != person.Id)
+                    return;
 
-            _suppressJournalSave = true;
-            Journal = text ?? string.Empty;
-            _journalPersonId = person.Id;
-            _suppressJournalSave = false;
+                _suppressJournalSave = true;
+                Journal = text ?? string.Empty;
+                _journalPersonId = person.Id;
+                _suppressJournalSave = false;
+                JournalSaveWarning = null;
+                OnPropertyChanged(nameof(CanEditJournal));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Journal load failed for person {person.Id}: {ex.Message}");
+                if (loadVersion == _journalLoadVersion && SelectedPerson?.Id == person.Id)
+                    JournalSaveWarning = "The journal could not be loaded from the cloud. Other client details remain available; retry by selecting this client again when connected.";
+            }
+            finally
+            {
+                if (loadVersion == _journalLoadVersion)
+                    IsJournalLoading = false;
+            }
         }
 
         // Immediate flush for shutdown/user-switch. Public so ShellViewModel can call
         // it in the same teardown path that saves the Scratchpad. Stops the timer
         // first so a pending tick can't double-write.
-        public async Task FlushJournalAsync()
+        public async Task<bool> FlushJournalAsync()
         {
             _journalSaveTimer?.Stop();
             if (_journalPersonId is int id)
-                await _personService.SaveJournalAsync(id, Journal);
+                return await TrySaveJournalAsync(id, Journal);
+            return true;
+        }
+
+        private async Task<bool> TrySaveJournalAsync(int personId, string? content)
+        {
+            var result = await _journalSaveCoordinator.TrySaveAsync(
+                () => _personService.SaveJournalAsync(personId, content));
+            if (result.Succeeded)
+            {
+                JournalSaveWarning = null;
+                return true;
+            }
+
+            Debug.WriteLine($"Journal save failed for person {personId}: {result.Error?.Message}");
+            JournalSaveWarning = "The journal has not reached the cloud yet. Your text remains on screen; Sati will try again when the next save is requested.";
+            return false;
         }
 
         // Loads the configurable system names from Settings and projects each into a
@@ -989,6 +1048,12 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ReleaseAgencyCompliant));
             OnPropertyChanged(nameof(ReleaseDhhsCompliant));
             OnPropertyChanged(nameof(ReleaseMedicalCompliant));
+            OnPropertyChanged(nameof(SelectedPersonComplianceReasons));
+            OnPropertyChanged(nameof(HasSelectedPersonComplianceIssues));
+            // Person is a domain object rather than an observable row VM. Raising
+            // People refreshes the roster bindings after a form toggle so its
+            // compliance tint changes immediately.
+            OnPropertyChanged(nameof(People));
         }
 
         private void ClearFields()

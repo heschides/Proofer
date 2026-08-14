@@ -183,7 +183,15 @@ namespace Sati.Views
                 var content = _shellViewModel.Scratchpad.ScratchpadContent;
                 if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
                     return;
-                await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
+                if (!await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync())
+                {
+                    MessageBox.Show(
+                        "Sati could not save the selected client's journal to the cloud, so account switching has been paused. Your text is still visible. Check the connection and try Switch User again.",
+                        "Journal Not Saved",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
 
                 var picker = _switchUserWindowFactory();
                 picker.Owner = this;

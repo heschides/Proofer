@@ -102,6 +102,7 @@ internal static class CloudContractMapper
         note.OverrideApprovedById = dto.OverrideApprovedById;
         note.OverrideApprovedAt = dto.OverrideApprovedAt;
         note.Revision = dto.Revision;
+        note.ComplianceFailureReasons = dto.ComplianceFailureReasons ?? [];
         if (dto.Person is not null)
         {
             note.Person = Person.Rehydrate(dto.Person.Id, dto.Person.UserId);

@@ -2,16 +2,20 @@ using Sati.Api.Security;
 using Sati.Data;
 using Sati.Data.Billing;
 using Sati.Edi;
+using Sati.Converters;
 using Sati.Helpers;
 using Sati.Models;
 using Sati.Models.Billing;
 using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
+using Sati.ViewModels.Supervisor;
+using Sati.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Reflection;
+using System.Globalization;
 using Sati.Contracts.V1;
 using Sati.Reporting;
 using Sati.Services;
@@ -143,6 +147,116 @@ public sealed class StabilizationTests
         Assert.Contains(statusControl.Attributes(), attribute =>
             attribute.Name.LocalName == "AutomationProperties.HelpText" &&
             attribute.Value.Contains("StatusGuidance"));
+    }
+
+    [Fact]
+    public void SharedBillingComplianceGateReturnsEveryActionableReason()
+    {
+        var today = new DateTime(2026, 8, 14);
+        var forms = new[]
+        {
+            new ComplianceFormSnapshot("PCP", new DateTime(2026, 12, 31), true),
+            new ComplianceFormSnapshot("ComprehensiveAssessment", new DateTime(2026, 12, 31), false),
+            new ComplianceFormSnapshot("Reclassification", new DateTime(2026, 12, 31), true),
+            new ComplianceFormSnapshot("SafetyPlan", new DateTime(2026, 12, 31), true),
+            new ComplianceFormSnapshot("Q2R", new DateTime(2026, 8, 1), false)
+        };
+
+        var result = BillingComplianceGate.Evaluate(
+            new DateTime(2026, 1, 1), forms, today);
+
+        Assert.False(result.Passed);
+        Assert.Equal(2, result.Reasons.Count);
+        Assert.Contains(result.Reasons, reason => reason.Contains("Comprehensive Assessment"));
+        Assert.Contains(result.Reasons, reason =>
+            reason.Contains("Q2 Review") && reason.Contains("Aug 1, 2026"));
+    }
+
+    [Fact]
+    public void ClientCompliancePresentationUsesTheSharedGate()
+    {
+        var person = Person.Rehydrate(44, 7);
+        person.EffectiveDate = new DateTime(2026, 1, 1);
+        person.Forms =
+        [
+            new Form(FormType.PCP, new DateTime(2026, 12, 31), true),
+            new Form(FormType.ComprehensiveAssessment, new DateTime(2026, 12, 31), false),
+            new Form(FormType.Reclassification, new DateTime(2026, 12, 31), true),
+            new Form(FormType.SafetyPlan, new DateTime(2026, 12, 31), true)
+        ];
+
+        var reasons = NewClientViewModel.GetComplianceReasons(person, new DateTime(2026, 8, 14));
+        var converter = new PersonBillingComplianceConverter();
+
+        Assert.Single(reasons);
+        Assert.Contains("Comprehensive Assessment", reasons[0]);
+        Assert.False(Assert.IsType<bool>(converter.Convert(person, typeof(bool), null, CultureInfo.InvariantCulture)));
+    }
+
+    [Fact]
+    public void PendingReviewCardKeepsTheFailuresThatClassifiedTheNote()
+    {
+        var person = Person.Rehydrate(45, 7);
+        person.FirstName = "Test";
+        person.LastName = "Consumer";
+        var note = Note.Rehydrate(90);
+        note.Person = person;
+        note.PersonId = person.Id;
+        note.Narrative = "Review note";
+        note.ComplianceFailureReasons =
+        [
+            "PCP is not marked compliant for the current cycle."
+        ];
+
+        var card = new PendingNoteViewModel(note);
+
+        Assert.True(card.HasComplianceFailures);
+        Assert.Equal(note.ComplianceFailureReasons, card.ComplianceFailureReasons);
+    }
+
+    [Fact]
+    public async Task JournalSaveCoordinatorSerializesAutosaveAndSwitchFlush()
+    {
+        var coordinator = new JournalSaveCoordinator();
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inFlight = 0;
+        var maximumInFlight = 0;
+
+        async Task Save(bool wait)
+        {
+            var current = Interlocked.Increment(ref inFlight);
+            maximumInFlight = Math.Max(maximumInFlight, current);
+            if (wait)
+            {
+                firstEntered.SetResult();
+                await releaseFirst.Task;
+            }
+            Interlocked.Decrement(ref inFlight);
+        }
+
+        var autosave = coordinator.TrySaveAsync(() => Save(true));
+        await firstEntered.Task;
+        var switchFlush = coordinator.TrySaveAsync(() => Save(false));
+        await Task.Delay(25);
+
+        Assert.False(switchFlush.IsCompleted);
+        releaseFirst.SetResult();
+        Assert.True((await autosave).Succeeded);
+        Assert.True((await switchFlush).Succeeded);
+        Assert.Equal(1, maximumInFlight);
+    }
+
+    [Fact]
+    public async Task JournalSaveCoordinatorReturnsFailureWithoutDispatcherEscape()
+    {
+        var coordinator = new JournalSaveCoordinator();
+
+        var result = await coordinator.TrySaveAsync(
+            () => Task.FromException(new InvalidOperationException("offline")));
+
+        Assert.False(result.Succeeded);
+        Assert.IsType<InvalidOperationException>(result.Error);
     }
 
     [Theory]

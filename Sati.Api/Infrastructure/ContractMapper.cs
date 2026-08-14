@@ -86,7 +86,10 @@ internal static class ContractMapper
         note.EventDate,
         NullableNameAt(NoteTypeNames, note.NoteType));
 
-    public static NoteDto ToNote(ServerNote note, ServerPerson? person = null) => new(
+    public static NoteDto ToNote(
+        ServerNote note,
+        ServerPerson? person = null,
+        IReadOnlyList<string>? complianceFailureReasons = null) => new(
         note.Id,
         note.Narrative,
         note.EventDate,
@@ -109,7 +112,8 @@ internal static class ContractMapper
         note.OverrideApprovedById,
         note.OverrideApprovedAt,
         note.Revision,
-        person is null ? null : new PersonReferenceDto(person.Id, person.UserId, person.FirstName, person.LastName));
+        person is null ? null : new PersonReferenceDto(person.Id, person.UserId, person.FirstName, person.LastName),
+        complianceFailureReasons);
 
     public static PersonContactDto ToPersonContact(ServerPersonContact contact) => new(
         contact.Id,
