@@ -482,6 +482,25 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void InstallerBuildWaitsForCompressionAndRejectsPartialOutput()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var script = File.ReadAllText(Path.Combine(
+            directory!.FullName,
+            "installer",
+            "Build-DemoInstaller.ps1"));
+
+        Assert.Contains("$iexpressProcess.HasExited -and $packagingHelpers.Count -eq 0", script);
+        Assert.Contains("$packagingComplete", script);
+        Assert.Contains("$minimumInstallerLength", script);
+        Assert.Contains("created an incomplete installer", script);
+    }
+
+    [Fact]
     public void DemoAcceptanceEvidenceBindsEveryFinalGateToExactArtifacts()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -127,22 +127,23 @@ $($sourceLines -join "`r`n")
         PassThru = $true
     }
     $iexpressProcess = Start-Process @iexpressParameters
-    $deadline = (Get-Date).AddMinutes(4)
+    $packagingStartedAt = $iexpressProcess.StartTime.AddSeconds(-5)
+    $packagingComplete = $false
+    $deadline = (Get-Date).AddMinutes(8)
     do {
-        if (Test-Path -LiteralPath $installerPath -PathType Leaf) {
+        $iexpressProcess.Refresh()
+        $packagingHelpers = @(Get-Process -Name 'makecab', 'wextract' -ErrorAction SilentlyContinue |
+            Where-Object { $_.StartTime -ge $packagingStartedAt })
+        if ($iexpressProcess.HasExited -and $packagingHelpers.Count -eq 0) {
+            $packagingComplete = $true
             break
         }
-        if ($iexpressProcess.HasExited -and
-            -not (Get-Process -Name 'makecab', 'wextract' -ErrorAction SilentlyContinue)) {
-            Start-Sleep -Seconds 1
-            if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
-                break
-            }
-        }
         Start-Sleep -Milliseconds 500
-        $iexpressProcess.Refresh()
     } while ((Get-Date) -lt $deadline)
 
+    if (-not $packagingComplete) {
+        throw 'IExpress did not finish creating the Sati Demo installer before the packaging deadline.'
+    }
     if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
         throw 'IExpress did not create the Sati Demo installer.'
     }
@@ -160,6 +161,11 @@ $($sourceLines -join "`r`n")
         Remove-Item -Force
 
     $installer = Get-Item -LiteralPath $installerPath
+    $stageLength = ($stageFiles | Measure-Object -Property Length -Sum).Sum
+    $minimumInstallerLength = [Math]::Max(1MB, [long]($stageLength * 0.1))
+    if ($installer.Length -lt $minimumInstallerLength) {
+        throw "IExpress created an incomplete installer ($($installer.Length) bytes; expected at least $minimumInstallerLength bytes)."
+    }
     $hash = Get-FileHash -LiteralPath $installerPath -Algorithm SHA256
     $hashLine = "$($hash.Hash.ToLowerInvariant())  $($installer.Name)"
     Set-Content -LiteralPath (Join-Path $artifactRoot "$($installer.Name).sha256") -Value $hashLine -Encoding ASCII
