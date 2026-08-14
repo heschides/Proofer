@@ -6,8 +6,8 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Reliable review and incident recovery";
-    public const string ReleaseDate = "August 13, 2026";
+    public const string ReleaseName = "Billing clarity and visual refresh";
+    public const string ReleaseDate = "August 14, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
@@ -47,7 +47,7 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
-                "A darker, simplified multi-resolution Bodhi-leaf application icon improves recognition in Windows, title bars, and installer shortcuts.",
+                "A bright geometric watercolor Bodhi-leaf application icon improves recognition in Windows, title bars, and installer shortcuts.",
                 "Accessibility safeguards now label icon controls and checkboxes and give overdue matrix cells a visible text status.",
                 "Runtime smoke coverage renders the feature views, and installer acceptance repeatedly proves responsive, zero-code normal window shutdown.",
                 "Theme resources now resolve relative to Sati itself so hosted views do not depend on the entry executable.",
