@@ -148,14 +148,16 @@ namespace Sati.ViewModels.Children
             NoteStatus.Logged => "Submit for Supervisor Review",
             _ => IsEditing ? "Update Note" : "Save Note"
         };
-        public string StatusGuidance => Status switch
+        public string StatusGuidance => DescribeStatus(Status);
+
+        internal static string DescribeStatus(NoteStatus? status) => status switch
         {
-            NoteStatus.Pending => "Draft: saved for the case manager, but not visible in the supervisor review queue.",
-            NoteStatus.Logged => "Submit for review: locks the note for supervisory approval and billing review.",
-            NoteStatus.Scheduled => "Scheduled: records planned work that has not happened yet.",
-            NoteStatus.Cancelled => "Cancelled: records that the planned service did not occur.",
-            NoteStatus.Delayed => "Delayed: records that the planned service was postponed.",
-            _ => "Choose how this note should move through the workflow."
+            NoteStatus.Scheduled => "Scheduled — saves this as planned work. It stays out of supervisor review and billing until the service occurs and the status is changed.",
+            NoteStatus.Pending => "Draft — saves the note in your queue so you can finish it later. Your supervisor cannot review it, and it cannot be billed.",
+            NoteStatus.Logged => "Submit for review — sends the completed note to your supervisor. After approval, it can enter the billing queue if all billing requirements pass.",
+            NoteStatus.Cancelled => "Cancelled — records that the planned service did not occur. It will not be sent for approval or billing.",
+            NoteStatus.Delayed => "Delayed — records that the planned service was postponed. It stays out of approval and billing until you update it.",
+            _ => "Select a status to see where the note will go next."
         };
         public Array FormTypes => Enum.GetValues(typeof(FormType));
         public bool IsFormNote => SelectedNoteType == NoteType.Form;

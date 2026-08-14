@@ -35,7 +35,7 @@ public static class ProductReleaseNotes
         new(
             "Billing pipeline",
             [
-                "Note entry now labels Pending as Save as Draft and Logged as Submit for Supervisor Review, with plain-language guidance beside the status.",
+                "Note entry now labels Pending as Save as Draft and Logged as Submit for Supervisor Review, with clearly spaced guidance explaining each status's review and billing consequences.",
                 "Added an end-to-end verification covering draft, supervisory submission, approval, billing-period submission, and test 837P generation.",
                 "Billing administrators can configure the procedure, modifier, unit rate, submitter, payer, and contact values for their agency.",
                 "The billing queue now rechecks approval, current compliance, historical billing gaps, member/provider identifiers, structured claim addresses, and EDI configuration before promotion.",

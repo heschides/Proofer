@@ -191,14 +191,20 @@
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
-                          SelectedItem="{Binding Status, Mode=TwoWay}" />
-                <TextBlock Grid.Row="4" Margin="0,32,0,4"
+                          SelectedItem="{Binding Status, Mode=TwoWay}"
+                          AutomationProperties.HelpText="{Binding StatusGuidance}" />
+                <TextBlock Grid.Row="5"
+                           Margin="0,5,0,10"
                            Text="{Binding StatusGuidance}"
-                           TextWrapping="Wrap" FontSize="10"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           LineHeight="16"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           AutomationProperties.Name="Selected status workflow explanation"
+                           AutomationProperties.LiveSetting="Polite" />
 
                 <Grid Margin="0,0,0,10"
-                      Grid.Row="5">
+                      Grid.Row="6">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />

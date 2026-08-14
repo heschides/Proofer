@@ -6,6 +6,7 @@ using Sati.Helpers;
 using Sati.Models;
 using Sati.Models.Billing;
 using Sati.ViewModels.Billing;
+using Sati.ViewModels.Children;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +97,52 @@ public sealed class StabilizationTests
         Assert.False(NoteWorkflow.CanCaseManagerDelete(2));
         Assert.False(NoteWorkflow.CanCaseManagerDelete(6));
         Assert.False(NoteWorkflow.CanCaseManagerDelete(7));
+    }
+
+    [Theory]
+    [InlineData(NoteStatus.Scheduled, "planned work", "supervisor review", "billing")]
+    [InlineData(NoteStatus.Pending, "finish it later", "supervisor cannot review", "cannot be billed")]
+    [InlineData(NoteStatus.Logged, "sends the completed note", "supervisor", "billing queue")]
+    [InlineData(NoteStatus.Cancelled, "did not occur", "approval", "billing")]
+    [InlineData(NoteStatus.Delayed, "postponed", "approval", "billing")]
+    public void SelectableNoteStatusesExplainTheirWorkflowConsequences(
+        NoteStatus status,
+        string expectedMeaning,
+        string expectedReviewConsequence,
+        string expectedBillingConsequence)
+    {
+        var guidance = NoteEntryViewModel.DescribeStatus(status);
+
+        Assert.Contains(expectedMeaning, guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedReviewConsequence, guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedBillingConsequence, guidance, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NoteStatusGuidanceOccupiesItsOwnLayoutRowOnBothHostPages()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var document = System.Xml.Linq.XDocument.Load(
+            Path.Combine(directory!.FullName, "Views", "NoteEntryView.xaml"));
+        var statusControl = document.Descendants()
+            .Single(element => element.Name.LocalName == "ComboBox" &&
+                element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "ItemsSource" && attribute.Value.Contains("NoteStatusOptions")));
+        var guidance = document.Descendants()
+            .Single(element => element.Name.LocalName == "TextBlock" &&
+                element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Text" && attribute.Value.Contains("StatusGuidance")));
+
+        var statusRow = statusControl.Attributes().Single(attribute => attribute.Name.LocalName == "Grid.Row").Value;
+        var guidanceRow = guidance.Attributes().Single(attribute => attribute.Name.LocalName == "Grid.Row").Value;
+        Assert.NotEqual(statusRow, guidanceRow);
+        Assert.Contains(statusControl.Attributes(), attribute =>
+            attribute.Name.LocalName == "AutomationProperties.HelpText" &&
+            attribute.Value.Contains("StatusGuidance"));
     }
 
     [Theory]
