@@ -207,6 +207,16 @@ The real per-user install was also verified at version 1.2.13 with the login lab
 present. The live Demo API remains behind this packaged release, so deploy and verify the matching API
 before final matched-pair evidence.
 
+Release 1.2.15 separates personal Settings from Admin-only agency configuration, contains rejected
+cloud saves inside the Settings window, removes the implicit save-on-close request, and makes sign-in
+completion safe against overlapping requests. The installed release is now rendered in a dedicated,
+higher-contrast login footer. The exact local installer passed isolated installation plus five
+responsive, normal open/close cycles; SHA-256 is
+`1d8d31acf1ae34e05ad3a5fe6bd90bbb4cdbba24cb49c8850dcab4ec8f47f81f`. The real per-user install
+was verified at version 1.2.15, including normal login-window shutdown, a visible unclipped release
+footer at 150% Windows scaling, and Desktop/taskbar shortcuts using the 1.2.15 icon. The live Demo API
+remains behind this packaged release, so deploy and verify API 1.2.15 before final matched-pair evidence.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
