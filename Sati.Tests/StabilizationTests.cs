@@ -402,6 +402,76 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void IconButtonsAndCheckBoxesExposeAccessibleNames()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var viewRoot = Path.Combine(directory!.FullName, "Views");
+        foreach (var path in Directory.GetFiles(viewRoot, "*.xaml", SearchOption.AllDirectories))
+        {
+            var document = System.Xml.Linq.XDocument.Load(path);
+            foreach (var button in document.Descendants().Where(element => element.Name.LocalName == "Button"))
+            {
+                var content = button.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "Content")?.Value;
+                var hasAccessibleName = button.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "AutomationProperties.Name" &&
+                    !string.IsNullOrWhiteSpace(attribute.Value));
+                var usesIconFont = button.Descendants().Any(element =>
+                    element.Name.LocalName == "TextBlock" &&
+                    element.Attributes().Any(attribute =>
+                        attribute.Name.LocalName == "FontFamily" &&
+                        attribute.Value.Contains("Segoe MDL2 Assets", StringComparison.Ordinal)));
+                var isTextSizeGlyph = button.Descendants().Any(element =>
+                    element.Name.LocalName == "TextBlock" &&
+                    element.Attributes().Any(attribute =>
+                        attribute.Name.LocalName == "Text" && attribute.Value == "A"));
+                var hasGlyphContent = !string.IsNullOrWhiteSpace(content) && content.Length <= 2;
+
+                if (usesIconFont || isTextSizeGlyph || hasGlyphContent)
+                    Assert.True(hasAccessibleName,
+                        $"{Path.GetRelativePath(directory.FullName, path)} contains an unlabeled icon button: {button}");
+            }
+
+            foreach (var checkBox in document.Descendants().Where(element => element.Name.LocalName == "CheckBox"))
+            {
+                var hasContent = checkBox.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Content" && !string.IsNullOrWhiteSpace(attribute.Value));
+                var hasAccessibleName = checkBox.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "AutomationProperties.Name" &&
+                    !string.IsNullOrWhiteSpace(attribute.Value));
+
+                Assert.True(hasContent || hasAccessibleName,
+                    $"{Path.GetRelativePath(directory.FullName, path)} contains an unlabeled checkbox: {checkBox}");
+            }
+        }
+    }
+
+    [Fact]
+    public void OverdueMatrixCellIncludesAVisibleTextStatus()
+    {
+        var today = new DateTime(2026, 8, 13);
+        var person = Person.CreatePerson(
+            1,
+            "Accessible",
+            "Example",
+            "Synthetic test person.",
+            new DateTime(1990, 1, 1),
+            new DateTime(2026, 1, 1),
+            WaiverType.Section21,
+            new Settings());
+        person.Forms.RemoveAll(form => form.Type == FormType.PCP);
+        person.Forms.Add(new Form(FormType.PCP, today.AddDays(-2), false));
+
+        var cell = new Sati.ViewModels.FormCellViewModel(person, FormType.PCP, today);
+
+        Assert.Equal(FormCellStatus.Overdue, cell.Status);
+        Assert.StartsWith("OVERDUE", cell.CellText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RepeatedUiFailuresHaveAStableTechnicalFingerprint()
     {
         var first = new InvalidOperationException("Person-specific text is deliberately irrelevant",

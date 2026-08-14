@@ -46,17 +46,13 @@
         </StackPanel>
 
         <!-- Test mode toggle -->
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    Margin="0,0,0,16">
-            <CheckBox IsChecked="{Binding IsTestMode}"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
-            <TextBlock Text="Test mode (OATEST in filename — safe to upload to Office Ally)"
-                       FontSize="12"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       VerticalAlignment="Center" />
-        </StackPanel>
+        <CheckBox Grid.Row="2"
+                  Content="Test mode (OATEST in filename — safe to upload to Office Ally)"
+                  IsChecked="{Binding IsTestMode}"
+                  FontSize="12"
+                  Foreground="{DynamicResource TextPrimaryBrush}"
+                  VerticalAlignment="Center"
+                  Margin="0,0,0,16" />
 
         <!-- Lock and generate actions -->
         <StackPanel Grid.Row="3"

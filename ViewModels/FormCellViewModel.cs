@@ -31,10 +31,11 @@ namespace Sati.ViewModels
                 if (Form is null)
                     return string.Empty;
 
-                var lines = new List<string>
-                {
-                    $"Due: {Form.DueDate:M/d/yy}"
-                };
+                var lines = new List<string>();
+                if (Status == FormCellStatus.Overdue)
+                    lines.Add("OVERDUE");
+
+                lines.Add($"Due: {Form.DueDate:M/d/yy}");
 
                 if (Form.IsCompliant && Form.CompletedDate.HasValue)
                     lines.Add($"Completed: {Form.CompletedDate.Value:M/d/yy}");

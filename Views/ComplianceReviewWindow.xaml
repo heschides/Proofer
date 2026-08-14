@@ -102,18 +102,22 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <CheckBox Grid.Row="0"
+                                    <CheckBox x:Name="ComplianceCheckBox"
+                                              Grid.Row="0"
                                               Grid.Column="0"
                                               IsChecked="{Binding IsCompliant, Mode=TwoWay}"
+                                              AutomationProperties.Name="{Binding Type, Converter={StaticResource EnumDescriptionConverter}}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,10,0" />
 
-                                    <TextBlock Grid.Row="0"
-                                               Grid.Column="1"
-                                               Text="{Binding Type, Converter={StaticResource EnumDescriptionConverter}}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               FontSize="13"
-                                               VerticalAlignment="Center" />
+                                    <Label Grid.Row="0"
+                                           Grid.Column="1"
+                                           Target="{Binding ElementName=ComplianceCheckBox}"
+                                           Content="{Binding Type, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           FontSize="13"
+                                           Padding="0"
+                                           VerticalAlignment="Center" />
 
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="2"

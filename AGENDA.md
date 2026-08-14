@@ -197,8 +197,8 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   Form records for the new compliance cycle
 - [ ] First login / scheduler prompt — verify `wasCreated` behavior across month boundaries
   once `GetOrCreateAsync` bug is fixed
-- [ ] Accessibility audit — icon-only buttons missing `AutomationProperties.Name`;
-  compliance checkboxes unassociated from labels; color-only overdue indicators
+- [x] Accessibility audit — icon-only buttons expose accessible names;
+  compliance checkboxes are labeled; overdue matrix cells include a visible text status
 
 ---
 

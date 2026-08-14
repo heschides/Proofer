@@ -46,6 +46,7 @@ public static class ProductReleaseNotes
             "Demo and support",
             [
                 "A darker, simplified multi-resolution Bodhi-leaf application icon improves recognition in Windows, title bars, and installer shortcuts.",
+                "Accessibility safeguards now label icon controls and checkboxes and give overdue matrix cells a visible text status.",
                 "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
                 "Global Admin desktop failures are accepted as platform-scoped incidents without exposing agency business routes or blaming an individual tenant.",

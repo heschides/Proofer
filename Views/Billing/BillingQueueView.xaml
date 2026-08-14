@@ -183,17 +183,21 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Checkbox -->
-                        <CheckBox Grid.Column="0"
+                        <CheckBox x:Name="BillingSelectionCheckBox"
+                                  Grid.Column="0"
                                   IsChecked="{Binding IsSelected}"
                                   IsEnabled="{Binding IsValid}"
+                                  AutomationProperties.Name="{Binding Result.Note.Person.FullName, StringFormat=Select billing item for {0}}"
                                   VerticalAlignment="Center" />
 
                         <!-- Client name -->
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding Result.Note.Person.FullName}"
-                                   FontSize="13"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center" />
+                        <Label Grid.Column="1"
+                               Target="{Binding ElementName=BillingSelectionCheckBox}"
+                               Content="{Binding Result.Note.Person.FullName}"
+                               FontSize="13"
+                               Padding="0"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
 
                         <!-- Service date -->
                         <TextBlock Grid.Column="2"
