@@ -14,6 +14,7 @@ public static class ProductReleaseNotes
         new(
             "Admin and audit",
             [
+                "User profiles now identify the assigned supervisor by name in both the administrative Users view and My Account.",
                 "Added an Admin operations view with database status, retained audit and EDI counts, and explicit retention-policy visibility.",
                 "Added a reason-gated, agency-scoped audit activity CSV export and records each export in the audit trail.",
                 "Added a Person lifecycle timeline and auditor-friendly PDF showing who changed each field and when."
@@ -44,6 +45,7 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
+                "A new multi-resolution Bodhi-leaf application icon improves recognition in Windows, title bars, and installer shortcuts.",
                 "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
                 "Unexpected errors now show a short support reference instead of a developer stack trace.",
                 "Global Admin desktop failures are accepted as platform-scoped incidents without exposing agency business routes or blaming an individual tenant.",

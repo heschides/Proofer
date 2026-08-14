@@ -124,6 +124,12 @@
                     <!-- Supervisor -->
                     <TextBlock Text="SUPERVISOR"
                                Style="{StaticResource LabelStyle}" />
+                    <TextBlock Text="{Binding SelectedSupervisorName}"
+                               AutomationProperties.Name="Assigned supervisor name"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,8" />
                     <ComboBox AutomationProperties.Name="Supervisor" ItemsSource="{Binding Supervisors}"
                               SelectedItem="{Binding SelectedSupervisor}"
                               DisplayMemberPath="DisplayName"

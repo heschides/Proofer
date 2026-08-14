@@ -67,6 +67,8 @@ namespace Sati.ViewModels.Supervisor
         // -------------------------------------------------------------------------
 
         public bool HasSelectedUser => SelectedUser is not null;
+        public string SelectedSupervisorName => SelectedSupervisor?.DisplayName ??
+            (SelectedUser?.SupervisorId is null ? "Not assigned" : "Supervisor unavailable");
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -79,11 +81,18 @@ namespace Sati.ViewModels.Supervisor
             ClearResetPasswordInputs();
 
             if (value is null)
+            {
+                OnPropertyChanged(nameof(SelectedSupervisorName));
                 return;
+            }
 
             SelectedRole = value.Role;
             SelectedSupervisor = Supervisors.FirstOrDefault(s => s.Id == value.SupervisorId);
+            OnPropertyChanged(nameof(SelectedSupervisorName));
         }
+
+        partial void OnSelectedSupervisorChanged(User? value) =>
+            OnPropertyChanged(nameof(SelectedSupervisorName));
 
         // -------------------------------------------------------------------------
         // Commands
@@ -207,7 +216,7 @@ namespace Sati.ViewModels.Supervisor
 
             Supervisors.Clear();
             foreach (var user in all.Where(u =>
-                u.Role is UserRole.Supervisor or UserRole.Admin)
+                u.Role is UserRole.Supervisor or UserRole.Director or UserRole.Admin)
                 .OrderBy(u => u.DisplayName))
                 Supervisors.Add(user);
 

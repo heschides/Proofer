@@ -106,9 +106,10 @@ namespace Sati.Views
             // which raises SwitchUserRequested on the account VM — handled by the
             // extracted flow below. VM comes from the injected factory (no service
             // locator); the window's parameterless ctor takes DataContext externally.
-            shellViewModel.SwitchUserRequested += (s, e) =>
+            shellViewModel.SwitchUserRequested += async (s, e) =>
             {
                 var vm = _myAccountViewModelFactory();
+                await vm.InitializeAsync();
                 var win = _myAccountWindowFactory();
                 win.Owner = this;
                 win.DataContext = vm;

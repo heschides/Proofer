@@ -13,6 +13,7 @@ using Sati.Reporting;
 using Sati.Services;
 using PdfSharp.Fonts;
 using System.Text.RegularExpressions;
+using System.Windows.Media.Imaging;
 using Xunit;
 
 namespace Sati.Tests;
@@ -206,7 +207,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.7", version);
+        Assert.Equal("1.2.8", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Reliable review and incident recovery", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
@@ -216,6 +217,27 @@ public sealed class StabilizationTests
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Safety and reliability" &&
             section.Items.Any(item => item.Contains("calendar-day selection", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void ApplicationIconContainsSmallAndLargeWindowsFrames()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        using var stream = File.OpenRead(Path.Combine(directory!.FullName, "images", "sati.ico"));
+        var decoder = new IconBitmapDecoder(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+        var sizes = decoder.Frames.Select(frame => frame.PixelWidth).ToHashSet();
+
+        Assert.Contains(16, sizes);
+        Assert.Contains(32, sizes);
+        Assert.Contains(48, sizes);
+        Assert.Contains(256, sizes);
     }
 
     [Fact]

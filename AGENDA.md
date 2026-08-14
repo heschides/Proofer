@@ -30,9 +30,12 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
       user-password resets remain forbidden.
 - [x] Route Global Admin account switching through neutral credential entry in release 1.2.7,
       preserving the agency-directory prohibition and containing ordinary picker load failures.
+- [x] Show assigned supervisor names explicitly in both administrative and personal user profiles,
+      and replace the legacy artwork with a multi-resolution professional application icon in
+      release 1.2.8.
 - [x] Regenerate and visually inspect all ten pages of the version-matched offline Demo fallback.
 - [ ] Complete authenticated agency-Admin preflight, external-machine installer attestation,
-      presenter rehearsal, and final evidence binding for the exact 1.2.7 installer.
+      presenter rehearsal, and final evidence binding for the exact 1.2.8 installer.
 
 ---
 

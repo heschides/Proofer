@@ -171,6 +171,13 @@ so the authenticated Global Admin script awaits an intentional credential refres
 1.2.7 installer passed isolated installation, version 1.2.7.0, 15-second responsiveness, and
 cleanup; SHA-256 is `92f37711eb9c208c19d9424d7b6a4d7b4efbed8a4bb93f39eeb5d37485552752`.
 
+Release 1.2.8 added explicit supervisor-name display to both administrative and personal user
+profiles and replaced the legacy application artwork with a validated multi-resolution Windows
+icon. API 1.2.8 was deployed with OneDeploy deployment `b8ed5a41ad0e40efbde8b13a9d2f7543`;
+live, ready, and exact-version checks passed. The exact 1.2.8 installer passed isolated
+installation, version 1.2.8.0, 15-second responsiveness, and cleanup; SHA-256 is
+`85b0aa688860638d77d4197ac203ce3daf82d50e2ebb651bf9dcf51cc633e4e6`.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

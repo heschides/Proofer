@@ -214,6 +214,14 @@
                             </StackPanel>
                         </Grid>
 
+                        <StackPanel Margin="0,0,0,26">
+                            <TextBlock Text="SUPERVISOR" Style="{StaticResource AccountLabelStyle}" />
+                            <TextBlock Text="{Binding SupervisorName}"
+                                       AutomationProperties.Name="Supervisor name"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="14" />
+                        </StackPanel>
+
                         <Grid Margin="0,0,0,8">
                             <TextBlock Text="CONTACT INFORMATION"
                                        Style="{StaticResource AccountSectionHeader}"

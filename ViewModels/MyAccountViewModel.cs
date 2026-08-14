@@ -62,6 +62,7 @@ namespace Sati.ViewModels
         // ---- Feedback ----
         [ObservableProperty] private string profileMessage = string.Empty;
         [ObservableProperty] private string passwordMessage = string.Empty;
+        [ObservableProperty] private string supervisorName = "Not assigned";
 
         // ---- Password change: SecureStrings written by the code-behind bridge ----
         [ObservableProperty] private SecureString? currentPassword;
@@ -78,6 +79,28 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(Username));
             OnPropertyChanged(nameof(Role));
             OnPropertyChanged(nameof(AgencyName));
+        }
+
+        public async Task InitializeAsync()
+        {
+            var supervisorId = CurrentUser?.SupervisorId;
+            if (supervisorId is null)
+            {
+                SupervisorName = "Not assigned";
+                return;
+            }
+
+            try
+            {
+                var users = await _userService.GetAllAsync();
+                SupervisorName = users.FirstOrDefault(user => user.Id == supervisorId)?.DisplayName
+                    ?? "Supervisor unavailable";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Supervisor name load failed: {ex.Message}");
+                SupervisorName = "Supervisor unavailable";
+            }
         }
 
         // ---- Profile editing ----
