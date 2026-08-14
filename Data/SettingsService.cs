@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
+using Sati.Services;
 
 namespace Sati.Data
 {
@@ -68,6 +69,11 @@ namespace Sati.Data
 
         public async Task SaveAsync(Settings settings)
         {
+            if (!SettingsAccessPolicy.CanManageAgencySettings(_sessionService.CurrentUser?.Role))
+                throw new SettingsSaveException(
+                    "Only an agency administrator can change operational settings.",
+                    new UnauthorizedAccessException());
+
             await using var context = _contextFactory.CreateDbContext();
             var agencyId = CurrentAgencyId();
             var tracked = await context.Settings.SingleOrDefaultAsync(x => x.Id == settings.Id && x.AgencyId == agencyId)

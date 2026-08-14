@@ -88,6 +88,10 @@ public sealed class CloudSettingsService(CloudApiClient api) : ISettingsService
         {
             throw new SettingsConcurrencyException(ex);
         }
+        catch (CloudApiException ex)
+        {
+            throw new SettingsSaveException(ex.Message, ex);
+        }
     }
 }
 

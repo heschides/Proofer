@@ -238,6 +238,7 @@
             </TabItem>
 
             <TabItem Header="Billing &amp; Requests"
+                     Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
@@ -290,6 +291,7 @@
             </TabItem>
 
             <TabItem Header="Schedule"
+                     Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
@@ -385,6 +387,7 @@
             </TabItem>
 
             <TabItem Header="Templates &amp; Forms"
+                     Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
@@ -571,6 +574,7 @@
             </TabItem>
 
             <TabItem Header="Reference Data"
+                     Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
@@ -691,6 +695,7 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Maintenance"
+                     Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
@@ -796,18 +801,34 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="18,12">
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Right">
-                <TextBlock Text="Changes to operational settings are saved when this window closes."
+            <Grid>
+                <TextBlock Text="Appearance changes are remembered immediately. Agency settings change only when an Admin chooses Save Settings."
+                           Visibility="{Binding CanManageAgencySettings, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource TextMutedBrush}"
                            FontSize="11"
-                           Margin="0,0,18,0" />
-                <Button Content="Save Settings"
-                        Style="{StaticResource PrimaryButton}"
-                        Command="{Binding SaveSettingsCommand}"
-                        Width="150" />
-            </StackPanel>
+                           TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="{Binding SaveStatus}"
+                               AutomationProperties.LiveSetting="Polite"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontSize="11"
+                               Margin="0,0,18,0" />
+                    <TextBlock Text="Operational changes are applied together when you save."
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="11"
+                               Margin="0,0,18,0" />
+                    <Button Content="Save Settings"
+                            AutomationProperties.Name="Save agency settings"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding SaveSettingsCommand}"
+                            Width="150" />
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

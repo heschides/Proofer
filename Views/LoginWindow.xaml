@@ -120,8 +120,9 @@
         </Style>
     </Window.Resources>
 
-    <Border Padding="40">
-        <StackPanel VerticalAlignment="Center">
+    <Grid>
+        <Border Padding="40">
+            <StackPanel VerticalAlignment="Center">
 
             <!-- Bodhi leaf -->
             <Image Source="pack://application:,,,/images/leaf.png"
@@ -206,13 +207,18 @@
                        Margin="0,24,0,0"
                        FontStyle="Italic" />
 
-            <TextBlock x:Name="ReleaseVersionText"
-                       FontSize="9"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       HorizontalAlignment="Center"
-                       Margin="0,5,0,0"
-                       Opacity="0.7" />
+            </StackPanel>
+        </Border>
 
-        </StackPanel>
-    </Border>
+        <TextBlock x:Name="ReleaseVersionText"
+                   AutomationProperties.Name="Installed release"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Bottom"
+                   Margin="0,0,14,12"
+                   FontSize="10"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Opacity="0.85"
+                   Panel.ZIndex="1" />
+    </Grid>
 </Window>

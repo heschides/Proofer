@@ -20,12 +20,14 @@ namespace Sati.ViewModels
         private readonly FormDueDateBackfill? _backfill;
         private readonly FormBulkCompletion? _bulkCompletion;
         private readonly ThemeService _themeService;
+        private readonly ISessionService _sessionService;
         private Settings? _settings;
 
         public SettingsViewModel(
             ISettingsService settingsService,
             IProviderService providerService,
             ThemeService themeService,
+            ISessionService sessionService,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -34,11 +36,14 @@ namespace Sati.ViewModels
             _backfill = backfill;
             _bulkCompletion = bulkCompletion;
             _themeService = themeService;
+            _sessionService = sessionService;
             selectedTheme = _themeService.CurrentTheme;
             _ = LoadAsync();
         }
 
         public IReadOnlyList<ThemeOption> ThemeOptions => _themeService.Themes;
+        public bool CanManageAgencySettings =>
+            SettingsAccessPolicy.CanManageAgencySettings(_sessionService.CurrentUser?.Role);
         public string ReleaseVersion => $"Version {typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3)}";
         public string ReleaseName => ProductReleaseNotes.ReleaseName;
         public string ReleaseDate => ProductReleaseNotes.ReleaseDate;
@@ -46,6 +51,9 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private ThemeOption? selectedTheme;
+
+        [ObservableProperty]
+        private string saveStatus = string.Empty;
 
         partial void OnSelectedThemeChanged(ThemeOption? value)
         {
@@ -368,6 +376,14 @@ namespace Sati.ViewModels
             if (_settings is null)
                 return true;
 
+            if (!CanManageAgencySettings)
+            {
+                SaveStatus = "Only an agency administrator can change operational settings.";
+                return false;
+            }
+
+            SaveStatus = "Saving settings...";
+
             _settings.AbandonedAfterDays = AbandonedAfterDays;
             _settings.SalesTaxRate = SalesTaxRate;
             _settings.DefaultPassthroughProviderId = DefaultPassthroughProviderId;
@@ -425,15 +441,17 @@ namespace Sati.ViewModels
             try
             {
                 await _settingsService.SaveAsync(_settings);
+                SaveStatus = "Settings saved.";
                 return true;
             }
             catch (SettingsConcurrencyException ex)
             {
-                MessageBox.Show(
-                    ex.Message,
-                    "Settings Changed Elsewhere",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                SaveStatus = ex.Message;
+                return false;
+            }
+            catch (SettingsSaveException ex)
+            {
+                SaveStatus = $"Settings were not saved. {ex.Message}";
                 return false;
             }
         }

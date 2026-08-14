@@ -6,7 +6,7 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Billing clarity and visual refresh";
+    public const string ReleaseName = "Settings access and release clarity";
     public const string ReleaseDate = "August 14, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
@@ -22,6 +22,8 @@ public static class ProductReleaseNotes
         new(
             "Safety and reliability",
             [
+                "Separated personal Settings from Admin-only agency configuration, and converted rejected Settings saves into clear inline guidance instead of crash dialogs.",
+                "Agency settings now change only through the explicit Save Settings action; closing the window no longer launches an unexpected cloud save.",
                 "Fixed repeated close requests so the main and Settings windows cannot crash while completing their save-on-close work.",
                 "Corrected the final save-on-close handoff so Windows fully finishes the original close request before Sati closes the saved window.",
                 "Journal autosaves and account-switch flushes now run one at a time, preventing overlapping cloud updates from crashing Switch User.",
@@ -47,6 +49,7 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
+                "Placed the installed release number in a dedicated, higher-contrast login footer so it remains visible at Windows display scaling.",
                 "A bright geometric watercolor Bodhi-leaf application icon with a softly rounded ivory container improves recognition in Windows, title bars, and installer shortcuts.",
                 "The login window now shows the installed release number, and installer upgrades refresh recognized Sati taskbar pins with a version-specific icon.",
                 "Accessibility safeguards now label icon controls and checkboxes and give overdue matrix cells a visible text status.",

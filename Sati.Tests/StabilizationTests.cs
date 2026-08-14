@@ -376,9 +376,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.13", version);
+        Assert.Equal("1.2.14", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Billing clarity and visual refresh", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Settings access and release clarity", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
@@ -400,6 +400,9 @@ public sealed class StabilizationTests
             "Views",
             "LoginWindow.xaml.cs"));
         Assert.Contains("x:Name=\"ReleaseVersionText\"", loginView);
+        Assert.Contains("VerticalAlignment=\"Bottom\"", loginView);
+        Assert.Contains("HorizontalAlignment=\"Right\"", loginView);
+        Assert.Contains("AutomationProperties.Name=\"Installed release\"", loginView);
         Assert.Contains("ReleaseVersionText.Text", loginCodeBehind);
         Assert.Contains("Assembly.GetName().Version?.ToString(3)", loginCodeBehind);
         Assert.DoesNotContain("ReleaseVersion", loginViewModel);
@@ -441,19 +444,22 @@ public sealed class StabilizationTests
     }
 
     [Fact]
-    public void AsyncSaveOnCloseDefersTheSecondCloseUntilDispatcherIdle()
+    public void ShellSaveOnCloseDefersTheSecondCloseUntilDispatcherIdle()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
             directory = directory.Parent;
 
         Assert.NotNull(directory);
-        foreach (var file in new[] { "ShellWindow.xaml.cs", "SettingsWindow.xaml.cs" })
-        {
-            var source = File.ReadAllText(Path.Combine(directory!.FullName, "Views", file));
-            Assert.Contains("Dispatcher.BeginInvoke", source);
-            Assert.Contains("DispatcherPriority.ApplicationIdle", source);
-        }
+        var source = File.ReadAllText(Path.Combine(directory!.FullName, "Views", "ShellWindow.xaml.cs"));
+        Assert.Contains("Dispatcher.BeginInvoke", source);
+        Assert.Contains("DispatcherPriority.ApplicationIdle", source);
+
+        var settingsView = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml"));
+        var settingsCodeBehind = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml.cs"));
+        Assert.Contains("CanManageAgencySettings", settingsView);
+        Assert.Contains("SaveStatus", settingsView);
+        Assert.DoesNotContain("Closing +=", settingsCodeBehind);
     }
 
     [Fact]
