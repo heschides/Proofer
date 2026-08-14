@@ -28,6 +28,7 @@ namespace Sati.ViewModels
         //PROPERTIES
         [ObservableProperty] private string username = string.Empty;
         [ObservableProperty] private string signInStatus = string.Empty;
+        [ObservableProperty] private bool isSigningIn;
         public User? SelectedUser { get; set; }
         public bool CanCreateAccount => !_environment.UsesCloudApi;
         public SecureString? SecurePassword { get; set; }
@@ -43,9 +44,10 @@ namespace Sati.ViewModels
         [RelayCommand]
         public async Task LoginAsync()
         {
-            if (string.IsNullOrWhiteSpace(Username) || SecurePassword == null)
+            if (IsSigningIn || string.IsNullOrWhiteSpace(Username) || SecurePassword == null)
                 return;
 
+            IsSigningIn = true;
             SignInStatus = "Signing in... The Demo service may need a moment to wake up.";
             try
             {
@@ -80,6 +82,7 @@ namespace Sati.ViewModels
             finally
             {
                 SignInStatus = string.Empty;
+                IsSigningIn = false;
             }
         }
 

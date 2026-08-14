@@ -24,6 +24,7 @@ public static class ProductReleaseNotes
             [
                 "Separated personal Settings from Admin-only agency configuration, and converted rejected Settings saves into clear inline guidance instead of crash dialogs.",
                 "Agency settings now change only through the explicit Save Settings action; closing the window no longer launches an unexpected cloud save.",
+                "Prevented overlapping sign-in completions from closing the login dialog twice or leaving an orphaned error message behind the application.",
                 "Fixed repeated close requests so the main and Settings windows cannot crash while completing their save-on-close work.",
                 "Corrected the final save-on-close handoff so Windows fully finishes the original close request before Sati closes the saved window.",
                 "Journal autosaves and account-switch flushes now run one at a time, preventing overlapping cloud updates from crashing Switch User.",

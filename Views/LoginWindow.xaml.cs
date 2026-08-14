@@ -12,6 +12,7 @@ namespace Sati.Views
     {
 
         private readonly Func<NewUserWindow> _newUserWindowFactory;
+        private bool _loginCompletionHandled;
 
         public LoginWindow(LoginWindowViewModel vm, Func<NewUserWindow> newUserWindowFactory)
         {
@@ -34,8 +35,11 @@ namespace Sati.Views
 
             vm.LoginSucceeded += (s, success) =>
             {
+                if (_loginCompletionHandled || !IsLoaded)
+                    return;
+
+                _loginCompletionHandled = true;
                 DialogResult = success;
-                Close();
             };
 
             vm.IncorrectPasswordRequested += (s, e) =>

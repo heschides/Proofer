@@ -405,6 +405,9 @@ public sealed class StabilizationTests
         Assert.Contains("AutomationProperties.Name=\"Installed release\"", loginView);
         Assert.Contains("ReleaseVersionText.Text", loginCodeBehind);
         Assert.Contains("Assembly.GetName().Version?.ToString(3)", loginCodeBehind);
+        Assert.Contains("_loginCompletionHandled", loginCodeBehind);
+        Assert.DoesNotContain("DialogResult = success;\n                Close();", loginCodeBehind);
+        Assert.Contains("IsSigningIn", loginViewModel);
         Assert.DoesNotContain("ReleaseVersion", loginViewModel);
     }
 
