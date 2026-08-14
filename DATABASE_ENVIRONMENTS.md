@@ -192,6 +192,12 @@ local installer passed isolated installation plus five responsive, normal open/c
 is `c36ad62e01170568e06c268d9807ea139c4bc93b3f2d83ca3c7f28b1709b5a3b`. The live Demo API still
 reported 1.2.8 on August 14, 2026, so deploy and verify API 1.2.10 before collecting final matched-pair
 company-demo evidence.
+
+Release 1.2.11 gives the icon's ivory container fully transparent, more generously rounded outer
+corners while preserving the watercolor leaf. The exact local installer passed isolated installation
+plus five responsive, normal open/close cycles; SHA-256 is
+`b2956b02862d42a50daedb068055670d79b3bbc7de4993fd18a2e21cc3115c4f`. The live Demo API remains
+behind this packaged release, so deploy and verify the matching API before final matched-pair evidence.
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
