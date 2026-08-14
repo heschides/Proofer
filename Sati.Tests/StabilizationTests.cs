@@ -376,7 +376,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.14", version);
+        Assert.Equal("1.2.15", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Settings access and release clarity", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);

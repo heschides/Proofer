@@ -30,7 +30,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.14", release["releaseVersion"]);
+        Assert.Equal("1.2.15", release["releaseVersion"]);
     }
 
     [Fact]
