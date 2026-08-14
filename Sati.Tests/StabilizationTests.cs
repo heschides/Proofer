@@ -376,7 +376,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.12", version);
+        Assert.Equal("1.2.13", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Billing clarity and visual refresh", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
@@ -395,8 +395,14 @@ public sealed class StabilizationTests
             directory.FullName,
             "ViewModels",
             "LoginWindowViewModel.cs"));
-        Assert.Contains("{Binding ReleaseVersion}", loginView);
-        Assert.Contains("Assembly.GetName().Version?.ToString(3)", loginViewModel);
+        var loginCodeBehind = File.ReadAllText(Path.Combine(
+            directory.FullName,
+            "Views",
+            "LoginWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"ReleaseVersionText\"", loginView);
+        Assert.Contains("ReleaseVersionText.Text", loginCodeBehind);
+        Assert.Contains("Assembly.GetName().Version?.ToString(3)", loginCodeBehind);
+        Assert.DoesNotContain("ReleaseVersion", loginViewModel);
     }
 
     [Fact]

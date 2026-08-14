@@ -206,8 +206,7 @@
                        Margin="0,24,0,0"
                        FontStyle="Italic" />
 
-            <TextBlock Text="{Binding ReleaseVersion}"
-                       AutomationProperties.Name="Application version"
+            <TextBlock x:Name="ReleaseVersionText"
                        FontSize="9"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        HorizontalAlignment="Center"

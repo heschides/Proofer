@@ -16,8 +16,10 @@ namespace Sati.Views
         public LoginWindow(LoginWindowViewModel vm, Func<NewUserWindow> newUserWindowFactory)
         {
              DataContext = vm;
-             _newUserWindowFactory = newUserWindowFactory;
+            _newUserWindowFactory = newUserWindowFactory;
             InitializeComponent();
+            ReleaseVersionText.Text =
+                $"Version {typeof(LoginWindow).Assembly.GetName().Version?.ToString(3)}";
 
             vm.OpenNewUserRequested += (s, success) =>
             {
