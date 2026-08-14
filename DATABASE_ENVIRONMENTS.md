@@ -185,6 +185,13 @@ normal window shutdown and exit code zero. Debug, Release, Demo, and current NuG
 checks passed. The rebuilt local installer SHA-256 is
 `c5d1e6bbaa1bd563d1b812ac0d8a283ce5e6a3895fd8c29fe66a7b95180ef9d8`. Do not collect final
 acceptance evidence until Azure authentication is refreshed and API 1.2.9 is deployed and verified.
+
+Release 1.2.10 adds explicit billing-compliance reasons, clearer note-workflow guidance, serialized
+journal saves during user switching, and the bright geometric watercolor Bodhi-leaf icon. The exact
+local installer passed isolated installation plus five responsive, normal open/close cycles; SHA-256
+is `c36ad62e01170568e06c268d9807ea139c4bc93b3f2d83ca3c7f28b1709b5a3b`. The live Demo API still
+reported 1.2.8 on August 14, 2026, so deploy and verify API 1.2.10 before collecting final matched-pair
+company-demo evidence.
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
