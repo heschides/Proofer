@@ -66,6 +66,10 @@ try {
             throw "Installed payload is missing '$requiredFile'."
         }
     }
+    $versionedIcon = Join-Path $runRoot "Sati.Demo.$expectedVersion.ico"
+    if (-not (Test-Path -LiteralPath $versionedIcon -PathType Leaf)) {
+        throw "Installed payload is missing the versioned icon 'Sati.Demo.$expectedVersion.ico'."
+    }
     if (Test-Path -LiteralPath (Join-Path $runRoot 'appsettings.json')) {
         throw 'The private appsettings.json file was installed.'
     }

@@ -366,12 +366,17 @@ public sealed class StabilizationTests
     [Fact]
     public void ReleaseNotesMatchTheDemoAssemblyVersionAndDocumentProductionGaps()
     {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Sati.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
         var version = typeof(Sati.ViewModels.SettingsViewModel).Assembly
             .GetName().Version?.ToString(3);
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.11", version);
+        Assert.Equal("1.2.12", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Billing clarity and visual refresh", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
@@ -381,6 +386,17 @@ public sealed class StabilizationTests
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Safety and reliability" &&
             section.Items.Any(item => item.Contains("calendar-day selection", StringComparison.OrdinalIgnoreCase)));
+
+        var loginView = File.ReadAllText(Path.Combine(
+            directory!.FullName,
+            "Views",
+            "LoginWindow.xaml"));
+        var loginViewModel = File.ReadAllText(Path.Combine(
+            directory.FullName,
+            "ViewModels",
+            "LoginWindowViewModel.cs"));
+        Assert.Contains("{Binding ReleaseVersion}", loginView);
+        Assert.Contains("Assembly.GetName().Version?.ToString(3)", loginViewModel);
     }
 
     [Fact]
@@ -493,6 +509,7 @@ public sealed class StabilizationTests
         Assert.Contains("GracefulClosePassed = $true", script);
         Assert.Contains("Stop-Process -Id $app.Id", script);
         Assert.Contains("ReparsePoint", script);
+        Assert.Contains("Sati.Demo.$expectedVersion.ico", script);
     }
 
     [Fact]
@@ -512,6 +529,20 @@ public sealed class StabilizationTests
         Assert.Contains("$packagingComplete", script);
         Assert.Contains("$minimumInstallerLength", script);
         Assert.Contains("created an incomplete installer", script);
+
+        var installer = File.ReadAllText(Path.Combine(
+            directory.FullName,
+            "installer",
+            "Install-SatiDemo.ps1"));
+        var builder = File.ReadAllText(Path.Combine(
+            directory.FullName,
+            "installer",
+            "Build-DemoInstaller.ps1"));
+        Assert.Contains("Sati.Demo.$Version.ico", builder);
+        Assert.Contains("Sati.Demo.$version.ico", installer);
+        Assert.Contains("User Pinned\\TaskBar", installer);
+        Assert.Contains("$pinnedShortcut.IconLocation = \"$versionedIcon,0\"", installer);
+        Assert.Contains("ie4uinit.exe", installer);
     }
 
     [Fact]

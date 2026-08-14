@@ -30,6 +30,8 @@ namespace Sati.ViewModels
         [ObservableProperty] private string signInStatus = string.Empty;
         public User? SelectedUser { get; set; }
         public bool CanCreateAccount => !_environment.UsesCloudApi;
+        public string ReleaseVersion =>
+            $"Version {typeof(LoginWindowViewModel).Assembly.GetName().Version?.ToString(3)}";
         public SecureString? SecurePassword { get; set; }
 
         //CONSTRUCTOR

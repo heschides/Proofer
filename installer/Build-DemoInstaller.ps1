@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '1.2.11'
+    [string]$Version = '1.2.12'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,7 +43,13 @@ try {
         throw 'The Sati Demo publish failed.'
     }
 
-    $requiredFiles = @('Sati.Demo.exe', 'appsettings.Public.json')
+    $versionedIconName = "Sati.Demo.$Version.ico"
+    Copy-Item `
+        -LiteralPath (Join-Path $repoRoot 'images\sati.ico') `
+        -Destination (Join-Path $publishRoot $versionedIconName) `
+        -Force
+
+    $requiredFiles = @('Sati.Demo.exe', 'appsettings.Public.json', $versionedIconName)
     foreach ($requiredFile in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishRoot $requiredFile) -PathType Leaf)) {
             throw "The publish output is missing '$requiredFile'."

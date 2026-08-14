@@ -206,6 +206,14 @@
                        Margin="0,24,0,0"
                        FontStyle="Italic" />
 
+            <TextBlock Text="{Binding ReleaseVersion}"
+                       AutomationProperties.Name="Application version"
+                       FontSize="9"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,5,0,0"
+                       Opacity="0.7" />
+
         </StackPanel>
     </Border>
 </Window>

@@ -25,6 +25,10 @@ try {
         -not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
         throw 'The installer payload is incomplete.'
     }
+    $version = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    if ($version -notmatch '^\d+\.\d+\.\d+$') {
+        throw 'The installer version is invalid.'
+    }
 
     $isTest = $env:SATI_DEMO_INSTALLER_TEST -eq '1'
     if ($isTest) {
@@ -84,6 +88,10 @@ try {
     if (-not (Test-Path -LiteralPath $appExe -PathType Leaf)) {
         throw 'Sati.Demo.exe was not installed.'
     }
+    $versionedIcon = Join-Path $installRoot "Sati.Demo.$version.ico"
+    if (-not (Test-Path -LiteralPath $versionedIcon -PathType Leaf)) {
+        throw 'The versioned Sati Demo icon was not installed.'
+    }
 
     if (-not $isTest) {
         $shell = New-Object -ComObject WScript.Shell
@@ -93,7 +101,7 @@ try {
         $startMenuShortcut = $shell.CreateShortcut((Join-Path $startMenuFolder 'Sati Demo.lnk'))
         $startMenuShortcut.TargetPath = $appExe
         $startMenuShortcut.WorkingDirectory = $installRoot
-        $startMenuShortcut.IconLocation = "$appExe,0"
+        $startMenuShortcut.IconLocation = "$versionedIcon,0"
         $startMenuShortcut.Description = 'Sati Azure demonstration client'
         $startMenuShortcut.Save()
 
@@ -101,11 +109,30 @@ try {
             (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Sati Demo.lnk'))
         $desktopShortcut.TargetPath = $appExe
         $desktopShortcut.WorkingDirectory = $installRoot
-        $desktopShortcut.IconLocation = "$appExe,0"
+        $desktopShortcut.IconLocation = "$versionedIcon,0"
         $desktopShortcut.Description = 'Sati Azure demonstration client'
         $desktopShortcut.Save()
 
-        $version = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+        $taskbarFolder = Join-Path (
+            [Environment]::GetFolderPath('ApplicationData')) (
+            'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar')
+        if (Test-Path -LiteralPath $taskbarFolder -PathType Container) {
+            foreach ($pinnedFile in Get-ChildItem -LiteralPath $taskbarFolder -Filter '*.lnk' -File) {
+                $pinnedShortcut = $shell.CreateShortcut($pinnedFile.FullName)
+                $pinnedTargetName = [System.IO.Path]::GetFileName($pinnedShortcut.TargetPath)
+                $isCurrentTarget = $pinnedShortcut.TargetPath -eq $appExe
+                $isRecognizedSatiPin = $pinnedFile.BaseName -in @('Sati', 'Sati Demo') -and
+                    $pinnedTargetName -in @('Sati.exe', 'Sati.Demo.exe')
+                if ($isCurrentTarget -or $isRecognizedSatiPin) {
+                    $pinnedShortcut.TargetPath = $appExe
+                    $pinnedShortcut.WorkingDirectory = $installRoot
+                    $pinnedShortcut.IconLocation = "$versionedIcon,0"
+                    $pinnedShortcut.Description = 'Sati Azure demonstration client'
+                    $pinnedShortcut.Save()
+                }
+            }
+        }
+
         $uninstaller = Join-Path $installRoot 'Uninstall-SatiDemo.ps1'
         $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $uninstallCommand = "`"$windowsPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`""
@@ -115,10 +142,15 @@ try {
         New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value $version -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name Publisher -Value 'Satilogica' -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name InstallLocation -Value $installRoot -PropertyType String -Force | Out-Null
-        New-ItemProperty -Path $uninstallKey -Name DisplayIcon -Value "$appExe,0" -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $uninstallKey -Name DisplayIcon -Value "$versionedIcon,0" -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name UninstallString -Value $uninstallCommand -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
+
+        $iconRefresh = Join-Path $env:SystemRoot 'System32\ie4uinit.exe'
+        if (Test-Path -LiteralPath $iconRefresh -PathType Leaf) {
+            Start-Process -FilePath $iconRefresh -ArgumentList '-show' -WindowStyle Hidden -Wait
+        }
 
         Start-Process -FilePath $appExe -WorkingDirectory $installRoot
     }
