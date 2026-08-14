@@ -371,7 +371,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.10", version);
+        Assert.Equal("1.2.11", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("Billing clarity and visual refresh", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
@@ -402,6 +402,20 @@ public sealed class StabilizationTests
         Assert.Contains(32, sizes);
         Assert.Contains(48, sizes);
         Assert.Contains(256, sizes);
+
+        var largeFrame = decoder.Frames.Single(frame => frame.PixelWidth == 256);
+        var pixels = new byte[256 * 256 * 4];
+        var converted = new FormatConvertedBitmap(
+            largeFrame,
+            System.Windows.Media.PixelFormats.Bgra32,
+            null,
+            0);
+        converted.CopyPixels(pixels, 256 * 4, 0);
+
+        Assert.True(pixels[3] < 16, "The application icon's outer corner should be transparent.");
+        Assert.True(
+            pixels[((128 * 256) + 128) * 4 + 3] > 240,
+            "The application icon's center should remain opaque.");
     }
 
     [Fact]

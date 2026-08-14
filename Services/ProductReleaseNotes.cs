@@ -47,7 +47,7 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
-                "A bright geometric watercolor Bodhi-leaf application icon improves recognition in Windows, title bars, and installer shortcuts.",
+                "A bright geometric watercolor Bodhi-leaf application icon with a softly rounded ivory container improves recognition in Windows, title bars, and installer shortcuts.",
                 "Accessibility safeguards now label icon controls and checkboxes and give overdue matrix cells a visible text status.",
                 "Runtime smoke coverage renders the feature views, and installer acceptance repeatedly proves responsive, zero-code normal window shutdown.",
                 "Theme resources now resolve relative to Sati itself so hosted views do not depend on the entry executable.",
