@@ -198,6 +198,15 @@ corners while preserving the watercolor leaf. The exact local installer passed i
 plus five responsive, normal open/close cycles; SHA-256 is
 `b2956b02862d42a50daedb068055670d79b3bbc7de4993fd18a2e21cc3115c4f`. The live Demo API remains
 behind this packaged release, so deploy and verify the matching API before final matched-pair evidence.
+
+Release 1.2.13 gives shortcuts a release-specific icon file, migrates recognized stale Sati taskbar
+pins, refreshes the Windows icon cache, and displays the assembly release tactfully on the login
+window. The exact local installer passed isolated installation plus five responsive, normal open/close
+cycles; SHA-256 is `baa2baee825ed751c63b658254abe8d50a3f88ba6a0ba58980066784f0f844dd`.
+The real per-user install was also verified at version 1.2.13 with the login label and pinned icon both
+present. The live Demo API remains behind this packaged release, so deploy and verify the matching API
+before final matched-pair evidence.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
