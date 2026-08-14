@@ -33,8 +33,9 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Show assigned supervisor names explicitly in both administrative and personal user profiles,
       and replace the legacy artwork with a multi-resolution professional application icon in
       release 1.2.8.
-- [x] Refine the application identity in release 1.2.9 with a darker, simpler Bodhi-leaf icon that
-      remains legible at Windows title-bar and shortcut sizes.
+- [x] Complete the local release 1.2.9 durability slice: refine the darker Bodhi-leaf icon, finish
+      the accessibility audit, make theme resources host-independent, runtime-render the feature
+      views, and require repeated normal window shutdown in installer acceptance.
 - [x] Regenerate and visually inspect all ten pages of the version-matched offline Demo fallback.
 - [ ] Complete authenticated agency-Admin preflight, external-machine installer attestation,
       presenter rehearsal, and final evidence binding for the exact 1.2.9 installer.

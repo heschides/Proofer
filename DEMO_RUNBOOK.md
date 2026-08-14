@@ -28,12 +28,14 @@ Build a distributable into a new, empty folder:
 .\scripts\Publish-Demo.ps1 -OutputDirectory C:\DemoArtifacts\Sati
 ```
 
-Exercise the exact installer in an isolated location. This launches the installed application for
-15 seconds, checks its version and public configuration, and removes the acceptance copy:
+Exercise the exact installer in an isolated location. This repeatedly launches the installed
+application, verifies responsiveness, requests a normal window close, requires a zero exit code,
+checks version and public configuration, and removes the acceptance copy:
 
 ```powershell
 .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.9.exe
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.9.exe `
+    -LaunchIterations 5
 ```
 
 Check the deployed API without credentials:

@@ -25,7 +25,11 @@ Run the isolated installation and launch acceptance test from the repository roo
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
     .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.9.exe
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.9.exe `
+    -LaunchIterations 5
 ```
+
+The acceptance test requires each packaged launch to remain responsive, accept a normal window-close
+request, exit with code zero, and leave no isolated installation behind.
 
 The generated installer is not code-signed. Windows may display an Unknown publisher or SmartScreen warning until the executable is signed with a trusted code-signing certificate.

@@ -8,6 +8,9 @@ using Sati.Models.Billing;
 using Sati.ViewModels.Billing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.Reflection;
 using Sati.Contracts.V1;
 using Sati.Reporting;
 using Sati.Services;
@@ -309,6 +312,10 @@ public sealed class StabilizationTests
         Assert.Contains("The private appsettings.json file was installed", script);
         Assert.Contains("FileVersion", script);
         Assert.Contains("Installed app exited during startup", script);
+        Assert.Contains("CloseMainWindow()", script);
+        Assert.Contains("WaitForExit($CloseTimeoutSeconds * 1000)", script);
+        Assert.Contains("APP_WINDOW_LIFECYCLE_PASSED", script);
+        Assert.Contains("GracefulClosePassed = $true", script);
         Assert.Contains("Stop-Process -Id $app.Id", script);
         Assert.Contains("ReparsePoint", script);
     }
@@ -471,6 +478,109 @@ public sealed class StabilizationTests
         Assert.StartsWith("OVERDUE", cell.CellText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ParameterlessFeatureViewsCanOpenRenderAndCloseOnAnStaThread()
+    {
+        Exception? failure = null;
+        string? currentType = null;
+        var exercisedTypes = new List<string>();
+        using var completed = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            App? application = null;
+            IHost? host = null;
+            FieldInfo? hostField = null;
+            try
+            {
+                application = new App
+                {
+                    ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown
+                };
+                application.InitializeComponent();
+                host = Host.CreateDefaultBuilder()
+                    .ConfigureServices(services =>
+                    {
+                        services.AddSingleton<ISessionService, SessionService>();
+                        services.AddSingleton<IComprehensiveAssessmentService, SmokeAssessmentService>();
+                        services.AddSingleton<IPersonCenteredPlanSourceService, SmokePlanSourceService>();
+                    })
+                    .Build();
+                hostField = typeof(App).GetField("_host", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?? throw new InvalidOperationException("App host field was not found.");
+                hostField.SetValue(application, host);
+
+                var viewTypes = typeof(App).Assembly.GetTypes()
+                    .Where(type => type.IsPublic && !type.IsAbstract)
+                    .Where(type => type.Namespace?.StartsWith("Sati.Views", StringComparison.Ordinal) == true)
+                    .Where(type => typeof(System.Windows.FrameworkElement).IsAssignableFrom(type))
+                    .Where(type => type.GetConstructor(Type.EmptyTypes) is not null)
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .ToList();
+
+                foreach (var type in viewTypes)
+                {
+                    currentType = type.FullName;
+                    try
+                    {
+                        var element = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(
+                            Activator.CreateInstance(type));
+                        if (element is System.Windows.Window window)
+                        {
+                            window.Show();
+                            window.UpdateLayout();
+                            window.Close();
+                        }
+                        else
+                        {
+                            element.Measure(new System.Windows.Size(1280, 720));
+                            element.Arrange(new System.Windows.Rect(0, 0, 1280, 720));
+                            element.UpdateLayout();
+                            element.RaiseEvent(new System.Windows.RoutedEventArgs(
+                                System.Windows.FrameworkElement.LoadedEvent));
+                            element.RaiseEvent(new System.Windows.RoutedEventArgs(
+                                System.Windows.FrameworkElement.UnloadedEvent));
+                        }
+
+                        exercisedTypes.Add(type.FullName!);
+                        currentType = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            $"Feature view '{type.FullName}' could not open, render, and close.", ex);
+                    }
+                }
+
+                if (viewTypes.Count < 20)
+                    throw new InvalidOperationException($"Only {viewTypes.Count} feature views were discovered.");
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+            finally
+            {
+                if (application is not null && hostField is not null)
+                    hostField.SetValue(application, null);
+                host?.Dispose();
+                application?.Shutdown();
+                completed.Set();
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Sati feature-view smoke test"
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+
+        Assert.True(completed.Wait(TimeSpan.FromSeconds(30)),
+            $"Feature-view smoke test did not complete within 30 seconds. Current view: {currentType ?? "none"}; completed: {exercisedTypes.Count}.");
+        thread.Join();
+        Assert.Null(failure);
+        Assert.True(exercisedTypes.Count >= 20,
+            $"Expected at least 20 feature views, exercised {exercisedTypes.Count}.");
+    }
     [Fact]
     public void RepeatedUiFailuresHaveAStableTechnicalFingerprint()
     {
@@ -841,6 +951,29 @@ public sealed class StabilizationTests
         }
     }
 
+    private sealed class SmokeAssessmentService : IComprehensiveAssessmentService
+    {
+        public Task<Models.Assessments.ComprehensiveAssessment> GetOrCreateDraftAsync(
+            int personId,
+            int authorUserId) => Task.FromResult(new Models.Assessments.ComprehensiveAssessment
+        {
+            PersonId = personId,
+            AuthorUserId = authorUserId
+        });
+
+        public Task SaveDocumentAsync(
+            Models.Assessments.ComprehensiveAssessment assessment,
+            Models.Assessments.AssessmentDocument document) => Task.CompletedTask;
+
+        public Task SubmitForReviewAsync(
+            Models.Assessments.ComprehensiveAssessment assessment) => Task.CompletedTask;
+    }
+
+    private sealed class SmokePlanSourceService : IPersonCenteredPlanSourceService
+    {
+        public Task<PersonCenteredPlanSource?> GetSourceAsync(int personId, int preferredAuthorUserId) =>
+            Task.FromResult<PersonCenteredPlanSource?>(null);
+    }
     private sealed class RetryRecordingEdiService : IEdiService
     {
         public List<string> Keys { get; } = [];

@@ -178,6 +178,13 @@ live, ready, and exact-version checks passed. The exact 1.2.8 installer passed i
 installation, version 1.2.8.0, 15-second responsiveness, and cleanup; SHA-256 is
 `85b0aa688860638d77d4197ac203ce3daf82d50e2ebb651bf9dcf51cc633e4e6`.
 
+Release 1.2.9 is locally source-complete but is not yet the live Azure pair. The runtime durability
+pass made theme resources component-relative, rendered the parameterless feature views on an STA
+WPF thread, and strengthened installer acceptance to require five responsive launches followed by
+normal window shutdown and exit code zero. Debug, Release, Demo, and current NuGet vulnerability
+checks passed. The rebuilt local installer SHA-256 is
+`c5d1e6bbaa1bd563d1b812ac0d8a283ce5e6a3895fd8c29fe66a7b95180ef9d8`. Do not collect final
+acceptance evidence until Azure authentication is refreshed and API 1.2.9 is deployed and verified.
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

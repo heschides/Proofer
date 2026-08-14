@@ -6,6 +6,12 @@ param(
     [ValidateRange(3, 60)]
     [int]$LaunchSeconds = 15,
 
+    [ValidateRange(1, 20)]
+    [int]$LaunchIterations = 1,
+
+    [ValidateRange(5, 60)]
+    [int]$CloseTimeoutSeconds = 15,
+
     [string]$WorkingRoot = (Join-Path ([System.IO.Path]::GetTempPath()) 'Satilogica\SatiDemoInstallerAcceptance'),
 
     [string]$EvidencePath,
@@ -75,19 +81,38 @@ try {
         throw "Installed version '$actualVersion' does not match installer version '$expectedVersion'."
     }
 
-    $app = Start-Process -FilePath $appPath -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
-    $deadline = (Get-Date).AddSeconds($LaunchSeconds)
-    do {
-        Start-Sleep -Milliseconds 500
-        $app.Refresh()
-        if ($app.HasExited) {
-            throw "Installed app exited during startup with code $($app.ExitCode)."
+    for ($iteration = 1; $iteration -le $LaunchIterations; $iteration++) {
+        $app = Start-Process -FilePath $appPath -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
+        $deadline = (Get-Date).AddSeconds($LaunchSeconds)
+        do {
+            Start-Sleep -Milliseconds 500
+            $app.Refresh()
+            if ($app.HasExited) {
+                throw "Installed app exited during startup iteration $iteration with code $($app.ExitCode)."
+            }
+        } while ((Get-Date) -lt $deadline)
+
+        if (-not $app.Responding) {
+            throw "Installed app stopped responding during launch iteration $iteration."
         }
-    } while ((Get-Date) -lt $deadline)
+        if (-not $app.CloseMainWindow()) {
+            throw "Installed app did not accept the normal window-close request during iteration $iteration."
+        }
+        if (-not $app.WaitForExit($CloseTimeoutSeconds * 1000)) {
+            throw "Installed app did not exit within $CloseTimeoutSeconds seconds of the normal window-close request during iteration $iteration."
+        }
+        $app.Refresh()
+        if ($app.ExitCode -ne 0) {
+            throw "Installed app exited with code $($app.ExitCode) during graceful-close iteration $iteration."
+        }
+
+        Write-Output "APP_WINDOW_LIFECYCLE_PASSED iteration=$iteration responding=True gracefulClose=True exitCode=0"
+        $app = $null
+    }
 
     $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-Output "INSTALLER_ACCEPTANCE_PASSED installer=$installerName sha256=$hash"
-    Write-Output "INSTALLED_APP_ACCEPTANCE_PASSED version=$actualVersion responding=$($app.Responding) launchSeconds=$LaunchSeconds"
+    Write-Output "INSTALLED_APP_ACCEPTANCE_PASSED version=$actualVersion responding=True launchSeconds=$LaunchSeconds iterations=$LaunchIterations gracefulClose=True"
 
     if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
         $resolvedEvidence = [System.IO.Path]::GetFullPath($EvidencePath)
@@ -109,8 +134,10 @@ try {
             InstallerFileName = $installerName
             InstallerSha256 = $hash
             InstalledVersion = $actualVersion
-            AppResponding = [bool]$app.Responding
+            AppResponding = $true
             LaunchSeconds = $LaunchSeconds
+            LaunchIterations = $LaunchIterations
+            GracefulClosePassed = $true
             MachineName = [Environment]::MachineName
             OsVersion = [Environment]::OSVersion.VersionString
             ExternalMachineConfirmed = [bool]$ExternalMachine
