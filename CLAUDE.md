@@ -99,6 +99,11 @@ Sati/
       Claim837PFactory.cs
       IClaimSubmissionService.cs
       FileSystemSubmissionService.cs
+  Tools/                — PowerShell maintenance scripts (see Tools/README.md)
+      Test-MigrationChain.ps1   — replays migrations, flags from-scratch failures
+      Test-SchemaDrift.ps1      — model snapshot vs actual database columns
+      New-SatiUser.ps1          — out-of-band account/role recovery
+  appsettings.template.json     — committed; appsettings.json itself is gitignored
 ```
 
 ---
@@ -112,6 +117,37 @@ view, Notes window, branding, global error handling, README, self-contained publ
 ScratchpadHistoryWindow, font/spacing polish, out-of-month warning, font size controls,
 spell check, supervisor dashboard (team overview, overdue items, monthly productivity
 with stacked bar chart).
+
+### Added August 2026 (second-machine setup session):
+
+**The administrator invariant — Sati never runs without an Admin account.** `App.OnStartup`
+counts admins after `Database.Migrate()` and opens `FirstRunAdminWindow` at zero; refusing
+it shuts the app down. `UserService.CreateFirstAdminAsync` re-checks server-side;
+`UserManagementViewModel` blocks demoting the last Admin. This exists because the loop was
+closed: the login screen only ever creates CaseManagers and the role editor sits behind an
+admin-gated tab, so a database with no Admin could never grow one. Do not "simplify" either
+guard away — they are two ends of one invariant. Note this is a **tenant** admin, scoped to
+one installation's database.
+
+**There is no cross-tenant/global administrator role, and one must not be added to the
+tenant application.** Decided, not deferred — see the scope calls in `DECISIONS.md` and the
+full design record in `REGULATORY_CONCERNS.md`. Restricting a global-admin build to
+Robin-Bradley AMS machines by policy is a policy control over a code capability; if the
+build can do it, one copied config file puts it in an agency. Cross-tenant administration,
+if ever needed, belongs in a separate application that tenant installs do not contain.
+
+Vendor support access (agency-granted, time-boxed, PHI-redacted) is fully specified in
+`REGULATORY_CONCERNS.md` and deliberately unbuilt: it depends on audit logging, and
+redaction must live at the projection boundary, never as UI masking. Until then, support is
+a screen-share with the agency's own admin signed in. If this comes up, the design is
+already written — don't re-derive it.
+
+**Migration hygiene.** A working database only ever receives new migrations, so migrations
+that replay earlier ones, and columns that exist in the model but no migration ever creates,
+are both invisible locally. Two of the former and one of the latter were found and fixed.
+Run `Tools/Test-MigrationChain.ps1` and `Tools/Test-SchemaDrift.ps1` before any release, and
+prefer `COL_LENGTH`-guarded SQL when a migration must tolerate databases already patched by
+hand.
 
 ### Immediately next (in strict order):
 

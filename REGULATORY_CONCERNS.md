@@ -118,6 +118,77 @@ the only control.
   business-associate/data-sharing responsibilities must be established before external
   organizations receive access.
 
+## Vendor support access to tenant installations
+
+*Design record, 2026-08-16. Nothing here is built. It is written down now so the decision
+is deliberate rather than made under pressure the first time an agency asks for help.*
+
+Once Sati runs at an agency, Robin-Bradley AMS is a **business associate** of that agency,
+and each relationship needs its own BAA. Every vendor access decision below follows from
+one rule: minimum necessary, evidenced.
+
+### No global or cross-tenant administrator role
+
+Sati's `Admin` is a **tenant** role, scoped to one installation's database. There is
+deliberately no cross-tenant or "global" administrator, and one must not be added to the
+tenant application.
+
+The tempting version — a global-admin capability that is only installed on vendor machines
+— is a policy control over a code capability, and it is the weak version. If the build can
+do it, then a copied configuration file, a support shortcut, or a single misconfiguration
+puts it in an agency, and after an incident "we had a policy against it" reads very
+differently than "the software cannot do that." Cross-tenant administration, when it is
+eventually needed, belongs in a **separate application** that tenant installations do not
+contain, that administers tenants (provisioning, licensing, billing) and cannot read PHI.
+
+### Support access model, when it is built
+
+An agency grants time-boxed diagnostic access to a vendor support account. Four properties
+make it defensible:
+
+1. **Redaction happens in the projection, not the view.** A support session must run
+   through read paths that never `SELECT` protected columns. Masking PHI in the UI after
+   retrieving it leaves that PHI in process memory, crash dumps, logs, and on the wire —
+   it produces the appearance of a control without the control. The existing
+   `IClientAiContextService` is the pattern to copy: it excludes Journal at the SQL
+   boundary rather than omitting it later.
+2. **PHI is not only the narratives.** Names, dates of birth, MaineCare IDs, addresses,
+   phone numbers, and diagnosis codes are identifiers too. A support session therefore sees
+   *structure*: row counts, record IDs, timestamps, workflow and form states, error
+   conditions, schema, settings, and user/role configuration. Consumers appear as
+   `Person #412`, never by name.
+   Accept the consequence: a fully redacted session cannot diagnose data-shaped bugs
+   ("this consumer's Q3 date is wrong"). Those remain a screen-share with the agency's own
+   administrator driving. Do not weaken the common case to serve the rare one.
+3. **The grant expires on its own.** Access must not depend on someone remembering to
+   switch it back off. Model it as an append-only `SupportAccessGrant` record — granted-by,
+   granted-at, expires-at, reason or ticket reference, revoked-at — not a boolean in
+   `Settings`. A flag works mechanically but discards who authorized what and why, which is
+   the entire evidentiary value. "Is support enabled" becomes a query over live grants.
+4. **The support account is its own role**, never the tenant `Admin`. Reusing `Admin` means
+   inheriting every PHI view and then enforcing redaction by discipline.
+
+Two distinct clocks, which are easily conflated:
+
+- The **grant window** is the outer bound, set by the agency (hours, not weeks).
+- The **session** is the inner bound. Thirty minutes idle is the appropriate order of
+  magnitude for a PHI system; a multi-hour session re-authenticated with the same password
+  adds little. The strength belongs in MFA on the support account, which is the
+  highest-risk credential in the product.
+
+Also required: named individual support accounts, never a shared vendor login; and an
+access log the **agency itself can read** — who, when, why, which records.
+
+### Sequencing
+
+Audit logging is a **prerequisite**, not a companion. Support access without an audit log
+is worse than no support access, because it creates the capability and none of the
+evidence. Build order: audit log (Phase 9) → `IQueryScopeService` redaction seam → grant
+model → support role.
+
+Until then, support is a screen-share with the agency's administrator signed in. That
+scales through the first several tenants and adds no access surface.
+
 ## Recommended domain concepts
 
 The document workflow should be shared by case managers and OADS reviewers rather than

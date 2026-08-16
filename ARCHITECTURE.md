@@ -10,6 +10,83 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 
 ---
 
+## Session Changelog — 2026-08-16
+
+Second-machine setup exposed three things the daily database could never show, plus the
+administrator invariant.
+
+- **`appsettings.json` is gitignored**, so a fresh clone has no connection string and dies
+  at the first database call. `appsettings.template.json` is now committed alongside it and
+  the README setup section leads with the copy step.
+- **The migration chain could not build a database from scratch.** `UnitstoDecimal` re-added
+  `Notes.ReturnedById` (SQL 2705) and `SyncModelState` repeated every operation in
+  `AddSupervisorFieldsToNote`. Both bodies are emptied rather than the files deleted, so the
+  migration IDs stay in the chain and databases that already record them see no gap.
+- **Model/schema drift.** `Notes.Minutes` and `Notes.StartTime` existed in the model and in
+  the working database, but no migration ever created them; a fresh database produced a
+  `Notes` table the model could not query.
+  `20260816120000_AddNoteMinutesAndStartTime` adds them, hand-authored because
+  `Add-Migration` diffs model against snapshot and both already listed the properties. Its
+  operations are `COL_LENGTH`-guarded so it is a no-op on databases that already have the
+  columns and has no history row for it.
+- `Tools/Test-MigrationChain.ps1` and `Tools/Test-SchemaDrift.ps1` detect both classes of
+  breakage without needing a spare machine.
+
+**The administrator invariant: Sati never runs against a database with no Admin.**
+
+This is not a convenience feature, it is a closed-loop fix. `NewUserViewModel` hardcodes
+`UserRole.CaseManager`, and the only role editor — Supervisor dashboard → User Management —
+sits behind a tab requiring Supervisor/Admin/Director. A database with no Admin therefore
+has no in-app path to ever having one. The invariant is enforced at both ends:
+
+- `App.OnStartup` counts admins after `Database.Migrate()` — after, so the `Users` table is
+  guaranteed to exist — and before any window that assumes a usable account. At zero it
+  shows `FirstRunAdminWindow` modally; anything other than a successful creation shuts the
+  application down rather than proceeding.
+- `UserService.CreateFirstAdminAsync` re-checks for an existing Admin inside the same
+  context that writes, so the window cannot be replayed later as a back door for minting
+  administrators. It also resolves the agency itself (lowest `Agency.Id`) rather than
+  accepting one from the UI, which keeps agency selection out of a first-run screen the
+  user has no context to answer.
+- `UserManagementViewModel.SaveChanges` refuses to demote the last remaining Admin, and
+  restores the selection so the UI cannot drift out of sync with what was saved.
+
+**Password confirmation is compared by value, not by length.** `Helpers/SecureStringHelper`
+is the single source of truth, used by both `FirstRunAdminViewModel` and `NewUserViewModel`.
+`NewUserViewModel` previously compared `PasswordInit.Length != PasswordConfirm.Length`, which
+passed any two different passwords of equal length — a typo in the confirm box silently
+created an account whose password was not what the user believed it to be. Verified after the
+fix by submitting `Password123` / `Password124` through Create Account: rejected.
+
+Note that `NewUserViewModel` reports validation failures by **throwing**, so they surface as
+the global "Unhandled exception" dialog with a stack trace rather than inline text.
+`FirstRunAdminViewModel` uses an `ErrorMessage` property instead. The throwing style is
+pre-existing and left alone.
+
+**Branding.** The login and Create Administrator windows now use
+`images/sati-watercolor-leaf.png`. Both set `Height` only, so width follows the artwork's
+aspect ratio and swapping the leaf again needs no retuning; the old `Opacity="0.85"` softening
+is gone, since the new mark is meant to read at full strength. `images/sati.ico` was replaced
+in place and is picked up by rebuild.
+
+`SplashScreenWindow` is now **composed in XAML** rather than displaying one flattened image.
+`satisplash.png` had the copper leaf and the wordmark baked together, so replacing the logo
+left the splash showing the old mark; the leaf, "Sati", "Case Management", the rule and the
+byline are now separate elements over themed brushes, and the dot animation is unchanged. The
+PNG stays on disk but is no longer embedded — restoring it means re-adding one `Resource`
+line. The letter-spaced "C A S E   M A N A G E M E N T" carries an
+`AutomationProperties.Name` of "Case Management" so Narrator reads the phrase instead of
+spelling it out.
+
+A note for anyone verifying WPF windows by screenshot on this machine: the display runs at
+150% scale, so a DPI-unaware capture harness reports an 800x533 window and renders only the
+top-left 800x533 of its true 1200x800 surface. That looks exactly like clipped layout and is
+not. Call `SetProcessDPIAware` in the capture tool, or measure with UI Automation, whose
+`BoundingRectangle` reports real physical pixels.
+
+`Tools/New-SatiUser.ps1` stays as the out-of-band recovery hatch for a locked-out admin;
+it mirrors `PasswordHasher` exactly (PBKDF2-SHA256, 100k iterations, base64 hash and salt).
+
 ## Session Changelog — 2026-08-07
 
 First functional Comprehensive Assessment slice:

@@ -162,6 +162,26 @@ The AT passthrough dropdown lists *all* passthrough providers and can't pre-sele
 That association is its own model and slice; the four `OfferedServices` flags are inert
 until it lands.
 
+### No global/cross-tenant administrator role
+
+`UserRole.Admin` is scoped to one installation's database. A cross-tenant "global admin"
+was considered and rejected for the tenant application outright - not deferred, rejected.
+Restricting such a build to vendor machines by policy is a policy control over a code
+capability: one copied `appsettings.json` or support shortcut puts it in an agency, and
+"we had a policy" is not a defense after an incident. If cross-tenant administration is
+ever needed it belongs in a separate application that tenant installs do not contain, and
+that cannot read PHI. Reasoning in `REGULATORY_CONCERNS.md`.
+
+### Vendor support access: designed, deliberately not built
+
+The time-boxed, agency-granted, PHI-redacted support account is fully specified in
+`REGULATORY_CONCERNS.md` and intentionally unbuilt. It depends on audit logging, which
+doesn't exist yet - and support access without an audit log is strictly worse than none,
+since it creates the capability and none of the evidence. Two further reasons to wait:
+redaction has to live at the projection boundary (a `IQueryScopeService`-shaped seam that
+arrives with the Phase 9 service work), and screen-share with the agency's own admin
+signed in covers the first several tenants at zero new access surface.
+
 ## Comprehensive Assessment and Person-Centered Plan
 
 ### Assessment scope is waiver-agnostic

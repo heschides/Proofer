@@ -70,11 +70,23 @@ factory delegate pattern throughout.
 Sati requires .NET 10 and SQL Server LocalDB (included with Visual Studio).
 
 1. Clone the repository
-2. Open `Sati.slnx` in Visual Studio 2022 or later
-3. The database will be created and migrated automatically on first run
-4. Create a user account from the login screen to get started
+2. Copy `appsettings.template.json` to `appsettings.json` in the project root. The real
+   file is gitignored because it holds the connection string, so a fresh clone has no
+   configuration and startup fails at the first database call
+3. Open `Sati.slnx` in Visual Studio 2022 or later
+4. The database will be created and migrated automatically on first run
+5. On first launch Sati opens a **Create Administrator** window and will not continue past
+   it. Sati never runs against a database with no administrator, because the role editor
+   itself sits behind an administrator-gated tab — a database with no admin could never
+   grow one from inside the app
+6. Sign in as that administrator. Additional users are created from the login screen and
+   assigned roles from Supervisor → User Management
 
-No manual database configuration is required for local development.
+The template's default connection string targets SQL Server LocalDB
+(`(localdb)\MSSQLLocalDB`) and needs no further changes for local development.
+
+Maintenance scripts live in [`Tools/`](Tools/README.md) — migration-chain and schema-drift
+checks to run before a release, and an account recovery script.
 
 ---
 

@@ -158,12 +158,56 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 ## Pre-Release Fixes
 *Must address before shipping to team or OADS*
 
+- [x] No in-app path to the first elevated account — **done 2026-08-16.** `App.OnStartup`
+  now counts admins after `Migrate()` and, at zero, opens `FirstRunAdminWindow`; closing it
+  without creating one shuts Sati down. `UserService.CreateFirstAdminAsync` re-checks
+  server-side so the window cannot be replayed as a back door, and
+  `UserManagementViewModel` refuses to demote the last remaining Admin. The invariant is
+  "Sati never runs without an administrator", enforced at both ends.
+  `Tools/New-SatiUser.ps1` remains the out-of-band recovery hatch.
+- [x] Splash screen showed the old copper leaf — **done 2026-08-16.** `satisplash.png` was a
+  flattened composite (leaf + wordmark baked together), so it could not follow the logo
+  change. `SplashScreenWindow.xaml` now composes the mark, wordmark and byline from
+  `sati-watercolor-leaf.png` plus themed text, so it tracks the logo and the palette from
+  here on. The image is still on disk but no longer embedded.
+- [ ] `NewUserViewModel.CreateUser` dereferences `AssignedAgency.Id` (line 70), but
+  nothing ever assigns `AssignedAgency` — not `NewUserWindow.xaml`, not its code-behind,
+  not `InitializeAsync`. This is the source of the standing CS8602 build warning and
+  looks like a `NullReferenceException` on any "Create an account" attempt. Needs an
+  agency picker in the window, or a default agency, before the flow works at all.
 - [ ] Annual form regeneration — when a client's anniversary rolls over, generate new
   Form records for the new compliance cycle
 - [ ] First login / scheduler prompt — verify `wasCreated` behavior across month boundaries
   once `GetOrCreateAsync` bug is fixed
 - [ ] Accessibility audit — icon-only buttons missing `AutomationProperties.Name`;
   compliance checkboxes unassociated from labels; color-only overdue indicators
+- [ ] Verify migrations apply to an *empty* database before each release. Nothing
+  currently tests this. The working database only ever sees new migrations and has been
+  hand-patched over time, so two whole classes of breakage stay invisible there and only
+  appear when someone builds from zero. Both were found 2026-08-16 while setting up a
+  second Windows account, and both would have hit Nate's alpha machine and every future
+  agency deployment:
+  1. *Migrations that replay earlier ones* — recorded as applied, so they never re-run
+     locally. `UnitstoDecimal` re-added `Notes.ReturnedById` (SQL 2705) and
+     `SyncModelState` repeated every operation in `AddSupervisorFieldsToNote`. Both
+     bodies are now emptied, with comments explaining why.
+  2. *Model/schema drift* — `Notes.Minutes` and `Notes.StartTime` existed in the model
+     and in the working database but no migration ever created them, so a fresh database
+     produced a `Notes` table the model could not query. First dashboard load after login
+     died in `NoteService.UpdateAbandonedNotesAsync` with "Invalid column name".
+     `20260816120000_AddNoteMinutesAndStartTime` adds them, guarded with `COL_LENGTH`
+     checks so it is also safe on databases that already have the columns.
+  Note that `Add-Migration` cannot catch case 2: it diffs the model against
+  `SatiContextModelSnapshot`, and the snapshot already listed both properties. The gap is
+  between the snapshot and what the migration files actually build, which only a
+  from-scratch apply reveals.
+  `Tools/Test-MigrationChain.ps1` and `Tools/Test-SchemaDrift.ps1` now check for both
+  classes automatically; run them before every release. Both report clean as of 2026-08-16
+  (49 migrations replayed, 260 model columns compared).
+- [ ] `LoadAsync` in `CaseManagerDashboardViewModel` swallows its exception into
+  `Debug.WriteLine` and shows only "Sati encountered an error loading your data." Any
+  startup data failure is invisible outside a debugger — this is what hid the drift above.
+  Worth logging `ex.ToString()` somewhere durable before the team rollout.
 
 ---
 
@@ -180,6 +224,31 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [ ] Per-agency database isolation strategy
 - [ ] Connection string secret management (no plaintext in appsettings.json)
 - [ ] Settings per-user (currently global)
+
+### Vendor support access — strictly in this order
+*Full design record in `REGULATORY_CONCERNS.md`. Do not start mid-list: support access
+without an audit log creates the capability and none of the evidence, which is worse than
+having no support access at all. Until all four land, support is a screen-share with the
+agency's own admin signed in.*
+
+- [ ] 1. Audit logging (the item above) — hard prerequisite for everything below
+- [ ] 2. Redaction seam in `IQueryScopeService` — support-mode read paths that never
+  `SELECT` protected columns. Projection-level, not UI masking: hiding PHI after retrieving
+  it still puts it in memory, crash dumps, logs, and on the wire. Copy the
+  `IClientAiContextService` pattern, which excludes Journal at the SQL boundary.
+  Remember identifiers count as PHI — support sees `Person #412`, counts, states,
+  timestamps, and config, never names, DOB, MaineCare IDs, addresses, or diagnosis codes
+- [ ] 3. `SupportAccessGrant` — append-only record (granted-by, granted-at, expires-at,
+  reason/ticket, revoked-at), NOT a boolean in Settings. Expiry is the mechanism; manual
+  revoke is a bonus. A flag would discard who authorized what and why, which is the whole
+  evidentiary value
+- [ ] 4. `UserRole.Support` — its own role, never the tenant `Admin`, which would inherit
+  every PHI view. Named individuals, never a shared vendor login. MFA belongs here first:
+  it is the highest-risk credential in the product. Two clocks — the agency's grant window
+  (hours) and the session idle timeout (~30 min); a long session re-authenticated with the
+  same password buys little
+- [ ] 5. Agency-readable access log — who, when, why, which records
+
 ## Billing Pipeline (Next Dedicated Session)
 
 ### Data model changes needed
