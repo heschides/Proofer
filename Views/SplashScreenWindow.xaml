@@ -1,51 +1,99 @@
-<Window x:Class="Sati.Views.SplashScreenWindow"
+﻿<Window x:Class="Sati.Views.SplashScreenWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         WindowStartupLocation="CenterScreen"
-        SizeToContent="WidthAndHeight"
-        ShowInTaskbar="False">
+        SizeToContent="Manual"
+        Width="800"
+        Height="533"
+        ShowInTaskbar="False"
+        AutomationProperties.Name="Sati is starting">
 
+    <!-- Composed in XAML rather than shown as one flattened image, so the mark, the wordmark
+         and the palette all follow the theme and the logo asset. The previous satisplash.png
+         baked the leaf and the text together, so replacing the logo left the splash showing
+         the old one. Footprint kept at the image's original 800x533.
+
+         The content sits in a Viewbox so it scales down as a unit if it ever exceeds the
+         space left after padding — cheap insurance, since the wordmark is live text now and
+         font substitution or a differently proportioned leaf could otherwise overflow on a
+         machine that renders them differently than this one. -->
     <Border Background="{DynamicResource WindowBackgroundBrush}"
-            CornerRadius="8">
-        <Grid>
-            <Image Source="pack://application:,,,/images/satisplash.png"
-                   Width="800"
-                   Height="533"
-                   Stretch="Uniform" />
+            CornerRadius="8"
+            Padding="56,44">
+        <Viewbox Stretch="Uniform"
+                 StretchDirection="DownOnly">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center">
 
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Bottom"
-                        Margin="0,0,0,40">
-                <Ellipse x:Name="Dot1"
-                         Width="10"
-                         Height="10"
-                         Margin="6,0"
-                         Fill="{DynamicResource AccentBrush}" />
-                <Ellipse x:Name="Dot2"
-                         Width="10"
-                         Height="10"
-                         Margin="6,0"
-                         Fill="{DynamicResource HoverStrongBrush}" />
-                <Ellipse x:Name="Dot3"
-                         Width="10"
-                         Height="10"
-                         Margin="6,0"
-                         Fill="{DynamicResource HoverStrongBrush}" />
-                <Ellipse x:Name="Dot4"
-                         Width="10"
-                         Height="10"
-                         Margin="6,0"
-                         Fill="{DynamicResource HoverStrongBrush}" />
-                <Ellipse x:Name="Dot5"
-                         Width="10"
-                         Height="10"
-                         Margin="6,0"
-                         Fill="{DynamicResource HoverStrongBrush}" />
+                    <!-- Height only: width follows the artwork's aspect ratio. -->
+                    <Image Source="pack://application:,,,/images/sati-watercolor-leaf.png"
+                           Height="260"
+                           Margin="0,0,48,0"
+                           AutomationProperties.Name="Sati logo" />
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Sati"
+                                   FontFamily="Palatino Linotype"
+                                   FontSize="76"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4" />
+
+                        <!-- Spaced glyphs reproduce the original's letter-spaced small caps;
+                             WPF has no letter-spacing property. AutomationProperties.Name
+                             restores the real phrase so Narrator does not spell it out. -->
+                        <TextBlock Text="C A S E   M A N A G E M E N T"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   AutomationProperties.Name="Case Management"
+                                   Margin="4,0,0,12" />
+
+                        <Border Height="1"
+                                Background="{DynamicResource HoverStrongBrush}"
+                                Margin="4,0,0,14" />
+
+                        <TextBlock Text="By Robin-Bradley AMS"
+                                   FontFamily="Palatino Linotype"
+                                   FontSize="26"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="4,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Margin="0,44,0,0">
+                    <Ellipse x:Name="Dot1"
+                             Width="10"
+                             Height="10"
+                             Margin="6,0"
+                             Fill="{DynamicResource AccentBrush}" />
+                    <Ellipse x:Name="Dot2"
+                             Width="10"
+                             Height="10"
+                             Margin="6,0"
+                             Fill="{DynamicResource HoverStrongBrush}" />
+                    <Ellipse x:Name="Dot3"
+                             Width="10"
+                             Height="10"
+                             Margin="6,0"
+                             Fill="{DynamicResource HoverStrongBrush}" />
+                    <Ellipse x:Name="Dot4"
+                             Width="10"
+                             Height="10"
+                             Margin="6,0"
+                             Fill="{DynamicResource HoverStrongBrush}" />
+                    <Ellipse x:Name="Dot5"
+                             Width="10"
+                             Height="10"
+                             Margin="6,0"
+                             Fill="{DynamicResource HoverStrongBrush}" />
+                </StackPanel>
             </StackPanel>
-        </Grid>
+        </Viewbox>
     </Border>
 </Window>

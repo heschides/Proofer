@@ -30,8 +30,10 @@
 	</ItemGroup>
 
   <ItemGroup>
+    <Resource Include="images\sati-watercolor-leaf.png" />
     <Resource Include="images\leaf.png" />
-    <Resource Include="Images\satisplash.png" />
+    <!-- satisplash.png is no longer embedded: the splash is composed in XAML now. The file
+         is still on disk, so restoring the flat image only means re-adding it here. -->
   </ItemGroup>
 
   <ItemGroup>

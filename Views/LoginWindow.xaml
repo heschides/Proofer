@@ -124,12 +124,13 @@
         <StackPanel VerticalAlignment="Center">
 
             <!-- Bodhi leaf -->
-            <Image Source="pack://application:,,,/images/leaf.png"
+            <!-- Height only: width follows the artwork's aspect ratio, so replacing the
+                 leaf again does not require retuning a hardcoded width. -->
+            <Image Source="pack://application:,,,/images/sati-watercolor-leaf.png"
                    Height="72"
-                   Width="48"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,12"
-                   Opacity="0.85" />
+                   AutomationProperties.Name="Sati logo" />
 
             <!-- Title -->
             <TextBlock Text="Sati"
