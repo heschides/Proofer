@@ -98,6 +98,8 @@ namespace Sati
                         // Modal windows and their ViewModels
                         services.AddTransient<LoginWindow>();
                         services.AddTransient<LoginWindowViewModel>();
+                        services.AddTransient<FirstRunAdminWindow>();
+                        services.AddTransient<FirstRunAdminViewModel>();
                         services.AddTransient<NewUserWindow>();
                         services.AddTransient<NewUserViewModel>();
                         services.AddTransient<SettingsViewModel>();
@@ -157,6 +159,22 @@ namespace Sati
                 splash.Show();
                 await Task.Delay(3000);
                 splash.Close();
+
+                // Sati must never run without an administrator. Role editing lives behind a
+                // supervisor-gated tab and the login screen only ever creates CaseManagers,
+                // so a database with no Admin can never grow one from inside the app. Gate
+                // startup here — after Migrate, so the Users table is guaranteed to exist,
+                // and before any window that assumes a usable account.
+                var userService = _host.Services.GetRequiredService<IUserService>();
+                if (await userService.AdminCountAsync() == 0)
+                {
+                    var firstRunWindow = _host.Services.GetRequiredService<FirstRunAdminWindow>();
+                    if (firstRunWindow.ShowDialog() != true)
+                    {
+                        Shutdown();
+                        return;
+                    }
+                }
 
                 var loginWindow = _host.Services.GetRequiredService<LoginWindow>();
                 bool? result = loginWindow.ShowDialog();

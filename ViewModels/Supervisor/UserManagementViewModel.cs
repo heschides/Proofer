@@ -82,6 +82,20 @@ namespace Sati.ViewModels.Supervisor
             if (SelectedUser is null)
                 return;
 
+            // The startup gate guarantees an Admin exists; this keeps it that way. Demoting
+            // the last one would leave a database no one can administer, and no in-app path
+            // back — the first-run window only opens when there are zero admins, and by then
+            // the app has already refused to start.
+            if (SelectedUser.Role == UserRole.Admin
+                && SelectedRole != UserRole.Admin
+                && await _userService.AdminCountAsync() <= 1)
+            {
+                StatusMessage = "Sati requires at least one administrator. "
+                    + "Promote another user to Admin before changing this role.";
+                SelectedRole = UserRole.Admin;
+                return;
+            }
+
             try
             {
                 SelectedUser.Role = SelectedRole;

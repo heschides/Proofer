@@ -76,5 +76,43 @@ namespace Sati.Data
                 .Where(u => u.SupervisorId == supervisorId && u.Role == UserRole.CaseManager)
                 .ToListAsync();
         }
+
+        public async Task<int> AdminCountAsync()
+        {
+            await using var context = _contextFactory.CreateDbContext();
+            return await context.Users.CountAsync(u => u.Role == UserRole.Admin);
+        }
+
+        // The agency is resolved here rather than chosen in the UI: at first run the
+        // database holds only the seeded agencies, and asking someone to pick one before
+        // they have seen the app is noise. Admins can reassign afterwards.
+        public async Task<User> CreateFirstAdminAsync(
+            string username, string displayName, SecureString password)
+        {
+            await using var context = _contextFactory.CreateDbContext();
+
+            if (await context.Users.AnyAsync(u => u.Role == UserRole.Admin))
+                throw new InvalidOperationException(
+                    "An administrator already exists. Use user management to change roles.");
+
+            if (await context.Users.AnyAsync(u => u.Username == username))
+                throw new InvalidOperationException("A user with that username already exists.");
+
+            var agencyId = await context.Agencies
+                .OrderBy(a => a.Id)
+                .Select(a => a.Id)
+                .FirstOrDefaultAsync();
+
+            if (agencyId == 0)
+                throw new InvalidOperationException(
+                    "No agency exists to assign the administrator to.");
+
+            var (hash, salt) = _hasher.HashPassword(password);
+            var admin = User.Create(0, username, displayName, hash, salt, UserRole.Admin, null, agencyId);
+
+            context.Users.Add(admin);
+            await context.SaveChangesAsync();
+            return admin;
+        }
     }
 }

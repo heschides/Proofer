@@ -1,0 +1,194 @@
+﻿<Window x:Class="Sati.Views.FirstRunAdminWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Sati.Views"
+        Icon="/images/sati.ico"
+        mc:Ignorable="d"
+        Title="Sati — Create Administrator"
+        Height="660"
+        Width="400"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{DynamicResource WindowBackgroundBrush}">
+
+    <Window.Resources>
+        <Style x:Key="LabelStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin"
+                    Value="0,0,0,5" />
+        </Style>
+
+        <Style x:Key="InputStyle"
+               TargetType="Control">
+            <Setter Property="Height"
+                    Value="36" />
+            <Setter Property="Padding"
+                    Value="10,0" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Background"
+                    Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{DynamicResource HoverStrongBrush}" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Margin"
+                    Value="0,0,0,16" />
+        </Style>
+
+        <Style x:Key="PrimaryButton"
+               TargetType="Button">
+            <Setter Property="Height"
+                    Value="40" />
+            <Setter Property="Background"
+                    Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground"
+                    Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Cursor"
+                    Value="Hand" />
+            <Setter Property="Margin"
+                    Value="0,4,0,12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="{DynamicResource AccentHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter Property="Background"
+                                        Value="{DynamicResource AccentPressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="40,32,40,32">
+        <StackPanel VerticalAlignment="Center">
+
+            <!-- Bodhi leaf -->
+            <Image Source="pack://application:,,,/images/sati-watercolor-leaf.png"
+                   Height="60"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,10"
+                   AutomationProperties.Name="Sati logo" />
+
+            <TextBlock Text="Welcome to Sati"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       FontFamily="Palatino Linotype"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,8" />
+
+            <!-- States the reason in text, not by implication: this window has no cancel,
+                 and the reader deserves to know why before filling it in. -->
+            <TextBlock Text="Sati needs an administrator account before it can be used. This account manages users, roles, and billing access. It cannot be created later from the login screen."
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       Margin="0,0,0,24" />
+
+            <TextBlock Text="FULL NAME"
+                       Style="{StaticResource LabelStyle}" />
+            <TextBox x:Name="DisplayNameInput"
+                     AutomationProperties.Name="Full name"
+                     Style="{StaticResource InputStyle}"
+                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalContentAlignment="Center" />
+
+            <TextBlock Text="USERNAME"
+                       Style="{StaticResource LabelStyle}" />
+            <TextBox AutomationProperties.Name="Username"
+                     Style="{StaticResource InputStyle}"
+                     Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalContentAlignment="Center" />
+
+            <TextBlock Text="PASSWORD"
+                       Style="{StaticResource LabelStyle}" />
+            <PasswordBox x:Name="PasswordInput"
+                         AutomationProperties.Name="Password, at least 8 characters"
+                         AutomationProperties.HelpText="Must be at least 8 characters."
+                         Style="{StaticResource InputStyle}"
+                         PasswordChanged="PasswordInput_PasswordChanged"
+                         VerticalContentAlignment="Center" />
+
+            <TextBlock Text="CONFIRM PASSWORD"
+                       Style="{StaticResource LabelStyle}" />
+            <PasswordBox x:Name="PasswordConfirmInput"
+                         AutomationProperties.Name="Confirm password"
+                         Style="{StaticResource InputStyle}"
+                         PasswordChanged="PasswordConfirmInput_PasswordChanged"
+                         KeyDown="PasswordConfirmInput_KeyDown"
+                         VerticalContentAlignment="Center" />
+
+            <!-- LiveSetting announces validation failures to Narrator without stealing focus
+                 from the field the user is still working in. Deliberately NO
+                 AutomationProperties.Name: a Name here would override the bound text, so
+                 Narrator would announce "Error message" instead of what is actually wrong. -->
+            <TextBlock Text="{Binding ErrorMessage}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource OverdueBrush}"
+                       Margin="0,0,0,8"
+                       AutomationProperties.LiveSetting="Assertive">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility"
+                                Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ErrorMessage}"
+                                         Value="">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Button Content="Create Administrator"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding CreateAdminCommand}"
+                    IsDefault="True"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" />
+
+            <TextBlock Text="by Robin-Bradley AMS"
+                       FontSize="10"
+                       Foreground="{DynamicResource InputBorderBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,12,0,0"
+                       FontStyle="Italic" />
+
+        </StackPanel>
+    </Border>
+</Window>
