@@ -7,7 +7,7 @@ The Demo build:
 - launches directly into the Azure Demo environment;
 - connects only to the public HTTPS API configured in `appsettings.Public.json`;
 - does not package `appsettings.json`, a SQL connection string, or an Azure credential;
-- installs under `%LOCALAPPDATA%\Programs\Satilogica\Sati Demo`;
+- installs under `%LOCALAPPDATA%\Programs\SatiLogica\Sati Demo`;
 - creates Start Menu and Desktop shortcuts and a Windows uninstall entry;
 - includes the .NET runtime, so the receiving computer does not need a separate .NET installation.
 - exposes the installed version and release notes from the Settings window.
@@ -25,7 +25,7 @@ Run the isolated installation and launch acceptance test from the repository roo
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
     .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.15.exe `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.17.exe `
     -LaunchIterations 5
 ```
 

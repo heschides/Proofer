@@ -26,6 +26,7 @@ using Xunit;
 
 namespace Sati.Tests;
 
+[Collection(PdfRenderingCollection.Name)]
 public sealed class StabilizationTests
 {
     [Fact]
@@ -376,9 +377,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.15", version);
+        Assert.Equal("1.2.17", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Settings access and release clarity", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Startup resource safety and concurrency", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
@@ -399,6 +400,10 @@ public sealed class StabilizationTests
             directory.FullName,
             "Views",
             "LoginWindow.xaml.cs"));
+        var splashView = File.ReadAllText(Path.Combine(
+            directory.FullName,
+            "Views",
+            "SplashScreenWindow.xaml"));
         Assert.Contains("x:Name=\"ReleaseVersionText\"", loginView);
         Assert.Contains("VerticalAlignment=\"Bottom\"", loginView);
         Assert.Contains("HorizontalAlignment=\"Right\"", loginView);
@@ -409,6 +414,16 @@ public sealed class StabilizationTests
         Assert.DoesNotContain("DialogResult = success;\n                Close();", loginCodeBehind);
         Assert.Contains("IsSigningIn", loginViewModel);
         Assert.DoesNotContain("ReleaseVersion", loginViewModel);
+        Assert.Contains("sati-watercolor-leaf.png", loginView);
+        Assert.Contains("sati-watercolor-leaf.png", splashView);
+        Assert.Contains("pack://application:,,,/images/sati-watercolor-leaf.png", loginView);
+        Assert.Contains("pack://application:,,,/images/sati-watercolor-leaf.png", splashView);
+        Assert.DoesNotContain("/Sati;component/", loginView);
+        Assert.DoesNotContain("/Sati;component/", splashView);
+        Assert.True(File.Exists(Path.Combine(
+            directory.FullName,
+            "images",
+            "sati-watercolor-leaf.png")));
     }
 
     [Fact]
@@ -578,6 +593,8 @@ public sealed class StabilizationTests
         Assert.Contains("Gate = 'CleanMachineLaunch'", installer);
         Assert.Contains("ExternalMachineConfirmed", installer);
         Assert.Contains("SourceTreeDetected", installer);
+        Assert.Contains("$app.MainWindowTitle -notmatch 'Sign in'", installer);
+        Assert.Contains("did not reach the login window", installer);
         Assert.Contains("Gate = 'AuthenticatedApiReadiness'", readiness);
         Assert.Contains("Authenticated = $false", readiness);
         Assert.Contains("Authenticated = $true", readiness);

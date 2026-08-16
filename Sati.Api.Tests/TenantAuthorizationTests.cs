@@ -5,7 +5,8 @@ using Xunit;
 
 namespace Sati.Api.Tests;
 
-public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
+[Collection(SatiApiCollection.Name)]
+public sealed class TenantAuthorizationTests
 {
     private readonly SatiApiFactory _factory;
 
@@ -30,7 +31,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.15", release["releaseVersion"]);
+        Assert.Equal("1.2.17", release["releaseVersion"]);
     }
 
     [Fact]
@@ -1160,6 +1161,307 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         Assert.Equal("Scratchpad", savedEvent.ResourceType);
     }
 
+    // ── Provider directory entries carry durable organization identity ────────
+    // A directory entry names a real organization that may later join the platform
+    // as a tenant. These identifiers are what make that recognition possible, so
+    // they must be validated on the way in and unique within an agency — while
+    // remaining free to repeat ACROSS agencies, because each agency keeps its own
+    // local record of the same organization.
+
+    [Fact]
+    public async Task ProviderIdentifiersRoundTrip()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var created = new List<(HttpClient, int)>();
+        try
+        {
+            var response = await admin.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Spurwink Roundtrip", "1245319599", "MC-RT-1"));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var saved = await response.Content.ReadFromJsonAsync<ProviderDto>();
+            created.Add((admin, saved!.Id));
+
+            Assert.Equal("1245319599", saved.Npi);
+            Assert.Equal("MC-RT-1", saved.MaineCareProviderId);
+        }
+        finally { await CleanUpProvidersAsync(created); }
+    }
+
+    [Fact]
+    public async Task ProviderNpiMustPassItsCheckDigit()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        // Ten digits, wrong Luhn check digit — a plausible typo rather than nonsense.
+        // Nothing is created, so there is nothing to clean up.
+        var response = await admin.PostAsJsonAsync(
+            "/api/v1/providers", IdentifiedProviderRequest("Bad NPI", "1245319598", null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("npi", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SameOrganizationCannotBeEnteredTwiceWithinOneAgency()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var created = new List<(HttpClient, int)>();
+        try
+        {
+            var first = await admin.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Spurwink", null, "MC-DUP-1"));
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            created.Add((admin, (await first.Content.ReadFromJsonAsync<ProviderDto>())!.Id));
+
+            // Same organization, typed again under a slightly different name.
+            var second = await admin.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Spurwink Services", null, "MC-DUP-1"));
+
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            var error = await second.Content.ReadFromJsonAsync<ApiErrorDto>();
+            Assert.Equal("duplicate_provider_identifier", error!.Code);
+            Assert.Contains("Spurwink", error.Message, StringComparison.Ordinal);
+        }
+        finally { await CleanUpProvidersAsync(created); }
+    }
+
+    [Fact]
+    public async Task TwoAgenciesMayEachKeepTheirOwnEntryForOneOrganization()
+    {
+        // Not a duplicate: each agency holds its own contacts and notes for the same
+        // organization. Only the platform-level identity is shared, and that link is
+        // deliberately not modelled yet.
+        using var agencyOne = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        using var agencyTwo = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        var created = new List<(HttpClient, int)>();
+        try
+        {
+            var first = await agencyOne.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Shared Org", null, "MC-SHARED-1"));
+            var second = await agencyTwo.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Shared Org", null, "MC-SHARED-1"));
+
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+            created.Add((agencyOne, (await first.Content.ReadFromJsonAsync<ProviderDto>())!.Id));
+            created.Add((agencyTwo, (await second.Content.ReadFromJsonAsync<ProviderDto>())!.Id));
+        }
+        finally { await CleanUpProvidersAsync(created); }
+    }
+
+    [Fact]
+    public async Task EditingAProviderDoesNotCollideWithItself()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var created = new List<(HttpClient, int)>();
+        try
+        {
+            var response = await admin.PostAsJsonAsync(
+                "/api/v1/providers", IdentifiedProviderRequest("Self Edit", null, "MC-SELF-1"));
+            var provider = await response.Content.ReadFromJsonAsync<ProviderDto>();
+            created.Add((admin, provider!.Id));
+
+            var updated = await admin.PutAsJsonAsync(
+                $"/api/v1/providers/{provider.Id}",
+                IdentifiedProviderRequest("Self Edit Renamed", null, "MC-SELF-1"));
+
+            Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        }
+        finally { await CleanUpProvidersAsync(created); }
+    }
+
+    private static SaveProviderRequest IdentifiedProviderRequest(
+        string name, string? npi, string? maineCareProviderId) =>
+        new("Other", name, null, null, null, null, null, null, 0, false, null, null, null,
+            npi, maineCareProviderId);
+
+    // The fixture's database is shared across the whole class, and sibling tests
+    // assert exact provider counts per agency. Anything these tests create must be
+    // removed again so the suite stays order-independent.
+    private static async Task CleanUpProvidersAsync(IEnumerable<(HttpClient Client, int Id)> created)
+    {
+        foreach (var (client, id) in created)
+            await client.DeleteAsync($"/api/v1/providers/{id}");
+    }
+
+    // ── Sign-in must not reveal whether an account exists ─────────────────────
+
+    [Fact]
+    public async Task UnknownUsernameAndWrongPasswordAreIndistinguishable()
+    {
+        using var client = await _factory.CreateSeededAnonymousClientAsync();
+
+        var unknown = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest("no-such-account-here", "WrongPassword!1"));
+        var wrongPassword = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest("case-manager-one", "WrongPassword!1"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
+        Assert.Equal(
+            await unknown.Content.ReadAsStringAsync(),
+            await wrongPassword.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task SignInSpendsTheSameWorkWhetherOrNotTheAccountExists()
+    {
+        // Regression guard for a username-enumeration oracle. Both measurements
+        // include the same fixed HTTP and framework overhead; the only difference
+        // is whether the request spends 100,000 PBKDF2 iterations. With the fix
+        // the ratio sits near 1.0. Reverting the fix measured 0.29 on this
+        // machine, so 0.6 leaves clear room on both sides.
+        using var client = await _factory.CreateSeededAnonymousClientAsync();
+
+        var unknown = await MinimumLoginMillisecondsAsync(client, "no-such-account-timing");
+        var wrongPassword = await MinimumLoginMillisecondsAsync(client, "stale-badge-user");
+
+        Assert.True(
+            unknown >= wrongPassword * 0.6,
+            $"A sign-in for a missing account took {unknown:F1}ms against {wrongPassword:F1}ms " +
+            "for a wrong password, which lets an attacker enumerate valid usernames by timing.");
+    }
+
+    private static async Task<double> MinimumLoginMillisecondsAsync(HttpClient client, string username)
+    {
+        // One warm-up so JIT and connection setup are not measured, then the
+        // minimum of two samples — the least noise-prone timing statistic.
+        // Attempt counts stay well under the per-username lockout of 12.
+        var best = double.MaxValue;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            using var response = await client.PostAsJsonAsync(
+                "/api/v1/auth/login", new LoginRequest(username, "WrongPassword!1"));
+            stopwatch.Stop();
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            if (attempt > 0)
+                best = Math.Min(best, stopwatch.Elapsed.TotalMilliseconds);
+        }
+
+        return best;
+    }
+
+    // ── Audit export must be inert when opened in a spreadsheet ───────────────
+
+    [Fact]
+    public async Task AuditExportNeutralizesSpreadsheetFormulas()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var response = await admin.PostAsJsonAsync(
+            "/api/v1/admin/audit-export.csv",
+            new AdminAuditExportRequest(
+                DateTime.UtcNow.AddDays(-30),
+                DateTime.UtcNow,
+                "=HYPERLINK(\"http://attacker.example\",\"Reason\")"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var csv = await response.Content.ReadAsStringAsync();
+        Assert.StartsWith(AuditCsv.Header, csv.TrimStart('﻿'), StringComparison.Ordinal);
+        // Quoting alone would leave "=HYPERLINK(... ; the apostrophe is what stops
+        // the reader's spreadsheet from evaluating it.
+        Assert.DoesNotContain("\"=HYPERLINK", csv, StringComparison.Ordinal);
+        Assert.Contains("\"'=HYPERLINK", csv, StringComparison.Ordinal);
+    }
+
+    // ── Service-day overlap ───────────────────────────────────────────────────
+    // Overlap is scoped to the CASE MANAGER's day. These cases deliberately use
+    // two different clients on the same caseload: billing 9:00–9:15 for one
+    // client and 9:10–9:20 for another double-bills ten minutes of one person's
+    // time, which is the failure the rule exists to stop.
+
+    [Fact]
+    public async Task OverlappingServiceTimeIsRefusedAcrossTheWholeCaseload()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var date = new DateTime(2026, 9, 22);
+
+        // 9:00 AM for 15 minutes: 120 minutes after the 7:00 AM window start.
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 120, minutes: 15, personId: 101, "Nine o'clock contact"));
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        // 9:10 AM for 10 minutes, a different client on the same caseload.
+        var overlapping = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 130, minutes: 10, personId: 102, "Overlapping contact"));
+
+        Assert.Equal(HttpStatusCode.Conflict, overlapping.StatusCode);
+        var error = await overlapping.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("service_time_overlap", error!.Code);
+        Assert.Contains("9:00 AM", error.Message);
+    }
+
+    [Fact]
+    public async Task BackToBackServiceTimeIsAccepted()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var date = new DateTime(2026, 9, 23);
+
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 120, minutes: 15, personId: 101, "First contact"));
+        // Starts exactly when the first ends: adjacent, not overlapping.
+        var secondResponse = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 135, minutes: 15, personId: 102, "Next contact"));
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelledNoteReleasesItsServiceTime()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var date = new DateTime(2026, 9, 24);
+
+        var cancelled = await client.PostAsJsonAsync(
+            "/api/v1/notes",
+            TimedNote(date, startTime: 180, minutes: 30, personId: 101, "Visit that did not happen", "Cancelled"));
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+
+        var replacement = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 180, minutes: 30, personId: 102, "Time reused"));
+
+        Assert.Equal(HttpStatusCode.OK, replacement.StatusCode);
+    }
+
+    [Fact]
+    public async Task EditingANoteDoesNotConflictWithItself()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var date = new DateTime(2026, 9, 25);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/notes", TimedNote(date, startTime: 240, minutes: 30, personId: 101, "Original"));
+        var created = await createResponse.Content.ReadFromJsonAsync<NoteDto>();
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/v1/notes/{created!.Id}",
+            NoteRequest(created, "Same time, corrected narrative", created.Revision));
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ServiceTimeRunningPastTheLoggableDayIsRefused()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        // 6:30 PM start with 60 minutes runs past the 7:00 PM window end.
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/notes",
+            TimedNote(new DateTime(2026, 9, 26), startTime: 690, minutes: 60, personId: 101, "Runs past the day"));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("service_time_window", error!.Code);
+    }
+
+    private static SaveNoteRequest TimedNote(
+        DateTime date, int startTime, int minutes, int personId, string narrative, string status = "Pending") =>
+        new(narrative, date, status, minutes, startTime, personId, null, "Contact", null, null);
+
     private static SaveProviderRequest ProviderRequest(string name) => new(
         "Other", name, null, null, null, null, null, null, 0, false, null, null, null);
 
@@ -1193,6 +1495,7 @@ public sealed class TenantAuthorizationTests : IClassFixture<SatiApiFactory>
         request.VendorProgramContact,
         request.VendorBillingContact,
         request.SalesTax,
+        request.SalesTaxOverridden,
         request.SubmittedDate,
         request.DecisionDate,
         request.Status,

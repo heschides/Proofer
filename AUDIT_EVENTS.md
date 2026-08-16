@@ -1,5 +1,7 @@
 # Audit events
 
+*Current as of 2026-08-15.*
+
 Sati records a small, append-only event when a protected action succeeds. The event answers
 “who did what, to which record, for which agency, and during which request?” It is not a second
 copy of the clinical or financial record.
@@ -32,7 +34,20 @@ for content; the audit event is only its activity index.
 - `settings.updated`
 - `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
+- `at-request.published`, `at-request.reopened`
 - `audit.exported`
+- `platform-incidents.viewed`, `incident-status.updated`
+
+The two AT request actions bracket a document of record. `at-request.published` records the case
+manager's attestation; `at-request.reopened` records that an attestation was discarded, and carries
+the discarded signer and timestamp in its metadata so the trail does not simply go quiet. Reopening
+is its own action rather than an implicit consequence of a status change, because a reviewer reading
+the trail should not have to infer that a signature was removed.
+
+The two incident actions cover the operational telemetry surface: every cross-tenant dashboard read
+by a `PlatformOperator` is recorded, and an agency Admin changing an incident's lifecycle status is
+recorded with the incident id and new status. Reading one's own agency incident dashboard is not
+audited; crossing a tenant boundary to read another agency's is.
 
 The state change and its event share one EF Core `SaveChanges` transaction. If either fails, neither
 is committed. EDI generation records the event before the file response is returned.

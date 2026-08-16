@@ -18,6 +18,7 @@ namespace Sati.Views
         private readonly ISessionService _sessionService;
         private readonly IIncidentReporter _incidentReporter;
         private readonly ApplicationRunState _applicationRunState;
+        private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
         private bool _isSavingOnClose;
         private bool _closeAfterSuccessfulSave;
 
@@ -66,7 +67,7 @@ namespace Sati.Views
                 win.ShowDialog();
             };
 
-            _caseManagerDashboardViewModel.MarkFormCompleteRequested += (s, formType) =>
+            _caseManagerDashboardViewModel.MarkFormCompleteRequested = async formType =>
             {
                 var result = MessageBox.Show(
                     $"Did you complete the {formType} today?",
@@ -75,9 +76,9 @@ namespace Sati.Views
                     MessageBoxImage.Question);
 
                 if (result == MessageBoxResult.Yes)
-                    _ = _caseManagerDashboardViewModel.MarkFormCompleteAsync(formType);
+                    await _caseManagerDashboardViewModel.MarkFormCompleteAsync(formType);
                 else if (result == MessageBoxResult.No)
-                    _ = _caseManagerDashboardViewModel.OpenFormAsync(formType);
+                    await _caseManagerDashboardViewModel.OpenFormAsync(formType);
             };
 
             _caseManagerDashboardViewModel.FormStatusRequested = async formType =>
@@ -161,50 +162,60 @@ namespace Sati.Views
         // and on success swap the session user and reinitialize the shell.
         private async Task OpenSwitchUserFlowAsync()
         {
-            var currentUser = _sessionService.CurrentUser;
-            if (currentUser is null)
+            if (!await _accountSwitchGate.WaitAsync(0))
                 return;
 
-            User? newUser;
-            bool? result;
-            if (AccountSwitchPolicy.RequiresDirectSignIn(currentUser.Role))
+            try
             {
-                // A platform operator must never enumerate an agency's directory.
-                // Use neutral credential entry instead; authentication may identify
-                // any legitimate next account without disclosing account names.
-                var login = _loginWindowFactory();
-                login.Owner = this;
-                login.Title = "Switch Account — Sign in";
-                result = login.ShowDialog();
-                newUser = login.LoggedInUser;
-            }
-            else
-            {
-                var content = _shellViewModel.Scratchpad.ScratchpadContent;
-                if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                var currentUser = _sessionService.CurrentUser;
+                if (currentUser is null)
                     return;
-                if (!await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync())
+
+                User? newUser;
+                bool? result;
+                if (AccountSwitchPolicy.RequiresDirectSignIn(currentUser.Role))
                 {
-                    MessageBox.Show(
-                        "Sati could not save the selected client's journal to the cloud, so account switching has been paused. Your text is still visible. Check the connection and try Switch User again.",
-                        "Journal Not Saved",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
+                    // A platform operator must never enumerate an agency's directory.
+                    // Use neutral credential entry instead; authentication may identify
+                    // any legitimate next account without disclosing account names.
+                    var login = _loginWindowFactory();
+                    login.Owner = this;
+                    login.Title = "Switch Account — Sign in";
+                    result = login.ShowDialog();
+                    newUser = login.LoggedInUser;
+                }
+                else
+                {
+                    var content = _shellViewModel.Scratchpad.ScratchpadContent;
+                    if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                        return;
+                    if (!await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync())
+                    {
+                        MessageBox.Show(
+                            "Sati could not save the selected client's journal to the cloud, so account switching has been paused. Your text is still visible. Check the connection and try Switch User again.",
+                            "Journal Not Saved",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    var picker = _switchUserWindowFactory();
+                    picker.Owner = this;
+                    result = picker.ShowDialog();
+                    newUser = picker.NewUser;
                 }
 
-                var picker = _switchUserWindowFactory();
-                picker.Owner = this;
-                result = picker.ShowDialog();
-                newUser = picker.NewUser;
+                if (result == true && newUser is not null)
+                {
+                    _sessionService.SetUser(newUser);
+                    await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
+                    await _incidentReporter.FlushAsync();
+                    await _shellViewModel.ReinitializeAsync();
+                }
             }
-
-            if (result == true && newUser is not null)
+            finally
             {
-                _sessionService.SetUser(newUser);
-                await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
-                await _incidentReporter.FlushAsync();
-                await _shellViewModel.ReinitializeAsync();
+                _accountSwitchGate.Release();
             }
         }
 

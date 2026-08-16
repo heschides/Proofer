@@ -20,7 +20,6 @@ namespace Sati.ViewModels
         private readonly DataEnvironmentInfo _environment;
 
         //EVENTS
-        public event EventHandler<bool>? OpenNewUserRequested;
         public event EventHandler<bool>? LoginSucceeded;
         public event EventHandler? IncorrectPasswordRequested;
         public event EventHandler<SignInUnavailableEventArgs>? SignInUnavailableRequested;
@@ -30,7 +29,22 @@ namespace Sati.ViewModels
         [ObservableProperty] private string signInStatus = string.Empty;
         [ObservableProperty] private bool isSigningIn;
         public User? SelectedUser { get; set; }
-        public bool CanCreateAccount => !_environment.UsesCloudApi;
+        // REMOVED 2026-08-15: self-service account creation from the sign-in screen.
+        //
+        // A CanCreateAccount flag used to be true for every local (non-API)
+        // environment, which meant Production. Anyone who could launch Sati could
+        // create themselves a CaseManager account — no credentials, no approval,
+        // no record of who authorised it — and pick their own supervisor from a
+        // dropdown built by enumerating every staff account in the database.
+        //
+        // The command and the button are both gone rather than hidden, because a
+        // hidden control is not a control: a bound command still exists to be
+        // invoked. Creating users now happens only where it was always meant to,
+        // in User Management behind an authenticated Supervisor/Director/Admin
+        // session. The one legitimate need this served — an installation with
+        // nobody to sign in as — is served by first-run administrator setup, which
+        // creates exactly one account and only while none exists. See
+        // AdministratorBootstrap.
         public SecureString? SecurePassword { get; set; }
 
         //CONSTRUCTOR
@@ -86,11 +100,6 @@ namespace Sati.ViewModels
             }
         }
 
-        [RelayCommand]
-        public void OpenNewUserWindow()
-        {
-            OpenNewUserRequested?.Invoke(this, true);
-        }
     }
 
     public sealed class SignInUnavailableEventArgs(string title, string message) : EventArgs

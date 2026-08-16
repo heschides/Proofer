@@ -16,5 +16,12 @@
         public string? VendorName { get; init; }
         public string? CaseManagerName { get; init; }   // frozen submitter — survives client transfer
         public bool HasSnapshot { get; init; }
+
+        // Attestation, projected so a list can distinguish a draft from a filed
+        // document without opening either. Null on a draft.
+        public string? SignedByName { get; init; }
+        public DateTime? SignedAtUtc { get; init; }
+
+        public bool IsPublished => SignedAtUtc.HasValue && !string.IsNullOrWhiteSpace(SignedByName);
     }
 }

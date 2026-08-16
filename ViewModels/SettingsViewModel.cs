@@ -297,7 +297,18 @@ namespace Sati.ViewModels
         [ObservableProperty] private string? selectedHealthcareSystem;
         private async Task LoadAsync()
         {
-            _settings = await _settingsService.LoadAsync();
+            try
+            {
+                _settings = await _settingsService.LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                // This method starts when the settings view model is constructed.
+                // Because that startup task is intentionally not awaited by the
+                // constructor, it must observe its own failures.
+                SaveStatus = $"Settings could not be loaded. {ex.Message}";
+                return;
+            }
 
             SalesTaxRate = _settings.SalesTaxRate;
             DefaultPassthroughProviderId = _settings.DefaultPassthroughProviderId;

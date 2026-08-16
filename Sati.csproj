@@ -11,10 +11,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.2.15</Version>
-    <AssemblyVersion>1.2.15.0</AssemblyVersion>
-    <FileVersion>1.2.15.0</FileVersion>
-    <Company>Satilogica</Company>
+    <Version>1.2.17</Version>
+    <AssemblyVersion>1.2.17.0</AssemblyVersion>
+    <FileVersion>1.2.17.0</FileVersion>
+    <Company>SatiLogica</Company>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Demo'">
@@ -32,6 +32,7 @@
 	  <None Remove="images\icon.ico" />
 	  <None Remove="images\leaf.png" />
 	  <None Remove="images\sati.ico" />
+	  <None Remove="images\sati-watercolor-leaf.png" />
 	</ItemGroup>	
 	
 	<ItemGroup>
@@ -72,6 +73,7 @@
 
   <ItemGroup>
     <Resource Include="images\leaf.png" />
+    <Resource Include="images\sati-watercolor-leaf.png" />
     <Resource Include="Images\satisplash.png" />
     <Resource Include="Images\woodfords-logo.png" />
   </ItemGroup>

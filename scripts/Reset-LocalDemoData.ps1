@@ -4,7 +4,7 @@ param(
     [ValidateSet('CaptureBaseline', 'VerifyBaseline', 'RestoreBaseline')]
     [string]$Action,
 
-    [string]$BaselineDirectory = (Join-Path $env:LOCALAPPDATA 'Satilogica\Sati\DemoBaseline'),
+    [string]$BaselineDirectory = (Join-Path $env:LOCALAPPDATA 'SatiLogica\Sati\DemoBaseline'),
 
     [switch]$ReplaceBaseline
 )

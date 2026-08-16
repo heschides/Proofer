@@ -45,7 +45,7 @@ try {
 
         $programsRoot = [System.IO.Path]::GetFullPath((Join-Path $localAppData 'Programs'))
         $installRoot = [System.IO.Path]::GetFullPath(
-            (Join-Path $programsRoot 'Satilogica\Sati Demo'))
+            (Join-Path $programsRoot 'SatiLogica\Sati Demo'))
         if (-not $installRoot.StartsWith($programsRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
             throw 'The installer resolved an unsafe destination path.'
         }
@@ -95,7 +95,7 @@ try {
 
     if (-not $isTest) {
         $shell = New-Object -ComObject WScript.Shell
-        $startMenuFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'Satilogica'
+        $startMenuFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'SatiLogica'
         New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
 
         $startMenuShortcut = $shell.CreateShortcut((Join-Path $startMenuFolder 'Sati Demo.lnk'))
@@ -140,7 +140,7 @@ try {
         New-Item -Path $uninstallKey -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'Sati Demo' -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value $version -PropertyType String -Force | Out-Null
-        New-ItemProperty -Path $uninstallKey -Name Publisher -Value 'Satilogica' -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $uninstallKey -Name Publisher -Value 'SatiLogica' -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name InstallLocation -Value $installRoot -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name DisplayIcon -Value "$versionedIcon,0" -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name UninstallString -Value $uninstallCommand -PropertyType String -Force | Out-Null

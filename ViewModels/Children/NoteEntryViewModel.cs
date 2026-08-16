@@ -1,8 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services;
 using Sati.Services.LocalAi;
 using Sati.Views;
 using System.Collections.ObjectModel;
@@ -49,6 +51,12 @@ namespace Sati.ViewModels.Children
         private VisitDocumentation? _pendingVisitDocumentation;
         private int _attendeeLoadVersion;
         private bool _suppressVisitChangeNotifications;
+
+        // Time already claimed by this case manager's other notes on EventDate.
+        // Reloaded whenever the date changes; the tracker keeps a slow load for a
+        // date the user has already moved away from from publishing stale bands.
+        private readonly LatestRequestTracker _dayScheduleLoad = new();
+        private IReadOnlyList<ServiceBlock> _recordedDayBlocks = [];
 
         // True when the open dialog was triggered by a billing-window block (note
         // date inside a missed-form window) rather than a current-cycle paperwork
@@ -102,6 +110,9 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string? narrative;
         [ObservableProperty] private int? minutes;
         [ObservableProperty] private DateTime? eventDate;
+        [ObservableProperty] private ServiceStartOption? selectedStartTime;
+        [ObservableProperty] private string serviceTimeMessage = NoStartTimeMessage;
+        [ObservableProperty] private bool hasServiceTimeConflict;
         [ObservableProperty] private bool isEditing;
         [ObservableProperty] private double narrativeFontSize = 14;
         [ObservableProperty] private bool isComplianceDialogVisible;
@@ -167,15 +178,48 @@ namespace Sati.ViewModels.Children
         {
             OnPropertyChanged(nameof(SaveActionLabel));
             OnPropertyChanged(nameof(StatusGuidance));
+
+            // Cancelled and Delayed release the time the draft was holding.
+            RedrawServiceDay();
         }
 
         partial void OnIsEditingChanged(bool value) => OnPropertyChanged(nameof(SaveActionLabel));
+
+        partial void OnEventDateChanged(DateTime? value)
+        {
+            OnPropertyChanged(nameof(ServiceDayHeading));
+            _ = RefreshServiceDayAsync();
+        }
+
+        partial void OnSelectedStartTimeChanged(ServiceStartOption? value) => RedrawServiceDay();
+
+        partial void OnMinutesChanged(int? value) => RedrawServiceDay();
+
         public bool IsLocalAiEnabled => _caseNoteFormatter.IsEnabled;
         public Array VisitSettings => Enum.GetValues(typeof(VisitSetting));
         public Array VisitAppearances => Enum.GetValues(typeof(VisitAppearance));
         public Array VisitParticipations => Enum.GetValues(typeof(VisitParticipation));
         public Array VisitSafetyObservations => Enum.GetValues(typeof(VisitSafetyObservation));
         public ObservableCollection<VisitAttendeeOptionViewModel> VisitAttendees { get; } = [];
+
+        // -------------------------------------------------------------------------
+        // Service day
+        // -------------------------------------------------------------------------
+
+        private const string NoStartTimeMessage =
+            "Optional. Choose a start time to reserve this service on your day and to check it against your other notes.";
+
+        private const string NoDateMessage =
+            "Choose a date first — service time is checked against the other notes on that day.";
+
+        public static IReadOnlyList<ServiceStartOption> StartTimeOptions { get; } = ServiceStartOption.BuildDay();
+
+        /// <summary>Bands drawn on the service-day bar: recorded time, plus this draft.</summary>
+        public ObservableCollection<ServiceDaySegment> ServiceDaySegments { get; } = [];
+
+        public string ServiceDayHeading => EventDate is DateTime date
+            ? $"YOUR DAY — {date:dddd, MMMM d}"
+            : "YOUR DAY";
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -208,6 +252,7 @@ namespace Sati.ViewModels.Children
             SelectedNoteType = null;
             SelectedFormType = null;
             Minutes = null;
+            SelectedStartTime = null;
             _pendingVisitDocumentation = null;
             ResetVisitDocumentation(clearAttendees: true);
             _ = LoadVisitAttendeesAsync(newValue);
@@ -565,6 +610,157 @@ namespace Sati.ViewModels.Children
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         // -------------------------------------------------------------------------
+        // Service day
+        // -------------------------------------------------------------------------
+
+        // Reloads the rest of the case manager's day for the selected date. The
+        // query is scoped to the signed-in user across their whole caseload:
+        // billing the same minute twice is a conflict no matter which two clients
+        // the notes belong to.
+        private async Task RefreshServiceDayAsync()
+        {
+            var request = _dayScheduleLoad.Begin();
+            var date = EventDate;
+            var userId = _sessionService.CurrentUser?.Id;
+
+            if (date is null || userId is null)
+            {
+                _recordedDayBlocks = [];
+                RedrawServiceDay();
+                return;
+            }
+
+            IReadOnlyList<ServiceBlock> blocks;
+            try
+            {
+                blocks = ToBlocks(await _noteService.GetDayScheduleAsync(userId.Value, date.Value));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Loading the service day failed: {ex.Message}");
+                if (!_dayScheduleLoad.IsCurrent(request))
+                    return;
+
+                _recordedDayBlocks = [];
+                RedrawServiceDay();
+                ServiceTimeMessage =
+                    "Sati could not load the rest of your day, so overlapping time cannot be shown here. " +
+                    "The overlap check still runs when you save.";
+                return;
+            }
+
+            if (!_dayScheduleLoad.IsCurrent(request))
+                return;
+
+            _recordedDayBlocks = blocks;
+            RedrawServiceDay();
+        }
+
+        private static IReadOnlyList<ServiceBlock> ToBlocks(IEnumerable<Note> notes) => notes
+            .Select(note => ServiceTimeline.TryCreateBlock(
+                note.Id, note.StartTime, note.Minutes, note.Status?.ToString(), DescribeNoteOwner(note)))
+            .OfType<ServiceBlock>()
+            .OrderBy(block => block.StartMinutes)
+            .ToList();
+
+        private static string DescribeNoteOwner(Note note)
+        {
+            var name = note.Person is null
+                ? null
+                : $"{note.Person.FirstName} {note.Person.LastName}".Trim();
+            return string.IsNullOrWhiteSpace(name) ? "another note" : $"a note for {name}";
+        }
+
+        // The block this draft would claim, or null when it claims nothing.
+        private ServiceBlock? BuildCandidateBlock() => ServiceTimeline.TryCreateBlock(
+            _editingNote?.Id ?? 0, SelectedStartTime?.Minutes, Minutes, Status?.ToString(), "this note");
+
+        // Rebuilds the bar and the conflict verdict from state already in memory.
+        // Cheap enough to run on every keystroke in Minutes.
+        private void RedrawServiceDay()
+        {
+            ServiceDaySegments.Clear();
+
+            // The note being edited is redrawn as the draft band, so it must not
+            // also appear as recorded time underneath it.
+            var editingId = _editingNote?.Id ?? 0;
+            var recorded = _recordedDayBlocks
+                .Where(block => block.NoteId != editingId)
+                .ToList();
+            foreach (var block in recorded)
+                ServiceDaySegments.Add(ServiceDaySegment.FromBlock(block, ServiceDaySegmentKind.Recorded));
+
+            var candidate = BuildCandidateBlock();
+            if (candidate is null)
+            {
+                HasServiceTimeConflict = false;
+                ServiceTimeMessage = DescribeIncompleteDraft();
+                return;
+            }
+
+            var windowProblem = ServiceTimeline.DescribeWindowViolation(candidate.StartMinutes, candidate.Minutes);
+            if (windowProblem is not null)
+            {
+                HasServiceTimeConflict = true;
+                ServiceDaySegments.Add(ServiceDaySegment.FromBlock(candidate, ServiceDaySegmentKind.Conflict));
+                ServiceTimeMessage = windowProblem;
+                return;
+            }
+
+            var conflicts = ServiceTimeline.FindConflicts(candidate, recorded);
+            HasServiceTimeConflict = conflicts.Count > 0;
+            ServiceDaySegments.Add(ServiceDaySegment.FromBlock(
+                candidate,
+                HasServiceTimeConflict ? ServiceDaySegmentKind.Conflict : ServiceDaySegmentKind.Draft));
+
+            ServiceTimeMessage = HasServiceTimeConflict
+                ? "Overlapping service time. " + string.Join(" ", conflicts.Select(conflict => conflict.Reason))
+                : $"{ServiceTimeline.DescribeRange(candidate)} is free on your day.";
+        }
+
+        private string DescribeIncompleteDraft()
+        {
+            if (EventDate is null)
+                return NoDateMessage;
+            if (SelectedStartTime is null)
+                return NoStartTimeMessage;
+            if (Minutes is null or <= 0)
+                return "Enter the service minutes to reserve this time on your day.";
+            return $"A {Status} note does not hold time on your day.";
+        }
+
+        // Re-checks against freshly loaded data immediately before persisting.
+        // The screen's live verdict can be stale — another window, or another
+        // device, may have claimed the time since the bar was last drawn.
+        // Returns the blocking message, or null when the time is free.
+        private async Task<string?> FindServiceTimeConflictAsync()
+        {
+            var candidate = BuildCandidateBlock();
+            if (candidate is null)
+                return null;
+
+            var windowProblem = ServiceTimeline.DescribeWindowViolation(candidate.StartMinutes, candidate.Minutes);
+            if (windowProblem is not null)
+                return windowProblem;
+
+            var userId = _sessionService.CurrentUser?.Id;
+            if (EventDate is not DateTime date || userId is null)
+                return null;
+
+            var blocks = ToBlocks(await _noteService.GetDayScheduleAsync(userId.Value, date));
+            _recordedDayBlocks = blocks;
+            var conflicts = ServiceTimeline.FindConflicts(candidate, blocks);
+            if (conflicts.Count == 0)
+                return null;
+
+            RedrawServiceDay();
+            return "This note's service time overlaps time already recorded on " +
+                   $"{date:MMMM d}. " +
+                   string.Join(" ", conflicts.Select(conflict => conflict.Reason)) +
+                   " Adjust the start time or the minutes before saving.";
+        }
+
+        // -------------------------------------------------------------------------
         // Edit mode
         // -------------------------------------------------------------------------
 
@@ -580,12 +776,23 @@ namespace Sati.ViewModels.Children
             Narrative = note.Narrative;
             EventDate = note.EventDate;
             Minutes = note.Minutes;
+            SelectedStartTime = FindStartOption(note.StartTime);
             Status = note.Status;
             SelectedNoteType = note.NoteType;
             SelectedFormType = note.FormType;
             ApplyVisitDocumentation(note.VisitDocumentation);
             _ = LoadVisitAttendeesAsync(SelectedPerson);
+            _ = RefreshServiceDayAsync();
         }
+
+        // Notes saved before start times existed, or saved off the 5-minute grid,
+        // have no matching option. Snapping to the nearest slot would silently
+        // move a recorded time, so those notes simply show no selection until the
+        // user picks one.
+        private static ServiceStartOption? FindStartOption(int? startMinutes) =>
+            startMinutes is int minutes
+                ? StartTimeOptions.FirstOrDefault(option => option.Minutes == minutes)
+                : null;
 
         // -------------------------------------------------------------------------
         // Commands
@@ -634,6 +841,7 @@ namespace Sati.ViewModels.Children
 
                 var result = await _caseNoteFormatter.FormatAsync(
                     new CaseNoteFormattingRequest(
+                        selectedPerson.Id,
                         source,
                         SelectedNoteType,
                         SelectedFormType,
@@ -721,6 +929,8 @@ namespace Sati.ViewModels.Children
             {
                 errors.Add("• Describe the appearance, health, or safety concern selected for this visit.");
             }
+            if (HasServiceTimeConflict)
+                errors.Add($"• {ServiceTimeMessage}");
 
             if (errors.Count > 0)
             {
@@ -802,6 +1012,18 @@ namespace Sati.ViewModels.Children
         // branch on _editingNote.
         private async Task SaveAsync(string? caseManagerJustification = null)
         {
+            // Last check before the record exists. The API repeats this as the
+            // authoritative gate; this covers the desktop's direct database path
+            // and catches time claimed since the bar was drawn.
+            var timeConflict = await FindServiceTimeConflictAsync();
+            if (timeConflict is not null)
+            {
+                var conflictDialog = _validationDialog(timeConflict);
+                conflictDialog.Owner = Application.Current.MainWindow;
+                conflictDialog.ShowDialog();
+                return;
+            }
+
             var wasEdit = IsEditing && _editingNote is not null;
             FormType? savedFormType = null;
 
@@ -811,6 +1033,7 @@ namespace Sati.ViewModels.Children
                 note.Narrative = Narrative!;
                 note.EventDate = EventDate;
                 note.Minutes = Minutes ?? 0;
+                note.StartTime = SelectedStartTime?.Minutes;
                 note.Status = Status;
                 note.NoteType = SelectedNoteType;
                 note.FormType = SelectedFormType;
@@ -833,6 +1056,7 @@ namespace Sati.ViewModels.Children
             {
                 var note = Note.Create(Narrative!, EventDate, Status, Minutes,
                     SelectedPerson!.Id, SelectedFormType, SelectedNoteType);
+                note.StartTime = SelectedStartTime?.Minutes;
                 note.VisitDocumentation = BuildVisitDocumentation();
                 if (caseManagerJustification is not null)
                     note.CaseManagerJustification = caseManagerJustification;
@@ -889,6 +1113,7 @@ namespace Sati.ViewModels.Children
             if (draft.Narrative != latest.Narrative) fields.Add("narrative");
             if (draft.EventDate != latest.EventDate) fields.Add("date");
             if (draft.Minutes != latest.Minutes) fields.Add("minutes");
+            if (draft.StartTime != latest.StartTime) fields.Add("service start time");
             if (draft.Status != latest.Status) fields.Add("status");
             if (draft.NoteType != latest.NoteType) fields.Add("note type");
             if (draft.FormType != latest.FormType) fields.Add("form type");
@@ -907,6 +1132,7 @@ namespace Sati.ViewModels.Children
             SelectedFormType = null;
             SelectedNoteType = null;
             Minutes = null;
+            SelectedStartTime = null;
             _pendingVisitDocumentation = null;
             ResetVisitDocumentation(clearAttendees: true);
             ClearAiReview();

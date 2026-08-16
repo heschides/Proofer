@@ -24,6 +24,7 @@ namespace Sati.Services.LocalAi
 
         private readonly LocalAiOptions _options;
         private readonly SemaphoreSlim _inferenceGate = new(1, 1);
+        private readonly ConsumerSessionBoundary _consumerBoundary = new();
         private IModel? _model;
         private bool _disposed;
 
@@ -44,6 +45,9 @@ namespace Sati.Services.LocalAi
 
             if (!IsEnabled)
                 throw new InvalidOperationException("The local case-note assistant is disabled.");
+
+            if (request.PersonId <= 0)
+                throw new ArgumentException("A selected consumer is required to use the local assistant.", nameof(request));
 
             var raw = request.RawNarrative.Trim();
             if (string.IsNullOrWhiteSpace(raw))
@@ -66,6 +70,17 @@ namespace Sati.Services.LocalAi
             await _inferenceGate.WaitAsync(cancellationToken);
             try
             {
+                // Hard consumer boundary: never let a generation for one consumer run on
+                // a model instance that just carried context for a different consumer.
+                // Sati does not assume the native runtime discards prior-turn state on its
+                // own — it forces a clean reload across the switch instead of trusting it.
+                if (_consumerBoundary.RequiresReset(request.PersonId))
+                {
+                    progress?.Report(new("Switching consumers. Reloading the local model for a clean context."));
+                    await ReloadModelAsync(cancellationToken);
+                }
+                _consumerBoundary.Record(request.PersonId);
+
                 var model = await EnsureModelAsync(progress, cancellationToken);
                 progress?.Report(new("Formatting locally. No note text is being sent to the cloud."));
 
@@ -169,6 +184,24 @@ namespace Sati.Services.LocalAi
             finally
             {
                 _inferenceGate.Release();
+            }
+        }
+
+        private async Task ReloadModelAsync(CancellationToken cancellationToken)
+        {
+            if (_model is null)
+                return;
+
+            var stale = _model;
+            _model = null;
+            try
+            {
+                await stale.UnloadAsync(cancellationToken);
+            }
+            catch
+            {
+                // The stale handle is already detached from _model; a failed unload
+                // must not block the caller from loading a fresh one for the new consumer.
             }
         }
 

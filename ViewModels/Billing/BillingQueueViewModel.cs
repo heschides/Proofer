@@ -9,6 +9,7 @@ namespace Sati.ViewModels.Billing
     public partial class BillingQueueViewModel : ObservableObject
     {
         private readonly IBillingService _billingService;
+        private readonly SemaphoreSlim _loadGate = new(1, 1);
 
         public ObservableCollection<BillingQueueItemViewModel> QueueItems { get; } = [];
 
@@ -27,6 +28,9 @@ namespace Sati.ViewModels.Billing
 
         public async Task LoadAsync()
         {
+            if (!await _loadGate.WaitAsync(0))
+                return;
+
             IsBusy = true;
             StatusMessage = string.Empty;
             try
@@ -46,14 +50,15 @@ namespace Sati.ViewModels.Billing
                 HasLoaded = true;
                 Debug.WriteLine($"[BillingQueue] LoadAsync complete — {DateTime.Now:HH:mm:ss.fff}");
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"BillingQueueViewModel.LoadAsync failed: {ex.Message}");
                 StatusMessage = "The billing queue could not be loaded. Please try Refresh.";
-                throw;
             }
             finally
             {
                 IsBusy = false;
+                _loadGate.Release();
             }
 
         }

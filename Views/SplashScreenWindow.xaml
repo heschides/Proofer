@@ -8,18 +8,64 @@
         SizeToContent="WidthAndHeight"
         ShowInTaskbar="False">
 
-    <Border Background="{DynamicResource WindowBackgroundBrush}"
-            CornerRadius="8">
-        <Grid>
-            <Image Source="pack://application:,,,/images/satisplash.png"
-                   Width="800"
-                   Height="533"
-                   Stretch="Uniform" />
+    <Border Width="760"
+            Height="480"
+            Background="{DynamicResource WindowBackgroundBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="18">
+        <Grid Margin="48,34,48,30">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="42" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="28" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Image Grid.Row="0"
+                   Grid.Column="0"
+                   Source="pack://application:,,,/images/sati-watercolor-leaf.png"
+                   Width="240"
+                   Height="330"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+
+            <StackPanel Grid.Row="0"
+                        Grid.Column="2"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Sati"
+                           FontFamily="Palatino Linotype"
+                           FontSize="64"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="Case Management"
+                           Margin="3,-4,0,0"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Border Width="76"
+                        Height="3"
+                        Margin="3,24,0,22"
+                        HorizontalAlignment="Left"
+                        Background="{DynamicResource AccentBrush}"
+                        CornerRadius="2" />
+                <TextBlock Text="by Robin-Bradley AMS"
+                           Margin="3,0,0,0"
+                           FontSize="12"
+                           FontStyle="Italic"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
 
             <StackPanel Orientation="Horizontal"
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="3"
                         HorizontalAlignment="Center"
-                        VerticalAlignment="Bottom"
-                        Margin="0,0,0,40">
+                        VerticalAlignment="Center">
                 <Ellipse x:Name="Dot1"
                          Width="10"
                          Height="10"

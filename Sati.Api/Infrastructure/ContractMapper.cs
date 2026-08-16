@@ -208,14 +208,18 @@ internal static class ContractMapper
 
     public static ProviderDto ToProvider(ServerProvider p) => new(
         p.Id, p.Type, p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,
-        p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact);
+        p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact,
+        p.Npi, p.MaineCareProviderId);
 
     public static AtRequestDto ToAtRequest(ServerAtRequest a) => new(
         a.Id, a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,
         a.CaseManagerPhone, a.CaseManagerAgency, a.VendorName, a.VendorBillingLocation,
-        a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SubmittedDate, a.DecisionDate,
+        a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SalesTaxOverridden, a.SubmittedDate, a.DecisionDate,
         a.Status, a.Revision,
-        a.Items.Select(i => new AtRequestItemDto(i.Id, i.ATRequestId, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList());
+        a.Items.Select(i => new AtRequestItemDto(i.Id, i.ATRequestId, i.Name, i.ItemCost, i.Quantity, i.Url,
+            i.ScreenshotPng is null ? null : Convert.ToBase64String(i.ScreenshotPng))).ToList(),
+        a.PassthroughRate,
+        a.SignedByName, a.SignedByRole, a.SignedByUserId, a.SignedAtUtc, a.AttestationStatement);
 
     public static SettingsDto ToSettings(ServerSettings s) => new(
         s.Id, s.AbandonedAfterDays, s.ProductivityThreshold, s.BaseIncentive, s.PerUnitIncentive,
@@ -281,6 +285,8 @@ internal static class ContractMapper
     }
 
     public static int ParseNoteStatus(string? value) => Array.IndexOf(NoteStatusNames, value);
+
+    public static string? NoteStatusName(int? status) => NullableNameAt(NoteStatusNames, status);
     public static int ParseNoteType(string? value) => Array.IndexOf(NoteTypeNames, value);
     public static int ParseFormType(string? value) => Array.IndexOf(FormTypeNames, value);
 

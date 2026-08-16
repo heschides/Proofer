@@ -46,27 +46,27 @@ namespace Sati.ViewModels.Billing
         }
 
         [RelayCommand]
-        private void NavigateToOverview()
+        private async Task NavigateToOverview()
         {
             CurrentSubView = _overviewViewModel;
             if (!_overviewViewModel.HasLoaded)
-                _ = _overviewViewModel.LoadAsync();
+                await _overviewViewModel.LoadAsync();
         }
 
         [RelayCommand]
-        private void NavigateToQueue()
+        private async Task NavigateToQueue()
         {
             CurrentSubView = _queueViewModel;
             if (!_queueViewModel.HasLoaded)
-                _ = _queueViewModel.LoadAsync();
+                await _queueViewModel.LoadAsync();
         }
 
         [RelayCommand]
-        private void NavigateToSubmissions()
+        private async Task NavigateToSubmissions()
         {
             CurrentSubView = _submissionsViewModel;
             if (!_submissionsViewModel.HasLoaded)
-                _ = _submissionsViewModel.LoadAsync();
+                await _submissionsViewModel.LoadAsync();
         }
 
         [RelayCommand]

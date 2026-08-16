@@ -156,7 +156,7 @@ namespace Sati
                         services.AddSingleton<GuidanceViewModel>();
                         services.AddSingleton<HelperReferenceViewModel>();
                         services.AddSingleton<ATRequestViewModel>();
-                        services.AddSingleton<HelpersViewModel>();
+                        services.AddSingleton<CaseManagementViewModel>();
                         services.AddSingleton<ProvidersViewModel>();
                         services.AddSingleton<ReviewsViewModel>();
                         services.AddSingleton<SupervisorDashboardViewModel>();
@@ -169,6 +169,8 @@ namespace Sati
                         services.AddTransient<LoginWindow>();
                         services.AddTransient<LoginWindowViewModel>();
                         services.AddTransient<NewUserWindow>();
+                        services.AddTransient<FirstRunAdminWindow>();
+                        services.AddTransient<FirstRunAdminViewModel>();
                         services.AddTransient<NewUserViewModel>();
                         services.AddTransient<SettingsViewModel>();
                         services.AddTransient<SettingsWindow>();
@@ -200,6 +202,7 @@ namespace Sati
                         services.AddTransient<Func<string, UserMessageDialog>>(sp => message => new UserMessageDialog(message));
                         services.AddTransient<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
                         services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
+                        services.AddTransient<Func<FirstRunAdminWindow>>(sp => () => sp.GetRequiredService<FirstRunAdminWindow>());
                         services.AddTransient<Func<ScratchpadHistoryWindow>>(sp => () => sp.GetRequiredService<ScratchpadHistoryWindow>());
                         services.AddTransient<Func<SwitchUserWindow>>(sp => () => sp.GetRequiredService<SwitchUserWindow>());
                         services.AddTransient<Func<LoginWindow>>(sp => () => sp.GetRequiredService<LoginWindow>());
@@ -311,6 +314,7 @@ namespace Sati
             services.AddTransient<IIncidentReporter, LocalIncidentReporter>();
             services.AddTransient<IPlatformHealthService, LocalPlatformHealthService>();
             services.AddSingleton<PersonAuditPdfExporter>();
+            services.AddSingleton<ATRequestPdfExporter>();
             services.AddTransient<IPersonContactService, PersonContactService>();
             services.AddTransient<INoteService, NoteService>();
             services.AddTransient<IAuthService, AuthService>();

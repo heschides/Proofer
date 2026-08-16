@@ -1,6 +1,7 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-13.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-15,
+against release 1.2.17.*
 
 ## Incident and health boundary
 
@@ -402,6 +403,44 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
   `ConsumerBillingLossReportService`; the Statistics report therefore cannot drift to a different
   definition of an overdue billing gap.
 
+### Provider Directory Identity
+
+**A `Provider` row is one agency's local record of an organization — not the organization.**
+
+- Scope is `AgencyId`. The same organization appearing in several agencies' directories is
+  correct; each holds different local contacts and notes. Uniqueness is enforced per agency only.
+- `Npi` and `MaineCareProviderId` are durable identifiers, both optional, unique within an agency
+  via filtered indexes. They exist so the entry can be recognised as the same organization if it
+  later joins the platform as a tenant — the one part of that design that cannot be added
+  retroactively.
+- Enforced in `ApiEndpoints.FindDuplicateProviderAsync` and mirrored in
+  `ProviderService.GuardDuplicateIdentifierAsync`, so the transitional local path does not rely on
+  the API being the only caller.
+- The eventual Organization registry, relationship model, and published-contact resolution are
+  designed in `DECISIONS.md` and tracked in `AGENDA.md`. Reconciliation will **link**, never swap:
+  no directory row is repointed and no foreign key rewritten.
+- AT requests continue to snapshot vendor fields with no foreign key, so submitted requests are
+  unaffected by anything that happens to a directory entry afterwards.
+
+### Service Day and Time Overlap
+
+**Single source of truth: `ServiceTimeline` (`Sati.Contracts.V1`)**
+
+- Owns the loggable window (7:00 AM – 7:00 PM) and the meaning of `Note.StartTime`, which is
+  stored as minutes elapsed from 7:00 AM.
+- Owns the overlap rule. Scope is the **case manager and the calendar date, across the whole
+  caseload** — never a single client, because two clients' notes can still double-claim one
+  person's hour.
+- Intervals are half-open: back-to-back notes are adjacent, not overlapping. A note never
+  conflicts with the stored copy of itself.
+- `OccupiesTime(status)`: Cancelled, Delayed, and Abandoned release their time; all other
+  statuses hold it. Notes with no start time or no duration claim nothing.
+- Referenced by `Sati.Contracts`, so the desktop client and `Sati.Api` evaluate the same code.
+  `NoteEntryViewModel` uses it for the live bar and a pre-save re-check; `ApiEndpoints`
+  enforces it on every note create and update (`service_time_overlap`, `service_time_window`).
+  The API is the authority — the client check is feedback, not enforcement.
+- Day data comes from `INoteService.GetDayScheduleAsync(userId, date)` / `GET /api/v1/notes/day`.
+
 ### Form Display Names
 
 **Potential duplication — still needs resolution.**
@@ -508,6 +547,8 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 - Owns `Note` CRUD and status transitions. `UpdateAbandonedNotesAsync` (startup sweep) moves stale
   `Pending` → `Abandoned`. `GetMonthlyNotesAsync` uses inline `DateTime.Now` twice (midnight-straddle,
   low risk). No compliance logic here.
+- `GetDayScheduleAsync(userId, date)` returns every note on one case manager's calendar date across
+  their caseload. It exists for the service-time overlap rule and is deliberately not person-scoped.
 
 ### `BillingService`
 - Owns agency-scoped `BillingPeriod`/`ClaimLine` persistence and agency billing/EDI configuration.
@@ -560,6 +601,58 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   under a unique `(AgencyId, ActorUserId, IdempotencyKey)` boundary before the response is returned;
   an ambiguous network retry therefore replays the same 837P instead of creating another file or
   success audit event. Reusing a key for different inputs is rejected.
+
+---
+
+## Cross-cutting coordination primitives (2026-08-14)
+
+Small, single-purpose types introduced by the concurrency audit. They exist so that timing
+correctness is a named, testable thing rather than an ad-hoc flag in each ViewModel. See
+`CONCURRENCY_AUDIT.md` for the findings that produced them.
+
+### `LatestRequestTracker` (`Services`)
+- Gives overlapping reads a monotonically increasing identity so only the newest may publish into
+  shared UI state. Used where a slow response for a previous selection could otherwise overwrite the
+  current one — calendar month navigation, client-note selection, and the note-entry service day.
+- Rule for new screens: any load triggered by selection or navigation takes an identity before it
+  starts and checks `IsCurrent` before it writes.
+
+### `JournalSaveCoordinator` (`Services`)
+- Serializes journal autosaves and account-switch flushes so overlapping cloud updates cannot
+  compete for the same record.
+
+### `AccountSwitchPolicy` / `SettingsAccessPolicy` (`Services`)
+- Named decision owners for whether an account switch may proceed and who may reach agency
+  configuration. Keeping these out of the ViewModels is what allows them to be unit-tested without
+  a window.
+
+### `IncidentOutbox` (`Data/Cloud`)
+- Durable local queue for incident reports, retried after sign-in when a connection or process
+  interruption prevented delivery. Stored under `%LOCALAPPDATA%\SatiLogica\Sati\IncidentOutbox`.
+
+### `ConsumerSessionBoundary` (`Services/LocalAi`)
+- Tracks which consumer the shared in-process model last drafted for. Sati does not trust the
+  native local-inference runtime to discard conversational state between chat-completion calls, so
+  a change of target consumer forces a clean model reload before the next generation. This is a
+  confidentiality boundary, not an optimization: it prevents one consumer's context from
+  influencing another's draft.
+
+## Shared rule owners (`Sati.Contracts.V1`)
+
+Types referenced by both the desktop client and `Sati.Api`, so a rule cannot be enforced two
+different ways. Adding a rule that decides permission, billability, or record status belongs here
+rather than in either client.
+
+| Owner | Rule |
+|---|---|
+| `BillingComplianceGate` | Whether a client's paperwork permits billing, with reasons. |
+| `BillingRules` | Payer-neutral unit arithmetic, charge rounding, NPI and procedure-code format. |
+| `ServiceTimeline` | The 7:00 AM – 7:00 PM service day and the no-double-claimed-minute rule. |
+| `AuditCsv` | The audit export's header, column order, escaping, and spreadsheet neutralization. |
+| `AtRequestPublication` | Whether an AT request is complete enough to publish, what the case manager attests to, and whether a published request may still be edited. |
+| `AtRequestScreenshot` | The accepted format, downscale target, and size ceiling for a pasted item evidence clip. |
+| `BillingRules.IsValidNpi` | NPI check-digit validation, shared by claim generation and provider directory entry. |
+| `IncidentHealthScoring` | The versioned operational health score. |
 
 ---
 

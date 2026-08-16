@@ -19,6 +19,7 @@ namespace Sati.ViewModels.Children
 
         private Scratchpad? _scratchpad;
         private DispatcherTimer? _scratchpadTimer;
+        private readonly SemaphoreSlim _saveGate = new(1, 1);
 
         // -------------------------------------------------------------------------
         // Constructor
@@ -92,6 +93,7 @@ namespace Sati.ViewModels.Children
 
         public async Task<bool> SaveScratchpadAsync(string content)
         {
+            await _saveGate.WaitAsync();
             try
             {
                 if (_scratchpad is null)
@@ -121,6 +123,10 @@ namespace Sati.ViewModels.Children
                     "Sati encountered an error saving your scratchpad. Your work may not have been saved.",
                     "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
+            }
+            finally
+            {
+                _saveGate.Release();
             }
         }
 

@@ -14,7 +14,7 @@ internal sealed class IncidentOutbox
 
     public IncidentOutbox() : this(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Satilogica", "Sati", "IncidentOutbox"))
+        "SatiLogica", "Sati", "IncidentOutbox"))
     {
     }
 

@@ -305,34 +305,24 @@ public sealed class AdminService(
         return pdfExporter.Generate(person, history, agency, actor, DateTime.UtcNow);
     }
 
+    // Format and escaping are owned by Sati.Contracts AuditCsv, shared with the
+    // API export. Do not hand-build this file here.
     private static string BuildAuditCsv(
         IReadOnlyList<LocalAuditExportRow> rows,
         string reason,
-        DateTime exportedAtUtc)
-    {
-        var csv = new StringBuilder();
-        csv.AppendLine("ExportReason,ExportedAtUtc,EventId,OccurredAtUtc,ActorUserId,ActorDisplayName,Action,ResourceType,ResourceId,CorrelationId");
-        foreach (var row in rows)
-        {
-            csv.AppendLine(string.Join(',', new[]
-            {
-                Csv(reason),
-                Csv(exportedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.EventId.ToString()),
-                Csv(row.OccurredAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.ActorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.ActorDisplayName),
-                Csv(row.Action),
-                Csv(row.ResourceType),
-                Csv(row.ResourceId),
-                Csv(row.CorrelationId)
-            }));
-        }
-        return csv.ToString();
-    }
-
-    private static string Csv(string? value) =>
-        $"\"{(value ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+        DateTime exportedAtUtc) =>
+        AuditCsv.Build(
+            rows.Select(row => new AuditCsvRow(
+                row.EventId,
+                row.OccurredAtUtc,
+                row.ActorUserId,
+                row.ActorDisplayName,
+                row.Action,
+                row.ResourceType,
+                row.ResourceId,
+                row.CorrelationId)),
+            reason,
+            exportedAtUtc);
 
     private sealed record LocalAuditExportRow(
         Guid EventId,

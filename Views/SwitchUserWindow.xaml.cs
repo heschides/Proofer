@@ -36,7 +36,10 @@ namespace Sati.Views
 
         private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            if (sender is PasswordBox box)
+            // PasswordRevealBox forwards its masked box's SecurePassword, so this
+            // is the same value it always was — the reveal toggle never becomes
+            // the source of truth.
+            if (sender is PasswordRevealBox box)
                 _viewModel.Password = box.SecurePassword;
         }
     }

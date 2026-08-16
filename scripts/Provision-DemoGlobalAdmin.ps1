@@ -7,7 +7,7 @@ param(
     [string]$DisplayName = 'Global Admin',
     [int]$AnchorAgencyId = 1,
     [securestring]$Password,
-    [string]$CredentialPath = (Join-Path $env:LOCALAPPDATA 'Satilogica\Sati\Credentials\demo-global-admin.xml')
+    [string]$CredentialPath = (Join-Path $env:LOCALAPPDATA 'SatiLogica\Sati\Credentials\demo-global-admin.xml')
 )
 
 $ErrorActionPreference = 'Stop'

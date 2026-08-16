@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-13.*
+sections at the bottom. Last updated: 2026-08-15.*
 
 ---
 
@@ -83,8 +83,12 @@ new application version is admitted.
 ### Demo schema and Demo seed are separate assets
 
 Migrations define structure. A versioned canonical seed defines the synthetic superhero/sitcom
-dataset and stored demonstration logins. A scheduled Azure job restores that baseline nightly under
-a reset-specific managed identity.
+dataset and stored demonstration logins. The intended design is a scheduled Azure job restoring
+that baseline nightly under a reset-specific managed identity, separate from the API identity.
+
+**Not yet configured as of 2026-08-15.** The design is settled; the job is not running. Demo data
+persists between demonstrations until it is reset by hand. `DATABASE_ENVIRONMENTS.md` carries the
+required reset sequence and `AGENDA.md` tracks the work. Do not describe Demo as self-resetting.
 
 ### Automated tests are a platform prerequisite
 
@@ -392,6 +396,26 @@ what happened during the contact being documented. Client-record text is untrust
 not executable instruction. The case manager can expand **Context used** before accepting a draft
 to see the source note IDs and document version supplied to the model.
 
+## 2026-08-14 — The local model is force-reset across a consumer switch, not trusted to reset itself
+
+`FoundryLocalCaseNoteFormatter` keeps one Foundry Local model loaded and shared for the life of the
+application, across every consumer the signed-in case manager formats a note for. The query layer
+(`ClientAiContextService`, and its cloud counterpart, the `/people/{personId}/ai-context` endpoint)
+was already scoped per person and per requesting user, but nothing forced the shared model instance
+itself to discard whatever it held from the previous formatting call before the next one began.
+Sati does not have visibility into whether the underlying native runtime retains any residual
+per-call state, and does not assume it doesn't.
+
+`CaseNoteFormattingRequest` now carries the target `PersonId`. `ConsumerSessionBoundary`
+(`Services/LocalAi/ConsumerSessionBoundary.cs`) records the consumer of the last completed request
+and reports whether the next request targets someone else. When it does, the formatter unloads and
+reloads the model before generating — a full reset, not a best-effort clear — so no consumer's
+formatting call can begin on a model instance that just carried a different consumer's context.
+Consecutive requests for the same consumer skip the reload, so formatting several notes for one
+client in a row stays fast. `LocalAiConsumerIsolationTests` covers the reset-boundary decision logic
+and proves, against a seeded database, that one consumer's note content never appears in another
+consumer's assembled context.
+
 ## 2026-08-12 — Protected API requests revalidate the actor and distinguish review from authorship
 
 Every protected `/api/v1` request revalidates the JWT user, agency, and role against the current
@@ -468,3 +492,395 @@ that guarantee testable.
 **Rejected:** an unbounded dictionary containing one lock per fingerprint, which could grow without
 limit, and a plain read-then-insert sequence, which loses reports or returns unique-key failures under
 contention.
+
+## 2026-08-14 — Service time is a claim on the case manager's day, enforced server-side
+
+A case manager cannot bill 9:00–9:15 for one client and 9:10–9:20 for another: those notes
+double-claim ten minutes of one person's time. The rule is therefore scoped to the **case manager
+and the calendar date, never to the client**, and it is owned by `ServiceTimeline` in
+`Sati.Contracts` so the desktop client and the API evaluate identical logic.
+
+Note.StartTime already existed as minutes elapsed from 7:00 AM but was never written by any client.
+That storage convention is now the definition of the loggable day: 7:00 AM to 7:00 PM, offered at
+five-minute granularity. The note-entry panel draws the day as a bar — recorded time, this draft,
+and any collision — and states the verdict in a sentence, because color alone cannot carry it.
+
+Start times remain **optional**. Every note recorded before this feature has none, and a note with
+no start time claims no minutes and conflicts with nothing. Requiring one would have invalidated
+historical records and blocked note types where clock time is not meaningful.
+
+Intervals are half-open: a note ending at 9:15 and a note starting at 9:15 are adjacent, not
+overlapping. Back-to-back contacts are ordinary work and must not be rejected.
+
+Cancelled, Delayed, and Abandoned release their time — the service did not happen. Every other
+status, including Scheduled, holds it, because planned work is still a commitment of the same hour.
+A note never conflicts with the stored copy of itself, so editing a note's narrative does not
+require moving its time.
+
+The client checks the rule twice: live, for the bar, and again against freshly loaded data
+immediately before persisting. The API repeats it on every create and update and answers
+`service_time_overlap` or `service_time_window` with 409. Overlap decides what may be billed, so
+a distributed client cannot be the enforcement point.
+
+**Rejected:** snapping legacy off-grid start times to the nearest five-minute slot, which would
+silently move a recorded service time; scoping the check to one client, which would miss the actual
+double-billing case; and treating the client-side check as sufficient.
+
+## 2026-08-14 — Input and grid text colors are owned by App.xaml, not by the framework theme
+
+Two controls rendered illegibly on the dark themes because the framework's default templates paint
+surfaces the app's `Background` never reaches. The ComboBox builds its closed-state chrome from a
+ToggleButton whose style hard-codes a near-white fill and drops its list into a popup painted with
+`SystemColors.WindowBrush`; with a themed light foreground that produced white text on near-white.
+`DataGridCell` pins its foreground to a near-black system color, so grids that themed only the row
+background produced dark text on a dark row.
+
+Neither is reachable by a style setter, so `ComboBox` is fully retemplated and the `DataGrid` family
+gains themed implicit styles in App.xaml. Text and selection colors for the input family now have a
+single owner. Local `TextBox` styles use `BasedOn="{StaticResource {x:Type TextBox}}"` so a narrower
+scope refines the theme instead of silently dropping it.
+
+**Rejected:** per-view color patches, which is how the defect spread in the first place, and
+per-theme overrides of framework brush keys, which would need repeating in all ten theme files.
+
+## 2026-08-14 — The audit export is an execution surface, and its format has one owner
+
+RFC 4180 quoting makes a CSV field parse correctly; it does not stop Excel, LibreOffice, or Sheets
+from evaluating it. Those readers strip the quotes on import and then treat a leading `=`, `+`,
+`-`, `@`, tab, or carriage return as a formula. The audit export is opened by an Admin, an auditor,
+or a state reviewer, so a field that survives quoting still reaches an execution context.
+
+`ActorDisplayName` made that a privilege-boundary crossing rather than a theoretical one: a
+Supervisor may set the display name of any case manager they supervise, and only an Admin may run
+the export. Sati now neutralizes any value beginning with a formula trigger by prefixing an
+apostrophe, preserving the original characters after it so the record stays faithful to what was
+stored. Neutralization applies to **every** column rather than only the untrusted ones, so adding a
+column cannot silently reopen the hole.
+
+The format lived in two hand-built copies — the API export and the desktop's local export — which
+is how one could have been fixed and the other left behind. `Sati.Contracts.V1.AuditCsv` is now the
+single owner of the header, the column order, and the escaping, and both call it.
+
+**Rejected:** stripping or rejecting the offending characters, which would make the audit record an
+inaccurate copy of what the system actually stored; and fixing only the API path, which would leave
+the desktop export exposed and reintroduce the drift that caused the problem.
+
+## 2026-08-14 — Sign-in spends the same work whether or not the account exists
+
+The login handler returned early when no user row matched, skipping 100,000 PBKDF2 iterations. A
+missing account answered in 2.9 ms against 9.9 ms for a wrong password on the development machine —
+a reliable oracle for enumerating which clinician accounts exist, and a way to pick targets for the
+per-username lockout.
+
+`PasswordVerifier.VerifyMissingUser` performs the same derivation against a fixed decoy credential
+and always returns false. It looks like dead code and is not: the API authorization inventory says
+so explicitly, and a regression test asserts the timing property. That test was confirmed to fail
+against the unfixed handler before it was kept — a security test that passes either way is worse
+than no test, because it reports safety it never checked.
+
+**Rejected:** a fixed artificial delay, which is both slower and still distinguishable under
+statistical sampling, and relying on the rate limiter alone, which bounds the rate of enumeration
+without preventing it.
+
+## 2026-08-15 — Provider directory entries are local knowledge about a shared organization
+
+A `Provider` row is not "an organization." It is **one agency's local record of** an organization:
+its contacts there, its notes, whether that organization acts as a passthrough agency *for it*.
+Several agencies each holding a Spurwink row is therefore correct, not redundant. The rows differ
+in exactly the way they should.
+
+That distinction becomes load-bearing when Karuna arrives, because a real organization may then
+exist twice: as directory entries typed by case-management agencies, and as a tenant with its own
+users and data. Three concepts have to stay separate — the **organization** (platform-wide legal
+identity), the **directory entry** (per-agency local knowledge), and the **tenant** (an
+organization that has logged in). One organization has many directory entries and at most one
+tenant.
+
+**Reconciliation is a link, never a swap.** When an organization onboards, it is matched to a
+canonical organization identity and the existing directory entries are linked to it. No row is
+repointed, no foreign key rewritten, no history disturbed — which is precisely what makes the
+transition seamless. Swapping would mean chasing `Settings.DefaultPassthroughProviderId`,
+`ComprehensiveAssessment.ProviderId`, and every reference added afterwards, forever.
+
+**Rejected:** an interface with local-provider and Karuna-agency implementations. That solves
+polymorphism, and the actual problem is identity — an interface would still leave the same
+organization stored twice with nothing establishing they are the same. An abstraction does belong
+on the *read* side, resolving available passthrough providers from both local entries and live
+agencies, but it sits on top of the identity model rather than replacing it.
+
+### Why the identifiers exist now, years before the registry they serve
+
+`Provider.Npi` and `Provider.MaineCareProviderId` were added on 2026-08-15, long before any
+Organization table. Everything else in the design can be introduced by migration later; the
+identifiers cannot. A name typed today with no identifier can only ever be matched by fuzzy
+comparison against hundreds of rows, by hand. Data not captured is simply gone.
+
+Both are optional, because a directory entry is often created from a phone call before any
+paperwork exists, and both are recorded because either may be the one an organization supplies.
+NPI is validated with `BillingRules.IsValidNpi` — the same Luhn check already used for claim
+generation — so a typo is caught at entry rather than surfacing years later as a failed match.
+
+Uniqueness is enforced per agency by filtered unique indexes, and checked in the API and the
+transitional local service so the answer names the existing entry instead of surfacing a
+constraint violation. Uniqueness deliberately does **not** span agencies.
+
+### Published contacts supersede local ones, but only as an explicit disclosure
+
+Once an organization is a tenant, it maintains its own passthrough contact details and those
+become the default for every linked agency, replacing what each agency typed. Two rules keep that
+safe:
+
+Local values are **demoted, not deleted**. An agency that genuinely has its own named contact at
+that organization re-asserts it in one click, and nothing is lost. Before onboarding every local
+value was only ever "I typed this because nobody authoritative existed," so adopting the published
+set by default is right — but the escape hatch has to exist, because a general billing contact
+replacing a specific account contact is a regression wearing the costume of an improvement.
+
+Publishing is an **explicit act with an explicit payload**, never a view onto the organization's
+internal contact records. Resolving outward-facing contacts from internal data would disclose
+internal staff details to every linked agency the moment they onboard. The published set is
+visible only to agencies with an active relationship, and that relationship is itself a record —
+an organization going live must not appear in every agency's passthrough picker, because
+passthrough is a contract between two specific parties, not a global fact.
+
+The swap is announced twice — once to each affected agency when it happens, once at point of use
+so a changed contact on an AT request is explicable — and audited on both sides, because these
+contacts feed a financial document. Submitted AT requests are unaffected: they already snapshot
+vendor details with no foreign key. A draft created before a swap and submitted after is **not**
+silently re-snapshotted; it reports which fields changed and lets the user decide, matching the
+conflict-reconcile idiom already used for notes.
+
+---
+
+## 2026-08-15 — Publishing an AT request records an attestation, not a signature
+
+An AT request is a document of record that leaves the agency. Until now it could be edited
+indefinitely and had no notion of being finished. Publishing closes that: it records who published
+it and when, freezes the statement they affirmed, moves the request from `Development` to `Review`,
+locks it, and generates the exportable PDF.
+
+**What is captured is an attestation, and the product says so.** The signer is taken from the
+authenticated session rather than typed, the recorded name is therefore the account that performed
+the act, and the generated PDF carries a notice stating plainly that this is not an electronic
+signature under any state or federal standard. `REGULATORY_CONCERNS.md` holds the open question of
+whether OADS requires one. Claiming more than was captured would be the expensive kind of wrong:
+a document that reads as executed when nothing executed it.
+
+**The statement is frozen onto the request, not referenced.** `AtRequestPublication` owns the
+current wording, but a request published this year must keep rendering the wording its signer
+actually read. A signature that floats to whatever the constant says today attests to nothing in
+particular.
+
+**Publication is its own operation, because of where the trust boundary sits.** Over HTTP, an
+attestation arriving in a request body is a claim by the caller about who signed. `POST
+/at-requests/{id}/publish` derives the signer from the validated actor, and `SaveAtRequestRequest`
+deliberately has no signer field for a client to populate — the attestation is outbound-only on the
+DTO. Making it a named operation rather than "an update that happens to carry a signature" means
+neither implementation can quietly start trusting the client's version. The discriminating test is
+a supervisor publishing a case manager's request: an implementation that stamped the form's
+case-manager name passes every same-person test and fails that one.
+
+**The lock is server-side and tested against the stored row.** `ATRequestService.UpdateAsync` and
+the API's `PUT` and `DELETE` both refuse a published request, and both ask the *stored* record
+whether it is published rather than the incoming copy — asking the incoming copy asks the party
+being restricted. The desktop's disabled fields are a courtesy, not a control.
+
+**Correction is reopening, which discards the attestation.** The alternative is a signature that
+stays attached while the document beneath it changes. Reopening is audited under its own action and
+carries the discarded signer in its metadata, so the trail does not simply go quiet where a
+signature used to be.
+
+### The executed PDF is not retained, and that is the decision
+
+See the entry below on regeneration. The short version: the PDF is a pure function of a frozen
+record, so storing it would duplicate data the request already holds — including the screenshots,
+which are the bulk of the file.
+
+The generated PDF is a Sati document carrying the required information, not a reproduction of the
+OADS Authorized Payment Information Form. If OADS requires their exact form, only
+`ATRequestPdfExporter` changes; publication, attestation, and locking do not know what the page
+looks like.
+
+---
+
+## 2026-08-15 — Item evidence is a pasted clip on its own page, beside its URL
+
+An AT request asserts that a specific product costs a specific amount. The
+evidence for that claim is what the vendor's page showed when the case manager
+priced it, so items now carry a pasted screenshot, and publishing generates a
+second page pairing each clip with the URL it came from.
+
+**The URL left the line-item listing.** `ATRequestItem.Url` already carried a note
+saying it was for "the future screenshots-with-clickable-links page" and was "NOT
+rendered on the page-1 OADS form (the state form has no URL column)." The first
+version of the exporter rendered it there anyway. Page one is the payment request
+a reviewer reads; a bare link in the cost table is noise. The URL now appears once,
+on the evidence page, directly above the picture it explains.
+
+**Paste sits beside the URL field.** The two describe the same thing — where the
+item was found and what it looked like there — and they travel to the evidence
+page as one block. Separating them in the editor would have made the pairing an
+implementation detail the user has to remember rather than something the layout
+states.
+
+**The clip count is confirmed twice.** Once live in the editor as clips are
+pasted, once in the publish confirmation. Publishing locks the request, so a clip
+that silently failed to attach is trivially fixable beforehand and expensive
+afterwards, when correcting it means discarding the attestation and publishing
+again. Both readouts are announced politely to screen readers.
+
+**Screenshots are PNG, downscaled, and capped, with one owner.**
+`AtRequestScreenshot` decides the longest edge (1400px), the byte ceiling (4 MB),
+and the format. PNG rather than JPEG because the subject is a page of text and UI,
+where JPEG's ringing artefacts land exactly on the characters someone needs to
+read — a price, in a document that authorises a payment. The desktop enforces the
+rule at the paste boundary so the user learns immediately; the API enforces the
+same rule again, because a client-side limit is a courtesy and constrains nothing
+about what arrives in a request body. Malformed base64 comes back as a 400 rather
+than throwing.
+
+**URLs are rendered as text, never as link annotations.** They are user-entered
+values in a document that leaves the agency. A clickable target inside it is a
+hazard nobody reviewed.
+
+**A clip that will not decode does not cost the document.** The exporter reports
+the gap on the page rather than failing the render, so one bad row cannot make a
+request unpublishable.
+
+### Storage note
+
+`ATRequestItem.ScreenshotPng` is a heavy column, but unlike `ATRequest.SnapshotPng`
+it has a public setter and no first-write-wins rule. That blob is evidence of a
+published document and must not be replaced; this is draft content the case
+manager is still assembling, no different from the item's name or price. What
+stops it changing after publication is the publication lock. The queue projection
+never materialises item rows at all, so clips stay out of list reads by
+construction; opening a single request does load them, which is the point.
+
+---
+
+## 2026-08-15 — A filed AT request regenerates faithfully, from the record
+
+AT requests are now listed on the client's profile, and any of them can be
+regenerated as a PDF. The list follows the CLIENT rather than whoever currently
+carries them, so transferring a caseload does not orphan a client's filed
+documents.
+
+**Regeneration is faithful, not refreshed.** Reopening a filed request next year
+must produce the document that was submitted, not recompute it against whatever
+the agency's terms have become. Every figure already came from the stored record
+— the frozen client and case-manager snapshots, the stored tax AMOUNT, the items,
+the attestation — with one exception, which this change closed.
+
+**The passthrough rate is now frozen at publication.** It was being read from
+current settings at render, so an agency renegotiating from 15% to 18% would have
+silently restated the totals on every previously filed request. Sales tax freezes
+as an amount because it is entered; the passthrough rate freezes as a RATE because
+the document PRINTS it — "Passthrough fee (15.00%)" — and a stored amount alone
+could not reproduce that label. Stored `decimal(5,4)` like `Settings.PassthroughRate`,
+not the `decimal(18,2)` EF picks for money columns, because that rounds 0.055 to
+0.06. Nullable, because a draft has no frozen rate and should follow the agency's
+live terms; reopening releases it for the same reason.
+
+The rate is read server-side at publication — from agency settings on the API
+path, from the settings service on the desktop path — never from the payload,
+matching how the signer is derived.
+
+**The generated document is deterministic for a published request.** The PDF's own
+creation and modification timestamps are pinned to the attestation time, and the
+generation timestamp reaches the page only in a draft's "not published" banner. Two
+regenerations months apart are identical apart from two pieces of PDF plumbing that
+PDFsharp randomises per save and that carry no content: the six-letter font subset
+tag, and the XMP document UUID. The regression test masks exactly those two and
+compares everything else exactly.
+
+### The PDF is regenerated, never retained
+
+Decided 2026-08-15, after the fidelity work above made it defensible.
+
+A published AT request cannot change. The only writers of its status are the publish route, the
+reopen route, and the ordinary save path — and the save path refuses a published row, as do delete
+and edit. Every input the exporter reads is therefore frozen: the client and case-manager snapshots,
+the item rows, the sales tax AMOUNT, the passthrough RATE, the attestation and its wording, and the
+pasted screenshots. The generation timestamp does not reach the page of a published request.
+
+So the document is a pure function of the record, and storing it would duplicate that record —
+screenshots included, which are most of the file. A hundred kilobytes per request, per client,
+indefinitely, to hold something reproducible on demand. `ATRequest.SnapshotPng` already retains a
+glance-able proof-of-document image, first-write-wins, for the cases where an image is what is
+wanted.
+
+**On the regulatory framing.** `REGULATORY_CONCERNS.md` says an executed artifact must not be
+replaceable. That is this project's own design principle, not a citation of a Maine or federal rule,
+and its actual intent — that nobody alters a document after it is signed — is what the publication
+lock enforces. Treating our own aspirational language as an external requirement was overcautious.
+Whether OADS or MaineCare imposes a records-retention obligation on the AGENCY is a separate
+question, and one the agency answers with the underlying record, which Sati holds.
+
+**The residual risk is code, not storage.** Regeneration is faithful as long as
+`ATRequestPdfExporter` is unchanged. Matching the OADS form layout is on the agenda; the day that
+lands, historical requests will regenerate in a layout that was never submitted. The content stays
+correct — only the presentation moves. That is an accepted trade. If it ever needs closing, the
+cheap instrument is a SHA-256 of the published PDF (32 bytes, not 100 KB), which cannot reproduce
+the original but turns a silent divergence into a detectable one. Not worth adding until something
+actually checks it.
+
+### Note on the list projection
+
+Both AT request list routes now share one row shape and one total calculation.
+That refactor initially broke BOTH routes — EF could not translate a projection
+into a positional record constructor — and it went unnoticed because the existing
+`GET /at-requests` route had no test. It does now, by way of the per-client list
+test that caught it. The projection uses object-initializer syntax, which EF
+translates reliably.
+
+---
+
+## 2026-08-15 — An installation bootstraps its first administrator; it never ships with one
+
+A Sati database can reach a state where nobody can administer it — a fresh install,
+or a real install whose only account is a case manager. Without a way out, the owner
+of the data cannot create a supervisor, cannot promote anyone, and cannot recover
+except by editing the database by hand.
+
+**No administrator is ever created automatically, and no password is ever defaulted.**
+An account that exists on every install with a password the software knows is a
+backdoor on every install. Sati instead refuses to have an administrator until a
+human sits down and chooses a password for one. The login window offers first-run
+setup when none exists; the human types the credentials; the account is created.
+
+**The window is narrow and self-closing.** `CreateFirstAdministratorAsync` re-checks
+inside the write that no administrator exists, so the check cannot be stale by the
+time it acts, and creating one shuts the path permanently. The check reads the
+database rather than a flag, so an administrator created by any other route — the
+ordinary user-management screen, or the provisioning script — closes it just the
+same. The role is forced rather than trusted from the caller: honouring an incoming
+CaseManager would leave the installation with no administrator and the window still
+open.
+
+**Setup is offered, not forced.** An installation in this state usually has working
+accounts already. A case manager doing real work should not be held hostage by a
+prompt about administration they may not be the right person to perform.
+
+**Desktop-local only, deliberately.** There is no API route for this. Bootstrapping
+without credentials is defensible against a database the caller already has direct
+access to; the same capability exposed over the network on a multi-tenant service is
+not. `CloudUserService` refuses outright and points at
+`scripts/Provision-DemoGlobalAdmin.ps1`, run by an operator already trusted with the
+database. That script's existing restriction to `SatiDemo` is untouched.
+
+**The password bar is higher than for ordinary accounts** — 16 characters against the
+8 that self-service changes accept, matching what the hosted provisioner already
+demands. This is the one credential that can create every other one, and it is typed
+once at setup rather than daily.
+
+### The agency question
+
+Every Sati database ships with two seeded agencies ("Internal", "Sandbox Mode"), so
+"use the only one" was not available. The administrator joins **the agency the
+existing users are in**, because an administrator exists to administer the agency
+that holds the work. PlatformOperator accounts are excluded from that calculation —
+they are Sati's cross-tenant telemetry identity and say nothing about which tenant
+needs administering. Users genuinely spread across several agencies is reported as
+ambiguous rather than guessed at: attaching the only administrative account to the
+wrong tenant is not a mistake that announces itself afterwards.

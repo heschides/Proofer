@@ -114,6 +114,40 @@
                         </StackPanel>
                     </Grid>
 
+                    <TextBlock Text="IDENTIFIERS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,8,0,8" />
+
+                    <TextBlock Text="Recording at least one identifier lets Sati recognise this organisation later if it joins the platform in its own right. A name alone cannot be matched reliably."
+                               TextWrapping="Wrap"
+                               FontSize="11"
+                               LineHeight="16"
+                               Margin="0,0,0,8"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="NPI"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBox AutomationProperties.Name="National Provider Identifier"
+                                     ToolTip="Ten-digit National Provider Identifier. Checked for a valid check digit when saved."
+                                     MaxLength="10"
+                                     Text="{Binding Npi, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="MaineCare Provider ID"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBox AutomationProperties.Name="MaineCare provider identifier"
+                                     MaxLength="30"
+                                     Text="{Binding MaineCareProviderId, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Grid>
+
                     <TextBlock Text="CONTACT"
                                Style="{StaticResource SectionHeader}"
                                Margin="0,8,0,8" />

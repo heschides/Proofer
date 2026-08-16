@@ -1764,6 +1764,87 @@
                                  Style="{StaticResource ClientWorkspaceTabItemStyle}">
                             <clientDocuments:ClassificationWorkspace />
                         </TabItem>
+
+                        <!-- AT REQUESTS
+                             Every assistive technology payment request filed for
+                             this client, newest first. The list follows the CLIENT
+                             rather than whoever currently carries them, so a
+                             transfer does not orphan their filed documents.
+
+                             "Regenerate PDF" rebuilds the document from the stored
+                             record, not from today's figures — see
+                             ATRequestPdfExporter. -->
+                        <TabItem Header="AT Requests"
+                                 Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <Grid Margin="16">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="Assistive technology payment requests filed for this client. Regenerating a published request reproduces the document exactly as it was submitted."
+                                           TextWrapping="Wrap"
+                                           FontSize="12"
+                                           LineHeight="17"
+                                           Margin="0,0,0,12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                <TextBlock Grid.Row="1"
+                                           Text="No AT requests have been created for this client."
+                                           VerticalAlignment="Top"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Visibility="{Binding HasSelectedPersonAtRequests,
+                                               Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                                <DataGrid Grid.Row="1"
+                                          ItemsSource="{Binding SelectedPersonAtRequests}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          HeadersVisibility="Column"
+                                          CanUserAddRows="False"
+                                          GridLinesVisibility="Horizontal"
+                                          AutomationProperties.Name="AT requests for this client"
+                                          Visibility="{Binding HasSelectedPersonAtRequests,
+                                              Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Submitted"
+                                                            Width="110"
+                                                            Binding="{Binding SubmittedDate, StringFormat=yyyy-MM-dd}" />
+                                        <DataGridTextColumn Header="Status"
+                                                            Width="100"
+                                                            Binding="{Binding Status}" />
+                                        <DataGridTextColumn Header="Vendor"
+                                                            Width="*"
+                                                            Binding="{Binding VendorName}" />
+                                        <DataGridTextColumn Header="Total"
+                                                            Width="100"
+                                                            Binding="{Binding TotalCost, StringFormat=C}" />
+                                        <!-- Who attested, not who the client's case
+                                             manager happens to be now. Blank on a draft,
+                                             which is itself the useful signal. -->
+                                        <DataGridTextColumn Header="Published by"
+                                                            Width="150"
+                                                            Binding="{Binding SignedByName}" />
+                                        <DataGridTemplateColumn Header="Document"
+                                                                Width="140">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="Regenerate PDF"
+                                                            Style="{StaticResource SmallButton}"
+                                                            Margin="4,2"
+                                                            AutomationProperties.Name="{Binding SubmittedDate,
+                                                                StringFormat='Regenerate PDF for the request submitted {0:yyyy-MM-dd}'}"
+                                                            Command="{Binding DataContext.RegenerateAtRequestPdfCommand,
+                                                                RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                            CommandParameter="{Binding}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
                     </TabControl>
                 </Grid>
             </Border>

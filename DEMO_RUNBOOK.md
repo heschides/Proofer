@@ -34,7 +34,7 @@ checks version and public configuration, and removes the acceptance copy:
 
 ```powershell
 .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.15.exe `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.17.exe `
     -LaunchIterations 5
 ```
 
@@ -46,7 +46,7 @@ Check the deployed API without credentials:
 
 The separately provisioned Global Admin is a least-privilege `PlatformOperator`, not an agency
 Admin. Its Demo credential is stored outside the repository using Windows user-bound encryption at
-`%LOCALAPPDATA%\Satilogica\Sati\Credentials\demo-global-admin.xml`. Verify it without printing the
+`%LOCALAPPDATA%\SatiLogica\Sati\Credentials\demo-global-admin.xml`. Verify it without printing the
 password:
 
 ```powershell
@@ -104,7 +104,7 @@ not document passwords in this runbook.
 - If readiness fails, stop the workflow; do not switch to real data or attempt an emergency
   database connection.
 - If the client displays an error reference, record only that reference. Diagnostic JSON lines are
-  under `%LOCALAPPDATA%\Satilogica\Sati\Logs` and omit exception messages by design.
+  under `%LOCALAPPDATA%\SatiLogica\Sati\Logs` and omit exception messages by design.
 - If a demonstration mutation succeeds, record the synthetic account, Person ID, and action so the
   canonical Demo dataset can be restored deliberately.
 - Keep `output\pdf\Sati-Company-Demo-Fallback-1.2.3.pdf` available offline. It is explicitly
@@ -121,7 +121,7 @@ After approving the exact synthetic dataset used for rehearsal, capture its immu
 ```
 
 The baseline is stored outside the repository under
-`%LOCALAPPDATA%\Satilogica\Sati\DemoBaseline`. The tool refuses any database except `SatiDemo`
+`%LOCALAPPDATA%\SatiLogica\Sati\DemoBaseline`. The tool refuses any database except `SatiDemo`
 with the `Demo` identity marker, verifies SQL backup checksums and a SHA-256 manifest, and will not
 silently replace an existing baseline.
 

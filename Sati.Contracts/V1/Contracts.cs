@@ -477,32 +477,54 @@ public sealed record PersonCenteredPlanSourceDto(
 public sealed record ProviderDto(
     int Id, string Type, string Name, string? Street, string? City, string? State, string? Zip,
     string? PrimaryContact, string? Phone, int OfferedServices, bool ProvidesPassthroughService,
-    string? BillingLocationEis, string? ProgramContact, string? BillingContact);
+    string? BillingLocationEis, string? ProgramContact, string? BillingContact,
+    string? Npi = null, string? MaineCareProviderId = null);
 
 public sealed record SaveProviderRequest(
     string Type, string Name, string? Street, string? City, string? State, string? Zip,
     string? PrimaryContact, string? Phone, int OfferedServices, bool ProvidesPassthroughService,
-    string? BillingLocationEis, string? ProgramContact, string? BillingContact);
+    string? BillingLocationEis, string? ProgramContact, string? BillingContact,
+    string? Npi = null, string? MaineCareProviderId = null);
 
-public sealed record AtRequestItemDto(int Id, int AtRequestId, string? Name, decimal ItemCost, int Quantity, string? Url);
+// ScreenshotBase64 is the item's pasted evidence clip, carried inline rather
+// than through a separate blob route. It travels on the ordinary item payload
+// because it is edited as part of the item and must be saved atomically with the
+// price it evidences; AtRequestScreenshot caps how big it may get.
+public sealed record AtRequestItemDto(
+    int Id, int AtRequestId, string? Name, decimal ItemCost, int Quantity, string? Url,
+    string? ScreenshotBase64 = null);
 public sealed record AtRequestDto(
     int Id, int PersonId, string? ClientName, string? ClientEvergreenId,
     string? CaseManagerName, string? CaseManagerEmail, string? CaseManagerPhone, string? CaseManagerAgency,
     string? VendorName, string? VendorBillingLocation, string? VendorProgramContact, string? VendorBillingContact,
-    decimal SalesTax, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
+    decimal SalesTax, bool SalesTaxOverridden, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
     int Revision,
-    IReadOnlyList<AtRequestItemDto> Items);
+    IReadOnlyList<AtRequestItemDto> Items,
+    // The passthrough rate this request was published under. Null on a draft.
+    // Outbound only, for the same reason as the attestation below: the server
+    // reads it from agency settings at publication, never from the client.
+    decimal? PassthroughRate = null,
+    // Attestation — OUTBOUND ONLY. There is deliberately no matching field on
+    // SaveAtRequestRequest: a signer name arriving from a client is a claim about
+    // who signed, and the server records who actually did. See the publish route.
+    string? SignedByName = null, string? SignedByRole = null, int? SignedByUserId = null,
+    DateTime? SignedAtUtc = null, string? AttestationStatement = null);
 public sealed record AtRequestListItemDto(
     int Id, string? ClientName, string Status, decimal TotalCost, DateTime? SubmittedDate,
-    string? VendorName, string? CaseManagerName, bool HasSnapshot);
-public sealed record SaveAtRequestItemRequest(int Id, string? Name, decimal ItemCost, int Quantity, string? Url);
+    string? VendorName, string? CaseManagerName, bool HasSnapshot,
+    string? SignedByName = null, DateTime? SignedAtUtc = null);
+public sealed record SaveAtRequestItemRequest(
+    int Id, string? Name, decimal ItemCost, int Quantity, string? Url,
+    string? ScreenshotBase64 = null);
 public sealed record SaveAtRequestRequest(
     int PersonId, string? ClientName, string? ClientEvergreenId,
     string? CaseManagerName, string? CaseManagerEmail, string? CaseManagerPhone, string? CaseManagerAgency,
     string? VendorName, string? VendorBillingLocation, string? VendorProgramContact, string? VendorBillingContact,
-    decimal SalesTax, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
+    decimal SalesTax, bool SalesTaxOverridden, DateTime? SubmittedDate, DateTime? DecisionDate, string Status,
     IReadOnlyList<SaveAtRequestItemRequest> Items,
     int ExpectedRevision = 0);
+public sealed record PublishAtRequestRequest(int ExpectedRevision);
+public sealed record ReopenAtRequestRequest(int ExpectedRevision);
 public sealed record BinaryPayloadDto(string? Base64);
 
 public sealed record ClientAiContextSourceDto(string Category, string Description);

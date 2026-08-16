@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
+using Sati.Reporting;
 using Sati.Services;
+using Sati.ViewModels.Children;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
@@ -27,6 +29,8 @@ namespace Sati.ViewModels
         private readonly ISettingsService _settingsService;
         private readonly IReviewItemService _reviewItemService;
         private readonly IPersonContactService _personContactService;
+        private readonly IATRequestService _atRequestService;
+        private readonly ATRequestPdfExporter _atRequestPdfExporter;
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
         // keystroke — Stop()+Start() on every edit means it fires once typing pauses,
@@ -236,6 +240,7 @@ namespace Sati.ViewModels
             _ = LoadSelectedPersonNotesAsync(value);
             _ = LoadAppointmentsAsync(value);
             _ = LoadContactsAsync(value);
+            _ = LoadAtRequestsAsync(value);
             RefreshUpcomingItems(value);
 
             // The panel is persistent now, so it can't be left showing one client's
@@ -438,7 +443,9 @@ namespace Sati.ViewModels
         public NewClientViewModel(IPersonService personService, ISessionService session,
                            INoteService noteService, IFormService formService, ISettingsService settingsService,
                            IReviewItemService reviewItemService,
-                           IPersonContactService personContactService)
+                           IPersonContactService personContactService,
+                           IATRequestService atRequestService,
+                           ATRequestPdfExporter atRequestPdfExporter)
         {
             _personService = personService;
             _sessionService = session;
@@ -447,7 +454,79 @@ namespace Sati.ViewModels
             _settingsService = settingsService;
             _reviewItemService = reviewItemService;
             _personContactService = personContactService;
+            _atRequestService = atRequestService;
+            _atRequestPdfExporter = atRequestPdfExporter;
             _ = LoadHealthcareOptionsAsync();
+        }
+
+        // ---------------------------------------------------------------------
+        // AT requests filed for this client
+        // ---------------------------------------------------------------------
+
+        public ObservableCollection<ATRequestListItem> SelectedPersonAtRequests { get; } = [];
+
+        public bool HasSelectedPersonAtRequests => SelectedPersonAtRequests.Count > 0;
+
+        /// <summary>
+        /// Raised when a regenerated AT request PDF is ready to be written to
+        /// disk. The view owns the file dialog; this view model owns the bytes.
+        /// </summary>
+        public event EventHandler<ATRequestPdfReadyEventArgs>? AtRequestPdfReady;
+
+        public event EventHandler<ATRequestProblemEventArgs>? AtRequestProblem;
+
+        private async Task LoadAtRequestsAsync(Person? person)
+        {
+            SelectedPersonAtRequests.Clear();
+            OnPropertyChanged(nameof(HasSelectedPersonAtRequests));
+
+            if (person is null)
+                return;
+
+            var personId = person.Id;
+            var requests = await _atRequestService.GetAllForPersonAsync(personId);
+
+            // Selection can move while the query is in flight. Never show one
+            // client's payment requests under another's name.
+            if (SelectedPerson?.Id != personId)
+                return;
+
+            foreach (var row in requests)
+                SelectedPersonAtRequests.Add(row);
+
+            OnPropertyChanged(nameof(HasSelectedPersonAtRequests));
+        }
+
+        /// <summary>
+        /// Rebuilds the PDF for a filed request from the stored record.
+        ///
+        /// FAITHFUL, NOT REFRESHED. Every figure comes from the request itself —
+        /// the frozen client and case-manager details, the stored tax amount, the
+        /// passthrough rate the request was published under, and the recorded
+        /// attestation. The agency's current rate is passed only as the fallback
+        /// a draft needs; a published request ignores it.
+        /// </summary>
+        [RelayCommand]
+        private async Task RegenerateAtRequestPdfAsync(ATRequestListItem? row)
+        {
+            if (row is null)
+                return;
+
+            var request = await _atRequestService.GetByIdAsync(row.Id);
+            if (request is null)
+            {
+                AtRequestProblem?.Invoke(this, new ATRequestProblemEventArgs(
+                    "Request Not Found",
+                    "This AT request is no longer available. The list has been refreshed."));
+                await LoadAtRequestsAsync(SelectedPerson);
+                return;
+            }
+
+            var settings = await _settingsService.LoadAsync();
+            var content = _atRequestPdfExporter.Generate(request, settings.PassthroughRate, DateTime.UtcNow);
+
+            AtRequestPdfReady?.Invoke(this, new ATRequestPdfReadyEventArgs(
+                content, ATRequestPdfExporter.SuggestedFileName(request)));
         }
 
         private void RefreshUpcomingItems(Person? person)

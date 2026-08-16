@@ -30,7 +30,7 @@ public sealed class ApplicationRunState
 
     public ApplicationRunState() : this(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Satilogica", "Sati", "RunState"))
+        "SatiLogica", "Sati", "RunState"))
     {
     }
 

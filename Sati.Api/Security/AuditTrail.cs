@@ -48,6 +48,8 @@ internal static class AuditActions
     public const string BillingClaimLineCreated = "billing-claim-line.created";
     public const string BillingEdiGenerated = "billing-edi.generated";
     public const string BillingConfigurationUpdated = "billing-configuration.updated";
+    public const string AtRequestPublished = "at-request.published";
+    public const string AtRequestReopened = "at-request.reopened";
     public const string AuditExported = "audit.exported";
     public const string PlatformIncidentsViewed = "platform-incidents.viewed";
     public const string IncidentStatusUpdated = "incident-status.updated";

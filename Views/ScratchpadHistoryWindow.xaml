@@ -10,7 +10,7 @@
         Background="{DynamicResource WindowBackgroundBrush}">
 
     <Window.Resources>
-        <Style x:Key="HistoryTextBoxStyle" TargetType="TextBox">
+        <Style x:Key="HistoryTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontFamily" Value="Cambria" />

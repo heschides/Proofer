@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
@@ -16,7 +17,7 @@ namespace Sati.ViewModels
         private readonly IIncentiveService _incentiveService;
         private readonly ISettingsService _settingsService;
         private Incentive? _incentive;
-        private Settings? _settings;
+        private readonly LatestRequestTracker _monthLoadRequests = new();
 
 
         //EVENTS
@@ -25,6 +26,7 @@ namespace Sati.ViewModels
         [ObservableProperty] private int currentMonth;
         [ObservableProperty] private int currentYear;
         [ObservableProperty] private string monthLabel = string.Empty;
+        [ObservableProperty] private bool isLoading;
         public int DaysScheduled => _incentive?.DaysScheduled ?? 0;
 
         public ObservableCollection<WorkdayTile> Tiles { get; } = [];
@@ -44,6 +46,7 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task ToggleTile(WorkdayTile tile)
         {
+            if (IsLoading) return;
             if (!tile.IsInteractable) return;
             if (_incentive is null) return;
 
@@ -98,34 +101,62 @@ namespace Sati.ViewModels
         //FUNCTIONS
         private async Task LoadMonthAsync()
         {
+            var request = _monthLoadRequests.Begin();
+            var month = CurrentMonth;
+            var year = CurrentYear;
+            IsLoading = true;
             try
             {
                 var userId = _sessionService.CurrentUser!.Id;
-                _settings = await _settingsService.LoadAsync();
-                var (incentive, _) = await _incentiveService.GetOrCreateAsync(userId, CurrentMonth, CurrentYear);
-                MonthLabel = new DateTime(CurrentYear, CurrentMonth, 1).ToString("MMMM yyyy");
+                var settings = await _settingsService.LoadAsync();
+                var (incentive, _) = await _incentiveService.GetOrCreateAsync(userId, month, year);
+                var tiles = BuildTiles(incentive, settings, month, year);
+                var computed = tiles.Count(tile => !tile.IsExcluded);
+                if (computed != incentive.DaysScheduled)
+                {
+                    incentive.DaysScheduled = computed;
+                    await _incentiveService.SaveAsync(incentive);
+                }
+
+                if (!_monthLoadRequests.IsCurrent(request) ||
+                    CurrentMonth != month || CurrentYear != year)
+                    return;
+
                 _incentive = incentive;
-                BuildTiles();
+                MonthLabel = new DateTime(year, month, 1).ToString("MMMM yyyy");
+                Tiles.Clear();
+                foreach (var tile in tiles)
+                    Tiles.Add(tile);
+                OnPropertyChanged(nameof(DaysScheduled));
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"LoadMonthAsync failed: {ex.Message}");
             }
+            finally
+            {
+                if (_monthLoadRequests.IsCurrent(request))
+                    IsLoading = false;
+            }
         }
 
-        private void BuildTiles()
+        private static List<WorkdayTile> BuildTiles(
+            Incentive incentive,
+            Settings settings,
+            int month,
+            int year)
         {
-            Tiles.Clear();
-            var daysInMonth = DateTime.DaysInMonth(CurrentYear, CurrentMonth);
+            var tiles = new List<WorkdayTile>();
+            var daysInMonth = DateTime.DaysInMonth(year, month);
 
             // Normalize stored excluded dates to midnight for reliable comparison.
-            var manuallyExcluded = (_incentive?.ExcludedDates ?? [])
+            var manuallyExcluded = incentive.ExcludedDates
                 .Select(d => d.Date)
                 .ToHashSet();
 
             for (int day = 1; day <= daysInMonth; day++)
             {
-                var date = new DateTime(CurrentYear, CurrentMonth, day);
+                var date = new DateTime(year, month, day);
                 var dow = date.DayOfWeek;
 
                 if (dow == DayOfWeek.Saturday || dow == DayOfWeek.Sunday)
@@ -142,9 +173,9 @@ namespace Sati.ViewModels
 
                 // Always-excluded: weekday flags or federal holidays from Settings.
                 // Non-interactable so the user cannot toggle them.
-                var alwaysExcluded = WorkdayHelper.IsAlwaysExcludedWorkday(date, _settings!);
+                var alwaysExcluded = WorkdayHelper.IsAlwaysExcludedWorkday(date, settings);
 
-                Tiles.Add(new WorkdayTile
+                tiles.Add(new WorkdayTile
                 {
                     Date = date,
                     Letter = letter,
@@ -153,18 +184,7 @@ namespace Sati.ViewModels
                 });
             }
 
-            // Auto-correct a stale DaysScheduled (e.g. existing records created before
-            // this fix). Only saves when the count has actually drifted.
-            if (_incentive is not null)
-            {
-                var computed = Tiles.Count(t => !t.IsExcluded);
-                if (computed != _incentive.DaysScheduled)
-                {
-                    _incentive.DaysScheduled = computed;
-                    _ = _incentiveService.SaveAsync(_incentive);
-                }
-                OnPropertyChanged(nameof(DaysScheduled));
-            }
+            return tiles;
         }
 
         public void Initialize()

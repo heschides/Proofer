@@ -14,6 +14,7 @@ namespace Sati.ViewModels.Billing
         private readonly IBillingService _billingService;
         private readonly IEdiService _ediService;
         private readonly ISessionService _sessionService;
+        private readonly SemaphoreSlim _loadGate = new(1, 1);
         private string? _pendingEdiKey;
         private int? _pendingPeriodId;
         private bool? _pendingIsTest;
@@ -56,6 +57,9 @@ namespace Sati.ViewModels.Billing
 
         public async Task LoadAsync()
         {
+            if (!await _loadGate.WaitAsync(0))
+                return;
+
             try
             {
                 BillingPeriods.Clear();
@@ -73,6 +77,10 @@ namespace Sati.ViewModels.Billing
             {
                 Debug.WriteLine($"BillingSubmissionsViewModel.LoadAsync failed: {ex.Message}");
                 StatusMessage = "Failed to load billing periods.";
+            }
+            finally
+            {
+                _loadGate.Release();
             }
         }
 

@@ -1028,15 +1028,29 @@ audit evidence, accessibility, and policy acceptance are the substantive work.
       a nullable `ProviderId` FK on `ATRequest` alongside the snapshot.
 - [ ] **Item numbers on the OADS form.** 1, 2, 3... in the form's Item # column via
       WPF `AlternationIndex` + a +1 converter. No data change.
-- [ ] **Sales-tax freeze (slice 4).** Auto-compute tax = subtotal x `SalesTaxRate` and
-      freeze the amount onto the request at save. Bundle with the deferred Save + PDF
-      export batch (both are the same trip to disk).
-- [ ] **AT request Save + Publish PDF.** Still unbuilt by design. `NewRequest` builds
-      in memory; `CloseEditor` discards; nothing calls `AddAsync`/`UpdateAsync` yet.
-      Save lands with PDF export as one batch. The persistence boundary now has aggregate
-      revision enforcement and a typed conflict ready for that workflow.
+- [x] **Sales-tax freeze (slice 4).** Landed 2026-08-15. Tax is calculated from
+      `Settings.SalesTaxRate` and frozen as an amount on the request, with a per-request
+      manual override.
+- [x] **AT request Save + Publish PDF.** Landed 2026-08-15 as one slice, as intended.
+      Open/Save/Publish/Reopen/Export, attestation, publication lock, and the generated
+      PDF. See the decision entry of the same date.
 
 ### Deferred (needs a later slice)
+- [x] **Retain the executed AT request PDF — decided against, 2026-08-15.** Not deferred;
+      rejected. A published request cannot change, so the PDF is a pure function of a frozen
+      record and storing it would duplicate that record, screenshots and all. See the decision
+      entry "The PDF is regenerated, never retained." The one residual risk is exporter code
+      changes, noted on the OADS-layout item below.
+- [ ] **Match the OADS Authorized Payment Information Form layout.** The generated PDF is a
+      Sati document carrying the same information, not a reproduction of the state form.
+      Requires the blank form. Layout change only — `ATRequestPdfExporter` is the sole owner.
+      NOTE when this lands: PDFs are regenerated rather than retained, so changing the layout
+      changes how every historical request re-renders. The figures stay correct; the
+      presentation will not match what was submitted at the time. Accepted, but decide
+      deliberately rather than discovering it afterwards.
+- [ ] **Decide whether an electronic-signature standard applies to AT requests.** Sati records
+      an attestation, and says so on the document. Whether OADS requires a signature meeting a
+      specific standard is a question for counsel and OADS, not for the repository.
 - [ ] **Client<->provider association.** The AT dropdown can only list *all* passthrough
       providers - Sati has no link from a consumer to *their* home/community-support
       provider, so it can't pre-select "this client's agency." That association is its
@@ -1153,3 +1167,97 @@ for a rewrite.
       the running Sati process held the normal output DLL. The rebuild completed with no
       errors and two distinct warnings: the `AssignedAgency` nullable dereference and the
       constant-false unreachable code described above.
+
+### Deferred from the service-day work (2026-08-14)
+
+- [ ] **Surface service start times in the note lists and calendar.** `Note.StartTime` is now
+      written by the note-entry panel, but `NotesLogView`, `ClientsView`'s note grid, and the
+      calendar still show only date and minutes. A time column would let a case manager spot a
+      gap or a clash without opening the entry panel.
+- [ ] **Extend the overlap rule to the other note-creating paths.** `NewClientViewModel` and any
+      other flow that calls `INoteService.AddNoteAsync` directly writes a note with no start time.
+      Those notes claim no time and conflict with nothing, which is correct but means the day bar
+      does not show them. Decide whether those flows should collect a start time.
+- [ ] **Decide whether Scheduled notes should reserve time softly.** A scheduled note currently
+      holds its minutes like any other commitment, so converting a plan into a separate logged
+      note reports a conflict. Editing the scheduled note in place avoids it. If case managers
+      routinely write a fresh note instead, a "planned" band that warns rather than blocks may fit
+      the real workflow better.
+
+### Deferred from the API security audit (2026-08-14)
+
+See `API_SECURITY_AUDIT.md` for the full findings. Items reviewed and consciously left alone:
+
+- [ ] **Decide the sign-in lockout policy deliberately.** `LoginAttemptGuard` allows 12 attempts per
+      username per minute, so anyone who knows a username can hold that person out of the system.
+      Every lockout design trades this against credential stuffing; this one has not been chosen on
+      the record. Options include per-IP limits alongside per-username, exponential backoff instead
+      of a hard window, or an unlock path for a supervisor.
+- [ ] **Give the sign-in guard shared state before running more than one API instance.**
+      `LoginAttemptGuard` is per-process, so the effective attempt limit multiplies by the instance
+      count. Acceptable for single-instance Demo; not for a scaled deployment.
+- [ ] **Make person lookups consistently use `TenantAccess.OwnsPersonAsync`.** `POST /at-requests`,
+      `GET /people/{personId}/reviews`, and `GET /people/{personId}/appointments/latest` resolve the
+      person by id and authorize on the owning user rather than also asserting
+      `person.AgencyId == actor.AgencyId`. Cross-agency access is blocked today because
+      `CanAccessUserAsync` requires the target user to be in the actor's agency, so this is
+      consistency and defense in depth rather than an open hole. Needs a test covering a person row
+      whose agency disagrees with its owner's.
+
+### Documentation and naming cleanup (2026-08-15)
+
+- [ ] **Rename `Data/Cloud/CloudUnavailableServices.cs`.** The filename is a historical misnomer.
+      It now contains twelve fully migrated HTTP service implementations (`CloudUserService`,
+      `CloudSupervisorService`, `CloudBillingService`, and others), not unavailable stubs. Anyone
+      reading the file list will draw the wrong conclusion about how much of Demo is migrated.
+- [x] **Settle the company name's casing.** Resolved 2026-08-15: `SatiLogica` is the formal
+      rendering everywhere in code, documentation, and user-visible strings. `Satilogica` remains
+      acceptable in informal prose. Azure resource names stay lowercase because DNS requires it.
+      Applied across the `<Company>` property, installer and uninstaller, Start Menu folder,
+      registry publisher, `%LOCALAPPDATA%` paths, and scripts. No upgrade story was needed:
+      Windows paths and registry keys are case-insensitive, so existing installs and stored data
+      under `Satilogica\` resolve unchanged.
+- [ ] **Introduce the program names only as each ships.** `SatiLogica` is the platform;
+      `Sati` is the case-management program. `Karuna` (service-provider documentation) and
+      `Upekkha` (OADS-facing waiver management) are roadmap names for work that does not exist
+      yet and should stay internal until the quarter before each ships.
+- [ ] **Reconcile the live Demo API version.** `DATABASE_ENVIRONMENTS.md` last recorded the deployed
+      API at 1.2.8 while the packaged client is 1.2.17. Deploy and verify a matched pair before
+      collecting final company-demo evidence, then update the release-history note.
+
+### Organization identity and the Karuna handoff (2026-08-15)
+
+Design recorded in `DECISIONS.md`, "Provider directory entries are local knowledge about a shared
+organization". The identifier capture landed on 2026-08-15 because it is the only part that cannot
+be added retroactively. Everything below waits for Karuna.
+
+- [x] **Capture durable identifiers on provider directory entries.** `Provider.Npi` and
+      `Provider.MaineCareProviderId`, NPI check-digit validated, unique per agency via filtered
+      indexes, enforced in both the API and the transitional local service.
+- [ ] **Introduce the Organization registry.** Platform-wide canonical identity — legal name and
+      external identifiers only. Add `Provider.OrganizationId` as a nullable link in the same
+      migration. Deliberately not created yet: do not add a column pointing at a table that
+      does not exist.
+- [ ] **Build the match-and-link flow for onboarding.** Exact match on identifier first, then a
+      reviewed candidate list for name/address near-matches. Linking must never merge or delete a
+      directory entry, and must never repoint an existing foreign key.
+- [ ] **Model `AgencyRelationship`.** Which case-management agencies have an active passthrough
+      relationship with which organization. Without it, an organization going live would appear in
+      every agency's passthrough picker — both wrong billing options and a cross-tenant
+      disclosure.
+- [ ] **Add the published passthrough contact set,** maintained by the organization's own tenant.
+      An explicit outward-facing payload, never a projection of internal contact records. Validate
+      it for completeness the same way the local form is validated: one bad publish would degrade
+      every linked agency's billing contacts at once.
+- [ ] **Add contact resolution with local override.** Published wins by default once linked; local
+      values are demoted rather than deleted so an agency can re-assert its own named contact in
+      one click.
+- [ ] **Notify and audit the swap.** A notice to each affected agency when it lands, a quiet
+      indication at point of use, and audit events on both sides — these contacts feed a financial
+      document.
+- [ ] **Flag stale drafts rather than re-snapshotting.** An AT request drafted before a swap and
+      submitted after must report which vendor fields changed and let the user decide, following
+      the note conflict-reconcile idiom. Never silently rewrite a financial document.
+- [ ] **Consider backfilling identifiers for existing directory entries.** Rows created before
+      2026-08-15 have none. A one-time prompt when a provider is next edited would close the gap
+      without a bulk data exercise.

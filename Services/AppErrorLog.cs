@@ -22,7 +22,7 @@ internal static class AppErrorLog
         {
             var directory = directoryOverride ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Satilogica",
+                "SatiLogica",
                 "Sati",
                 "Logs");
             Directory.CreateDirectory(directory);

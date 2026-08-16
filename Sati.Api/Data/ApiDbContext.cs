@@ -194,6 +194,17 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("Providers"); entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.AgencyId, x.Name });
             entity.Property(x => x.Type).HasMaxLength(20);
+            // Mirrors the desktop context: durable organization identifiers, unique
+            // within an agency when present. See DECISIONS.md for why these exist
+            // before the Organization registry they will eventually resolve against.
+            entity.Property(x => x.Npi).HasMaxLength(10);
+            entity.Property(x => x.MaineCareProviderId).HasMaxLength(30);
+            entity.HasIndex(x => new { x.AgencyId, x.Npi })
+                  .IsUnique()
+                  .HasFilter("[Npi] IS NOT NULL");
+            entity.HasIndex(x => new { x.AgencyId, x.MaineCareProviderId })
+                  .IsUnique()
+                  .HasFilter("[MaineCareProviderId] IS NOT NULL");
         });
         modelBuilder.Entity<ServerAtRequest>(entity =>
         {
@@ -603,6 +614,8 @@ internal sealed class ServerProvider
     public int AgencyId { get; set; }
     public string Type { get; set; } = "Waiver";
     public string Name { get; set; } = string.Empty;
+    public string? Npi { get; set; }
+    public string? MaineCareProviderId { get; set; }
     public string? Street { get; set; }
     public string? City { get; set; }
     public string? State { get; set; }
@@ -632,9 +645,23 @@ internal sealed class ServerAtRequest
     public string? VendorProgramContact { get; set; }
     public string? VendorBillingContact { get; set; }
     public decimal SalesTax { get; set; }
+    public bool SalesTaxOverridden { get; set; }
     public DateTime? SubmittedDate { get; set; }
     public DateTime? DecisionDate { get; set; }
     public string Status { get; set; } = "Development";
+
+    // Attestation. Written only by the publish and reopen routes, from the
+    // authenticated actor — never from a save payload. See AtRequestPublication.
+    // The passthrough rate this request was published under, read from agency
+    // settings at publication. Null on a draft, where the live rate applies.
+    public decimal? PassthroughRate { get; set; }
+
+    public string? SignedByName { get; set; }
+    public string? SignedByRole { get; set; }
+    public int? SignedByUserId { get; set; }
+    public DateTime? SignedAtUtc { get; set; }
+    public string? AttestationStatement { get; set; }
+
     public byte[]? SnapshotPng { get; set; }
     public List<ServerAtRequestItem> Items { get; set; } = [];
 }
@@ -647,6 +674,10 @@ internal sealed class ServerAtRequestItem
     public decimal ItemCost { get; set; }
     public int Quantity { get; set; }
     public string? Url { get; set; }
+
+    // Pasted evidence clip. Heavy column; the AT request list projection never
+    // touches item rows at all, so it stays out of queue reads by construction.
+    public byte[]? ScreenshotPng { get; set; }
 }
 
 internal sealed class ServerAuditEvent

@@ -50,6 +50,8 @@ public sealed class UserProfileSupervisorTests
     {
         public Task<List<User>> GetAllAsync() => Task.FromResult(users);
         public Task<User> CreateAsync(User user, SecureString initialPassword) => throw new NotSupportedException();
+        public Task<bool> AnyAdministratorExistsAsync() => Task.FromResult(true);
+        public Task<User> CreateFirstAdministratorAsync(User user, SecureString initialPassword) => throw new NotSupportedException();
         public Task UpdateAsync(User user) => throw new NotSupportedException();
         public Task ResetPasswordAsync(User user, SecureString newPassword) => throw new NotSupportedException();
         public Task ChangePasswordAsync(User user, SecureString currentPassword, SecureString newPassword) => throw new NotSupportedException();

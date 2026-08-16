@@ -104,6 +104,17 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         BaseAddress = new Uri("https://localhost")
     });
 
+    /// <summary>
+    /// An unauthenticated client whose requests will find seeded data. Use this
+    /// for anonymous endpoints that still read the database — sign-in, for one —
+    /// so the test does not depend on some earlier test having seeded first.
+    /// </summary>
+    public async Task<HttpClient> CreateSeededAnonymousClientAsync()
+    {
+        await EnsureSeededAsync();
+        return CreateAnonymousClient();
+    }
+
     public async Task AddForeignAgencyNoteToBillingPeriodAsync(int periodId, int noteId)
     {
         await EnsureSeededAsync();

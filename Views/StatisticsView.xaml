@@ -274,7 +274,8 @@
                         CornerRadius="6"
                         Padding="12"
                         Margin="0,0,0,28">
-                    <oxy:PlotView Model="{Binding UnitsChartModel}"
+                    <oxy:PlotView Name="UnitsChart"
+                                  Model="{Binding UnitsChartModel}"
                                   Height="320"
                                   Background="Transparent" />
                 </Border>

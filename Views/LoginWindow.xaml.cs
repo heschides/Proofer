@@ -1,4 +1,5 @@
-﻿using Sati.Models;
+﻿using Sati.Data;
+using Sati.Models;
 using Sati.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,27 +12,23 @@ namespace Sati.Views
     public partial class LoginWindow : Window
     {
 
-        private readonly Func<NewUserWindow> _newUserWindowFactory;
+        private readonly Func<FirstRunAdminWindow> _firstRunAdminWindowFactory;
+        private readonly IUserService _userService;
         private bool _loginCompletionHandled;
 
-        public LoginWindow(LoginWindowViewModel vm, Func<NewUserWindow> newUserWindowFactory)
+        public LoginWindow(
+            LoginWindowViewModel vm,
+            Func<FirstRunAdminWindow> firstRunAdminWindowFactory,
+            IUserService userService)
         {
              DataContext = vm;
-            _newUserWindowFactory = newUserWindowFactory;
+            _firstRunAdminWindowFactory = firstRunAdminWindowFactory;
+            _userService = userService;
             InitializeComponent();
             ReleaseVersionText.Text =
                 $"Version {typeof(LoginWindow).Assembly.GetName().Version?.ToString(3)}";
 
-            vm.OpenNewUserRequested += (s, success) =>
-            {
-                var win = _newUserWindowFactory();
-                var result = win.ShowDialog();
-                
-                if(result == true && win.CreatedUser is User newUser)
-                {
-                    vm.Username = newUser.Username;
-                }
-            };
+            Loaded += async (_, _) => await OfferFirstRunSetupAsync();
 
             vm.LoginSucceeded += (s, success) =>
             {
@@ -66,9 +63,54 @@ namespace Sati.Views
 
         private void PasswordInput_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            if (DataContext is LoginWindowViewModel vm && sender is PasswordBox box)
+            // PasswordRevealBox forwards its masked box's SecurePassword, so this
+            // is the same value it always was — the reveal toggle never becomes
+            // the source of truth.
+            if (DataContext is LoginWindowViewModel vm && sender is PasswordRevealBox box)
             {
                 vm.SecurePassword = box.SecurePassword;
+            }
+        }
+
+        /// <summary>
+        /// Shows the first-run banner when the installation has no administrator.
+        ///
+        /// This only OFFERS setup. It does not block signing in, because an
+        /// installation in this state usually already has working accounts — a case
+        /// manager doing real work should not be held hostage by a prompt about
+        /// administration they may not be the right person to perform.
+        ///
+        /// A failure here is swallowed on purpose: not being able to answer the
+        /// question is not a reason to prevent someone signing in. The consequence
+        /// of guessing wrong is only that a banner does or does not appear, and the
+        /// service refuses the write regardless.
+        /// </summary>
+        private async Task OfferFirstRunSetupAsync()
+        {
+            try
+            {
+                if (await _userService.AnyAdministratorExistsAsync())
+                    return;
+
+                FirstRunAdminPrompt.Visibility = Visibility.Visible;
+            }
+            catch (Exception)
+            {
+                FirstRunAdminPrompt.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void CreateFirstAdmin_Click(object sender, RoutedEventArgs e)
+        {
+            var window = _firstRunAdminWindowFactory();
+            window.Owner = this;
+
+            if (window.ShowDialog() == true && window.CreatedUsername is string username)
+            {
+                FirstRunAdminPrompt.Visibility = Visibility.Collapsed;
+                if (DataContext is LoginWindowViewModel vm)
+                    vm.Username = username;
+                PasswordInput.Focus();
             }
         }
 

@@ -53,6 +53,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding ClientName}"
@@ -66,6 +67,18 @@
                                         <TextBlock Grid.Column="3"
                                                    Text="{Binding CaseManagerName}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <!-- A real focusable button rather than a row
+                                             click: keyboard users get a tab stop, and
+                                             the automation name says which request it
+                                             opens instead of just "Open". -->
+                                        <Button Grid.Column="4"
+                                                Content="Open"
+                                                Style="{StaticResource SmallButton}"
+                                                Margin="12,0,0,0"
+                                                AutomationProperties.Name="{Binding ClientName, StringFormat='Open AT request for {0}'}"
+                                                Command="{Binding DataContext.OpenRequestCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -104,6 +117,81 @@
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    TextWrapping="Wrap"
                                    Text="{Binding CurrentEditor.ClientName, StringFormat='Request for {0}'}" />
+
+                        <!-- Attestation banner. Announced politely rather than
+                             assertively: publishing is user-initiated, so the
+                             screen reader should finish the current utterance
+                             first. The border and the leading word carry the
+                             status without relying on colour. -->
+                        <Border Background="{DynamicResource SurfaceRaisedBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                BorderThickness="3,1,1,1"
+                                Padding="10,8"
+                                Margin="0,0,0,12"
+                                Visibility="{Binding CurrentEditor.IsPublished, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="PUBLISHED"
+                                           FontWeight="SemiBold"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding CurrentEditor.PublishedSummary}"
+                                           TextWrapping="Wrap"
+                                           FontSize="11"
+                                           LineHeight="16"
+                                           Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           AutomationProperties.LiveSetting="Polite" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Why Publish is unavailable. Hidden once publishable and
+                             once published, so it never competes with the banner. -->
+                        <TextBlock Text="{Binding CurrentEditor.PublishBlockerSummary}"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="16"
+                                   Margin="0,0,0,10"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Visibility="{Binding CurrentEditor.HasPublishBlockers, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                        <!-- Action bar. Outside the IsEnabled group below, because
+                             a published request must still be exportable and
+                             reopenable even though it is no longer editable. -->
+                        <WrapPanel Margin="0,0,0,12">
+                            <Button Content="Save Draft"
+                                    Style="{StaticResource SmallButton}"
+                                    Margin="0,0,8,6"
+                                    AutomationProperties.Name="Save draft"
+                                    IsEnabled="{Binding CurrentEditor.CanEdit}"
+                                    Command="{Binding SaveCommand}" />
+                            <Button Content="Publish"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Width="110"
+                                    Margin="0,0,8,6"
+                                    AutomationProperties.Name="Publish and export PDF"
+                                    ToolTip="Records your attestation, locks the request, and generates the PDF."
+                                    IsEnabled="{Binding CurrentEditor.CanPublish}"
+                                    Command="{Binding PublishCommand}" />
+                            <Button Content="Export PDF"
+                                    Style="{StaticResource SmallButton}"
+                                    Margin="0,0,8,6"
+                                    AutomationProperties.Name="Export PDF"
+                                    Command="{Binding ExportCurrentPdfCommand}" />
+                            <Button Content="Reopen for Correction"
+                                    Style="{StaticResource SmallButton}"
+                                    Margin="0,0,8,6"
+                                    AutomationProperties.Name="Reopen for correction"
+                                    ToolTip="Removes the attestation and returns this request to draft so it can be edited."
+                                    Visibility="{Binding CurrentEditor.IsPublished, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    Command="{Binding ReopenCommand}" />
+                        </WrapPanel>
+
+                        <!-- EDITING GROUP. One IsEnabled for the whole entry surface
+                             rather than one per control. This is a courtesy to the
+                             user, NOT the lock: the lock is the service refusing to
+                             save against a published row. -->
+                        <StackPanel IsEnabled="{Binding CurrentEditor.CanEdit}">
 
                         <TextBlock Text="VENDOR / PROVIDER"
                                    Style="{StaticResource SectionHeader}" />
@@ -150,9 +238,69 @@
                                                        Style="{StaticResource LabelStyle}" />
                                             <TextBox AutomationProperties.Name="Name" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
 
-                                            <TextBlock Text="URL"
-                                                       Style="{StaticResource LabelStyle}" />
-                                            <TextBox AutomationProperties.Name="Url" Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" />
+                                            <!-- URL and its screenshot sit together
+                                                 because they describe the same thing:
+                                                 where the item was found and what it
+                                                 looked like there. Both travel to the
+                                                 evidence page as one block. -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="URL"
+                                                               Style="{StaticResource LabelStyle}" />
+                                                    <TextBox AutomationProperties.Name="Url"
+                                                             Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2"
+                                                            Width="96">
+                                                    <TextBlock Text="Screenshot"
+                                                               Style="{StaticResource LabelStyle}" />
+
+                                                    <!-- The paste target. Click, or focus
+                                                         it and press Ctrl+V. Tag carries
+                                                         the action for the shared handler. -->
+                                                    <Button Height="64"
+                                                            Padding="0"
+                                                            Style="{StaticResource SmallButton}"
+                                                            Click="OnPasteScreenshot"
+                                                            KeyDown="OnPasteScreenshotKeyDown"
+                                                            ToolTip="Copy an image to the clipboard, then click here (or focus this and press Ctrl+V) to attach it to this item."
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Paste screenshot for {0}'}"
+                                                            AutomationProperties.HelpText="Attaches the image currently on the clipboard to this item.">
+                                                        <Grid>
+                                                            <!-- Thumbnail once pasted. Stretch=Uniform so
+                                                                 a wide screenshot is letterboxed rather
+                                                                 than distorted. -->
+                                                            <Image Source="{Binding ScreenshotPng,
+                                                                       Converter={StaticResource PngBytesToImageConverter}}"
+                                                                   Stretch="Uniform"
+                                                                   Margin="2" />
+                                                            <TextBlock Text="Paste"
+                                                                       FontSize="11"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       Visibility="{Binding HasScreenshot,
+                                                                           Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                                        </Grid>
+                                                    </Button>
+
+                                                    <Button Content="Remove image"
+                                                            Style="{StaticResource SmallButton}"
+                                                            Margin="0,4,0,0"
+                                                            FontSize="10"
+                                                            Click="OnRemoveScreenshot"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Remove screenshot for {0}'}"
+                                                            Visibility="{Binding HasScreenshot,
+                                                                Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                </StackPanel>
+                                            </Grid>
 
                                             <Grid Margin="0,4,0,0">
                                                 <Grid.ColumnDefinitions>
@@ -199,6 +347,17 @@
                                 Margin="0,4,0,0"
                                 Command="{Binding CurrentEditor.AddItemCommand}" />
 
+                        <!-- Confirms how many clips actually landed. Announced
+                             politely so a paste is acknowledged without the user
+                             having to go looking for the thumbnail. -->
+                        <TextBlock Text="{Binding CurrentEditor.ScreenshotSummary}"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="16"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite" />
+
                         <Separator />
 
                         <TextBlock Text="TOTALS"
@@ -208,12 +367,37 @@
                                    Style="{StaticResource LabelStyle}" />
                         <!-- Decimal: default LostFocus trigger, not PropertyChanged —
                              per-keystroke parsing chokes on partial input ("1."). Preview
-                             tax updates on focus-loss, which is fine. -->
-                        <TextBox AutomationProperties.Name="Sales tax" Text="{Binding CurrentEditor.SalesTax, StringFormat=F2}" />
+                             tax updates on focus-loss, which is fine.
+                             Editable only while the override is ticked; otherwise the
+                             field shows the figure calculated from the agency rate and
+                             recalculates as items change. -->
+                        <TextBox AutomationProperties.Name="Sales tax"
+                                 IsEnabled="{Binding CurrentEditor.SalesTaxOverridden}"
+                                 Text="{Binding CurrentEditor.SalesTax, StringFormat=F2}" />
+
+                        <CheckBox Content="Enter sales tax manually"
+                                  Margin="0,2,0,2"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  AutomationProperties.Name="Enter sales tax manually"
+                                  ToolTip="Tick this when the vendor quotes tax-inclusive pricing, the items are exempt, or the vendor is out of state."
+                                  IsChecked="{Binding CurrentEditor.SalesTaxOverridden, Mode=TwoWay}" />
+
+                        <TextBlock Text="{Binding CurrentEditor.SalesTaxRateLabel}"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="16"
+                                   Margin="0,0,0,8"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        </StackPanel>
+                        <!-- END EDITING GROUP -->
 
                         <!-- Live readout — mirrors the preview so the math sits next
                              to the tax box. Bound to the editor VM's computed totals,
-                             which re-raise on every item/tax change. -->
+                             which re-raise on every item/tax change. Deliberately
+                             OUTSIDE the editing group: a published request's figures
+                             must stay legible, and IsEnabled=false greys text. -->
                         <Grid Margin="0,12,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -263,7 +447,10 @@
                     Padding="24">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Auto">
-                    <views:ATFormDocument DataContext="{Binding CurrentEditor}"
+                    <!-- x:Name so the code-behind can rasterize this exact visual
+                         for the proof-of-document snapshot at publish time. -->
+                    <views:ATFormDocument x:Name="FormPreview"
+                                          DataContext="{Binding CurrentEditor}"
                                           VerticalAlignment="Top"
                                           HorizontalAlignment="Center" />
                 </ScrollViewer>

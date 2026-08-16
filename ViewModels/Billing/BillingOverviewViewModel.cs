@@ -7,6 +7,7 @@ namespace Sati.ViewModels.Billing;
 
 public partial class BillingOverviewViewModel(IBillingService billingService) : ObservableObject
 {
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
     [ObservableProperty] private string procedureCode = string.Empty;
     [ObservableProperty] private string? modifier;
     [ObservableProperty] private decimal? unitRate;
@@ -22,6 +23,9 @@ public partial class BillingOverviewViewModel(IBillingService billingService) : 
 
     public async Task LoadAsync()
     {
+        if (!await _loadGate.WaitAsync(0))
+            return;
+
         try
         {
             IsBusy = true;
@@ -44,6 +48,7 @@ public partial class BillingOverviewViewModel(IBillingService billingService) : 
         finally
         {
             IsBusy = false;
+            _loadGate.Release();
         }
     }
 

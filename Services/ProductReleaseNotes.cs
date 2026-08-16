@@ -6,7 +6,7 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Settings access and release clarity";
+    public const string ReleaseName = "Startup resource safety and concurrency";
     public const string ReleaseDate = "August 14, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
@@ -22,6 +22,11 @@ public static class ProductReleaseNotes
         new(
             "Safety and reliability",
             [
+                "Corrected Demo startup resource addresses so the renamed Sati.Demo executable can always load its icon and watercolor branding without looking for a nonexistent Sati assembly.",
+                "Completed a focused concurrency audit and added deterministic overlap tests for scratchpad saves, calendar navigation, billing loads, and stale client-note responses.",
+                "Serialized scratchpad, billing, and account-switch operations so repeated clicks, timers, window closing, and session transitions cannot compete for the same state.",
+                "Calendar and client-note screens now publish only the newest applicable network response when requests finish out of order.",
+                "Settings startup and abandoned-note background maintenance now observe their own failures instead of surfacing surprise application-level errors.",
                 "Separated personal Settings from Admin-only agency configuration, and converted rejected Settings saves into clear inline guidance instead of crash dialogs.",
                 "Agency settings now change only through the explicit Save Settings action; closing the window no longer launches an unexpected cloud save.",
                 "Prevented overlapping sign-in completions from closing the login dialog twice or leaving an orphaned error message behind the application.",
@@ -50,6 +55,7 @@ public static class ProductReleaseNotes
         new(
             "Demo and support",
             [
+                "The login and splash screens now use the same bright watercolor Bodhi leaf as the application icon, with a newly composed high-resolution splash layout.",
                 "Placed the installed release number in a dedicated, higher-contrast login footer so it remains visible at Windows display scaling.",
                 "A bright geometric watercolor Bodhi-leaf application icon with a softly rounded ivory container improves recognition in Windows, title bars, and installer shortcuts.",
                 "The login window now shows the installed release number, and installer upgrades refresh recognized Sati taskbar pins with a version-specific icon.",

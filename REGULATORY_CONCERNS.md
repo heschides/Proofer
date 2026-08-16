@@ -1,6 +1,9 @@
 # Regulatory and Conflict-of-Interest Considerations
 
-Last reviewed: August 7, 2026
+Last substantive review: August 7, 2026. Engineering addenda added August 14–15, 2026 (see
+"Cross-consumer isolation" below). The review date deliberately does not advance with those
+addenda: it marks when the regulatory analysis itself was last worked through, and no counsel,
+agency stakeholder, or Maine authority has reviewed this document at any date.
 
 > This document is an engineering and product-design note, not legal advice. Before
 > Sati is used for OADS review, waiver authorization, or production MaineCare claims,
@@ -217,6 +220,15 @@ artifact. Before production, counsel and OADS should confirm when a scanned phys
 signature is acceptable, whether any electronic-signature standard applies, who must
 sign each document, and how refusal or inability to sign is documented.
 
+**This paragraph is about SCANNED signatures, and the distinction matters.** A scan is
+evidence of a human act that no amount of stored data can reproduce, so when that workflow
+exists, both artifacts have to be kept. It does not follow that every generated document
+must be retained. The AT request attestation is the counter-example: nothing is printed or
+scanned, the record is closed to edits once published, and the PDF is a pure function of
+that frozen record — so it is regenerated rather than stored. See "The PDF is regenerated,
+never retained" in `DECISIONS.md`. Applying the retention requirement above to a
+system-generated document that cannot drift is overcaution, and it costs real storage.
+
 ### Billing consequences are an explicit program rule
 
 The adopted product rule—no grace period for overdue PCPs or 90-day reviews, permanent
@@ -309,3 +321,15 @@ The first model acquisition contacts an external model catalog but must not tran
 Sati must not implement silent cloud inference fallback. Catalog/model licensing, update control,
 telemetry behavior, vulnerability management, and the security of `%LOCALAPPDATA%\Sati\LocalAi`
 must be approved before deployment to agency devices.
+
+### Cross-consumer isolation (added 2026-08-14)
+
+One in-process model instance serves every draft on the workstation, which raises the question of
+whether one consumer's context can influence another consumer's note. Sati does not rely on the
+native inference runtime to discard conversational state between chat-completion calls.
+`ConsumerSessionBoundary` records which consumer the model last drafted for and forces a clean model
+reload whenever the target consumer changes. This is a confidentiality control, not a performance
+choice, and `Sati.Tests/LocalAiConsumerIsolationTests.cs` covers it.
+
+This addresses in-process carryover only. It does not address disk cache contents, swap, crash
+dumps, or runtime telemetry, all of which remain open items in the paragraph above.

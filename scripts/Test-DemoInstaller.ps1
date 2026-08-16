@@ -12,7 +12,7 @@ param(
     [ValidateRange(5, 60)]
     [int]$CloseTimeoutSeconds = 15,
 
-    [string]$WorkingRoot = (Join-Path ([System.IO.Path]::GetTempPath()) 'Satilogica\SatiDemoInstallerAcceptance'),
+    [string]$WorkingRoot = (Join-Path ([System.IO.Path]::GetTempPath()) 'SatiLogica\SatiDemoInstallerAcceptance'),
 
     [string]$EvidencePath,
 
@@ -98,6 +98,10 @@ try {
 
         if (-not $app.Responding) {
             throw "Installed app stopped responding during launch iteration $iteration."
+        }
+        $app.Refresh()
+        if ($app.MainWindowTitle -notmatch 'Sign in') {
+            throw "Installed app did not reach the login window during iteration $iteration. Visible window title: '$($app.MainWindowTitle)'."
         }
         if (-not $app.CloseMainWindow()) {
             throw "Installed app did not accept the normal window-close request during iteration $iteration."

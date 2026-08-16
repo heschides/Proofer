@@ -38,7 +38,7 @@
                     Value="0,0,0,8" />
         </Style>
 
-        <Style TargetType="TextBox">
+        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Padding"
                     Value="8,4" />
             <Setter Property="Width"

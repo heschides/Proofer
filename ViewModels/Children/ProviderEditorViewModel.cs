@@ -39,6 +39,23 @@ namespace Sati.ViewModels.Children
             set { if (_provider.Name != value) { _provider.Name = value; OnPropertyChanged(); } }
         }
 
+        // Durable organization identifiers. Optional, because a directory entry is
+        // often created from a phone call before any paperwork exists — but they are
+        // the only thing that will let this entry be recognized as the same
+        // organization if it later joins the platform in its own right, so the form
+        // asks for them rather than leaving it to memory.
+        public string? Npi
+        {
+            get => _provider.Npi;
+            set { if (_provider.Npi != value) { _provider.Npi = value; OnPropertyChanged(); } }
+        }
+
+        public string? MaineCareProviderId
+        {
+            get => _provider.MaineCareProviderId;
+            set { if (_provider.MaineCareProviderId != value) { _provider.MaineCareProviderId = value; OnPropertyChanged(); } }
+        }
+
         public string? Street
         {
             get => _provider.Street;

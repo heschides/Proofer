@@ -120,6 +120,20 @@ namespace Sati.Data
                             n.Person.UserId == userId)
                 .ToListAsync();
         }
+        public async Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date)
+        {
+            await using var context = _contextFactory.CreateDbContext();
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+            return await context.Notes
+                .Include(n => n.Person)
+                .Where(n => n.Person.UserId == userId &&
+                            n.EventDate.HasValue &&
+                            n.EventDate.Value >= dayStart &&
+                            n.EventDate.Value < dayEnd)
+                .ToListAsync();
+        }
+
         public async Task<List<Note>> GetByYearAsync(int userId, int year)
         {
             await using var context = _contextFactory.CreateDbContext();

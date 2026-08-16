@@ -7,7 +7,7 @@
         Icon="/images/sati.ico"
         mc:Ignorable="d"
         Title="Sati"
-        Height="600"
+        Height="640"
         Width="360"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
@@ -124,13 +124,13 @@
         <Border Padding="40">
             <StackPanel VerticalAlignment="Center">
 
-            <!-- Bodhi leaf -->
-            <Image Source="pack://application:,,,/images/leaf.png"
-                   Height="72"
-                   Width="48"
+            <!-- Watercolor Bodhi leaf from the Sati application mark -->
+            <Image Source="pack://application:,,,/images/sati-watercolor-leaf.png"
+                   Height="78"
+                   Width="64"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,12"
-                   Opacity="0.85" />
+                   Stretch="Uniform" />
 
             <!-- Title -->
             <TextBlock Text="Sati"
@@ -156,11 +156,44 @@
             <!-- Password -->
             <TextBlock Text="PASSWORD"
                        Style="{StaticResource LabelStyle}" />
-            <PasswordBox AutomationProperties.Name="Password" x:Name="PasswordInput"
-                         Style="{StaticResource InputStyle}"
-                         PasswordChanged="PasswordInput_PasswordChanged"
-                         KeyDown="PasswordInput_KeyDown"
-                         VerticalContentAlignment="Center" />
+            <!-- PasswordRevealBox carries the InputStyle look internally; only
+                 the margin stays here, because spacing belongs to this layout
+                 rather than to the field. -->
+            <local:PasswordRevealBox AutomationProperties.Name="Password"
+                                     x:Name="PasswordInput"
+                                     Margin="0,0,0,16"
+                                     PasswordChanged="PasswordInput_PasswordChanged"
+                                     KeyDown="PasswordInput_KeyDown" />
+
+            <!-- First-run administrator prompt. Collapsed unless the installation
+                 has no administrator; shown, it offers setup rather than forcing
+                 it, so an existing case manager can still sign in and work. -->
+            <Border x:Name="FirstRunAdminPrompt"
+                    Visibility="Collapsed"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="3,1,1,1"
+                    Padding="12,10"
+                    Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="NO ADMINISTRATOR"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="This installation has no administrator, so nobody can create supervisors or other accounts."
+                               TextWrapping="Wrap"
+                               FontSize="11"
+                               LineHeight="16"
+                               Margin="0,4,0,8"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <Button Content="Create the first administrator"
+                            Style="{StaticResource LinkButton}"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="Create the first administrator"
+                            Click="CreateFirstAdmin_Click" />
+                </StackPanel>
+            </Border>
 
             <!-- Sign In -->
             <Button Content="Sign In"
@@ -179,18 +212,11 @@
             <Separator Background="{DynamicResource BorderBrush}"
                        Margin="0,4,0,16" />
 
-            <!-- Create account -->
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding CanCreateAccount, Converter={StaticResource BoolToVisibilityConverter}}"
-                        HorizontalAlignment="Center">
-                <TextBlock Text="New to Sati?   "
-                           FontSize="13"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           VerticalAlignment="Center" />
-                <Button Content="Create an account"
-                        Style="{StaticResource LinkButton}"
-                        Command="{Binding OpenNewUserWindowCommand}" />
-            </StackPanel>
+            <!-- No "create an account" here, deliberately. Creating a user is an
+                 administrative act; it lives in User Management behind an
+                 authenticated session. Bootstrapping an installation that has
+                 nobody to sign in as is the banner above, which creates one
+                 administrator and only while none exists. -->
 
             <Button Content="Forgot password?"
                     Style="{StaticResource LinkButton}"

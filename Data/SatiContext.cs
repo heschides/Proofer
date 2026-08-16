@@ -106,6 +106,20 @@ namespace Sati.Data
                 entity.Property(p => p.ProgramContact).HasMaxLength(150);
                 entity.Property(p => p.BillingContact).HasMaxLength(150);
 
+                // Durable identifiers. Filtered unique indexes: within one agency the
+                // same organization may not be entered twice under the same
+                // identifier. NULL is excluded from the filter because most entries
+                // legitimately have neither, and SQL Server would otherwise treat all
+                // the NULLs as colliding.
+                entity.Property(p => p.Npi).HasMaxLength(10);
+                entity.Property(p => p.MaineCareProviderId).HasMaxLength(30);
+                entity.HasIndex(p => new { p.AgencyId, p.Npi })
+                      .IsUnique()
+                      .HasFilter("[Npi] IS NOT NULL");
+                entity.HasIndex(p => new { p.AgencyId, p.MaineCareProviderId })
+                      .IsUnique()
+                      .HasFilter("[MaineCareProviderId] IS NOT NULL");
+
                 // The historical statewide default was seeded before providers
                 // became tenant-owned. The tenant-scope migration assigns that row
                 // to the active agency; tenant provisioning owns future defaults.
@@ -298,6 +312,15 @@ namespace Sati.Data
                 entity.Property(a => a.Status)
                       .HasConversion<string>()
                       .HasMaxLength(20);
+
+                // A rate, not an amount — decimal(5,4), matching
+                // Settings.PassthroughRate, which is where this value is copied
+                // from at publication. The decimal(18,2) default EF would pick for
+                // a money column rounds 0.055 to 0.06, which is the difference
+                // between reproducing a filed document and restating it. Nullable:
+                // a draft has no frozen rate and follows the agency's current one.
+                entity.Property(a => a.PassthroughRate)
+                      .HasColumnType("decimal(5,4)");
 
                 // SalesTax is decimal → SQL decimal(18,2) by default, correct for
                 // currency; stated explicitly to match the Settings/ClaimLine

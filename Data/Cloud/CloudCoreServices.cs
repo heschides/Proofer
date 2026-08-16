@@ -69,6 +69,10 @@ public sealed class CloudNoteService(CloudApiClient api) : INoteService
 
     public async Task<List<Note>> GetByYearAsync(int userId, int year) =>
         (await api.GetAsync<List<NoteDto>>($"/api/v1/notes/year/{year}")).Select(CloudContractMapper.ToNote).ToList();
+
+    public async Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date) =>
+        (await api.GetAsync<List<NoteDto>>(
+            $"/api/v1/notes/day?userId={userId}&date={date:yyyy-MM-dd}")).Select(CloudContractMapper.ToNote).ToList();
 }
 
 public sealed class CloudSettingsService(CloudApiClient api) : ISettingsService

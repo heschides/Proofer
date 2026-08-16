@@ -284,6 +284,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="MINUTES"
@@ -298,7 +299,162 @@
                     <DatePicker AutomationProperties.Name="Event date" Grid.Row="3"
                                 SelectedDate="{Binding EventDate}" />
 
-                    <Expander Grid.Row="4"
+                    <!-- ═══ SERVICE DAY ═══
+                         A case manager cannot bill the same minute twice, so the
+                         draft's start time and minutes are drawn against the rest
+                         of that day's notes and checked before the note is saved.
+                         The rule lives in Sati.Contracts ServiceTimeline and is
+                         enforced again by the API; this panel is the preview. -->
+                    <Border Grid.Row="4"
+                            Margin="0,2,0,10"
+                            Padding="11"
+                            CornerRadius="6"
+                            Background="{DynamicResource PersonGroupBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ServiceDayHeading}"
+                                       Style="{StaticResource LabelStyle}"
+                                       AutomationProperties.LiveSetting="Polite" />
+
+                            <TextBlock Text="SERVICE START TIME"
+                                       Style="{StaticResource LabelStyle}"
+                                       Margin="0,4,0,4" />
+                            <ComboBox AutomationProperties.Name="Service start time"
+                                      ItemsSource="{Binding StartTimeOptions}"
+                                      SelectedItem="{Binding SelectedStartTime, Mode=TwoWay}"
+                                      DisplayMemberPath="Display"
+                                      MaxDropDownHeight="260"
+                                      ToolTip="Optional. When set, this note reserves its minutes on your day and cannot overlap another note." />
+
+                            <!-- The 7:00 AM to 7:00 PM track. Bands are placed as a
+                                 fraction of the track's MEASURED width, so the bar
+                                 reflows with the panel instead of assuming a size. -->
+                            <Border Height="26"
+                                    CornerRadius="4"
+                                    Background="{DynamicResource SurfaceMutedBrush}"
+                                    BorderBrush="{DynamicResource DividerBrush}"
+                                    BorderThickness="1"
+                                    ClipToBounds="True"
+                                    AutomationProperties.Name="Service day from 7 AM to 7 PM">
+                                <ItemsControl ItemsSource="{Binding ServiceDaySegments}"
+                                              HorizontalAlignment="Stretch">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="Canvas.Top" Value="1" />
+                                            <Setter Property="Canvas.Left">
+                                                <Setter.Value>
+                                                    <MultiBinding Converter="{StaticResource TimelineOffsetConverter}">
+                                                        <Binding Path="StartFraction" />
+                                                        <Binding Path="ActualWidth"
+                                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    </MultiBinding>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Height="22"
+                                                    CornerRadius="2"
+                                                    ToolTip="{Binding Description}"
+                                                    AutomationProperties.Name="{Binding Description}">
+                                                <Border.Width>
+                                                    <MultiBinding Converter="{StaticResource TimelineWidthConverter}">
+                                                        <Binding Path="WidthFraction" />
+                                                        <Binding Path="ActualWidth"
+                                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    </MultiBinding>
+                                                </Border.Width>
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <!-- Recorded time is the default band. -->
+                                                        <Setter Property="Background" Value="{DynamicResource InfoFillBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
+                                                        <Setter Property="BorderThickness" Value="1" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Kind}" Value="Draft">
+                                                                <Setter Property="Background" Value="{DynamicResource CompliantFillBrush}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                <Setter Property="BorderThickness" Value="2" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Kind}" Value="Conflict">
+                                                                <Setter Property="Background" Value="{DynamicResource OverdueFillBrush}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource OverdueBrush}" />
+                                                                <Setter Property="BorderThickness" Value="2" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+
+                            <!-- Twelve equal hours. Static columns keep the scale
+                                 honest without a second measured layout pass. -->
+                            <Grid Margin="0,3,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="7a" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="2" Text="9a" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="4" Text="11a" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="6" Text="1p" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="8" Text="3p" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="10" Text="5p" FontSize="10"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBlock Grid.Column="11" Text="7p" FontSize="10"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                            </Grid>
+
+                            <!-- The verdict in words. Color is never the only cue. -->
+                            <TextBlock Text="{Binding ServiceTimeMessage}"
+                                       Margin="0,7,0,0"
+                                       FontSize="11"
+                                       LineHeight="16"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="Service time check"
+                                       AutomationProperties.LiveSetting="Assertive">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasServiceTimeConflict}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource OverdueBrush}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Expander Grid.Row="5"
                               Header="IN-PERSON MEETING DETAILS"
                               IsExpanded="True"
                               Margin="0,2,0,10"
@@ -463,7 +619,7 @@
                         </Border>
                     </Expander>
 
-                    <Grid Grid.Row="5">
+                    <Grid Grid.Row="6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -497,7 +653,7 @@
                         </StackPanel>
                     </Grid>
 
-                            <TextBox AutomationProperties.Name="Note narrative" Grid.Row="6"
+                            <TextBox AutomationProperties.Name="Note narrative" Grid.Row="7"
                                      MinHeight="160"
                                      TextWrapping="Wrap"
                                      AcceptsReturn="True"
@@ -507,7 +663,7 @@
                                      FontSize="{Binding NarrativeFontSize}"
                                      Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" />
 
-                            <StackPanel Grid.Row="7"
+                            <StackPanel Grid.Row="8"
                                         Margin="0,2,0,10"
                                         Visibility="{Binding IsLocalAiEnabled,
                                             Converter={StaticResource BoolToVisibilityConverter}}">
@@ -578,7 +734,7 @@
                                              AutomationProperties.Name="Local AI model download progress" />
                             </StackPanel>
 
-                            <Border Grid.Row="8"
+                            <Border Grid.Row="9"
                                     Margin="0,2,0,10"
                                     Padding="12"
                                     CornerRadius="6"

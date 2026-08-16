@@ -494,7 +494,18 @@ internal static class ApiEndpoints
             var user = await db.Users.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.Username == username, cancellationToken);
 
-            if (user is null || !passwordVerifier.Verify(request.Password, user.PasswordHash, user.Salt))
+            // Spend the same key-derivation work whether or not the account
+            // exists. Skipping it for an unknown username turns sign-in into a
+            // username oracle: a missing account answers in microseconds while a
+            // wrong password costs 100,000 PBKDF2 iterations.
+            var authenticated = user is null
+                ? passwordVerifier.VerifyMissingUser(request.Password)
+                : passwordVerifier.Verify(request.Password, user.PasswordHash, user.Salt);
+
+            // VerifyMissingUser never returns true, so a null user cannot reach
+            // past here; the explicit null check states that for the compiler and
+            // fails closed if that ever changes.
+            if (!authenticated || user is null)
             {
                 logger.LogWarning("Sati authentication failed from {RemoteAddress}.", context.Connection.RemoteIpAddress);
                 return TypedResults.Unauthorized();
@@ -1412,6 +1423,8 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             if (actor.Role != "Admin") return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var duplicate = await FindDuplicateProviderAsync(db, actor.AgencyId, request, null, cancellationToken);
+            if (duplicate is not null) return duplicate;
             var provider = new ServerProvider { AgencyId = actor.AgencyId }; ApplyProvider(provider, request); db.Providers.Add(provider);
             await db.SaveChangesAsync(cancellationToken); return Results.Ok(ContractMapper.ToProvider(provider));
         });
@@ -1420,6 +1433,8 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             if (actor.Role != "Admin") return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var duplicate = await FindDuplicateProviderAsync(db, actor.AgencyId, request, id, cancellationToken);
+            if (duplicate is not null) return duplicate;
             var provider = await db.Providers.SingleOrDefaultAsync(x => x.Id == id && x.AgencyId == actor.AgencyId, cancellationToken); if (provider is null) return Results.NotFound();
             ApplyProvider(provider, request); await db.SaveChangesAsync(cancellationToken); return Results.Ok(ContractMapper.ToProvider(provider));
         });
@@ -1443,18 +1458,44 @@ internal static class ApiEndpoints
             var requests = await (from request in db.AtRequests.AsNoTracking()
                                   join person in db.People on request.PersonId equals person.Id
                                   where person.UserId == userId
-                                  select new { request.Id, request.ClientName, request.Status, request.SalesTax,
-                                      request.SubmittedDate, request.VendorName, request.CaseManagerName,
-                                      HasSnapshot = request.SnapshotPng != null })
+                                  select new AtRequestRow
+                                  {
+                                      Id = request.Id, ClientName = request.ClientName, Status = request.Status,
+                                      SalesTax = request.SalesTax, SubmittedDate = request.SubmittedDate,
+                                      VendorName = request.VendorName, CaseManagerName = request.CaseManagerName,
+                                      PassthroughRate = request.PassthroughRate, SignedByName = request.SignedByName,
+                                      SignedAtUtc = request.SignedAtUtc, HasSnapshot = request.SnapshotPng != null
+                                  })
                 .OrderByDescending(x => x.SubmittedDate).ToListAsync(cancellationToken);
-            var requestIds = requests.Select(x => x.Id).ToList();
-            var totals = await db.AtRequestItems.AsNoTracking().Where(x => requestIds.Contains(x.ATRequestId))
-                .GroupBy(x => x.ATRequestId).Select(x => new { RequestId = x.Key, Total = x.Sum(i => i.ItemCost * i.Quantity) })
-                .ToDictionaryAsync(x => x.RequestId, x => x.Total, cancellationToken);
-            var rows = requests.Select(request => new AtRequestListItemDto(request.Id, request.ClientName, request.Status,
-                (totals.GetValueOrDefault(request.Id) + request.SalesTax) * (1 + rate), request.SubmittedDate,
-                request.VendorName, request.CaseManagerName, request.HasSnapshot)).ToList();
-            return Results.Ok(rows);
+            return Results.Ok(await BuildAtRequestRowsAsync(db, requests, rate, cancellationToken));
+        });
+
+        // The same list narrowed to one client, for the AT requests section of a
+        // client's profile. Gated on the CLIENT's owning user, so reaching another
+        // agency's client here fails the same way it does everywhere else.
+        api.MapGet("/people/{personId:int}/at-requests", async Task<IResult> (
+            int personId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == personId, cancellationToken);
+            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+
+            var rate = (await GetOrCreateSettingsAsync(db, actor.AgencyId, cancellationToken)).PassthroughRate;
+            var requests = await db.AtRequests.AsNoTracking()
+                .Where(request => request.PersonId == personId)
+                .Select(request => new AtRequestRow
+                {
+                    Id = request.Id, ClientName = request.ClientName, Status = request.Status,
+                    SalesTax = request.SalesTax, SubmittedDate = request.SubmittedDate,
+                    VendorName = request.VendorName, CaseManagerName = request.CaseManagerName,
+                    PassthroughRate = request.PassthroughRate, SignedByName = request.SignedByName,
+                    SignedAtUtc = request.SignedAtUtc, HasSnapshot = request.SnapshotPng != null
+                })
+                .OrderByDescending(x => x.SubmittedDate).ThenByDescending(x => x.Id)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(await BuildAtRequestRowsAsync(db, requests, rate, cancellationToken));
         });
         api.MapGet("/at-requests/{id:int}", async Task<IResult> (int id, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
@@ -1487,8 +1528,109 @@ internal static class ApiEndpoints
             var request = await LoadAccessibleAtRequestAsync(db, Actor.From(principal), id, cancellationToken);
             if (request is null || request.PersonId != input.PersonId) return Results.NotFound();
             if (request.Revision != input.ExpectedRevision) return StaleAtRequestConflict();
+            // The publication lock, checked against the stored row. Publishing does
+            // not come through here; it has its own route.
+            if (IsAtRequestPublished(request)) return PublishedAtRequestConflict();
             var errors = ValidateAtRequest(input); if (errors.Count > 0) return Results.ValidationProblem(errors);
             ApplyAtRequest(request, input); request.Revision++;
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAtRequestConflict();
+            }
+            return Results.Ok(ContractMapper.ToAtRequest(request));
+        });
+        // Publish. The attestation is derived HERE, from the validated actor, and
+        // there is deliberately no way for a caller to supply a signer name: the
+        // server records who published, not who the client says published.
+        //
+        // ValidatedActorFilter has already re-confirmed the claimed identity, role,
+        // and agency against the database, and LoadAccessibleAtRequestAsync gates
+        // on TenantAccess, so by this point the actor is a real user who may reach
+        // this client's request.
+        api.MapPost("/at-requests/{id:int}/publish", async Task<IResult> (
+            int id, PublishAtRequestRequest input, ClaimsPrincipal principal,
+            ApiDbContext db, AuditTrail audit, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var request = await LoadAccessibleAtRequestAsync(db, actor, id, cancellationToken);
+            if (request is null) return Results.NotFound();
+            if (request.Revision != input.ExpectedRevision) return StaleAtRequestConflict();
+            if (IsAtRequestPublished(request)) return PublishedAtRequestConflict();
+
+            // Completeness is decided by the shared rule owner, not re-expressed
+            // here. A second copy of these checks would be a rule enforced two ways.
+            var blockers = AtRequestPublication.FindBlockers(
+                request.VendorName, request.VendorBillingLocation,
+                request.Items.Select(item => new AtRequestLine(item.Name, item.ItemCost, item.Quantity)),
+                alreadyPublished: false);
+            if (blockers.Count > 0)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["publish"] = [.. blockers] });
+
+            var signedAtUtc = DateTime.UtcNow;
+
+            // Frozen from agency settings, never from the payload. Regenerating
+            // this document next year must reproduce the money it was filed at,
+            // not recompute it against whatever rate the agency has by then.
+            request.PassthroughRate =
+                (await GetOrCreateSettingsAsync(db, actor.AgencyId, cancellationToken)).PassthroughRate;
+
+            request.SignedByName = actor.DisplayName;
+            request.SignedByRole = actor.Role;
+            request.SignedByUserId = actor.UserId;
+            request.SignedAtUtc = signedAtUtc;
+            request.AttestationStatement = AtRequestPublication.AttestationStatement;
+            request.SubmittedDate = signedAtUtc.Date;
+            request.Status = "Review";
+            request.Revision++;
+
+            audit.Record(actor, AuditActions.AtRequestPublished, "AtRequest", request.Id);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StaleAtRequestConflict();
+            }
+            return Results.Ok(ContractMapper.ToAtRequest(request));
+        });
+
+        // Reopen for correction. Audited on its own action because discarding an
+        // attestation is a materially different event from making one, and a
+        // reviewer reading the trail should not have to infer it from a gap.
+        api.MapPost("/at-requests/{id:int}/reopen", async Task<IResult> (
+            int id, ReopenAtRequestRequest input, ClaimsPrincipal principal,
+            ApiDbContext db, AuditTrail audit, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var request = await LoadAccessibleAtRequestAsync(db, actor, id, cancellationToken);
+            if (request is null) return Results.NotFound();
+            if (request.Revision != input.ExpectedRevision) return StaleAtRequestConflict();
+            if (!IsAtRequestPublished(request))
+                return Results.Ok(ContractMapper.ToAtRequest(request));
+
+            audit.Record(actor, AuditActions.AtRequestReopened, "AtRequest", request.Id,
+                JsonSerializer.Serialize(new
+                {
+                    discardedSigner = request.SignedByName,
+                    discardedSignedAtUtc = request.SignedAtUtc
+                }));
+
+            request.SignedByName = null;
+            request.SignedByRole = null;
+            request.SignedByUserId = null;
+            request.SignedAtUtc = null;
+            request.AttestationStatement = null;
+            request.SubmittedDate = null;
+            // A draft again, so the live agency rate governs.
+            request.PassthroughRate = null;
+            request.Status = "Development";
+            request.Revision++;
+
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
@@ -1504,6 +1646,9 @@ internal static class ApiEndpoints
             var request = await LoadAccessibleAtRequestAsync(db, Actor.From(principal), id, cancellationToken);
             if (request is null) return Results.NotFound();
             if (request.Revision != expectedRevision) return StaleAtRequestConflict();
+            // A published request is a document someone attested to. Deleting it
+            // outright is not a correction; reopening it is.
+            if (IsAtRequestPublished(request)) return PublishedAtRequestConflict();
             db.AtRequests.Remove(request);
             try
             {
@@ -1614,6 +1759,10 @@ internal static class ApiEndpoints
             if (!await TenantAccess.OwnsPersonAsync(db, actor, request.PersonId, cancellationToken))
                 return Results.NotFound();
 
+            var timeConflict = await FindServiceTimeProblemAsync(db, actor, request, null, cancellationToken);
+            if (timeConflict is not null)
+                return timeConflict;
+
             ContractMapper.TryParseNoteStatus(request.Status, out var status);
             ContractMapper.TryParseFormType(request.FormType, out var formType);
             ContractMapper.TryParseNoteType(request.NoteType, out var noteType);
@@ -1661,6 +1810,10 @@ internal static class ApiEndpoints
                     "note_locked",
                     "Logged and approved notes cannot be edited. A supervisor must return a logged note before it can be corrected.",
                     string.Empty));
+
+            var timeConflict = await FindServiceTimeProblemAsync(db, actor, request, id, cancellationToken);
+            if (timeConflict is not null)
+                return timeConflict;
 
             ContractMapper.TryParseNoteStatus(request.Status, out var status);
             ContractMapper.TryParseFormType(request.FormType, out var formType);
@@ -1753,6 +1906,25 @@ internal static class ApiEndpoints
                                     note.EventDate >= first && note.EventDate < end
                               select new { Note = note, Person = person })
                 .ToListAsync(cancellationToken);
+            return Results.Ok(rows.Select(x => ContractMapper.ToNote(x.Note, x.Person)).ToList());
+        });
+
+        // The case manager's whole day, across their whole caseload. Overlapping
+        // service time is a property of one person's day, so this is scoped by
+        // user and date and never by client.
+        api.MapGet("/notes/day", async Task<IResult> (
+            int? userId,
+            DateTime date,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var targetUserId = userId ?? actor.UserId;
+            if (!await TenantAccess.CanAccessUserAsync(db, actor, targetUserId, cancellationToken))
+                return Results.Forbid();
+
+            var rows = await LoadDayNotesAsync(db, targetUserId, date, cancellationToken);
             return Results.Ok(rows.Select(x => ContractMapper.ToNote(x.Note, x.Person)).ToList());
         });
 
@@ -3094,11 +3266,70 @@ internal static class ApiEndpoints
             "This note changed after it was opened. Reload the saved copy before applying your changes.",
             string.Empty));
 
+    /// <summary>
+    /// The shape both AT request list routes project to. A named type rather than
+    /// an anonymous one so the two routes can share the row-building step below
+    /// instead of each re-expressing the total.
+    /// </summary>
+    private sealed class AtRequestRow
+    {
+        public int Id { get; init; }
+        public string? ClientName { get; init; }
+        public string Status { get; init; } = string.Empty;
+        public decimal SalesTax { get; init; }
+        public DateTime? SubmittedDate { get; init; }
+        public string? VendorName { get; init; }
+        public string? CaseManagerName { get; init; }
+        public decimal? PassthroughRate { get; init; }
+        public string? SignedByName { get; init; }
+        public DateTime? SignedAtUtc { get; init; }
+        public bool HasSnapshot { get; init; }
+    }
+
+    /// <summary>
+    /// Attaches item totals and produces the list DTOs.
+    ///
+    /// MIRRORED MATH — the canonical definition is ATRequestCalculator.Total. It
+    /// is re-expressed here because the sum is done in SQL without loading item
+    /// rows. A request's FROZEN rate wins over the agency's current one, so a
+    /// published row keeps reporting the total it was filed at.
+    /// </summary>
+    private static async Task<List<AtRequestListItemDto>> BuildAtRequestRowsAsync(
+        ApiDbContext db, List<AtRequestRow> requests, decimal currentRate, CancellationToken cancellationToken)
+    {
+        var requestIds = requests.Select(x => x.Id).ToList();
+        var totals = await db.AtRequestItems.AsNoTracking()
+            .Where(x => requestIds.Contains(x.ATRequestId))
+            .GroupBy(x => x.ATRequestId)
+            .Select(x => new { RequestId = x.Key, Total = x.Sum(i => i.ItemCost * i.Quantity) })
+            .ToDictionaryAsync(x => x.RequestId, x => x.Total, cancellationToken);
+
+        return [.. requests.Select(request => new AtRequestListItemDto(
+            request.Id, request.ClientName, request.Status,
+            (totals.GetValueOrDefault(request.Id) + request.SalesTax)
+                * (1 + (request.PassthroughRate ?? currentRate)),
+            request.SubmittedDate, request.VendorName, request.CaseManagerName, request.HasSnapshot,
+            request.SignedByName, request.SignedAtUtc))];
+    }
+
     private static IResult StaleAtRequestConflict() =>
         Results.Conflict(new ApiErrorDto(
             "stale_at_request",
             "This AT request changed after it was opened. Reload the saved request before applying your changes.",
             string.Empty));
+
+    // Distinct code from stale_at_request: the client cannot fix this by
+    // reloading and retrying, which is exactly what a stale conflict invites.
+    private static IResult PublishedAtRequestConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "published_at_request",
+            "This AT request has been published and can no longer be edited. Reopen it for correction first; reopening removes the attestation.",
+            string.Empty));
+
+    // Publication state is read through the shared rule owner rather than tested
+    // field by field, so the API and the desktop agree on what counts as signed.
+    private static bool IsAtRequestPublished(ServerAtRequest request) =>
+        AtRequestPublication.IsPublished(request.SignedByName, request.SignedAtUtc);
 
     private static IResult StaleSettingsConflict() =>
         Results.Conflict(new ApiErrorDto(
@@ -3146,34 +3377,24 @@ internal static class ApiEndpoints
             "EdiGenerations.AgencyId, EdiGenerations.ActorUserId, EdiGenerations.IdempotencyKey",
             StringComparison.Ordinal) == true;
 
+    // Format and escaping are owned by Sati.Contracts AuditCsv, shared with the
+    // desktop's local export. Do not hand-build this file here.
     private static string BuildAuditCsv(
         IReadOnlyList<AuditExportRow> rows,
         string reason,
-        DateTime exportedAtUtc)
-    {
-        var csv = new StringBuilder();
-        csv.AppendLine("ExportReason,ExportedAtUtc,EventId,OccurredAtUtc,ActorUserId,ActorDisplayName,Action,ResourceType,ResourceId,CorrelationId");
-        foreach (var row in rows)
-        {
-            csv.AppendLine(string.Join(',', new[]
-            {
-                Csv(reason),
-                Csv(exportedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.EventId.ToString()),
-                Csv(row.OccurredAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.ActorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                Csv(row.ActorDisplayName),
-                Csv(row.Action),
-                Csv(row.ResourceType),
-                Csv(row.ResourceId),
-                Csv(row.CorrelationId)
-            }));
-        }
-        return csv.ToString();
-    }
-
-    private static string Csv(string? value) =>
-        $"\"{(value ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+        DateTime exportedAtUtc) =>
+        AuditCsv.Build(
+            rows.Select(row => new AuditCsvRow(
+                row.EventId,
+                row.OccurredAtUtc,
+                row.ActorUserId,
+                row.ActorDisplayName,
+                row.Action,
+                row.ResourceType,
+                row.ResourceId,
+                row.CorrelationId)),
+            reason,
+            exportedAtUtc);
 
     private sealed record AuditExportRow(
         Guid EventId,
@@ -3218,6 +3439,74 @@ internal static class ApiEndpoints
         return settings;
     }
 
+    private sealed record DayNoteRow(ServerNote Note, ServerPerson Person);
+
+    private static async Task<List<DayNoteRow>> LoadDayNotesAsync(
+        ApiDbContext db, int userId, DateTime date, CancellationToken cancellationToken)
+    {
+        var dayStart = date.Date;
+        var dayEnd = dayStart.AddDays(1);
+        return await (from note in db.Notes.AsNoTracking()
+                      join person in db.People.AsNoTracking() on note.PersonId equals person.Id
+                      where person.UserId == userId &&
+                            note.EventDate >= dayStart && note.EventDate < dayEnd
+                      select new DayNoteRow(note, person))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Server-side enforcement of the service-day rule. The desktop client checks
+    /// the same <see cref="ServiceTimeline"/> rule for immediate feedback, but a
+    /// rule that decides what may be billed cannot be enforced by a client, so
+    /// this runs on every create and update regardless of what the client sent.
+    /// Returns null when the request claims no time or claims only free time.
+    /// </summary>
+    private static async Task<IResult?> FindServiceTimeProblemAsync(
+        ApiDbContext db,
+        Actor actor,
+        SaveNoteRequest request,
+        int? editingNoteId,
+        CancellationToken cancellationToken)
+    {
+        var candidate = ServiceTimeline.TryCreateBlock(
+            editingNoteId ?? 0, request.StartTime, request.Minutes, request.Status);
+        if (candidate is null)
+            return null;
+
+        var windowProblem = ServiceTimeline.DescribeWindowViolation(candidate.StartMinutes, candidate.Minutes);
+        if (windowProblem is not null)
+            return Results.Conflict(new ApiErrorDto("service_time_window", windowProblem, string.Empty));
+
+        if (request.EventDate is not DateTime eventDate)
+            return null;
+
+        var sameDay = await LoadDayNotesAsync(db, actor.UserId, eventDate, cancellationToken);
+        var blocks = sameDay
+            .Select(row => ServiceTimeline.TryCreateBlock(
+                row.Note.Id,
+                row.Note.StartTime,
+                row.Note.Minutes,
+                ContractMapper.NoteStatusName(row.Note.Status),
+                DescribeNoteOwner(row.Person)))
+            .OfType<ServiceBlock>();
+
+        var conflicts = ServiceTimeline.FindConflicts(candidate, blocks);
+        if (conflicts.Count == 0)
+            return null;
+
+        return Results.Conflict(new ApiErrorDto(
+            "service_time_overlap",
+            "This service time overlaps time already recorded on this date. " +
+            string.Join(" ", conflicts.Select(conflict => conflict.Reason)),
+            string.Empty));
+    }
+
+    private static string DescribeNoteOwner(ServerPerson person)
+    {
+        var name = $"{person.FirstName} {person.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(name) ? "another note" : $"a note for {name}";
+    }
+
     private static Dictionary<string, string[]>? ValidateNote(SaveNoteRequest request)
     {
         var errors = new Dictionary<string, string[]>();
@@ -3227,6 +3516,8 @@ internal static class ApiEndpoints
             errors["personId"] = ["A valid person is required."];
         if (request.Minutes is < 0 or > 1_440)
             errors["minutes"] = ["Minutes must be between 0 and 1,440."];
+        if (request.StartTime is int start && (start < 0 || start > ServiceTimeline.WindowLengthMinutes))
+            errors["startTime"] = ["Service start time must fall inside the 7:00 AM to 7:00 PM logging window."];
         if (!ContractMapper.TryParseNoteStatus(request.Status, out _))
             errors["status"] = ["The note status is invalid."];
         else if (!ContractMapper.TryParseNoteStatus(request.Status, out var status) ||
@@ -3309,12 +3600,70 @@ internal static class ApiEndpoints
         incident.LastReference,
         incident.LastActorRole);
 
+    /// <summary>
+    /// Refuses a second directory entry for an organization this agency has already
+    /// recorded under the same durable identifier. The database enforces this with a
+    /// filtered unique index; this check exists so the answer names the existing
+    /// entry instead of surfacing a constraint violation.
+    ///
+    /// Scope is deliberately one agency. The same organization appearing in several
+    /// agencies' directories is correct — each holds its own local knowledge of that
+    /// organization — and must not be treated as a duplicate.
+    /// </summary>
+    private static async Task<IResult?> FindDuplicateProviderAsync(
+        ApiDbContext db,
+        int agencyId,
+        SaveProviderRequest request,
+        int? editingProviderId,
+        CancellationToken cancellationToken)
+    {
+        var npi = Normalize(request.Npi);
+        var maineCareProviderId = Normalize(request.MaineCareProviderId);
+        if (npi is null && maineCareProviderId is null)
+            return null;
+
+        var clash = await db.Providers.AsNoTracking()
+            .Where(candidate => candidate.AgencyId == agencyId &&
+                                (editingProviderId == null || candidate.Id != editingProviderId) &&
+                                ((npi != null && candidate.Npi == npi) ||
+                                 (maineCareProviderId != null && candidate.MaineCareProviderId == maineCareProviderId)))
+            .Select(candidate => new { candidate.Name, candidate.Npi, candidate.MaineCareProviderId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (clash is null)
+            return null;
+
+        var which = npi is not null && clash.Npi == npi
+            ? "National Provider Identifier"
+            : "MaineCare provider identifier";
+
+        return Results.Conflict(new ApiErrorDto(
+            "duplicate_provider_identifier",
+            $"\"{clash.Name}\" is already in this agency's provider directory with the same {which}. " +
+            "Edit that entry rather than creating a second one, so the organization stays a single record.",
+            string.Empty));
+    }
+
     private static Dictionary<string, string[]> ValidateProvider(SaveProviderRequest request)
     {
         var errors = new Dictionary<string, string[]>();
         if (request.Type is not ("Waiver" or "Healthcare" or "Other")) errors["type"] = ["The provider type is invalid."];
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 200) errors["name"] = ["Provider name is required and must not exceed 200 characters."];
         if (request.OfferedServices < 0 || (request.OfferedServices & ~15) != 0) errors["offeredServices"] = ["The selected services are invalid."];
+
+        // Durable identifiers. An NPI carries a Luhn check digit, so a typo is
+        // detectable here rather than surfacing years later as a failed match
+        // against an organization onboarding as a tenant. BillingRules already owns
+        // that check for claim generation; validating it in one place keeps the two
+        // from drifting.
+        var npi = request.Npi?.Trim();
+        if (!string.IsNullOrEmpty(npi) && !BillingRules.IsValidNpi(npi))
+            errors["npi"] = ["The National Provider Identifier must be 10 digits with a valid check digit."];
+
+        var maineCareProviderId = request.MaineCareProviderId?.Trim();
+        if (maineCareProviderId is { Length: > 30 })
+            errors["maineCareProviderId"] = ["The MaineCare provider identifier must not exceed 30 characters."];
+
         return errors;
     }
 
@@ -3326,6 +3675,7 @@ internal static class ApiEndpoints
         provider.OfferedServices = request.OfferedServices; provider.ProvidesPassthroughService = request.ProvidesPassthroughService;
         provider.BillingLocationEis = Normalize(request.BillingLocationEis); provider.ProgramContact = Normalize(request.ProgramContact);
         provider.BillingContact = Normalize(request.BillingContact);
+        provider.Npi = Normalize(request.Npi); provider.MaineCareProviderId = Normalize(request.MaineCareProviderId);
     }
 
     private static Dictionary<string, string[]> ValidateAtRequest(SaveAtRequestRequest request)
@@ -3336,19 +3686,54 @@ internal static class ApiEndpoints
         if (request.SalesTax < 0) errors["salesTax"] = ["Sales tax cannot be negative."];
         if (request.Items.Count > 500 || request.Items.Any(x => x.ItemCost < 0 || x.Quantity < 1 || x.Quantity > 10000))
             errors["items"] = ["Request items contain an invalid cost or quantity."];
+
+        // Screenshots are re-checked here even though the desktop caps them at the
+        // paste boundary. A client-side limit tells the user something useful; it
+        // does not constrain what arrives in a request body.
+        foreach (var item in request.Items)
+        {
+            if (item.ScreenshotBase64 is null)
+                continue;
+
+            var decoded = TryDecodeBase64(item.ScreenshotBase64);
+            var problem = decoded is null
+                ? "A screenshot was not valid base64 data."
+                : AtRequestScreenshot.Describe(decoded);
+            if (problem is not null)
+            {
+                errors["screenshots"] = [problem];
+                break;
+            }
+        }
         return errors;
+    }
+
+    private static byte[]? DecodeScreenshot(string? base64) =>
+        string.IsNullOrEmpty(base64) ? null : TryDecodeBase64(base64);
+
+    private static byte[]? TryDecodeBase64(string value)
+    {
+        // Convert.FromBase64String throws on malformed input, and a bad paste is
+        // a client mistake, not a server fault. TryFromBase64String needs a
+        // buffer sized from the encoded length.
+        var buffer = new byte[value.Length * 3 / 4 + 3];
+        return Convert.TryFromBase64String(value, buffer, out var written)
+            ? buffer.AsSpan(0, written).ToArray()
+            : null;
     }
 
     private static void ApplyAtRequest(ServerAtRequest request, SaveAtRequestRequest input)
     {
         request.VendorName = Normalize(input.VendorName); request.VendorBillingLocation = Normalize(input.VendorBillingLocation);
         request.VendorProgramContact = Normalize(input.VendorProgramContact); request.VendorBillingContact = Normalize(input.VendorBillingContact);
-        request.SalesTax = input.SalesTax; request.SubmittedDate = input.SubmittedDate?.Date;
+        request.SalesTax = input.SalesTax; request.SalesTaxOverridden = input.SalesTaxOverridden;
+        request.SubmittedDate = input.SubmittedDate?.Date;
         request.DecisionDate = input.DecisionDate?.Date; request.Status = input.Status;
         request.Items.Clear();
         foreach (var item in input.Items)
             request.Items.Add(new ServerAtRequestItem { Name = Normalize(item.Name), ItemCost = item.ItemCost,
-                Quantity = item.Quantity, Url = Normalize(item.Url) });
+                Quantity = item.Quantity, Url = Normalize(item.Url),
+                ScreenshotPng = DecodeScreenshot(item.ScreenshotBase64) });
     }
 
     private static async Task<ServerAtRequest?> LoadAccessibleAtRequestAsync(

@@ -1,5 +1,8 @@
 # Production and Demo Data Environments
 
+*Current as of 2026-08-15. Packaged client release 1.2.17. The Demo nightly reset described below
+is a design, not a running job — see the checklist at the end of this file.*
+
 Sati maintains deliberately separate Production and Demo identities. This separation protects
 real working data during development and prepares the synthetic Demo environment for Azure.
 
@@ -216,6 +219,20 @@ responsive, normal open/close cycles; SHA-256 is
 was verified at version 1.2.15, including normal login-window shutdown, a visible unclipped release
 footer at 150% Windows scaling, and Desktop/taskbar shortcuts using the 1.2.15 icon. The live Demo API
 remains behind this packaged release, so deploy and verify API 1.2.15 before final matched-pair evidence.
+
+Release 1.2.16 serialized high-risk user-interface operations and introduced the watercolor login and
+splash branding, but its installer is **rejected and must not be distributed**. Post-build startup
+logs proved that an assembly-qualified WPF resource address looked for `Sati` while the Demo assembly
+is named `Sati.Demo`. The original lifecycle test closed the startup error dialog and mistook that for
+a successful login-window close. Release 1.2.17 uses assembly-agnostic application resources, and its
+installer acceptance additionally requires the visible window title to be the login window.
+
+Release 1.2.17 corrected the Demo resource addresses and strengthened installer acceptance. The exact
+local installer reached the actual login window and completed five responsive, normal open/close
+cycles; no 1.2.17 startup error was written to the local error log. SHA-256 is
+`0090791649b4c37315e61eb57d784368f765a520801809c40e6c4ed9f4d65217`. The live Demo API remains
+version 1.2.8, so deploy and verify API 1.2.17 before collecting final version-matched company-demo
+evidence.
 
 ## Azure migration checklist
 

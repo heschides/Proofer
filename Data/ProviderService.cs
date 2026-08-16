@@ -41,6 +41,7 @@ namespace Sati.Data
         {
             await using var context = _contextFactory.CreateDbContext();
             provider.AgencyId = CurrentAgencyId();
+            await GuardDuplicateIdentifierAsync(context, provider, null);
             context.Providers.Add(provider);
             await context.SaveChangesAsync();
             return provider;
@@ -52,12 +53,46 @@ namespace Sati.Data
             var tracked = await context.Providers.SingleOrDefaultAsync(
                 x => x.Id == provider.Id && x.AgencyId == CurrentAgencyId())
                 ?? throw new InvalidOperationException("The provider is outside the current agency.");
+            await GuardDuplicateIdentifierAsync(context, provider, provider.Id);
             context.Entry(tracked).CurrentValues.SetValues(provider);
             tracked.Id = provider.Id;
             tracked.AgencyId = CurrentAgencyId();
             await context.SaveChangesAsync();
             return tracked;
         }
+
+        // The transitional local path repeats the API's rule rather than trusting the
+        // API to be the only caller. Scope is one agency: the same organization in
+        // several agencies' directories is correct, not a duplicate.
+        private async Task GuardDuplicateIdentifierAsync(
+            SatiContext context, Provider provider, int? editingProviderId)
+        {
+            var npi = Blank(provider.Npi);
+            var maineCareProviderId = Blank(provider.MaineCareProviderId);
+            if (npi is null && maineCareProviderId is null)
+                return;
+
+            var agencyId = CurrentAgencyId();
+            var clash = await context.Providers.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == agencyId &&
+                                    (editingProviderId == null || candidate.Id != editingProviderId) &&
+                                    ((npi != null && candidate.Npi == npi) ||
+                                     (maineCareProviderId != null && candidate.MaineCareProviderId == maineCareProviderId)))
+                .FirstOrDefaultAsync();
+
+            if (clash is null)
+                return;
+
+            var which = npi is not null && clash.Npi == npi
+                ? "National Provider Identifier"
+                : "MaineCare provider identifier";
+            throw new InvalidOperationException(
+                $"\"{clash.Name}\" is already in this agency's provider directory with the same {which}. " +
+                "Edit that entry rather than creating a second one, so the organization stays a single record.");
+        }
+
+        private static string? Blank(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         // No guard against deleting the Settings default: the FK is ON DELETE
         // SET NULL, so removing the current default provider simply clears the

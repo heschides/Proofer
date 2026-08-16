@@ -21,7 +21,7 @@ try {
 
     $programsRoot = [System.IO.Path]::GetFullPath((Join-Path $localAppData 'Programs'))
     $expectedInstallRoot = [System.IO.Path]::GetFullPath(
-        (Join-Path $programsRoot 'Satilogica\Sati Demo'))
+        (Join-Path $programsRoot 'SatiLogica\Sati Demo'))
     $installRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
     if ($installRoot -ne $expectedInstallRoot -or
         -not $installRoot.StartsWith($programsRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
@@ -39,7 +39,7 @@ try {
     }
 
     $startMenuShortcut = Join-Path (
-        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Satilogica')) 'Sati Demo.lnk'
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'SatiLogica')) 'Sati Demo.lnk'
     $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Sati Demo.lnk'
     if (Test-Path -LiteralPath $startMenuShortcut) {
         Remove-Item -LiteralPath $startMenuShortcut -Force

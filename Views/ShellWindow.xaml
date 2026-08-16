@@ -66,290 +66,49 @@
                                    FontSize="12"
                                    FontWeight="Bold" />
                     </Border>
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0"
+                    <!-- Navigation tabs. Appearance, including how selection is
+                         shown, belongs to NavTabButton in App.xaml — nothing about
+                         the look lives here. Each tab supplies only what is
+                         genuinely its own: its label, its command, which view model
+                         property means "I am the current section", and whether the
+                         signed-in user may see it at all.
+
+                         These are Buttons rather than click-handled Borders so they
+                         are reachable by keyboard and exposed to screen readers as
+                         controls. -->
+                    <Button Content="Admin"
+                            Style="{StaticResource NavTabButton}"
+                            AutomationProperties.Name="Admin"
+                            views:NavTab.IsActive="{Binding IsAdminActive}"
+                            Command="{Binding NavigateToAdminCommand}"
                             Visibility="{Binding IsAdminAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToAdminCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsAdminActive}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Admin" FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsAdminActive}" Value="True">
-                                            <Setter Property="Foreground" Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0"
+                                Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Button Content="Platform health"
+                            Style="{StaticResource NavTabButton}"
+                            AutomationProperties.Name="Platform health"
+                            views:NavTab.IsActive="{Binding IsPlatformHealthActive}"
+                            Command="{Binding NavigateToPlatformHealthCommand}"
                             Visibility="{Binding IsPlatformHealthAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToPlatformHealthCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsPlatformHealthActive}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Platform health" FontSize="13"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                    </Border>
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToCaseManagementCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsNotesActive}"
-                                                 Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Case Management"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground"
-                                            Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsNotesActive}"
-                                                     Value="True">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0"
+                                Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Button Content="Case Management"
+                            Style="{StaticResource NavTabButton}"
+                            AutomationProperties.Name="Case Management"
+                            views:NavTab.IsActive="{Binding IsCaseManagementActive}"
+                            Command="{Binding NavigateToCaseManagementCommand}" />
+                    <Button Content="Supervisor"
+                            Style="{StaticResource NavTabButton}"
+                            AutomationProperties.Name="Supervisor"
+                            views:NavTab.IsActive="{Binding IsSupervisorActive}"
+                            Command="{Binding NavigateToSupervisorDashboardCommand}"
                             Visibility="{Binding IsSupervisionAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToSupervisorDashboardCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSupervisorActive}"
-                                                 Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Supervisor"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground"
-                                            Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsSupervisorActive}"
-                                                     Value="True">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0"
+                                Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Button Content="Billing"
+                            Style="{StaticResource NavTabButton}"
+                            AutomationProperties.Name="Billing"
+                            views:NavTab.IsActive="{Binding IsBillingActive}"
+                            Command="{Binding NavigateToBillingCommand}"
                             Visibility="{Binding IsBillingAvailable,
-            Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToBillingCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsBillingActive}"
-                                                 Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Billing"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground"
-                                            Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsBillingActive}"
-                                                     Value="True">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-                    
-
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToGuidanceCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsGuidanceActive}"
-                                                 Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Guidance"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground"
-                                            Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGuidanceActive}"
-                                                     Value="True">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="10,4"
-                            Margin="0,0,4,0">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding NavigateToHelpersCommand}" />
-                        </Border.InputBindings>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsHelpersActive}"
-                                                 Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource TextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Background"
-                                                Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Helpers"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground"
-                                            Value="{DynamicResource TextSecondaryBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsHelpersActive}"
-                                                     Value="True">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource WindowBackgroundBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
+                                Converter={StaticResource BoolToVisibilityConverter}}" />
 
                 </StackPanel>
 

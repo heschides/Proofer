@@ -398,12 +398,14 @@ internal static class CloudContractMapper
         OfferedServices = (WaiverService)dto.OfferedServices,
         ProvidesPassthroughService = dto.ProvidesPassthroughService,
         BillingLocationEis = dto.BillingLocationEis, ProgramContact = dto.ProgramContact,
-        BillingContact = dto.BillingContact
+        BillingContact = dto.BillingContact,
+        Npi = dto.Npi, MaineCareProviderId = dto.MaineCareProviderId
     };
 
     public static SaveProviderRequest ToSaveProviderRequest(Provider p) => new(
         p.Type.ToString(), p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,
-        (int)p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact);
+        (int)p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact,
+        p.Npi, p.MaineCareProviderId);
 
     public static ATRequest ToAtRequest(AtRequestDto dto)
     {
@@ -412,18 +414,23 @@ internal static class CloudContractMapper
             Parse<ATRequestStatus>(dto.Status));
         request.VendorName = dto.VendorName; request.VendorBillingLocation = dto.VendorBillingLocation;
         request.VendorProgramContact = dto.VendorProgramContact; request.VendorBillingContact = dto.VendorBillingContact;
-        request.SalesTax = dto.SalesTax; request.SubmittedDate = dto.SubmittedDate; request.DecisionDate = dto.DecisionDate;
+        request.SalesTax = dto.SalesTax; request.SalesTaxOverridden = dto.SalesTaxOverridden; request.SubmittedDate = dto.SubmittedDate; request.DecisionDate = dto.DecisionDate;
         request.Revision = dto.Revision;
+        request.RehydrateAttestation(dto.SignedByName, dto.SignedByRole, dto.SignedByUserId,
+            dto.SignedAtUtc, dto.AttestationStatement, dto.PassthroughRate);
         request.Items = dto.Items.Select(i => { var item = ATRequestItem.Rehydrate(i.Id); item.ATRequestId = i.AtRequestId;
-            item.Name = i.Name; item.ItemCost = i.ItemCost; item.Quantity = i.Quantity; item.Url = i.Url; return item; }).ToList();
+            item.Name = i.Name; item.ItemCost = i.ItemCost; item.Quantity = i.Quantity; item.Url = i.Url;
+            item.ScreenshotPng = string.IsNullOrEmpty(i.ScreenshotBase64) ? null : Convert.FromBase64String(i.ScreenshotBase64);
+            return item; }).ToList();
         return request;
     }
 
     public static SaveAtRequestRequest ToSaveAtRequestRequest(ATRequest a) => new(
         a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,
         a.CaseManagerPhone, a.CaseManagerAgency, a.VendorName, a.VendorBillingLocation,
-        a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SubmittedDate, a.DecisionDate,
-        a.Status.ToString(), a.Items.Select(i => new SaveAtRequestItemRequest(i.Id, i.Name, i.ItemCost, i.Quantity, i.Url)).ToList(),
+        a.VendorProgramContact, a.VendorBillingContact, a.SalesTax, a.SalesTaxOverridden, a.SubmittedDate, a.DecisionDate,
+        a.Status.ToString(), a.Items.Select(i => new SaveAtRequestItemRequest(i.Id, i.Name, i.ItemCost, i.Quantity, i.Url,
+            i.ScreenshotPng is null ? null : Convert.ToBase64String(i.ScreenshotPng))).ToList(),
         a.Revision);
 
     private static Note ToNoteSummary(NoteSummaryDto dto)

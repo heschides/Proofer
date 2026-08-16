@@ -1,7 +1,7 @@
 param(
     [string]$BaseAddress = "https://sati-demo-api-satilogica.azurewebsites.net/",
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$ExpectedReleaseVersion = '1.2.15',
+    [string]$ExpectedReleaseVersion = '1.2.17',
     [switch]$HealthOnly,
     [string]$EvidencePath
 )

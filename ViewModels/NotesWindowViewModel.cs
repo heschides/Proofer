@@ -118,7 +118,7 @@ namespace Sati.ViewModels
 
 
         [RelayCommand]
-        private void MarkNoteLogged()
+        private async Task MarkNoteLogged()
         {
             if (SelectedNote is null) return;
 
@@ -142,7 +142,7 @@ namespace Sati.ViewModels
                 return;
             }
 
-            _ = LogNoteDirectlyAsync();
+            await LogNoteDirectlyAsync();
         }
 
         private async Task LogNoteDirectlyAsync()

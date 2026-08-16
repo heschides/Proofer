@@ -3,6 +3,7 @@ using Sati.Models;
 namespace Sati.Services.LocalAi
 {
     public sealed record CaseNoteFormattingRequest(
+        int PersonId,
         string RawNarrative,
         NoteType? NoteType,
         FormType? FormType,

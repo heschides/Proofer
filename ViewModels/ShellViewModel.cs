@@ -16,10 +16,10 @@ namespace Sati.ViewModels
         // Services & private state
         // -------------------------------------------------------------------------
 
-        private readonly CaseManagerDashboardViewModel _notesViewModel;
+        // Case Management is a sub-tab host: it owns the dashboard plus Guidance,
+        // Reference, and AT Requests, which used to sit beside it at the top level.
+        private readonly CaseManagementViewModel _caseManagementViewModel;
         private readonly SupervisorDashboardViewModel _supervisorDashboardViewModel;
-        private readonly GuidanceViewModel _guidanceViewModel;
-        private readonly HelpersViewModel _helpersViewModel;
         private readonly ISessionService _sessionService;
         private readonly BillingDashboardViewModel _billingDashboardViewModel;
         private readonly AdminDashboardViewModel _adminDashboardViewModel;
@@ -32,21 +32,17 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ShellViewModel(
-            CaseManagerDashboardViewModel notesViewModel,
+            CaseManagementViewModel caseManagementViewModel,
             ScratchpadViewModel scratchpadViewModel,
             SupervisorDashboardViewModel supervisorViewModel,
-            GuidanceViewModel guidanceViewModel,
-            HelpersViewModel helpersViewModel,
             ISessionService sessionService,
             BillingDashboardViewModel billingDashboardViewModel,
             AdminDashboardViewModel adminDashboardViewModel,
             PlatformHealthViewModel platformHealthViewModel,
             DataEnvironmentInfo dataEnvironment)
         {
-            _notesViewModel = notesViewModel;
+            _caseManagementViewModel = caseManagementViewModel;
             _supervisorDashboardViewModel = supervisorViewModel;
-            _guidanceViewModel = guidanceViewModel;
-            _helpersViewModel = helpersViewModel;
             _sessionService = sessionService;
             Scratchpad = scratchpadViewModel;
             _billingDashboardViewModel = billingDashboardViewModel;
@@ -78,7 +74,10 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ScratchpadViewModel Scratchpad { get; }
-        public CaseManagerDashboardViewModel NotesViewModel => _notesViewModel;
+
+        // Forwarded so window-close journal flushing still reaches the dashboard now
+        // that Case Management owns it.
+        public CaseManagerDashboardViewModel NotesViewModel => _caseManagementViewModel.Dashboard;
 
         // -------------------------------------------------------------------------
         // Computed properties
@@ -100,10 +99,8 @@ namespace Sati.ViewModels
                 or UserRole.Director;
 
         // Active tab indicators
-        public bool IsNotesActive => CurrentViewModel is CaseManagerDashboardViewModel;
+        public bool IsCaseManagementActive => CurrentViewModel is CaseManagementViewModel;
         public bool IsSupervisorActive => CurrentViewModel is SupervisorDashboardViewModel;
-        public bool IsGuidanceActive => CurrentViewModel is GuidanceViewModel;
-        public bool IsHelpersActive => CurrentViewModel is HelpersViewModel;
 
         // User header
         public string UserGreeting => $"Hello, {_sessionService.CurrentUser?.DisplayName ?? "there"}.";
@@ -138,10 +135,8 @@ namespace Sati.ViewModels
 
         partial void OnCurrentViewModelChanged(object? value)
         {
-            OnPropertyChanged(nameof(IsNotesActive));
+            OnPropertyChanged(nameof(IsCaseManagementActive));
             OnPropertyChanged(nameof(IsSupervisorActive));
-            OnPropertyChanged(nameof(IsGuidanceActive));
-            OnPropertyChanged(nameof(IsHelpersActive));
             OnPropertyChanged(nameof(IsBillingActive));
             OnPropertyChanged(nameof(IsAdminActive));
             OnPropertyChanged(nameof(IsPlatformHealthActive));
@@ -153,10 +148,8 @@ namespace Sati.ViewModels
         // Navigation commands
         // -------------------------------------------------------------------------
 
-        [RelayCommand] private void NavigateToCaseManagement() => CurrentViewModel = _notesViewModel;
+        [RelayCommand] private void NavigateToCaseManagement() => CurrentViewModel = _caseManagementViewModel;
         [RelayCommand] private void NavigateToSupervisorDashboard() => CurrentViewModel = _supervisorDashboardViewModel;
-        [RelayCommand] private void NavigateToGuidance() => CurrentViewModel = _guidanceViewModel;
-        [RelayCommand] private void NavigateToHelpers() => CurrentViewModel = _helpersViewModel;
         [RelayCommand] private void RequestSwitchUser() => SwitchUserRequested?.Invoke(this, EventArgs.Empty);
         [RelayCommand] public void OpenSettingsWindow() => OpenSettingsWindowRequested?.Invoke(this, true);
         [RelayCommand] private void NavigateToBilling() => CurrentViewModel = _billingDashboardViewModel;
@@ -191,15 +184,15 @@ namespace Sati.ViewModels
             // before the NotesLog and Clients reloads run theirs. Overlapping People-loads
             // each demand a LocalDB sort grant and stall on RESOURCE_SEMAPHORE; sequenced,
             // only one grant is live at a time.
-            await _notesViewModel.InitializeAsync();
+            await NotesViewModel.InitializeAsync();
             // NotesLog hosts its own NoteEntry instance; the dashboard's init only
             // covers the dashboard's copy. This loads the module's settings so its
             // narrative templates populate.
-            await _notesViewModel.NotesLog.NoteEntry.InitializeAsync();
-            await _notesViewModel.NotesLog.ReloadAsync();
-            await _notesViewModel.Clients.ReloadAsync();
+            await NotesViewModel.NotesLog.NoteEntry.InitializeAsync();
+            await NotesViewModel.NotesLog.ReloadAsync();
+            await NotesViewModel.Clients.ReloadAsync();
 
-            NavigateByRole();
+            await NavigateByRoleAsync();
         }
 
         public async Task ReinitializeAsync()
@@ -207,7 +200,8 @@ namespace Sati.ViewModels
             // The switch flow saves the outgoing user's scratchpad and journal before
             // authentication replaces the cloud API token. From this point onward every
             // request must belong to the newly selected user.
-            _notesViewModel.Reset();
+            NotesViewModel.Reset();
+            _caseManagementViewModel.ResetToDashboard();
             NotifyRoleDependentProperties();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
@@ -216,15 +210,15 @@ namespace Sati.ViewModels
             }
 
             await Scratchpad.InitializeAsync();
-            await _notesViewModel.InitializeAsync();
+            await NotesViewModel.InitializeAsync();
             // NotesLog hosts its own NoteEntry instance; the dashboard's init only
             // covers the dashboard's copy. This loads the module's settings so its
             // narrative templates populate.
-            await _notesViewModel.NotesLog.NoteEntry.InitializeAsync();
-            await _notesViewModel.NotesLog.ReloadAsync();
-            await _notesViewModel.Clients.ReloadAsync();
+            await NotesViewModel.NotesLog.NoteEntry.InitializeAsync();
+            await NotesViewModel.NotesLog.ReloadAsync();
+            await NotesViewModel.Clients.ReloadAsync();
 
-            NavigateByRole();
+            await NavigateByRoleAsync();
         }
 
         private void NotifyRoleDependentProperties()
@@ -238,15 +232,15 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsPlatformHealthAvailable));
         }
 
-        private void NavigateByRole()
+        private async Task NavigateByRoleAsync()
         {
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
-                _ = NavigateToPlatformHealth();
+                await NavigateToPlatformHealth();
                 return;
             }
             if (_sessionService.CurrentUser?.Role is UserRole.Supervisor or UserRole.Admin or UserRole.Director)
-                _ = InitializeSupervisorAsync();
+                await InitializeSupervisorAsync();
 
             NavigateToCaseManagement();
         }

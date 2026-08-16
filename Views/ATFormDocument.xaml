@@ -352,14 +352,23 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- SIGNATURE -->
+        <!-- SIGNATURE / ATTESTATION
+             The ruled lines stay: an unpublished request is still something a
+             case manager may print and sign by hand. Publishing fills them in
+             with the recorded attestation, which is what the proof-of-document
+             snapshot captures. -->
         <StackPanel Orientation="Horizontal"
                     Margin="0,28,0,0">
             <StackPanel Margin="0,0,40,0">
                 <Border BorderBrush="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0,0,0,1"
                         Width="200"
-                        Height="18" />
+                        Height="18">
+                    <TextBlock Text="{Binding SignedByName}"
+                               FontSize="11"
+                               VerticalAlignment="Bottom"
+                               Margin="2,0,0,1" />
+                </Border>
                 <TextBlock Text="Signature of Case Manager"
                            FontWeight="Bold"
                            FontSize="11"
@@ -369,13 +378,24 @@
                 <Border BorderBrush="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0,0,0,1"
                         Width="100"
-                        Height="18" />
+                        Height="18">
+                    <TextBlock Text="{Binding SignedAtUtc, StringFormat='yyyy-MM-dd'}"
+                               FontSize="11"
+                               VerticalAlignment="Bottom"
+                               Margin="2,0,0,1" />
+                </Border>
                 <TextBlock Text="Date"
                            FontWeight="Bold"
                            FontSize="11"
                            Margin="0,2,0,0" />
             </StackPanel>
         </StackPanel>
+
+        <TextBlock Text="{Binding PublishedSummary}"
+                   TextWrapping="Wrap"
+                   FontSize="10"
+                   Margin="0,10,0,0"
+                   Visibility="{Binding IsPublished, Converter={StaticResource BoolToVisibilityConverter}}" />
 
     </StackPanel>
 </UserControl>

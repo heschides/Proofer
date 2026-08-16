@@ -39,6 +39,7 @@ Do not add new direct EF dependencies to ViewModels or distributed-client servic
 
 - Client caseloads and demographic records
 - Service notes and documentation workflow
+- Service-day scheduling and prevention of overlapping billable time
 - Compliance forms, annual cycles, and quarterly reviews
 - Upcoming deadlines and calendar events
 - Supervisor dashboards, queues, and approval workflow
@@ -48,11 +49,14 @@ Do not add new direct EF dependencies to ViewModels or distributed-client servic
 - Provider directory and assistive-technology requests
 - Early billing, claim-line, and 837P generation
 - Local AI-assisted note drafting with explicit human acceptance
+- Agency incident and health telemetry, with cross-tenant support on a separate identity
 
 The long-term market direction includes Maine waiver and targeted case-management organizations.
-Potential future scope includes person-centered plans, incident management, EVV, mobile/offline
-documentation, authorization/utilization, full claim and remittance lifecycle, reporting, and
-state/payer/provider integrations. Do not imply those capabilities already exist.
+Potential future scope includes person-centered plans, client/reportable incident management, EVV,
+mobile/offline documentation, authorization/utilization, full claim and remittance lifecycle,
+reporting, and state/payer/provider integrations. Do not imply those capabilities already exist.
+The incident features that do exist today are operational error telemetry, not reportable-event
+management for clients; do not present one as the other.
 
 ## Current architecture
 
@@ -72,9 +76,19 @@ Existing EF service implementations can move behind the API. Do not expose EF en
 as network contracts. Introduce narrowly scoped DTOs, especially around `User`, whose persistence
 model currently contains password hash and salt fields that must never leave the server.
 
-Methods that accept `userId`, `agencyId`, or similar caller-controlled scope values require
-authorization redesign. The server should derive authoritative actor and tenant scope from the
-authenticated session.
+Methods that accept `userId`, `agencyId`, or similar caller-controlled scope values must never
+trust them. As of the 2026-08-14 review every such API route gates on
+`TenantAccess.CanAccessUserAsync` before the value reaches a query, and `ValidatedActorFilter`
+re-confirms the claimed identity, role, and agency against the database on every request. New
+routes must follow that pattern; see `API_AUTHORIZATION.md` for the route inventory and
+`API_SECURITY_AUDIT.md` for what has and has not been reviewed. Transitional desktop-local
+services repeat the same restrictions rather than relying on the API being the only caller.
+
+Rules that decide permission, billability, approval, or record status belong in
+`Sati.Contracts.V1`, which both the desktop client and `Sati.Api` reference, so a rule cannot be
+enforced two different ways. Current owners: `BillingComplianceGate`, `BillingRules`,
+`ServiceTimeline`, `AuditCsv`, `IncidentHealthScoring`. A second hand-written copy of one of these
+rules is a defect, not a convenience.
 
 Pure presentation and local concerns may stay in the client. Any calculation that controls
 persistence, permission, approval, billability, or official record status belongs server-side.
@@ -92,18 +106,24 @@ uploaded as part of Demo work without explicit authorization.
 
 ## Near-term priority
 
-The cloud platform foundation in `AGENDA.md` takes precedence over broad feature expansion:
+The cloud platform foundation in `AGENDA.md` takes precedence over broad feature expansion. Most of
+the original eight-item foundation is now in place; state as of 2026-08-15:
 
-1. introduce the ASP.NET Core API and safe contracts;
-2. move authentication server-side and issue short-lived tokens;
-3. formalize tenant ownership and capability-based authorization;
-4. add audit events, record versions, and optimistic concurrency;
-5. migrate desktop service implementations from EF to HTTP;
-6. add automated tests and controlled migrations;
-7. host synthetic Demo data in Azure with managed identity and nightly reset;
-8. package and test the Demo client on clean machines.
+| Foundation item | State |
+|---|---|
+| ASP.NET Core API and safe contracts | In place. `Sati.Api` + `Sati.Contracts`; no EF entity is a network contract. |
+| Server-side authentication, short-lived tokens | In place. JWT, 30-minute lifetime, server-side verification. |
+| Tenant ownership and authorization | In place. `TenantAccess` + `ValidatedActorFilter`; inventory in `API_AUTHORIZATION.md`. |
+| Audit events, record versions, optimistic concurrency | In place. Append-only `AuditEvent`, `PersonVersion`, `Revision` tokens with typed 409s. |
+| Desktop services from EF to HTTP | In place for Demo — every service interface has a `Cloud*` HTTP implementation. Local Production still uses EF by design. |
+| Automated tests | In place. 136 desktop and 65 API tests. Controlled migrations remain manual. |
+| Azure-hosted Demo with managed identity | Hosted with managed identity. **The nightly reset job is not yet configured** — `DECISIONS.md` describes the intended design, and both checklists still list it as outstanding. Do not describe it as running. |
+| Clean-machine packaging | In place and verified through release 1.2.17. |
 
-Feature work may proceed when it reinforces these boundaries or is explicitly prioritized.
+Remaining foundation work is therefore narrower than the original list: the nightly Demo reset,
+controlled migration deployment, legal-hold and retention enforcement (`OPERATIONS.md`), and
+external monitoring. Feature work may proceed when it reinforces these boundaries or is explicitly
+prioritized.
 
 ## Engineering rules
 
@@ -117,8 +137,15 @@ Feature work may proceed when it reinforces these boundaries or is explicitly pr
 - Do not log unrestricted note narratives, passwords, tokens, connection strings, or other
   sensitive content.
 - Add tests with new authorization, tenancy, billing, audit, migration, and concurrency work.
+- Confirm a security or concurrency regression test fails against the unfixed code before keeping
+  it. A test that passes either way reports safety it never checked.
+- Take a `LatestRequestTracker` identity for any load triggered by selection or navigation, and
+  check it before writing to shared UI state.
+- Neutralize untrusted values on the way out, not only on the way in. A quoted CSV field still
+  executes in a spreadsheet; see `AuditCsv`.
 - Record durable design choices in `DECISIONS.md` and deferred work in `AGENDA.md`.
-- Update `ARCHITECTURE.md` when ownership or boundaries change.
+- Update `ARCHITECTURE.md` when ownership or boundaries change, and `API_AUTHORIZATION.md` when a
+  route is added, removed, or rescoped.
 
 ## Healthcare and regulatory posture
 
@@ -144,4 +171,4 @@ qualified counsel, agency stakeholders, and the appropriate Maine authorities.
 Sati is simultaneously a working tool and the seed of a much larger product. Protect the working
 system while deliberately moving the platform boundary in the intended direction.
 
-*Last updated: August 8, 2026.*
+*Last updated: August 15, 2026, against release 1.2.17.*

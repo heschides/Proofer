@@ -8,6 +8,17 @@ understand and harder to get wrong.
 The name comes from the Pali word for mindfulness and remembrance: keeping what matters
 present and accounted for.
 
+**Sati** is one program on the **SatiLogica** platform, which is owned and operated by
+**RobinBradleyAMS**. The desktop client ships as *Sati Demo* under the SatiLogica publisher, and
+the hosted Demo API runs in the company's Azure subscription.
+
+`SatiLogica` is the formal rendering and the one to use in code, documentation, and anything a
+user sees. `Satilogica` is acceptable in informal prose only. Azure resource names such as
+`sati-demo-api-satilogica` stay lowercase because DNS requires it.
+
+*Current packaged release: **1.2.17**, "Startup resource safety and concurrency"
+(August 14, 2026). Documentation in this repository is current as of 2026-08-15.*
+
 ## Product direction
 
 Sati began as a Windows desktop application backed by SQL Server LocalDB. That application
@@ -51,10 +62,13 @@ platform is being built.
 
 - Caseload and client record management
 - Service notes and documentation workflows
+- Service-day scheduling with server-enforced prevention of overlapping billable time
 - Compliance forms, annual cycles, and 90-day reviews
 - Upcoming events and deadline monitoring
 - Supervisory queues, approvals, and team views
 - Admin-only agency usage, protected activity, and Person lifecycle audit dashboard
+- Agency incident and health telemetry, with cross-tenant support isolated to a separate
+  `PlatformOperator` identity
 - Productivity, incentives, scheduling, and workday exclusions
 - Comprehensive Assessment authoring
 - Provider directory and assistive-technology requests
@@ -80,9 +94,25 @@ The following are product constraints, not optional enhancements:
 7. **Automated tests are required for expansion.** Authorization, tenant isolation, billing,
    migrations, and record integrity need regression coverage before production use.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md),
-[AGENDA.md](AGENDA.md), [REGULATORY_CONCERNS.md](REGULATORY_CONCERNS.md), and the
-[company Demo runbook](DEMO_RUNBOOK.md).
+## Documentation index
+
+| Document | What it answers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | What owns what, and where the boundaries are. |
+| [DECISIONS.md](DECISIONS.md) | Why it was built this way, and what was rejected. |
+| [AGENDA.md](AGENDA.md) | What is deferred, and why it was deferred rather than dropped. |
+| [API_AUTHORIZATION.md](API_AUTHORIZATION.md) | Route-by-route tenant owner and access rule. |
+| [AUDIT_EVENTS.md](AUDIT_EVENTS.md) | What is recorded when a protected action succeeds. |
+| [OPERATIONS.md](OPERATIONS.md) | Retention, legal hold, SQL principals, monitoring, export control. |
+| [DATABASE_ENVIRONMENTS.md](DATABASE_ENVIRONMENTS.md) | Production/Demo separation and release history. |
+| [REGULATORY_CONCERNS.md](REGULATORY_CONCERNS.md) | HIPAA, OADS, conflict-of-interest, and open legal questions. |
+| [AI_CASE_NOTE_RULES.md](AI_CASE_NOTE_RULES.md) | The drafting standard loaded into the local model. |
+| [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) / [DEMO_ACCEPTANCE.md](DEMO_ACCEPTANCE.md) | Running and accepting a company demonstration. |
+| [API_SECURITY_AUDIT.md](API_SECURITY_AUDIT.md) | Point-in-time review of authorization and data exposure (2026-08-14). |
+| [CONCURRENCY_AUDIT.md](CONCURRENCY_AUDIT.md) | Point-in-time review of overlapping-operation hazards (2026-08-14). |
+| [DASHBOARD_DESIGN_REVIEW.md](DASHBOARD_DESIGN_REVIEW.md) | Visual and accessibility review of the dashboard (2026-08-14). |
+
+The three audit documents are dated reviews of the code at a point in time, not certifications.
 
 ## Current technology
 
@@ -133,6 +163,18 @@ Sati is under active development. Its current priority is establishing the platf
 
 Feature development continues, but new work should reinforce rather than bypass these
 foundations.
+
+### Verification as of 2026-08-15
+
+- 136 desktop and domain tests (`Sati.Tests`) and 65 API integration tests (`Sati.Api.Tests`),
+  the latter exercising the real HTTP and JWT pipeline against two isolated agencies.
+- Rules that decide permission, billability, or record status live in `Sati.Contracts.V1` and are
+  evaluated by both the desktop client and the API, so neither can drift from the other.
+- Three dated reviews — authorization and data exposure, concurrency, and dashboard design — are
+  linked in the index above. Each records what was found sound as well as what was fixed.
+
+None of this establishes HIPAA compliance or production readiness. See
+[REGULATORY_CONCERNS.md](REGULATORY_CONCERNS.md).
 
 ## About
 

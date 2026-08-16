@@ -21,6 +21,14 @@ namespace Sati.Helpers
     // rate is a fraction (0.15 = 15%), sourced from Settings.PassthroughRate.
     public static class ATRequestCalculator
     {
+        // Sales tax on the pre-passthrough items subtotal, at the agency's
+        // configured rate (0.055 = 5.5%, Maine's general rate). Rounded to cents
+        // here rather than at render, because the result is stored on the request
+        // as the filed amount. A case manager may override it; this is only the
+        // default, and the override is recorded on the request itself.
+        public static decimal SalesTax(decimal itemsSubtotal, decimal rate)
+            => Math.Round(itemsSubtotal * rate, 2, MidpointRounding.AwayFromZero);
+
         // The agency's cut: 15% of the tax-inclusive subtotal.
         public static decimal Passthrough(decimal itemsSubtotal, decimal salesTax, decimal rate)
             => (itemsSubtotal + salesTax) * rate;

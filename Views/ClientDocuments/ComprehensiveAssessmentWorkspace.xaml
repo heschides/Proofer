@@ -390,7 +390,7 @@
                                                 <TextBox Text="{Binding ProviderNameSnapshot, UpdateSourceTrigger=PropertyChanged}"
                                                          AutomationProperties.Name="Current or proposed provider">
                                                     <TextBox.Style>
-                                                        <Style TargetType="TextBox">
+                                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                             <Setter Property="IsEnabled" Value="False" />
                                                             <Style.Triggers><DataTrigger Binding="{Binding AssociateProvider}" Value="True"><Setter Property="IsEnabled" Value="True" /></DataTrigger></Style.Triggers>
                                                         </Style>

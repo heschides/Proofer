@@ -50,6 +50,10 @@
                         Value="0,0,0,8" />
             </Style>
 
+            <!-- CaretBrush and SelectionBrush are set explicitly: the framework
+                 defaults are system colors, so on dark themes the caret and the
+                 selection highlight would otherwise be invisible against a dark
+                 surface. Local TextBox styles must use BasedOn to keep this. -->
             <Style TargetType="TextBox">
                 <Setter Property="Padding"
                         Value="8,4" />
@@ -63,13 +67,32 @@
                         Value="1" />
                 <Setter Property="Foreground"
                         Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="CaretBrush"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="SelectionBrush"
+                        Value="{DynamicResource AccentBrush}" />
+                <Setter Property="SelectionTextBrush"
+                        Value="{DynamicResource OnAccentBrush}" />
                 <Setter Property="Margin"
                         Value="0,0,0,10" />
+                <Style.Triggers>
+                    <!-- The framework's disabled TextBox chrome paints a fixed
+                         light gray. Dim the themed surface instead so disabled
+                         text stays readable against it on dark themes. -->
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsReadOnly" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
-            <Style TargetType="ComboBox">
+            <Style TargetType="PasswordBox">
                 <Setter Property="Padding"
-                        Value="6,4" />
+                        Value="8,4" />
                 <Setter Property="FontSize"
                         Value="13" />
                 <Setter Property="Background"
@@ -80,8 +103,194 @@
                         Value="1" />
                 <Setter Property="Foreground"
                         Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="CaretBrush"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="SelectionBrush"
+                        Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Margin"
                         Value="0,0,0,10" />
+            </Style>
+
+            <!-- ComboBox is fully retemplated rather than restyled. The framework
+                 template builds its closed-state chrome from a ToggleButton whose
+                 own style HARD-CODES a near-white background, and drops the list
+                 into a popup painted with SystemColors.WindowBrush. Neither honors
+                 the ComboBox's Background, so on dark themes the selected item and
+                 every list row rendered as light text on near-white. Setting
+                 Background alone cannot reach either surface; the template can. -->
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Padding" Value="9,6" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Border x:Name="ItemBorder"
+                                    Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource HoverStrongBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="Padding"
+                        Value="9,4" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="MinHeight"
+                        Value="36" />
+                <Setter Property="Background"
+                        Value="{DynamicResource SurfaceRaisedBrush}" />
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource InputBorderBrush}" />
+                <Setter Property="BorderThickness"
+                        Value="1" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Margin"
+                        Value="0,0,0,10" />
+                <Setter Property="HorizontalContentAlignment"
+                        Value="Stretch" />
+                <Setter Property="VerticalContentAlignment"
+                        Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <Border x:Name="ComboBorder"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4"
+                                        SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- These four must be full bindings, not TemplateBinding.
+                                             ComboBox writes SelectionBoxItem and
+                                             SelectionBoxItemTemplate through read-only property keys
+                                             AFTER the template is applied, and a TemplateBinding does
+                                             not follow that later write. With TemplateBinding a
+                                             DisplayMemberPath selection renders as the item's
+                                             ToString() — a record shows as
+                                             "ThemeOption { DisplayName = ... }". An explicit
+                                             ItemTemplate happens to survive, which is what made the
+                                             defect look intermittent. -->
+                                        <ContentPresenter x:Name="ContentSite"
+                                                          Grid.Column="0"
+                                                          Margin="{TemplateBinding Padding}"
+                                                          Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
+                                                          ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource TemplatedParent}}"
+                                                          ContentTemplateSelector="{Binding ItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}"
+                                                          ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource TemplatedParent}}"
+                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                          VerticalAlignment="Center"
+                                                          IsHitTestVisible="False" />
+
+                                        <!-- Editable mode is unused today, but the part
+                                             must exist or IsEditable silently breaks. -->
+                                        <TextBox x:Name="PART_EditableTextBox"
+                                                 Grid.Column="0"
+                                                 Margin="{TemplateBinding Padding}"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Foreground="{TemplateBinding Foreground}"
+                                                 CaretBrush="{TemplateBinding Foreground}"
+                                                 VerticalContentAlignment="Center"
+                                                 Visibility="Collapsed" />
+
+                                        <Path x:Name="Arrow"
+                                              Grid.Column="1"
+                                              Margin="6,0,10,0"
+                                              VerticalAlignment="Center"
+                                              Data="M 0 0 L 4 4 L 8 0 Z"
+                                              Fill="{DynamicResource TextSecondaryBrush}" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Transparent full-surface toggle. Keeping it above
+                                     the chrome means the whole field opens the list,
+                                     matching the framework's click target. -->
+                                <ToggleButton x:Name="ToggleSurface"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False"
+                                              ClickMode="Press"
+                                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <Popup x:Name="PART_Popup"
+                                       Placement="Bottom"
+                                       PlacementTarget="{Binding ElementName=ComboBorder}"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade"
+                                       Focusable="False">
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource InputBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            MinWidth="{TemplateBinding ActualWidth}"
+                                            MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                            SnapsToDevicePixels="True">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEditable" Value="True">
+                                    <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed" />
+                                    <!-- Pull the toggle back to the arrow so the
+                                         editable field stays typeable. -->
+                                    <Setter TargetName="ToggleSurface" Property="HorizontalAlignment" Value="Right" />
+                                    <Setter TargetName="ToggleSurface" Property="Width" Value="28" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    <Setter TargetName="ComboBorder" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                    <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource TextMutedBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <!-- Global icon-free date entry. DatePickerTextBox keeps the parsing,
@@ -206,6 +415,67 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+            </Style>
+
+            <!-- ═══ DATA GRIDS ═══
+                 The framework's DataGridCell style pins Foreground to a system
+                 color (near-black) and DataGridRow paints a system window
+                 background. Views that themed only the row background therefore
+                 rendered dark text on a dark row. Ownership of grid text color
+                 lives here so every grid is legible in every theme; views that
+                 declare their own DataGrid* styles still win locally. -->
+            <Style TargetType="DataGrid">
+                <Setter Property="Background" Value="Transparent" />
+                <!-- No AlternatingRowBackground: setting it coerces AlternationCount
+                     to 2 and would introduce banding in grids that never asked for it. -->
+                <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource DividerBrush}" />
+                <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource DividerBrush}" />
+            </Style>
+
+            <Style TargetType="DataGridCell">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <!-- Selection keeps the themed accent pairing rather than the
+                         system highlight, so the text contrast is predictable. -->
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+            </Style>
+
+            <Style TargetType="DataGridRowHeader">
+                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             </Style>
 
             <Style TargetType="Separator">
@@ -431,7 +701,103 @@
                 </Setter>
             </Style>
 
+            <!-- ============================================================ -->
+            <!-- NAVIGATION TABS                                              -->
+            <!--                                                              -->
+            <!-- THE one owner of what a navigation tab looks like, for the    -->
+            <!-- shell's top bar and for the sub-navigation inside a section.  -->
+            <!-- Selection state arrives through views:NavTab.IsActive, so a   -->
+            <!-- tab binds its own view model property and this style decides  -->
+            <!-- how selection is rendered. Change it here, once.              -->
+            <!--                                                              -->
+            <!-- Selection is shown with FOREGROUND COLOUR AND FONT WEIGHT,    -->
+            <!-- never a filled background. Two reasons: a filled block forces -->
+            <!-- the label to invert to the window background colour, which is -->
+            <!-- where the dark-on-dark legibility bugs kept coming from; and  -->
+            <!-- weight is a non-colour cue, so selection survives for a user  -->
+            <!-- who cannot distinguish the accent hue. Hover and keyboard     -->
+            <!-- focus still use background and border, because those are      -->
+            <!-- transient states rather than status.                          -->
+            <!-- ============================================================ -->
+            <Style x:Key="NavTabButton"
+                   TargetType="Button">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextSecondaryBrush}" />
+                <Setter Property="Background"
+                        Value="Transparent" />
+                <Setter Property="FontSize"
+                        Value="13" />
+                <Setter Property="FontWeight"
+                        Value="Normal" />
+                <Setter Property="Padding"
+                        Value="10,4" />
+                <Setter Property="Margin"
+                        Value="0,0,4,0" />
+                <Setter Property="Cursor"
+                        Value="Hand" />
+                <Setter Property="HorizontalContentAlignment"
+                        Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="TabSurface"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <Grid>
+                                    <!-- Width reservation. Selecting a tab makes its
+                                         label bold, and bold text is wider, so without
+                                         this every click would shove the rest of the
+                                         navigation bar sideways. This hidden copy is
+                                         always bold, so the tab is always as wide as
+                                         its widest state. Assumes string content,
+                                         which every navigation tab uses. -->
+                                    <TextBlock Text="{TemplateBinding Content}"
+                                               FontWeight="SemiBold"
+                                               Visibility="Hidden"
+                                               IsHitTestVisible="False" />
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter TargetName="TabSurface"
+                                            Property="Background"
+                                            Value="{DynamicResource HoverBrush}" />
+                                </Trigger>
+                                <!-- Keyboard focus must be visible, not only hover. -->
+                                <Trigger Property="IsKeyboardFocused"
+                                         Value="True">
+                                    <Setter TargetName="TabSurface"
+                                            Property="BorderBrush"
+                                            Value="{DynamicResource AccentBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="views:NavTab.IsActive"
+                             Value="True">
+                        <Setter Property="Foreground"
+                                Value="{DynamicResource AccentBrush}" />
+                        <Setter Property="FontWeight"
+                                Value="SemiBold" />
+                        <!-- Announced to screen readers, which cannot see either
+                             the colour or the weight. -->
+                        <Setter Property="AutomationProperties.ItemStatus"
+                                Value="Selected" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
             <!-- Converters -->
+            <converters:PngBytesToImageConverter x:Key="PngBytesToImageConverter" />
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
@@ -445,6 +811,14 @@
                                              FalseWidth="0" />
             <converters:FormCellStatusToBrushConverter x:Key="FormCellStatusToBrushConverter" />
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+
+            <!-- Service-day bar: position and length as fractions of the measured
+                 track. The width instance keeps a floor so a five-minute contact
+                 is still visible. -->
+            <converters:TimelineFractionConverter x:Key="TimelineOffsetConverter"
+                                                  MinimumPixels="0" />
+            <converters:TimelineFractionConverter x:Key="TimelineWidthConverter"
+                                                  MinimumPixels="3" />
             <!-- View → ViewModel DataTemplates -->
             <DataTemplate DataType="{x:Type viewmodels:CaseManagerDashboardViewModel}">
                 <views:CaseManagerDashboardView />
@@ -482,8 +856,8 @@
                 <views:CalendarView />
             </DataTemplate>
 
-            <DataTemplate DataType="{x:Type children:HelpersViewModel}">
-                <views:HelpersView />
+            <DataTemplate DataType="{x:Type children:CaseManagementViewModel}">
+                <views:CaseManagementView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type children:HelperReferenceViewModel}">

@@ -14,5 +14,10 @@ namespace Sati.Data
         Task UpdateAbandonedNotesAsync(int abandonedAfterDays);
         Task<List<Note>> GetMonthlyNotesAsync(int userId);
         Task<List<Note>> GetByYearAsync(int userId, int year);
+
+        // Every note on one case manager's calendar date, across their whole
+        // caseload. Service-time overlap is a property of the case manager's day,
+        // not of a client, so this deliberately ignores PersonId.
+        Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date);
     }
 }

@@ -1,7 +1,15 @@
 # API authorization and tenant ownership
 
+*Route inventory current as of 2026-08-15, covering all 90 protected routes. Every route added,
+removed, or rescoped must be reflected here in the same change.*
+
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
 `POST /api/v1/auth/login` route and health checks are intentionally outside this table.
+
+`POST /api/v1/auth/login` carries one invariant that is not visible from the route table: it must
+spend the same key-derivation work whether or not the username exists, so that sign-in cannot be
+used to enumerate accounts. `PasswordVerifier.VerifyMissingUser` exists solely for that path and
+must not be removed as dead code.
 
 Every protected route has two layers of protection:
 
@@ -22,6 +30,8 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Admin | `GET /admin/overview` | Actor's `AgencyId` | Admin only; every count is computed within the actor's agency. |
 | Admin | `GET /admin/people` | Person and assigned user's `AgencyId` | Admin only; both ownership markers must equal actor agency. |
 | Admin | `GET /admin/activity` | Audit event's `AgencyId` | Admin only; bounded activity feed with actor display names from the same agency. |
+| Admin | `GET /admin/operations` | Actor's `AgencyId` | Admin only; reports database health, retained audit/EDI counts, oldest-record timestamps, and the configured retention policy for the actor's agency. |
+| Admin | `POST /admin/audit-export.csv` | Audit event's `AgencyId` | Admin only; agency derived from the actor and never from the caller. Requires a 10–250 character reason and a window of at most 366 days, caps at 10,000 rows, marks the response `no-store`, and records one `audit.exported` event. Exported values are neutralized against spreadsheet formula evaluation. |
 | Users | `POST /users` | New user's `AgencyId` | Supervisor/Director/Admin; requested agency must equal actor agency, with role hierarchy checks. |
 | Users | `PUT /users/{userId}` | Target user's `AgencyId` | Supervisor/Director/Admin in the same agency; supervisors only manage assigned case managers. |
 | Users | `PUT /users/{userId}/password` | Target user's `AgencyId` | Same rule as user update. |
@@ -57,17 +67,21 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Providers | `PUT /providers/{id}` | Provider's `AgencyId` | Admin only in same agency. |
 | Providers | `DELETE /providers/{id}` | Provider's `AgencyId` | Admin only in same agency. |
 | AT | `GET /at-requests` | Request person's assigned user and agency | Accessible case manager only. |
+| AT | `GET /people/{personId}/at-requests` | Request person's assigned user and agency | Accessible case manager only. The list follows the client rather than the current caseload holder, so a transfer does not orphan filed requests. |
 | AT | `GET /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only. |
 | AT | `GET /at-requests/{id}/snapshot` | Request person's assigned user and agency | Accessible case manager only; generated binary stays behind the same check. |
 | AT | `POST /at-requests` | Request person's assigned user and agency | Accessible case manager only; person controls ownership. |
 | AT | `PUT /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; person cannot be changed and the expected aggregate revision is required. |
-| AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; stale or omitted revisions are rejected. |
+| AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; stale or omitted revisions are rejected, and a published request is refused. |
+| AT | `POST /at-requests/{id}/publish` | Request person's assigned user and agency | Accessible case manager only. The attestation signer is taken from the validated actor; no request field can name a different signer. Completeness is decided by `AtRequestPublication`. Refused if already published or if the revision is stale. |
+| AT | `POST /at-requests/{id}/reopen` | Request person's assigned user and agency | Accessible case manager only. Discards the attestation, returns the request to `Development`, and records the discarded signer in the audit event. Refused if the revision is stale. |
 | AI context | `POST /people/{personId}/ai-context` | Person's assigned user and agency | Accessible requesting user; person and requested user must agree. |
 | Notes | `POST /notes` | Note person's assigned user and agency | Own caseload only; note agency is assigned server-side. |
 | Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces editable workflow states and rejects stale revisions. |
 | Notes | `DELETE /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces deletable workflow states and rejects stale revisions. |
 | Notes | `GET /people/{personId}/notes` | Note person's assigned user and agency | Own caseload only. |
 | Notes | `GET /notes/monthly` | Target user's `AgencyId` | Accessible case manager only. |
+| Notes | `GET /notes/day` | Target user's `AgencyId` | Accessible case manager only; returns one date across that user's whole caseload for the service-time overlap rule. |
 | Notes | `GET /notes/year/{year}` | Own user and caseload | Own user only. |
 | Notes | `POST /notes/abandon-overdue` | Own user and caseload | Own user only; only that user's eligible notes are transitioned, with each revision incremented. |
 | Settings | `GET /settings` | Settings `AgencyId` | Actor's agency only. |
@@ -98,7 +112,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Forms | `PUT /forms/{id}` | Form person's assigned user and agency | Own caseload only. |
 | Incidents | `POST /incidents` | Authenticated actor's `AgencyId` | Reports only a validated PHI-minimized envelope; agency is derived from the token, never the request. |
 | Incidents | `GET /admin/incidents` | Incident `AgencyId` | Admin only; actor agency only. |
-| Incidents | `PUT /admin/incidents/{id}/status` | Incident `AgencyId` | Admin only; same-agency status transition is audited. |
+| Incidents | `PUT /admin/incidents/{incidentId}/status` | Incident `AgencyId` | Admin only; same-agency status transition is audited. |
 | Platform health | `GET /platform/incidents` | All incident agencies | `PlatformOperator` only; every cross-tenant view is audited. Ordinary Admin is forbidden. |
 
 `PlatformOperator` is provisioned outside agency user-management workflows. It is excluded from
@@ -110,3 +124,15 @@ agency counts, switch-user results, selectable agency roles, and agency user edi
 isolated agencies. It must retain rejection tests for authentication, users, people, providers,
 reports, billing exports, AT requests and snapshots, assessments, and supervisor actions whenever
 these routes are refactored.
+
+It additionally covers two properties that are invisible in the table above and easy to regress:
+
+- **Sign-in costs the same whether or not the account exists**
+  (`SignInSpendsTheSameWorkWhetherOrNotTheAccountExists`). Confirmed to fail against the unfixed
+  handler before being kept.
+- **The audit export is inert in a spreadsheet** (`AuditExportNeutralizesSpreadsheetFormulas`),
+  with the underlying rule covered in `Sati.Tests/AuditCsvTests.cs`.
+
+The table was reconciled against the routes registered in `ApiEndpoints.cs` on 2026-08-15 and
+matched exactly at 87 routes. Re-run that comparison when routes change; a route inventory that
+silently falls behind the code is worse than no inventory.

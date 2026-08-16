@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Identity.Client;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services;
 using Sati.ViewModels.Children;
 using Sati.Views;
 using System.Collections.ObjectModel;
@@ -35,6 +36,8 @@ namespace Sati.ViewModels
         private DateTime _lastAbandonmentCheck = DateTime.Now;
         private int _remainingEligibleDays;
         private List<ExemptDate> _exemptDatesForMonth = [];
+        private readonly LatestRequestTracker _notesLoadRequests = new();
+        private DispatcherTimer? _abandonmentTimer;
         // -------------------------------------------------------------------------
         // Constructor
         // -------------------------------------------------------------------------
@@ -91,7 +94,10 @@ StatisticsViewModel statisticsViewModel,
             noteEntryViewModel.FormNoteSavedAsync = async (formType, wasEdit) =>
             {
                 if (wasEdit)
-                    MarkFormCompleteRequested?.Invoke(this, formType);
+                {
+                    if (MarkFormCompleteRequested is not null)
+                        await MarkFormCompleteRequested(formType);
+                }
                 else if (FormStatusRequested is not null)
                     await FormStatusRequested(formType);
             };
@@ -122,7 +128,7 @@ StatisticsViewModel statisticsViewModel,
         // Events
         // -------------------------------------------------------------------------
 
-        public event EventHandler<FormType>? MarkFormCompleteRequested;
+        public Func<FormType, Task>? MarkFormCompleteRequested { get; set; }
 
         // -------------------------------------------------------------------------
         // Properties
@@ -180,7 +186,7 @@ StatisticsViewModel statisticsViewModel,
 
         partial void OnSelectedPersonChanged(Person? value)
         {
-            LoadNotesForPersonAsync(value);
+            _ = LoadNotesForPersonAsync(value);
             RefreshComplianceFlags();
         }
 
@@ -680,18 +686,30 @@ StatisticsViewModel statisticsViewModel,
             await Clients.ReloadAsync();
         }
 
-        private async void LoadNotesForPersonAsync(Person? person)
+        private async Task LoadNotesForPersonAsync(Person? person)
         {
+            var request = _notesLoadRequests.Begin();
             if (person is null)
             {
-                Notes.Clear();
+                if (_notesLoadRequests.IsCurrent(request))
+                    Notes.Clear();
                 return;
             }
 
-            var notes = await _noteService.GetAllByPersonAsync(person.Id);
-            Notes.Clear();
-            foreach (var note in notes)
-                Notes.Add(note);
+            try
+            {
+                var notes = await _noteService.GetAllByPersonAsync(person.Id);
+                if (!_notesLoadRequests.IsCurrent(request) || SelectedPerson?.Id != person.Id)
+                    return;
+
+                Notes.Clear();
+                foreach (var note in notes)
+                    Notes.Add(note);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to load notes for person {person.Id}: {ex.Message}");
+            }
         }
 
         public bool FilterNotes(object obj)
@@ -906,16 +924,32 @@ StatisticsViewModel statisticsViewModel,
 
         private void StartAbandonmentTimer()
         {
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromHours(1) };
-            timer.Tick += async (s, e) =>
+            _abandonmentTimer?.Stop();
+            _abandonmentTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(1) };
+            _abandonmentTimer.Tick += async (s, e) =>
             {
                 if ((DateTime.Now - _lastAbandonmentCheck).TotalHours >= 24)
                 {
-                    await _noteService.UpdateAbandonedNotesAsync(_settings?.AbandonedAfterDays ?? 8);
-                    _lastAbandonmentCheck = DateTime.Now;
+                    _abandonmentTimer.Stop();
+                    try
+                    {
+                        await _noteService.UpdateAbandonedNotesAsync(_settings?.AbandonedAfterDays ?? 8);
+                        _lastAbandonmentCheck = DateTime.Now;
+                    }
+                    catch (Exception ex)
+                    {
+                        // DispatcherTimer callbacks are async-void WPF events. An
+                        // exception escaping here would be promoted to an application
+                        // error even though this is only background housekeeping.
+                        Debug.WriteLine($"Abandoned-note maintenance failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        _abandonmentTimer.Start();
+                    }
                 }
             };
-            timer.Start();
+            _abandonmentTimer.Start();
         }
     }
 }
