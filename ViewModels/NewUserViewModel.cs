@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
+using Sati.Helpers;
 using Sati.Models;
 using System.Collections.ObjectModel;
 using System.Security;
@@ -50,7 +51,8 @@ namespace Sati.ViewModels
             if (PasswordInit.Length == 0)
                 throw new InvalidOperationException("Password cannot be empty.");
 
-            if (PasswordInit.Length != PasswordConfirm.Length)
+            // Compared by value, not by length: equal-length mismatches must not pass.
+            if (!SecureStringHelper.Matches(PasswordInit, PasswordConfirm))
                 throw new InvalidOperationException("Passwords do not match.");
 
             var all = await _userService.GetAllAsync();
