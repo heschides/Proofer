@@ -753,3 +753,31 @@ for a rewrite.
       the running Sati process held the normal output DLL. The rebuild completed with no
       errors and two distinct warnings: the `AssignedAgency` nullable dereference and the
       constant-false unreachable code described above.
+
+---
+
+## From new-workstation setup session (2026-08-16)
+
+Context: repository cloned fresh under a separate Windows login to isolate work from
+personal use. These items surfaced while getting that clone to build and run.
+
+- [ ] **Commit the `Sati.Tests` project.** `Sati.slnx` references
+      `../Sati.Tests/Sati.Tests.csproj` — a sibling directory outside the repository —
+      but the project is not tracked in git under any path. It exists only on the
+      original login's disk: unbacked-up, absent from GitHub, and invisible to any
+      tooling working from a clone. Move it under the repo root, commit it, and change
+      the `.slnx` path to `Sati.Tests/Sati.Tests.csproj`. Until then the solution loads
+      with an unavailable project on any machine but one.
+- [ ] **Reconcile CLAUDE.md against the current code.** It lists the `IDbContextFactory`
+      refactor as the next task, but `App.xaml.cs` already calls
+      `AddDbContextFactory<SatiContext>`. It lists the billing module as unstarted, but
+      `ViewModels/Biller/` is populated and its view models are registered. Anything
+      reading CLAUDE.md to orient itself currently starts from a wrong picture.
+- [ ] **Move the connection string to user secrets.** `appsettings.json` holds database
+      credentials in plaintext on disk. `Host.CreateDefaultBuilder` only loads user
+      secrets when the environment is `Development`, and WPF does not set
+      `DOTNET_ENVIRONMENT`, so this needs an explicit
+      `.ConfigureAppConfiguration((ctx, cfg) => cfg.AddUserSecrets<App>())`.
+      Worth doing before a second developer touches the project.
+- [ ] **Remove stray root files.** `SQLQuery2.sql` and `TextFile1.txt` are tracked at the
+      repository root and appear to be scratch files.

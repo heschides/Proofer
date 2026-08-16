@@ -67,22 +67,34 @@ factory delegate pattern throughout.
 
 ## Setup
 
-Sati requires .NET 10 and SQL Server LocalDB (included with Visual Studio).
+Sati requires .NET 10 and Visual Studio 2022 or later on Windows. The project
+targets `net10.0-windows` with WPF, so it builds and runs on Windows only.
 
 1. Clone the repository
-2. Open `Sati.slnx` in Visual Studio 2022 or later
-3. The database will be created and migrated automatically on first run
-4. Create a user account from the login screen to get started
+2. Copy `appsettings.template.json` to `appsettings.json` in the project root
+   and fill in the `ConnectionStrings:SatiDb` value
+3. Open `Sati.slnx` in Visual Studio (open the solution, not the folder) and set
+   `Sati` as the startup project
+4. Run. Pending EF Core migrations are applied automatically at startup
+5. Create a user account from the login screen to get started
 
-No manual database configuration is required for local development.
+### Connection string
+
+`appsettings.json` is gitignored so that database credentials never reach the
+repository. Every machine needs its own copy — a fresh clone has no connection
+string, and startup will fail at the migration step with
+`The ConnectionString property has not been initialized` until one is supplied.
+
+`appsettings.template.json` documents the required shape and both supported
+Azure SQL authentication modes.
 
 ---
 
 ## Status
 
-Sati is under active development. Core workflows are complete and in daily use. 
-Planned future work includes Azure SQL migration, Microsoft Entra ID authentication, 
-and MSIX packaging for deployment.
+Sati is under active development. Core workflows are complete and in daily use.
+The database runs on Azure SQL. Planned future work includes Microsoft Entra ID
+authentication and MSIX packaging for deployment.
 
 ---
 
