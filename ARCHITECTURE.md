@@ -647,6 +647,7 @@ rather than in either client.
 |---|---|
 | `BillingComplianceGate` | Whether a client's paperwork permits billing, with reasons. |
 | `BillingRules` | Payer-neutral unit arithmetic, charge rounding, NPI and procedure-code format. |
+| `NoteWorkflow` | Which note status may become which, for the case manager, the supervisor, and the overdue sweep — and therefore which notes can reach approval and billing at all. |
 | `ServiceTimeline` | The 7:00 AM – 7:00 PM service day and the no-double-claimed-minute rule. |
 | `AuditCsv` | The audit export's header, column order, escaping, and spreadsheet neutralization. |
 | `AtRequestPublication` | Whether an AT request is complete enough to publish, what the case manager attests to, and whether a published request may still be edited. |

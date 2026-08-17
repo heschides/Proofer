@@ -1282,3 +1282,31 @@ be added retroactively. Everything below waits for Karuna.
 - [ ] **Consider backfilling identifiers for existing directory entries.** Rows created before
       2026-08-15 have none. A one-time prompt when a provider is next edited would close the gap
       without a bulk data exercise.
+
+## Note pipeline — outstanding after the 2026-08-17 review
+
+- [ ] **Give an approved note an amendment path.** Approved is terminal for every actor, so a
+      supervisor who approves in error has no remedy even before a claim line exists. The right
+      shape is an immutable approved version plus a linked amending note, not an un-approve that
+      rewrites the record. Touches the claim-line linkage and the 837P path, which is why it was
+      not folded into the workflow-table work. See `DECISIONS.md`.
+- [ ] **Audit the abandonment sweep.** Neither `NoteService.UpdateAbandonedNotesAsync` nor
+      `POST /notes/abandon-overdue` records an audit event, so a status change the system makes on
+      its own is the one transition with no trail. Bulk writes need a summary event rather than
+      one per note.
+- [ ] **Make the overdue sweep respect the concurrency token.** The API route uses
+      `ExecuteUpdateAsync`, which bypasses `Revision`, so a note being edited at that moment can be
+      abandoned underneath its author. Bounded today by the `Pending`-only filter, but it is the
+      one write in the pipeline that ignores optimistic concurrency.
+- [ ] **Close the create-time gap on overlapping service time.** `AddNoteAsync` checks for an
+      overlapping block and then saves in a separate step, with no transaction spanning the two.
+      Two concurrent saves can both pass the check. The unique index that protects claim lines has
+      no equivalent here; a database-level exclusion constraint would be the durable fix.
+- [ ] **Give the local tenant rules one owner.** `Data/LocalTenantAccess.cs` mirrors
+      `Sati.Api.Security.TenantAccess` by hand because the two query different entity types against
+      different contexts. Two hand-written copies of a scope rule is exactly what the platform rule
+      about single ownership warns against; it is tolerable only while the desktop keeps a local
+      EF path at all.
+- [ ] **Decide whether the desktop may assume Eastern time.** The desktop review path uses
+      `DateTime.Today` where the API now uses the agency clock. Correct on a Maine workstation,
+      wrong anywhere else.

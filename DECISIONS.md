@@ -884,3 +884,59 @@ they are Sati's cross-tenant telemetry identity and say nothing about which tena
 needs administering. Users genuinely spread across several agencies is reported as
 ambiguous rather than guessed at: attaching the only administrative account to the
 wrong tenant is not a mistake that announces itself afterwards.
+
+## The case-note workflow has one transition table (2026-08-17)
+
+`Sati.Contracts.V1.NoteWorkflow` owns which note status may become which, for the
+case manager, for the supervisor, and for the overdue sweep. Both the desktop
+service and `Sati.Api` call it.
+
+**Why a table and not a set.** Both paths previously asked two separate questions:
+is the target status one a case manager may write, and is the current status
+editable. Neither asked whether the move between them made sense. Every writable
+status was therefore reachable from every editable one, so a cancelled or aged-out
+note could re-enter the supervisor's queue in a single call with no intervening
+documentation, and nothing described the pipeline as a pipeline.
+
+**The invariants the table protects.** No case-manager move reaches Approved,
+Returned, or Abandoned. Nothing at all leaves Approved. The only way into Approved
+is a supervisor acting on a Logged note. These were already true through the
+writable-status set; the table keeps them true in one place instead of two, and
+adds the workflow coherence the set could not express.
+
+**Three groups, not ten special cases.** Work in progress — Scheduled, Pending,
+Delayed, HeldForCompliance, ComplianceBlocked, Returned — moves freely among the
+statuses its author may assign, because those are all the same kind of unfinished
+state and the note-entry screen offers them together. Closed work — Cancelled and
+Abandoned — reopens as a draft first, so a narrative that was written off cannot
+land back in front of a supervisor without an edit. Submitted and approved work is
+not the author's to move.
+
+A returned note is re-dispositioned freely but cannot be *saved as* Returned:
+Returned is the supervisor's word about the note, not the author's to write.
+
+**Strictness that traps a note is a defect, not a control.** A test asserts every
+status can reach review again within two moves. An earlier draft of the table
+blocked Returned from Scheduled and Delayed, which contradicted the note-entry
+screen — it offers exactly those — on a rationale that did not survive contact
+with the code, since Pending and Cancelled remove a note from the returned queue
+just as thoroughly.
+
+**Approved is terminal, and there is no amendment path.** A supervisor who approves
+in error has no remedy, even before a claim line exists. This is recorded as
+outstanding scope in `AGENDA.md` rather than solved here; the right answer is an
+immutable approved version plus a linked amending note, per the platform rule that
+submitted clinical and financial records are amended rather than overwritten.
+
+## Review and billing read the same clock (2026-08-17)
+
+The supervisor review routes evaluated compliance against `DateTime.Today` — the
+host's date — while the billing gate used `BillingRules.MaineBusinessDate`. On a
+UTC-hosted API the two disagree for the first four hours of every UTC day, which
+are still the previous day in Maine. The same client could clear supervisory review
+and fail the billing gate, or the reverse, purely on the hour the work was done.
+Both now read the agency's date through the injected `ApiClock`.
+
+The desktop path keeps `DateTime.Today`, which is already the Maine date on a Maine
+workstation. That equivalence is an assumption about where the client runs, and it
+stops being true if the desktop is ever run outside Eastern time.

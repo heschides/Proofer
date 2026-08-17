@@ -670,6 +670,7 @@ internal static class ApiEndpoints
             bool allSupervisees,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            ApiClock clock,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -698,7 +699,11 @@ internal static class ApiEndpoints
                 .GroupBy(form => form.PersonId)
                 .ToDictionary(group => group.Key, group => (IReadOnlyList<ServerForm>)group.ToList());
 
-            var today = DateTime.Today;
+            // The agency's own date, not the host's. On a UTC server the small
+            // hours of the morning are still the previous day in Maine, and a
+            // compliance cycle that turns over a day early here would disagree
+            // with the billing gate, which has always used the Maine date.
+            var today = clock.Today;
             var result = rows
                 .Select(row => new
                 {
@@ -723,6 +728,7 @@ internal static class ApiEndpoints
             ClaimsPrincipal principal,
             ApiDbContext db,
             AuditTrail auditTrail,
+            ApiClock clock,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -737,7 +743,7 @@ internal static class ApiEndpoints
             var forms = await db.Forms.AsNoTracking()
                 .Where(form => form.PersonId == row.Person.Id)
                 .ToListAsync(cancellationToken);
-            if (!EvaluatePersonCompliance(row.Person, forms, DateTime.Today).Passed)
+            if (!EvaluatePersonCompliance(row.Person, forms, clock.Today).Passed)
             {
                 return Results.Conflict(new ApiErrorDto(
                     "compliance_required",
