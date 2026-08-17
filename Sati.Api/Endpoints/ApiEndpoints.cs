@@ -686,7 +686,9 @@ internal static class ApiEndpoints
 
             var rows = await (from note in db.Notes.AsNoTracking()
                               join person in db.People.AsNoTracking() on note.PersonId equals person.Id
-                              where note.Status == 2 && caseManagerIds.Contains(person.UserId)
+                              where note.Status == NoteWorkflow.Logged &&
+                                    person.AgencyId == actor.AgencyId &&
+                                    caseManagerIds.Contains(person.UserId)
                               orderby note.EventDate
                               select new ReviewableNote(note, person)).ToListAsync(cancellationToken);
             var personIds = rows.Select(row => row.Person.Id).Distinct().ToList();
@@ -729,7 +731,7 @@ internal static class ApiEndpoints
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
-            if (row.Note.Status != 2)
+            if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Approved))
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
             var forms = await db.Forms.AsNoTracking()
@@ -782,7 +784,7 @@ internal static class ApiEndpoints
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
-            if (row.Note.Status != 2)
+            if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Approved))
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be approved.", string.Empty));
 
             var now = DateTime.UtcNow;
@@ -829,7 +831,7 @@ internal static class ApiEndpoints
                 return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
-            if (row.Note.Status != 2)
+            if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Returned))
                 return Results.Conflict(new ApiErrorDto("invalid_note_status", "Only logged notes can be returned.", string.Empty));
 
             row.Note.Status = 7;
@@ -1809,6 +1811,12 @@ internal static class ApiEndpoints
                 return Results.Conflict(new ApiErrorDto(
                     "note_locked",
                     "Logged and approved notes cannot be edited. A supervisor must return a logged note before it can be corrected.",
+                    string.Empty));
+            ContractMapper.TryParseNoteStatus(request.Status, out var requestedStatus);
+            if (!NoteWorkflow.CanCaseManagerTransition(row.Note.Status, requestedStatus))
+                return Results.Conflict(new ApiErrorDto(
+                    "invalid_note_transition",
+                    NoteWorkflow.DescribeRejectedTransition(row.Note.Status, requestedStatus),
                     string.Empty));
 
             var timeConflict = await FindServiceTimeProblemAsync(db, actor, request, id, cancellationToken);
@@ -3051,10 +3059,14 @@ internal static class ApiEndpoints
         if (!TenantAccess.IsSupervisorRole(actor.Role))
             return null;
 
+        // The client's own agency is checked alongside its owner's. A person row
+        // carrying a different agency than the case manager who holds it must not
+        // become reviewable through that case manager.
         return await (from note in db.Notes
                       join person in db.People on note.PersonId equals person.Id
                       join owner in db.Users on person.UserId equals owner.Id
-                      where note.Id == noteId && owner.AgencyId == actor.AgencyId && owner.Role == "CaseManager" &&
+                      where note.Id == noteId && owner.AgencyId == actor.AgencyId &&
+                            person.AgencyId == actor.AgencyId && owner.Role == "CaseManager" &&
                             (actor.Role == "Director" || actor.Role == "Admin" ||
                              owner.SupervisorId == actor.UserId)
                       select new ReviewableNote(note, person)).SingleOrDefaultAsync(cancellationToken);

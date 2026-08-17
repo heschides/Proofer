@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 
 namespace Sati.Data;
@@ -42,7 +43,7 @@ public sealed class SupervisorService(
             ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
 
         EnsureCurrentRevision(note, expectedRevision);
-        if (note.Status != NoteStatus.Logged)
+        if (!NoteWorkflow.CanSupervisorTransition((int?)note.Status, NoteWorkflow.Approved))
             throw new InvalidOperationException("Only logged notes can be approved.");
 
         var (passed, reasons) = note.Person.EvaluateComplianceGate(DateTime.Today);
@@ -78,7 +79,7 @@ public sealed class SupervisorService(
             ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
 
         EnsureCurrentRevision(note, expectedRevision);
-        if (note.Status != NoteStatus.Logged)
+        if (!NoteWorkflow.CanSupervisorTransition((int?)note.Status, NoteWorkflow.Approved))
             throw new InvalidOperationException("Only logged notes can be approved.");
 
         var now = DateTime.UtcNow;
@@ -110,7 +111,7 @@ public sealed class SupervisorService(
             ?? throw new InvalidOperationException($"Note {noteId} was not found in your review scope.");
 
         EnsureCurrentRevision(note, expectedRevision);
-        if (note.Status != NoteStatus.Logged)
+        if (!NoteWorkflow.CanSupervisorTransition((int?)note.Status, NoteWorkflow.Returned))
             throw new InvalidOperationException("Only logged notes can be returned.");
 
         note.Status = NoteStatus.Returned;

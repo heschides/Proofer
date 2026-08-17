@@ -138,7 +138,6 @@ namespace Sati.Services.Billing
             var claimLine = new ClaimLine
             {
                 NoteId = noteId,
-                BillingPeriodId = period.Id,
                 DateOfService = serviceDate,
                 ProcedureCode = procedureCode,
                 ProcedureModifier = note.Person.Agency.BillingModifier,
@@ -157,7 +156,11 @@ namespace Sati.Services.Billing
                 ComplianceExceptionReason = note.ComplianceOverride ? note.OverrideReason : null
             };
 
-            context.ClaimLines.Add(claimLine);
+            // Attach through the period's collection rather than by copying its id.
+            // The first claim line of a new month is created alongside the period
+            // itself, whose identity is still 0 until SaveChanges runs; assigning
+            // BillingPeriodId here would persist a line pointing at no period.
+            period.Lines.Add(claimLine);
             LocalAuditTrail.Record(context, actor, LocalAuditActions.BillingClaimLineCreated, "Note", noteId);
             try
             {

@@ -58,6 +58,9 @@ public class NoteService(
             throw new UnauthorizedAccessException("You may update notes only in your own caseload.");
         if (!NoteWorkflow.CanCaseManagerEdit((int?)stored.Status))
             throw new InvalidOperationException("Logged and approved notes cannot be edited. A supervisor must return a logged note before it can be corrected.");
+        if (!NoteWorkflow.CanCaseManagerTransition((int?)stored.Status, (int?)note.Status))
+            throw new InvalidOperationException(
+                NoteWorkflow.DescribeRejectedTransition((int?)stored.Status, (int?)note.Status));
 
         await EnsureServiceTimeAvailableAsync(context, actor.Id, note, stored.Id);
         CopyCaseManagerValues(note, stored);
@@ -73,24 +76,46 @@ public class NoteService(
 
     public async Task<List<Note>> GetAllByPersonAsync(int personId)
     {
+        var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
+        await EnsurePersonInScopeAsync(context, actor, personId);
         return await context.Notes.Where(n => n.PersonId == personId).ToListAsync();
     }
 
+    /// <summary>
+    /// Ages out the signed-in case manager's own unfinished drafts. The sweep is
+    /// scoped to the caller's caseload: a dashboard refresh must never rewrite
+    /// another case manager's record, let alone another agency's.
+    /// </summary>
     public async Task UpdateAbandonedNotesAsync(int abandonedAfterDays)
     {
+        if (abandonedAfterDays <= 0)
+            throw new ArgumentOutOfRangeException(nameof(abandonedAfterDays),
+                "The abandonment threshold must be a positive number of days.");
+
+        var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
-        var threshold = DateTime.Now.AddDays(-abandonedAfterDays);
-        var notes = await context.Notes.Where(n => n.Status == NoteStatus.Pending &&
+        var threshold = DateTime.Today.AddDays(-abandonedAfterDays);
+        var notes = await context.Notes.Where(n => n.Person.UserId == actor.Id &&
+            n.Person.AgencyId == actor.AgencyId &&
+            n.Status == NoteStatus.Pending &&
             n.EventDate.HasValue && n.EventDate.Value < threshold).ToListAsync();
-        foreach (var note in notes) { note.Status = NoteStatus.Abandoned; note.Revision++; }
+        foreach (var note in notes)
+        {
+            if (!NoteWorkflow.CanSystemAbandon((int?)note.Status))
+                continue;
+            note.Status = NoteStatus.Abandoned;
+            note.Revision++;
+        }
         await context.SaveChangesAsync();
     }
 
     public async Task<List<Note>> GetMonthlyNotesAsync(int userId)
     {
+        var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
-        var firstDay = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        await EnsureUserInScopeAsync(context, actor, userId);
+        var firstDay = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         var lastDay = firstDay.AddMonths(1).AddDays(-1);
         return await context.Notes.Where(n => n.EventDate >= firstDay && n.EventDate <= lastDay &&
             n.Person.UserId == userId).ToListAsync();
@@ -98,7 +123,9 @@ public class NoteService(
 
     public async Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date)
     {
+        var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
+        await EnsureUserInScopeAsync(context, actor, userId);
         var dayStart = date.Date;
         return await context.Notes.Include(n => n.Person).Where(n => n.Person.UserId == userId &&
             n.EventDate.HasValue && n.EventDate.Value >= dayStart && n.EventDate.Value < dayStart.AddDays(1)).ToListAsync();
@@ -106,7 +133,9 @@ public class NoteService(
 
     public async Task<List<Note>> GetByYearAsync(int userId, int year)
     {
+        var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
+        await EnsureUserInScopeAsync(context, actor, userId);
         var firstDay = new DateTime(year, 1, 1);
         var lastDay = new DateTime(year, 12, 31);
         return await context.Notes.Include(n => n.Person).Where(n => n.Person.UserId == userId &&
@@ -128,6 +157,18 @@ public class NoteService(
 
     private User CurrentActor() => sessionService.CurrentUser
         ?? throw new UnauthorizedAccessException("A signed-in case manager is required.");
+
+    private static async Task EnsureUserInScopeAsync(SatiContext context, User actor, int userId)
+    {
+        if (!await LocalTenantAccess.CanAccessUserAsync(context, actor, userId))
+            throw new UnauthorizedAccessException("You may read notes only for yourself or a case manager you supervise.");
+    }
+
+    private static async Task EnsurePersonInScopeAsync(SatiContext context, User actor, int personId)
+    {
+        if (!await LocalTenantAccess.CanAccessPersonAsync(context, actor, personId))
+            throw new UnauthorizedAccessException("You may read notes only for clients in your scope.");
+    }
 
     private static async Task<bool> OwnsPersonAsync(SatiContext context, User actor, int personId) =>
         await context.People.AnyAsync(person => person.Id == personId && person.UserId == actor.Id &&
