@@ -200,6 +200,27 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
   once `GetOrCreateAsync` bug is fixed
 - [x] Accessibility audit — icon-only buttons expose accessible names;
   compliance checkboxes are labeled; overdue matrix cells include a visible text status
+- [ ] Verify migrations apply to an *empty* database before each release. A working
+  database only ever receives new migrations and has been hand-patched over time, so two
+  classes of breakage stay invisible locally and appear only when someone builds from
+  zero — a new machine, a new agency, or a fresh installer test. Both were found
+  2026-08-16 and are now fixed:
+  1. *Migrations replaying earlier ones* — recorded as applied, so they never re-run
+     locally. `UnitstoDecimal` re-added `Notes.ReturnedById` (SQL 2705); `SyncModelState`
+     repeated every operation in `AddSupervisorFieldsToNote`. Both bodies are emptied,
+     with the files kept so the migration IDs stay in the chain.
+  2. *Model/schema drift* — `Notes.Minutes` and `Notes.StartTime` were in the model and in
+     every working database, but no migration created them, so a fresh database produced a
+     `Notes` table the model could not query.
+     `20260816120000_AddNoteMinutesAndStartTime` adds them, `COL_LENGTH`-guarded so it is a
+     no-op on databases that already have the columns without a history row for it.
+  `Add-Migration` cannot catch case 2: it diffs the model against
+  `SatiContextModelSnapshot`, and the snapshot already listed both properties. The gap is
+  between the snapshot and what the migration files actually build.
+  Run `scripts/Test-MigrationChain.ps1` (no database needed) and
+  `scripts/Test-SchemaDrift.ps1` (against a *from-scratch* database) before each release.
+  Verified 2026-08-16: 69 migrations replay clean, and a database built from empty reaches
+  the login window with all 349 model columns present.
 
 ---
 
