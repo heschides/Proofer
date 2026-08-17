@@ -44,30 +44,32 @@ public static class NoteWorkflow
     /// absent from this table is under a server workflow and cannot be moved by
     /// its author at all.
     /// </summary>
+    /// <remarks>
+    /// Three groups. Work in progress moves freely, because scheduling, drafting,
+    /// holding for compliance, and correcting a returned note are all the same
+    /// kind of unfinished state and the note-entry screen offers them together.
+    /// Closed work reopens as a draft first, so a cancelled or aged-out narrative
+    /// cannot land back in front of a supervisor without an intervening edit.
+    /// Submitted and approved work is not the author's to move.
+    /// <para>
+    /// A returned note may be re-dispositioned into any status its author is
+    /// allowed to assign, but it cannot be saved as Returned, because Returned is
+    /// a supervisor's word about the note and not the author's to write.
+    /// </para>
+    /// </remarks>
     private static readonly Dictionary<int, int[]> CaseManagerTransitions = new()
     {
-        // Planning and drafting states move freely among themselves and into review.
+        // Work in progress.
         [Scheduled] = CaseManagerAuthored,
         [Pending] = CaseManagerAuthored,
         [Delayed] = CaseManagerAuthored,
+        [HeldForCompliance] = CaseManagerAuthored,
+        [ComplianceBlocked] = CaseManagerAuthored,
+        [Returned] = CaseManagerAuthored,
 
-        // Compliance holds are documentation states, not scheduling states.
-        [HeldForCompliance] = [Pending, Logged, HeldForCompliance, Cancelled, Delayed, ComplianceBlocked],
-        [ComplianceBlocked] = [Pending, Logged, HeldForCompliance, Cancelled, Delayed, ComplianceBlocked],
-
-        // A cancelled service must be re-documented as a draft before it can be
-        // submitted again. Cancelled straight to Logged would put an unreviewed
-        // narrative back in front of a supervisor with no intervening edit.
+        // Closed work reopens as a draft.
         [Cancelled] = [Pending, Cancelled],
-
-        // An aged-out note is recovered the same way: back to a draft first.
-        [Abandoned] = [Pending, Abandoned],
-
-        // A returned note is the correction loop. It may be resubmitted, parked
-        // as a draft, or cancelled outright if the supervisor established the
-        // service did not occur. It may not be pushed back into a scheduling or
-        // hold state, which would drop it out of the returned-work queue.
-        [Returned] = [Pending, Logged, Cancelled, Returned]
+        [Abandoned] = [Pending]
     };
 
     /// <summary>Legal supervisor moves. Review acts only on a submitted note.</summary>
@@ -157,9 +159,10 @@ public static class NoteWorkflow
 
     private static string NextStepFor(int? currentStatus) => currentStatus switch
     {
-        Cancelled => "Return it to Pending first if the service needs to be documented again.",
-        Abandoned => "Return it to Pending first to document it again.",
-        Returned => "Correct the note and resubmit it, or cancel it if the service did not occur.",
+        Cancelled => "Move it back to Pending first if the service needs to be documented again.",
+        Abandoned => "Move it back to Pending first to document it again.",
+        Logged => "A supervisor must return it before it can be changed.",
+        Approved => "An approved note is part of the official record and cannot be changed.",
         _ => "Move it to Pending first."
     };
 }
