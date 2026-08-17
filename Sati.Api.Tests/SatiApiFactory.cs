@@ -26,6 +26,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         "Data Source=SatiApiTests;Mode=Memory;Cache=Shared;Default Timeout=30";
     private readonly SqliteConnection _connection = new(TestDatabaseConnection);
     private readonly SemaphoreSlim _seedLock = new(1, 1);
+    private readonly SemaphoreSlim _tokenLock = new(1, 1);
+    private readonly Dictionary<string, string> _tokens = new(StringComparer.Ordinal);
     private bool _seeded;
 
     public SatiApiFactory()
@@ -86,23 +88,55 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         });
     }
 
+    /// <summary>
+    /// An authenticated client for a seeded user.
+    /// </summary>
+    /// <remarks>
+    /// The token is issued once per username and reused. Sign-in is deliberately
+    /// rate limited — 120 attempts a minute across the host, twelve per account —
+    /// and a suite that logs in afresh for every test eventually trips that limit
+    /// and fails whichever tests happen to run last. Caching keeps the limiter at
+    /// its production settings instead of relaxing a real control to suit the
+    /// tests. Tokens outlive the suite comfortably at fifteen minutes.
+    /// </remarks>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(string username)
     {
+        var token = await GetAccessTokenAsync(username);
         var client = CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
         });
-        await EnsureSeededAsync();
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login",
-            new LoginRequest(username, TestPassword));
-        response.EnsureSuccessStatusCode();
-        var login = await response.Content.ReadFromJsonAsync<LoginResponse>()
-            ?? throw new InvalidOperationException("The test login returned no response body.");
         client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", login.AccessToken);
+            new AuthenticationHeaderValue("Bearer", token);
         return client;
+    }
+
+    private async Task<string> GetAccessTokenAsync(string username)
+    {
+        await EnsureSeededAsync();
+        await _tokenLock.WaitAsync();
+        try
+        {
+            if (_tokens.TryGetValue(username, out var cached))
+                return cached;
+
+            using var client = CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost")
+            });
+            var response = await client.PostAsJsonAsync(
+                "/api/v1/auth/login",
+                new LoginRequest(username, TestPassword));
+            response.EnsureSuccessStatusCode();
+            var login = await response.Content.ReadFromJsonAsync<LoginResponse>()
+                ?? throw new InvalidOperationException("The test login returned no response body.");
+            _tokens[username] = login.AccessToken;
+            return login.AccessToken;
+        }
+        finally
+        {
+            _tokenLock.Release();
+        }
     }
 
     public HttpClient CreateAnonymousClient() => CreateClient(new WebApplicationFactoryClientOptions
@@ -525,6 +559,39 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         });
         await db.SaveChangesAsync();
         return nextId;
+    }
+
+    /// <summary>
+    /// A note for person 101 (agency one, case-manager-one) in an arbitrary status,
+    /// so a workflow test can start from any point in the pipeline. No start time,
+    /// so seeded notes never contend for service minutes.
+    /// </summary>
+    public async Task<int> CreateNoteInStatusAsync(int status, int personId = 101)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var nextId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        db.Notes.Add(new ServerNote
+        {
+            Id = nextId,
+            PersonId = personId,
+            AgencyId = personId == 201 ? 2 : 1,
+            Narrative = $"Workflow note in status {status}",
+            EventDate = new DateTime(2026, 8, 3),
+            Minutes = 60,
+            Status = status
+        });
+        await db.SaveChangesAsync();
+        return nextId;
+    }
+
+    public async Task<(int? Status, int Revision)> GetNoteStateAsync(int noteId)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var note = await db.Notes.AsNoTracking().SingleAsync(candidate => candidate.Id == noteId);
+        return (note.Status, note.Revision);
     }
 
     public async Task<int> CreateNonCompliantReviewNoteAsync()
