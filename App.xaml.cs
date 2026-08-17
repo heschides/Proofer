@@ -141,6 +141,12 @@ namespace Sati
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 
+                        // Shared, not local-only: this is a pure renderer with no injected
+                        // dependencies, and NewClientViewModel / ATRequestViewModel demand it
+                        // in both environments. Registering it inside AddLocalDataServices
+                        // made every Demo start fail service-provider validation.
+                        services.AddSingleton<ATRequestPdfExporter>();
+
                         if (dataEnvironment.UsesCloudApi)
                             AddCloudDataServices(services, dataEnvironment);
                         else
@@ -314,7 +320,6 @@ namespace Sati
             services.AddTransient<IIncidentReporter, LocalIncidentReporter>();
             services.AddTransient<IPlatformHealthService, LocalPlatformHealthService>();
             services.AddSingleton<PersonAuditPdfExporter>();
-            services.AddSingleton<ATRequestPdfExporter>();
             services.AddTransient<IPersonContactService, PersonContactService>();
             services.AddTransient<INoteService, NoteService>();
             services.AddTransient<IAuthService, AuthService>();
