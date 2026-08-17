@@ -110,7 +110,8 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseIdentityHealthCheck>("database_identity", tags: ["ready"]);
+    .AddCheck<DatabaseIdentityHealthCheck>("database_identity", tags: ["ready"])
+    .AddCheck<SchemaDriftHealthCheck>("schema_drift", tags: ["ready"]);
 
 var app = builder.Build();
 

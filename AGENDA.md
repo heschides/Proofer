@@ -1310,3 +1310,23 @@ be added retroactively. Everything below waits for Karuna.
 - [ ] **Decide whether the desktop may assume Eastern time.** The desktop review path uses
       `DateTime.Today` where the API now uses the agency clock. Correct on a Maine workstation,
       wrong anywhere else.
+
+## Hosted Demo migration deployment — found live on 2026-08-17
+
+- [x] **Detect a database behind the model.** `SchemaDriftHealthCheck` compares the API model's
+      tables and columns against the database and fails `/health/ready` naming what is missing,
+      instead of letting the gap surface as a 500 from whichever feature touches the new column
+      first.
+- [ ] **Decide how SatiDemo actually receives migrations.** Nothing advances it today. The desktop
+      runs `Database.Migrate()` (`App.xaml.cs:238`) but only when connected straight to SQL, and in
+      Demo it goes through the API over HTTP; `Sati.Api` never migrates; `scripts/Publish-Demo.ps1`
+      has no database step. A release that adds a column therefore ships code the database cannot
+      satisfy. On 2026-08-17 that took out `GET /providers` — and with it AT request creation —
+      and `POST /incidents`, so the telemetry channel could not report the outage either.
+      The detector above makes this visible; it does not fix it.
+- [ ] **Reconcile migration history with reality on the long-lived databases.** SatiDemo and
+      SatiProduction have acquired columns outside the chain, so `__EFMigrationsHistory` and the
+      actual schema disagree in both directions. EF's idempotent script guards only on history and
+      fails with SQL 2705 on a column that exists without its history row. Until the two are
+      reconciled, applying migrations to those databases needs existence-guarded scripts rather
+      than the generated one.
