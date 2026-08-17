@@ -290,7 +290,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 new ServerPerson
                 {
                     Id = 101, UserId = 12, AgencyId = 1, FirstName = "Person", LastName = "One",
-                    BirthDate = new DateTime(1990, 1, 1), EffectiveDate = new DateTime(2026, 1, 1),
+                    BirthDate = new DateTime(1990, 1, 1), EffectiveDate = CycleStart,
                     Journal = "Agency one journal", MaineCareId = "111111",
                     DiagnosisCode = "F89", PlaceOfService = 11,
                     BillingStreet = "10 Test Street", BillingCity = "Portland",
@@ -506,7 +506,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             FirstName = "Workflow",
             LastName = nextId.ToString(),
             BirthDate = new DateTime(1990, 1, 1),
-            EffectiveDate = new DateTime(2026, 1, 1),
+            EffectiveDate = CycleStart,
             MaineCareId = $"9{nextId:D5}",
             DiagnosisCode = "F89",
             PlaceOfService = 11,
@@ -614,13 +614,25 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         return nextId;
     }
 
+    /// <summary>
+    /// The start of the compliance cycle the billable seeded people sit in.
+    /// </summary>
+    /// <remarks>
+    /// Relative to today rather than pinned to a calendar date. BillingComplianceGate
+    /// derives the current cycle from the effective date and only counts forms due
+    /// inside it, so a fixed 2026 effective date with forms due in December 2026
+    /// would silently fall out of cycle on 1 January 2027 and take every approval
+    /// and billing test with it.
+    /// </remarks>
+    private static DateTime CycleStart => DateTime.Today.AddMonths(-1);
+
     private static ServerForm CompliantForm(int personId, string type) => new()
     {
         PersonId = personId,
         Type = type,
-        DueDate = new DateTime(2026, 12, 31),
+        DueDate = CycleStart.AddMonths(6),
         IsCompliant = true,
-        CompletedDate = new DateTime(2026, 1, 2)
+        CompletedDate = CycleStart.AddDays(1)
     };
 
     private static string ClaimSnapshot(

@@ -210,6 +210,40 @@ public sealed class NoteWorkflowTransitionTests
     }
 
     [Fact]
+    public void TheCycleRelativeCompliancePatternHoldsWheneverTheSuiteRuns()
+    {
+        // Both fixtures build a billable client's compliance relative to the start
+        // of its cycle. Confirm that shape stays compliant at any point in time,
+        // rather than expiring on a calendar boundary the way a pinned seed date
+        // does: forms dated December 2026 fall out of cycle on 1 January 2027 and
+        // take every approval and billing test with them.
+        var annualTypes = new[]
+        {
+            "PCP", "ComprehensiveAssessment", "Reclassification", "SafetyPlan"
+        };
+
+        foreach (var offsetDays in new[] { 0, 30, 137, 200, 400, 1_000, 3_650 })
+        {
+            var today = new DateTime(2026, 8, 17).AddDays(offsetDays);
+            var cycleStart = today.AddMonths(-1);
+            var forms = annualTypes.Select(type =>
+                new ComplianceFormSnapshot(type, cycleStart.AddMonths(6), true));
+
+            var result = BillingComplianceGate.Evaluate(cycleStart, forms, today);
+
+            Assert.True(result.Passed,
+                $"day {offsetDays}: {string.Join("; ", result.Reasons)}");
+        }
+
+        // And the shape it replaced does expire, which is why it was replaced.
+        var pinnedForms = annualTypes.Select(type =>
+            new ComplianceFormSnapshot(type, new DateTime(2026, 12, 31), true));
+        var afterTheBoundary = BillingComplianceGate.Evaluate(
+            new DateTime(2026, 1, 1), pinnedForms, new DateTime(2027, 6, 1));
+        Assert.False(afterTheBoundary.Passed);
+    }
+
+    [Fact]
     public void EveryRejectionExplainsItself()
     {
         foreach (var current in AllStatuses)
