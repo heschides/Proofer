@@ -448,6 +448,37 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task ClaimLineComplianceExceptionComesOnlyFromTheApprovedNote()
+    {
+        var plainNoteId = await _factory.CreateApprovedBillableNoteAsync();
+        var overriddenNoteId = await _factory.CreateApprovedBillableNoteAsync(
+            complianceOverride: true,
+            overrideReason: "Supervisor documented exception");
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        // A billing caller must not be able to invent an exception the supervisor
+        // never documented, nor to erase one the supervisor did.
+        var forged = await client.PostAsJsonAsync(
+            "/api/v1/billing/claim-lines",
+            new CreateClaimLineRequest(plainNoteId, true, "Caller-supplied exception"));
+        var suppressed = await client.PostAsJsonAsync(
+            "/api/v1/billing/claim-lines",
+            new CreateClaimLineRequest(overriddenNoteId, false, null));
+
+        Assert.Equal(HttpStatusCode.OK, forged.StatusCode);
+        var forgedLine = await forged.Content.ReadFromJsonAsync<ClaimLineDto>();
+        Assert.NotNull(forgedLine);
+        Assert.False(forgedLine.IsComplianceException);
+        Assert.Null(forgedLine.ComplianceExceptionReason);
+
+        Assert.Equal(HttpStatusCode.OK, suppressed.StatusCode);
+        var suppressedLine = await suppressed.Content.ReadFromJsonAsync<ClaimLineDto>();
+        Assert.NotNull(suppressedLine);
+        Assert.True(suppressedLine.IsComplianceException);
+        Assert.Equal("Supervisor documented exception", suppressedLine.ComplianceExceptionReason);
+    }
+
+    [Fact]
     public async Task RetryingEdiGenerationReplaysTheExactFileAndAuditsOnce()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("admin-two");

@@ -2601,8 +2601,13 @@ internal static class ApiEndpoints
                 PlaceOfService = row.Person.PlaceOfService!.Value,
                 ClaimSnapshotJson = ProfessionalClaimSnapshotCodec.Serialize(
                     CreateClaimSnapshot(row.Person, agency)),
-                IsComplianceException = request.IsComplianceException,
-                ComplianceExceptionReason = Normalize(request.ComplianceExceptionReason)
+                // The approved note is the sole authority for a compliance
+                // exception. A billing request must not be able to add, remove,
+                // or rewrite this regulated financial-record fact.
+                IsComplianceException = row.Note.ComplianceOverride,
+                ComplianceExceptionReason = row.Note.ComplianceOverride
+                    ? Normalize(row.Note.OverrideReason)
+                    : null
             };
             period.Lines.Add(line);
             auditTrail.Record(actor, AuditActions.BillingClaimLineCreated, "Note", request.NoteId);

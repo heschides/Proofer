@@ -150,8 +150,11 @@ namespace Sati.Services.Billing
                 PlaceOfService = (int?)note.Person.PlaceOfService ?? (int)PlaceOfService.Other,
                 ClaimSnapshotJson = ProfessionalClaimSnapshotCodec.Serialize(
                     CreateClaimSnapshot(note.Person, note.Person.Agency!)),
-                IsComplianceException = isComplianceException,
-                ComplianceExceptionReason = complianceExceptionReason
+                // A claim's exception marker is an official financial-record fact.
+                // It must reflect the documented supervisor decision on the note,
+                // never a value supplied by the billing caller.
+                IsComplianceException = note.ComplianceOverride,
+                ComplianceExceptionReason = note.ComplianceOverride ? note.OverrideReason : null
             };
 
             context.ClaimLines.Add(claimLine);

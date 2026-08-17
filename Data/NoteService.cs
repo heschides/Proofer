@@ -1,151 +1,174 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
-using Windows.UI;
 
-namespace Sati.Data
+namespace Sati.Data;
+
+public class NoteService(
+    IDbContextFactory<SatiContext> contextFactory,
+    ISessionService sessionService) : INoteService
 {
-    public class NoteService : INoteService
+    public async Task<Note> AddNoteAsync(Note note)
     {
-        private readonly IDbContextFactory<SatiContext> _contextFactory;
+        ArgumentNullException.ThrowIfNull(note);
+        ValidateCaseManagerInput(note);
+        var actor = CurrentActor();
+        await using var context = contextFactory.CreateDbContext();
+        if (!await OwnsPersonAsync(context, actor, note.PersonId))
+            throw new UnauthorizedAccessException("You may create notes only for your own caseload.");
 
-        public NoteService(IDbContextFactory<SatiContext> contextFactory)
-        {
-            _contextFactory = contextFactory;
-        }
+        note.AgencyId = actor.AgencyId;
+        await EnsureServiceTimeAvailableAsync(context, actor.Id, note, null);
+        context.Notes.Add(note);
+        LocalAuditTrail.Record(context, actor, LocalAuditActions.NoteCreated, "Note");
+        await context.SaveChangesAsync();
+        return note;
+    }
 
-        public async Task<Note> AddNoteAsync(Note note)
+    public async Task DeleteNoteAsync(Note note)
+    {
+        ArgumentNullException.ThrowIfNull(note);
+        var actor = CurrentActor();
+        await using var context = contextFactory.CreateDbContext();
+        var stored = await context.Notes.Include(candidate => candidate.Person)
+            .SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
+        if (stored is null || stored.Revision != note.Revision)
+            throw new NoteConcurrencyException();
+        if (!OwnsPerson(actor, stored.Person))
+            throw new UnauthorizedAccessException("You may delete notes only from your own caseload.");
+        if (!NoteWorkflow.CanCaseManagerDelete((int?)stored.Status))
+            throw new InvalidOperationException("Submitted and workflow-controlled notes are retained as part of the clinical record.");
+
+        context.Notes.Remove(stored);
+        try { await context.SaveChangesAsync(); }
+        catch (DbUpdateConcurrencyException ex) { throw new NoteConcurrencyException(ex); }
+    }
+
+    public async Task UpdateNoteAsync(Note note)
+    {
+        ArgumentNullException.ThrowIfNull(note);
+        ValidateCaseManagerInput(note);
+        var actor = CurrentActor();
+        await using var context = contextFactory.CreateDbContext();
+        var stored = await context.Notes.Include(candidate => candidate.Person)
+            .SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
+        if (stored is null || stored.Revision != note.Revision)
+            throw new NoteConcurrencyException();
+        if (!OwnsPerson(actor, stored.Person))
+            throw new UnauthorizedAccessException("You may update notes only in your own caseload.");
+        if (!NoteWorkflow.CanCaseManagerEdit((int?)stored.Status))
+            throw new InvalidOperationException("Logged and approved notes cannot be edited. A supervisor must return a logged note before it can be corrected.");
+
+        await EnsureServiceTimeAvailableAsync(context, actor.Id, note, stored.Id);
+        CopyCaseManagerValues(note, stored);
+        stored.Revision++;
+        LocalAuditTrail.Record(context, actor, LocalAuditActions.NoteUpdated, "Note", stored.Id);
+        try
         {
-            await using var context = _contextFactory.CreateDbContext();
-            context.Notes.Add(note);
             await context.SaveChangesAsync();
-            return note;
+            note.Revision = stored.Revision;
         }
+        catch (DbUpdateConcurrencyException ex) { throw new NoteConcurrencyException(ex); }
+    }
 
-        public async Task DeleteNoteAsync(Note note)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var stored = await context.Notes.SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
-            if (stored is null || stored.Revision != note.Revision)
-                throw new NoteConcurrencyException();
-            context.Notes.Remove(stored);
-            try
-            {
-                await context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new NoteConcurrencyException(ex);
-            }
-        }
+    public async Task<List<Note>> GetAllByPersonAsync(int personId)
+    {
+        await using var context = contextFactory.CreateDbContext();
+        return await context.Notes.Where(n => n.PersonId == personId).ToListAsync();
+    }
 
-        public async Task UpdateNoteAsync(Note note)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var stored = await context.Notes.SingleOrDefaultAsync(candidate => candidate.Id == note.Id);
-            if (stored is null || stored.Revision != note.Revision)
-                throw new NoteConcurrencyException();
+    public async Task UpdateAbandonedNotesAsync(int abandonedAfterDays)
+    {
+        await using var context = contextFactory.CreateDbContext();
+        var threshold = DateTime.Now.AddDays(-abandonedAfterDays);
+        var notes = await context.Notes.Where(n => n.Status == NoteStatus.Pending &&
+            n.EventDate.HasValue && n.EventDate.Value < threshold).ToListAsync();
+        foreach (var note in notes) { note.Status = NoteStatus.Abandoned; note.Revision++; }
+        await context.SaveChangesAsync();
+    }
 
-            CopyNoteValues(note, stored);
-            stored.Revision++;
-            try
-            {
-                await context.SaveChangesAsync();
-                note.Revision = stored.Revision;
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new NoteConcurrencyException(ex);
-            }
-        }
+    public async Task<List<Note>> GetMonthlyNotesAsync(int userId)
+    {
+        await using var context = contextFactory.CreateDbContext();
+        var firstDay = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var lastDay = firstDay.AddMonths(1).AddDays(-1);
+        return await context.Notes.Where(n => n.EventDate >= firstDay && n.EventDate <= lastDay &&
+            n.Person.UserId == userId).ToListAsync();
+    }
 
-        private static void CopyNoteValues(Note source, Note target)
-        {
-            target.Narrative = source.Narrative;
-            target.EventDate = source.EventDate;
-            target.Status = source.Status;
-            target.Minutes = source.Minutes;
-            target.StartTime = source.StartTime;
-            target.PersonId = source.PersonId;
-            target.FormType = source.FormType;
-            target.NoteType = source.NoteType;
-            target.AgencyId = source.AgencyId;
-            target.ReturnReason = source.ReturnReason;
-            target.ReturnedById = source.ReturnedById;
-            target.ApprovedById = source.ApprovedById;
-            target.ApprovedAt = source.ApprovedAt;
-            target.ReturnedAt = source.ReturnedAt;
-            target.CaseManagerJustification = source.CaseManagerJustification;
-            target.VisitDocumentationJson = source.VisitDocumentationJson;
-            target.ComplianceOverride = source.ComplianceOverride;
-            target.OverrideReason = source.OverrideReason;
-            target.OverrideApprovedById = source.OverrideApprovedById;
-            target.OverrideApprovedAt = source.OverrideApprovedAt;
-        }
+    public async Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date)
+    {
+        await using var context = contextFactory.CreateDbContext();
+        var dayStart = date.Date;
+        return await context.Notes.Include(n => n.Person).Where(n => n.Person.UserId == userId &&
+            n.EventDate.HasValue && n.EventDate.Value >= dayStart && n.EventDate.Value < dayStart.AddDays(1)).ToListAsync();
+    }
 
-        public async Task<List<Note>> GetAllByPersonAsync(int personId)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            return await context.Notes
-                .Where(n => n.PersonId == personId)
-                .ToListAsync();
-        }
+    public async Task<List<Note>> GetByYearAsync(int userId, int year)
+    {
+        await using var context = contextFactory.CreateDbContext();
+        var firstDay = new DateTime(year, 1, 1);
+        var lastDay = new DateTime(year, 12, 31);
+        return await context.Notes.Include(n => n.Person).Where(n => n.Person.UserId == userId &&
+            n.EventDate.HasValue && n.EventDate.Value >= firstDay && n.EventDate.Value <= lastDay).ToListAsync();
+    }
 
-        public async Task UpdateAbandonedNotesAsync(int abandonedAfterDays)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var threshold = DateTime.Now.AddDays(-abandonedAfterDays);
-            var abandonedNotes = await context.Notes
-                .Where(n => n.Status == NoteStatus.Pending &&
-                            n.EventDate.HasValue &&
-                            n.EventDate.Value < threshold)
-                .ToListAsync();
+    private static void CopyCaseManagerValues(Note source, Note target)
+    {
+        target.Narrative = source.Narrative;
+        target.EventDate = source.EventDate;
+        target.Status = source.Status;
+        target.Minutes = source.Minutes;
+        target.StartTime = source.StartTime;
+        target.FormType = source.FormType;
+        target.NoteType = source.NoteType;
+        target.CaseManagerJustification = source.CaseManagerJustification;
+        target.VisitDocumentationJson = source.VisitDocumentationJson;
+    }
 
-            foreach (var note in abandonedNotes)
-            {
-                note.Status = NoteStatus.Abandoned;
-                note.Revision++;
-            }
+    private User CurrentActor() => sessionService.CurrentUser
+        ?? throw new UnauthorizedAccessException("A signed-in case manager is required.");
 
-            await context.SaveChangesAsync();
-        }
+    private static async Task<bool> OwnsPersonAsync(SatiContext context, User actor, int personId) =>
+        await context.People.AnyAsync(person => person.Id == personId && person.UserId == actor.Id &&
+            person.AgencyId == actor.AgencyId);
 
-        public async Task<List<Note>> GetMonthlyNotesAsync(int userId)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var firstDay = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            var lastDay = firstDay.AddMonths(1).AddDays(-1);
-            return await context.Notes
-                .Where(n => n.EventDate >= firstDay &&
-                            n.EventDate <= lastDay &&
-                            n.Person.UserId == userId)
-                .ToListAsync();
-        }
-        public async Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var dayStart = date.Date;
-            var dayEnd = dayStart.AddDays(1);
-            return await context.Notes
-                .Include(n => n.Person)
-                .Where(n => n.Person.UserId == userId &&
-                            n.EventDate.HasValue &&
-                            n.EventDate.Value >= dayStart &&
-                            n.EventDate.Value < dayEnd)
-                .ToListAsync();
-        }
+    private static bool OwnsPerson(User actor, Person person) =>
+        person.UserId == actor.Id && person.AgencyId == actor.AgencyId;
 
-        public async Task<List<Note>> GetByYearAsync(int userId, int year)
-        {
-            await using var context = _contextFactory.CreateDbContext();
-            var firstDay = new DateTime(year, 1, 1);
-            var lastDay = new DateTime(year, 12, 31);
-            return await context.Notes
-                .Include(n => n.Person)
-                .Where(n => n.Person.UserId == userId &&
-                            n.EventDate.HasValue &&
-                            n.EventDate.Value >= firstDay &&
-                            n.EventDate.Value <= lastDay)
-                .ToListAsync();
-        }
+    private static void ValidateCaseManagerInput(Note note)
+    {
+        if (note.Narrative is null || note.Narrative.Length > 1_000_000)
+            throw new ArgumentException("Narrative is required and must not exceed 1,000,000 characters.", nameof(note));
+        if (note.PersonId <= 0) throw new ArgumentException("A valid person is required.", nameof(note));
+        if (note.Minutes is < 0 or > 1_440)
+            throw new ArgumentException("Minutes must be between 0 and 1,440.", nameof(note));
+        if (note.StartTime is int start && (start < 0 || start > ServiceTimeline.WindowLengthMinutes))
+            throw new ArgumentException("Service start time must fall inside the logging window.", nameof(note));
+        if (!NoteWorkflow.IsCaseManagerWritableStatus((int?)note.Status))
+            throw new InvalidOperationException("That note status is controlled by a supervisor workflow.");
+    }
+
+    private static async Task EnsureServiceTimeAvailableAsync(
+        SatiContext context, int userId, Note note, int? editingNoteId)
+    {
+        var candidate = ServiceTimeline.TryCreateBlock(editingNoteId ?? 0, note.StartTime,
+            note.Minutes, note.Status?.ToString());
+        if (candidate is null) return;
+        var windowProblem = ServiceTimeline.DescribeWindowViolation(candidate.StartMinutes, candidate.Minutes);
+        if (windowProblem is not null) throw new InvalidOperationException(windowProblem);
+        if (note.EventDate is not DateTime eventDate) return;
+
+        var dayStart = eventDate.Date;
+        var blocks = (await context.Notes.Include(existing => existing.Person)
+                .Where(existing => existing.Person.UserId == userId && existing.EventDate >= dayStart &&
+                    existing.EventDate < dayStart.AddDays(1)).ToListAsync())
+            .Select(existing => ServiceTimeline.TryCreateBlock(existing.Id, existing.StartTime,
+                existing.Minutes, existing.Status?.ToString(), $"a note for {existing.Person.FullName}"))
+            .OfType<ServiceBlock>();
+        var conflicts = ServiceTimeline.FindConflicts(candidate, blocks);
+        if (conflicts.Count > 0)
+            throw new InvalidOperationException("This service time overlaps time already recorded on this date. " +
+                string.Join(" ", conflicts.Select(conflict => conflict.Reason)));
     }
 }

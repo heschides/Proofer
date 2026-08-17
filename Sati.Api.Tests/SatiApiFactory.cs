@@ -41,6 +41,12 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Authentication__Audience", "Sati.Api.Tests");
         Environment.SetEnvironmentVariable("Authentication__SigningKey", TestSigningKey);
         Environment.SetEnvironmentVariable("Authentication__TokenMinutes", "15");
+        // The section is "Sati", and startup binds it before ConfigureWebHost runs,
+        // so it has to arrive as an environment variable like the two above. Setting
+        // it only through ConfigureAppConfiguration leaves the section empty and the
+        // host throws "Sati configuration is required." before any test can run.
+        Environment.SetEnvironmentVariable("Sati__ExpectedDatabaseName", "SatiApiTests");
+        Environment.SetEnvironmentVariable("Sati__ExpectedEnvironment", "Testing");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -55,8 +61,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 ["Authentication:Audience"] = "Sati.Api.Tests",
                 ["Authentication:SigningKey"] = TestSigningKey,
                 ["Authentication:TokenMinutes"] = "15",
-                ["SatiApi:ExpectedDatabaseName"] = "SatiApiTests",
-                ["SatiApi:ExpectedEnvironment"] = "Testing"
+                ["Sati:ExpectedDatabaseName"] = "SatiApiTests",
+                ["Sati:ExpectedEnvironment"] = "Testing"
             });
         });
         builder.ConfigureServices(services =>
@@ -481,6 +487,41 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 CompliantForm(nextId, "Reclassification"),
                 CompliantForm(nextId, "SafetyPlan")
             ]
+        });
+        await db.SaveChangesAsync();
+        return nextId;
+    }
+
+    /// <summary>
+    /// A fully billable approved note on its own new person. Billing tests that
+    /// share a seeded note compete for the one claim line it is allowed, so each
+    /// caller gets a private note instead.
+    /// </summary>
+    public async Task<int> CreateApprovedBillableNoteAsync(
+        bool complianceOverride = false,
+        string? overrideReason = null,
+        int minutes = 60)
+    {
+        var personId = await CreateBillingWorkflowPersonAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var nextId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        var approvedAt = new DateTime(2026, 8, 4, 12, 0, 0, DateTimeKind.Utc);
+        db.Notes.Add(new ServerNote
+        {
+            Id = nextId,
+            PersonId = personId,
+            AgencyId = 1,
+            Narrative = "Approved billable note",
+            EventDate = new DateTime(2026, 8, 3),
+            Minutes = minutes,
+            Status = 6,
+            ApprovedById = 13,
+            ApprovedAt = approvedAt,
+            ComplianceOverride = complianceOverride,
+            OverrideReason = complianceOverride ? overrideReason : null,
+            OverrideApprovedById = complianceOverride ? 13 : null,
+            OverrideApprovedAt = complianceOverride ? approvedAt : null
         });
         await db.SaveChangesAsync();
         return nextId;
