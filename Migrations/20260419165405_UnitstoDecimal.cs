@@ -24,16 +24,15 @@ namespace Sati.Migrations
                  nullable: true);
 
             migrationBuilder.AddColumn<int>(
-        name: "ApprovedById",
-        table: "Notes",
-        type: "int",
-        nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "ReturnedById",
+                name: "ApprovedById",
                 table: "Notes",
                 type: "int",
                 nullable: true);
+
+            // Notes.ReturnedById is deliberately NOT added here. AddNoteApprovalFields
+            // (20260419144051) already adds it earlier in the chain, so adding it again
+            // fails with SQL error 2705 on any database built from scratch. Existing
+            // databases have both migrations recorded as applied and are unaffected.
         }
 
         /// <inheritdoc />
