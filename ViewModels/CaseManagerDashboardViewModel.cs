@@ -137,7 +137,8 @@ StatisticsViewModel statisticsViewModel,
         private static void WireJournalReminders(NoteEntryViewModel entry, NewClientViewModel clients)
         {
             entry.JournalWriteStartingAsync = clients.FlushJournalIfCurrentAsync;
-            entry.ReminderAdded += (s, e) => clients.ApplyExternalJournal(e.PersonId, e.Journal);
+            entry.ReminderAdded += (s, e) =>
+                clients.ApplyExternalJournal(e.PersonId, e.Journal, e.UsedLegacyJournalWrite);
         }
 
         // -------------------------------------------------------------------------

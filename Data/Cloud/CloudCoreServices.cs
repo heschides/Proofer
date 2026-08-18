@@ -1,3 +1,4 @@
+using System.Net;
 using Sati.Contracts.V1;
 using Sati.Models;
 
@@ -19,8 +20,12 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
     public async Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) =>
         (await api.GetAsync<List<PersonDto>>($"/api/v1/caseload?userId={userId}")).Select(CloudContractMapper.ToPersonSummary).ToList();
 
+    // GetStringOrNullAsync, not GetAsync<string?>: a client whose journal has never
+    // been written sends back an empty body, which GetAsync rejects as an empty
+    // response. That surfaced as "the journal could not be loaded" on every such
+    // client rather than as an empty journal.
     public Task<string?> GetJournalAsync(int personId) =>
-        api.GetAsync<string?>($"/api/v1/people/{personId}/journal");
+        api.GetStringOrNullAsync($"/api/v1/people/{personId}/journal");
 
     public Task SaveJournalAsync(int personId, string? journal) =>
         api.PutAsync($"/api/v1/people/{personId}/journal", new SaveJournalRequest(journal));
@@ -28,9 +33,46 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
     // Only the text crosses the wire. The server prepends under the person's
     // revision token and stamps from the agency clock, and hands back the
     // journal it actually wrote.
-    public Task<string?> AddJournalReminderAsync(int personId, string text) =>
-        api.PostAsync<AddJournalReminderRequest, string?>(
-            $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
+    //
+    // The fallback below exists because the desktop can ship ahead of the API it
+    // talks to: a Demo server that predates the journal-entries route answers 404,
+    // and without this a working client reports a caseload error for a client it
+    // demonstrably owns. It is transitional and announces itself — see
+    // JournalReminderResult.UsedLegacyJournalWrite — and should be deleted once no
+    // reachable deployment predates the route.
+    public async Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text)
+    {
+        try
+        {
+            var journal = await api.PostAsync<AddJournalReminderRequest, string?>(
+                $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
+            return new JournalReminderResult(journal, false);
+        }
+        catch (CloudApiException notFound) when (notFound.StatusCode == HttpStatusCode.NotFound)
+        {
+            // A missing ROUTE and a missing PERSON both answer 404, so ask a
+            // question only one of them can answer: read the journal through the
+            // older route. If the person reads back, they are on this caseload and
+            // the 404 was the route — this client is newer than its server. If the
+            // read fails too, it was a real not-found and the original error stands.
+            string? existing;
+            try
+            {
+                existing = await api.GetStringOrNullAsync($"/api/v1/people/{personId}/journal");
+            }
+            catch (CloudApiException)
+            {
+                throw notFound;
+            }
+
+            // Read-prepend-write, which the journal text box already does on every
+            // debounced save, so this is no weaker than the column's normal path —
+            // it is simply not atomic the way the route is.
+            var journal = JournalEntry.PrependReminder(existing, DateTime.Now, text);
+            await api.PutAsync($"/api/v1/people/{personId}/journal", new SaveJournalRequest(journal));
+            return new JournalReminderResult(journal, true);
+        }
+    }
 }
 
 public sealed class CloudNoteService(CloudApiClient api) : INoteService

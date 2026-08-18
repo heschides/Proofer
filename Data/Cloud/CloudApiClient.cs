@@ -29,6 +29,28 @@ public sealed class CloudApiClient(HttpClient httpClient)
     public Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default) =>
         SendAsync<TResponse>(HttpMethod.Get, path, null, cancellationToken);
 
+    /// <summary>
+    /// Reads a nullable string body, treating "no content" as null rather than as
+    /// a failure. <see cref="GetAsync{TResponse}"/> cannot express this: it rejects
+    /// a null result as an empty response, and a route returning an unset
+    /// <c>string?</c> — the consumer journal, for one — legitimately sends back an
+    /// empty body. Callers of that shape must use this method or they throw on
+    /// every record whose value has never been set.
+    /// </summary>
+    public async Task<string?> GetStringOrNullAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, path, null);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(body)
+            ? null
+            : JsonSerializer.Deserialize<string>(body, JsonOptions);
+    }
+
     public Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<TResponse>(HttpMethod.Post, path, request, cancellationToken);
 

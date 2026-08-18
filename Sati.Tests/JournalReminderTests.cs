@@ -94,10 +94,12 @@ public sealed class JournalReminderTests
         var people = fixture.PeopleAs(fixture.CaseManagerOne);
         await people.SaveJournalAsync(fixture.PersonOneId, "Handwritten line.");
 
-        var returned = await people.AddJournalReminderAsync(fixture.PersonOneId, "Send the release form.");
+        var result = await people.AddJournalReminderAsync(fixture.PersonOneId, "Send the release form.");
 
         var stored = await people.GetJournalAsync(fixture.PersonOneId);
-        Assert.Equal(stored, returned);
+        Assert.Equal(stored, result.Journal);
+        // The local path is the writer itself, so nothing fell back.
+        Assert.False(result.UsedLegacyJournalWrite);
         Assert.Contains(JournalEntry.ReminderLabel, stored);
         Assert.Contains("Send the release form.", stored);
         Assert.EndsWith("Handwritten line.", stored);
@@ -259,6 +261,30 @@ public sealed class JournalReminderTests
         Assert.True(string.IsNullOrEmpty(journal));
     }
 
+    /// <summary>
+    /// When the write had to fall back because the server is older than this
+    /// client, that fact reaches the host, which is what puts it in front of the
+    /// user instead of leaving a silent downgrade.
+    /// </summary>
+    [Fact]
+    public async Task AFallbackWriteIsReportedToTheHost()
+    {
+        await using var fixture = await ReminderFixture.CreateAsync();
+        var viewModel = fixture.NoteEntry(people: new LegacyWritePersonService());
+        viewModel.SelectedPerson = await fixture.PersonOneAsync();
+        viewModel.SelectedNoteType = NoteType.Reminder;
+        viewModel.Narrative = "Reminder text";
+
+        JournalReminderAddedEventArgs? announced = null;
+        viewModel.ReminderAdded += (s, e) => announced = e;
+
+        await viewModel.SubmitNoteCommand.ExecuteAsync(null);
+
+        Assert.NotNull(announced);
+        Assert.True(announced!.UsedLegacyJournalWrite);
+        Assert.Equal("written the older way", announced.Journal);
+    }
+
     [Fact]
     public async Task TheLocalAiDraftingCommandIsUnavailableForAReminder()
     {
@@ -318,9 +344,9 @@ public sealed class JournalReminderTests
         /// reaches it is asserting about validation, and the throw proves the write
         /// never happened.
         /// </summary>
-        public NoteEntryViewModel NoteEntry(bool aiEnabled = false) => new(
+        public NoteEntryViewModel NoteEntry(bool aiEnabled = false, IPersonService? people = null) => new(
             new NoteService(Factory, SessionFor(CaseManagerOne)),
-            PeopleAs(CaseManagerOne),
+            people ?? PeopleAs(CaseManagerOne),
             new StubSettingsService(),
             SessionFor(CaseManagerOne),
             new StubPersonContactService(),
@@ -367,6 +393,20 @@ public sealed class JournalReminderTests
         {
             public SatiContext CreateDbContext() => new(options);
         }
+    }
+
+    /// <summary>Stands in for a Demo server that predates the journal-entries route.</summary>
+    private sealed class LegacyWritePersonService : IPersonService
+    {
+        public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
+            Task.FromResult(new JournalReminderResult("written the older way", true));
+
+        public Task<string?> GetJournalAsync(int personId) => Task.FromResult<string?>(null);
+        public Task SaveJournalAsync(int personId, string? journal) => Task.CompletedTask;
+        public Task<Person> AddPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
+        public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) => throw new NotSupportedException();
     }
 
     private sealed class StubSettingsService : ISettingsService

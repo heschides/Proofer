@@ -105,7 +105,7 @@ namespace Sati.Data
         // JournalEntry composes both. Mirrors the API's journal-entries route —
         // the same agency gate, the same ledger snapshot, the same audit action —
         // because this transitional local path must not enforce the rule its own way.
-        public async Task<string?> AddJournalReminderAsync(int personId, string text)
+        public async Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text)
         {
             var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
@@ -125,7 +125,9 @@ namespace Sati.Data
                     "Person",
                     personId);
             await context.SaveChangesAsync();
-            return person.Journal;
+
+            // This path IS the writer, so there is no older route to fall back to.
+            return new JournalReminderResult(person.Journal, false);
         }
 
         private User CurrentActor() => _sessionService.CurrentUser

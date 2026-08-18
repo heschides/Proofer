@@ -1330,3 +1330,26 @@ be added retroactively. Everything below waits for Karuna.
       fails with SQL 2705 on a column that exists without its history row. Until the two are
       reconciled, applying migrations to those databases needs existence-guarded scripts rather
       than the generated one.
+
+## Journal reminders — outstanding after the 2026-08-18 change
+
+- [ ] **Deploy the API so the reminder route exists.** The hosted Demo API was release 1.2.17 on
+  2026-08-18, which predates `POST /people/{personId}/journal/entries`. Until it is published from
+  `Sati.Api/Properties/PublishProfiles/sati-demo-api-satilogica - Zip Deploy.pubxml`, every Demo
+  reminder takes the transitional whole-journal fallback and the client page says so. Verify with an
+  unauthenticated POST to that route: 401 means the route is present, 404 means the server is still
+  behind.
+- [ ] **Remove the whole-journal fallback once nothing predates the route.** Delete the 404 `catch`
+  in `CloudPersonService.AddJournalReminderAsync`, `JournalReminderResult.UsedLegacyJournalWrite`
+  and the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs`. See `DECISIONS.md`.
+- [ ] **Decide whether the client should detect a behind-server generally.** The reminder route now
+  disambiguates its own 404, but every future route has the same failure mode, and
+  `/health/version` already reports the deployed release. A single startup comparison would replace
+  per-route handling. Not built; the reminder path does not depend on it.
+- [ ] **Audit other `GetAsync<T>` calls for legitimately empty bodies.** `GetJournalAsync` threw on
+  any client whose journal was never written, because `GetAsync<string?>` treats a null result as an
+  empty response. Fixed there with `GetStringOrNullAsync`; other nullable-scalar routes may carry
+  the same latent fault.
+- [ ] **Reconsider whether a reminder should be visible outside the journal.** Reminders are journal
+  entries by decision, so they do not appear in the notes log or note history and are not versioned
+  individually. Revisit if reminders start carrying anything a reviewer needs to find.

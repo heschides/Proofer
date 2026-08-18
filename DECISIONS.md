@@ -979,3 +979,43 @@ the desktop-local path and the API cannot order or format entries two ways.
 debounce and writes the same column. Its pending edit is flushed *before* the entry
 is written (`JournalWriteStartingAsync`), and the journal the writer returns is then
 adopted by that page (`ReminderAdded`). Reversed, one of the two texts is lost.
+
+## A client newer than its server writes the reminder anyway, and says so (2026-08-18)
+
+The desktop ships ahead of the API. On 2026-08-18 the hosted Demo API was release
+1.2.17, which predates `POST /people/{id}/journal/entries`, so every reminder from
+a current client failed — and failed *misleadingly*, because `CloudApiClient` maps
+any 404 to "not found or is outside your caseload" and the client in question was
+plainly on the caseload. `DEMO_RUNBOOK.md` already requires client and API to be
+deployed together; this is what it looks like when they are not.
+
+An unrouted path and an out-of-scope record answer with the same status, so the
+client asks a question only one of them can answer: on 404 from the entries route,
+read the journal through the older `GET /people/{id}/journal`. If the person reads
+back they are in scope and the 404 was the route; if that read fails too, the
+original not-found stands and nothing is written. A 403 is never treated as a
+missing route.
+
+Having established that the server is behind, the client completes the write the
+old way — read, prepend through the same `JournalEntry` owner, `PUT` the whole
+journal — and reports that it did, through
+`JournalReminderResult.UsedLegacyJournalWrite` into the client page's existing
+journal warning band. The downgrade is never silent.
+
+**Why accept a client-side read-prepend-write at all,** having rejected it as the
+primary design: the journal text box already writes this column by whole-string
+`PUT` on a 2s debounce with no revision check, so the fallback is no weaker than
+the column's ordinary path. It is not atomic the way the route is, which is exactly
+why it is the fallback and not the design.
+
+**Removal condition.** This is transitional. When no reachable deployment predates
+the journal-entries route, delete the `catch` in
+`CloudPersonService.AddJournalReminderAsync`, the `UsedLegacyJournalWrite` flag and
+the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs` — they were
+written to go together. Tracked in `AGENDA.md`.
+
+**Found on the way:** `CloudApiClient.GetAsync<string?>` rejects a null result as
+"an empty response", and a journal that has never been written returns an empty
+body — so loading the journal of any such client raised "the journal could not be
+loaded from the cloud" rather than showing an empty journal. `GetStringOrNullAsync`
+expresses that shape, and `GetJournalAsync` now uses it.

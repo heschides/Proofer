@@ -1068,12 +1068,13 @@ namespace Sati.ViewModels.Children
                 if (JournalWriteStartingAsync is not null)
                     await JournalWriteStartingAsync(personId);
 
-                var journal = await _personService.AddJournalReminderAsync(personId, Narrative!);
+                var result = await _personService.AddJournalReminderAsync(personId, Narrative!);
 
                 // Note fields only: the client stays selected so several reminders
                 // can be added in a row, matching how notes behave here.
                 ClearNoteFields();
-                ReminderAdded?.Invoke(this, new JournalReminderAddedEventArgs(personId, journal));
+                ReminderAdded?.Invoke(this, new JournalReminderAddedEventArgs(
+                    personId, result.Journal, result.UsedLegacyJournalWrite));
             }
             catch (Exception ex)
             {
@@ -1339,9 +1340,20 @@ namespace Sati.ViewModels.Children
     /// the writer produced so a host showing the same column can display what was
     /// actually stored rather than re-composing the entry itself.
     /// </summary>
-    public sealed class JournalReminderAddedEventArgs(int personId, string? journal) : EventArgs
+    public sealed class JournalReminderAddedEventArgs(
+        int personId,
+        string? journal,
+        bool usedLegacyJournalWrite = false) : EventArgs
     {
         public int PersonId { get; } = personId;
         public string? Journal { get; } = journal;
+
+        /// <summary>
+        /// The entry was written through the older whole-journal route because the
+        /// server does not have the journal-entries route. Surfaced to the user
+        /// rather than swallowed: a client running ahead of its server is a
+        /// deployment fact worth stating, not a detail to hide.
+        /// </summary>
+        public bool UsedLegacyJournalWrite { get; } = usedLegacyJournalWrite;
     }
 }
