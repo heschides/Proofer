@@ -109,7 +109,12 @@ namespace Sati
         Visit,
         Contact,
         Form,
-        Other
+        Other,
+        // Appended last on purpose: the column is a nullable int, so every stored
+        // value keeps its meaning and no migration is required. Reminder is the
+        // one member that never reaches the Notes table — it selects the journal
+        // entry path in NoteEntryViewModel and is not persisted as a note.
+        Reminder
     }
 
     public enum FormComplianceStatus

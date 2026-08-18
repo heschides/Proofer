@@ -15,6 +15,14 @@ namespace Sati.Data
         Task<string?> GetJournalAsync(int personId);
         Task SaveJournalAsync(int personId, string? journal);
 
+        // Adds a stamped reminder to the TOP of the journal and returns the
+        // journal's new full text. Separate from SaveJournalAsync because that
+        // call replaces the whole journal: composing the entry here and writing
+        // the result back would erase whatever another session typed in between.
+        // The writer stamps the time — callers do not pass one — and
+        // Sati.Contracts.V1.JournalEntry owns the format and the placement.
+        Task<string?> AddJournalReminderAsync(int personId, string text);
+
         Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId);
     }
 }

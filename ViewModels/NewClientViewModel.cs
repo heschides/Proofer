@@ -1087,6 +1087,36 @@ namespace Sati.ViewModels
             return true;
         }
 
+        // Called by the host BEFORE a reminder is written to this client's journal.
+        // The writer prepends to the journal AS STORED, so an edit still sitting in
+        // the debounce window has to be committed first: otherwise the entry lands
+        // on top of text the database has not seen, and this page's next save
+        // replaces the entry with its own pre-reminder copy of the journal.
+        // Scoped to the person actually shown — another client's pending edit is
+        // not this reminder's business.
+        public async Task FlushJournalIfCurrentAsync(int personId)
+        {
+            if (_journalPersonId == personId)
+                await FlushJournalAsync();
+        }
+
+        // Applies a journal that was written elsewhere — a reminder added from the
+        // note screen. Assigned under the suppress guard with the timer stopped, so
+        // the incoming text is not saved straight back as though it were typed
+        // here. Silently ignored when a different client is on screen: the entry is
+        // already stored and appears the next time that client is selected.
+        public void ApplyExternalJournal(int personId, string? journal)
+        {
+            if (_journalPersonId != personId)
+                return;
+
+            _journalSaveTimer?.Stop();
+            _suppressJournalSave = true;
+            Journal = journal ?? string.Empty;
+            _suppressJournalSave = false;
+            JournalSaveWarning = null;
+        }
+
         private async Task<bool> TrySaveJournalAsync(int personId, string? content)
         {
             var result = await _journalSaveCoordinator.TrySaveAsync(

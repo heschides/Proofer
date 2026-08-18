@@ -189,9 +189,13 @@
                 <TextBlock Text="STATUS"
                            Grid.Row="3"
                            Style="{StaticResource LabelStyle}" />
+                <!-- Disabled for a Reminder, which has no place in the note
+                     workflow. The guidance block below says so, and is a polite
+                     live region, so the reason is announced and not just shown. -->
                 <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}"
+                          IsEnabled="{Binding AreNoteFieldsEnabled}"
                           AutomationProperties.HelpText="{Binding StatusGuidance}" />
                 <TextBlock Grid.Row="5"
                            Margin="0,5,0,10"
@@ -208,6 +212,10 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <!-- Reminder sits on its own row, below the four service
+                             note types, because it is a different kind of thing:
+                             a journal entry rather than documentation of service. -->
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -259,7 +267,18 @@
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
                                      ConverterParameter=Form}" />
-                    <ComboBox AutomationProperties.Name="Form Type" Grid.Row="3"
+                    <RadioButton Grid.Row="3"
+                                 Grid.Column="1"
+                                 Grid.ColumnSpan="3"
+                                 Content="Reminder"
+                                 Margin="0,0,12,4"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 GroupName="NoteEntryNoteType"
+                                 ToolTip="Adds a timestamped entry to the top of this client's journal. Not a service note."
+                                 IsChecked="{Binding SelectedNoteType,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Reminder}" />
+                    <ComboBox AutomationProperties.Name="Form Type" Grid.Row="4"
                               Grid.ColumnSpan="4"
                               ItemsSource="{Binding FormTypes}"
                               SelectedItem="{Binding SelectedFormType, Mode=TwoWay}"
@@ -291,12 +310,14 @@
                                Grid.Row="0"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Minutes" Grid.Row="1"
+                             IsEnabled="{Binding AreNoteFieldsEnabled}"
                              Text="{Binding Minutes}" />
 
                     <TextBlock Text="DATE"
                                Grid.Row="2"
                                Style="{StaticResource LabelStyle}" />
                     <DatePicker AutomationProperties.Name="Event date" Grid.Row="3"
+                                IsEnabled="{Binding AreNoteFieldsEnabled}"
                                 SelectedDate="{Binding EventDate}" />
 
                     <!-- ═══ SERVICE DAY ═══
@@ -304,11 +325,14 @@
                          draft's start time and minutes are drawn against the rest
                          of that day's notes and checked before the note is saved.
                          The rule lives in Sati.Contracts ServiceTimeline and is
-                         enforced again by the API; this panel is the preview. -->
+                         enforced again by the API; this panel is the preview.
+                         A Reminder claims no service time, so the whole panel —
+                         start time, bar, and verdict — disables with it. -->
                     <Border Grid.Row="4"
                             Margin="0,2,0,10"
                             Padding="11"
                             CornerRadius="6"
+                            IsEnabled="{Binding AreNoteFieldsEnabled}"
                             Background="{DynamicResource PersonGroupBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1">
@@ -624,8 +648,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <!-- Reads REMINDER when that type is selected: the box below
+                             is the only input a reminder has, so it says what it is. -->
                         <TextBlock Grid.Column="0"
-                                   Text="NARRATIVE"
+                                   Text="{Binding NarrativeLabel}"
                                    Style="{StaticResource LabelStyle}" />
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal">
@@ -663,8 +689,13 @@
                                      FontSize="{Binding NarrativeFontSize}"
                                      Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" />
 
+                            <!-- Disabled for a Reminder: the local AI path drafts
+                                 case note prose from clinical context, which a
+                                 reminder neither needs nor should pull. The command
+                                 refuses it too — this is not the only gate. -->
                             <StackPanel Grid.Row="8"
                                         Margin="0,2,0,10"
+                                        IsEnabled="{Binding AreNoteFieldsEnabled}"
                                         Visibility="{Binding IsLocalAiEnabled,
                                             Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Grid>

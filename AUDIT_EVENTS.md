@@ -29,7 +29,7 @@ for content; the audit event is only its activity index.
 - `user.created`, `user.updated`, `user.password-reset`, `user.password-changed`
 - `note.approved`, `note.approval-overridden`, `note.returned`
 - `assessment.created`, `assessment.updated`, `assessment.submitted`
-- `person.created`, `person.updated`, `person.journal-updated`
+- `person.created`, `person.updated`, `person.journal-updated`, `person.journal-reminder-added`
 - `person-history.viewed`, `person-history-pdf.generated`
 - `settings.updated`
 - `scratchpad.updated`

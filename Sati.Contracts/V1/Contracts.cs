@@ -274,6 +274,11 @@ public sealed record SaveScratchpadRequest(int Id, string Content, int ExpectedR
 public sealed record AddScratchpadCommentRequest(string Content);
 public sealed record SaveJournalRequest(string? Journal);
 
+// The entry's timestamp is deliberately absent: the server stamps it from the
+// agency clock so the record cannot claim a moment the caller invented.
+// See Sati.Contracts.V1.JournalEntry.
+public sealed record AddJournalReminderRequest(string Text);
+
 public sealed record ExemptDateDto(int Id, DateTime Date, string? Reason);
 public sealed record AddExemptDateRequest(DateTime Date, string? Reason);
 

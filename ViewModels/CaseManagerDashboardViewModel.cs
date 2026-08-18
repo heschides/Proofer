@@ -104,6 +104,13 @@ StatisticsViewModel statisticsViewModel,
 
             noteEntryViewModel.NoteSaved += async (s, e) => await OnNoteSavedAsync();
 
+            // Journal reminders. Either note-entry instance can write one — this
+            // VM's own module, or the one inside the notes log — and both write the
+            // same column the client page's journal box is bound to. Wiring lives
+            // here because this VM is the only place that owns all three.
+            WireJournalReminders(noteEntryViewModel, newClientViewModel);
+            WireJournalReminders(notesWindowViewModel.NoteEntry, newClientViewModel);
+
             newClientViewModel.FormComplianceChanged += async (s, e) =>
             {
                 await LoadPeopleAsync();
@@ -122,6 +129,15 @@ StatisticsViewModel statisticsViewModel,
                 await LoadExemptDatesAsync();
                 await LoadMonthlyNotesAsync();
             };
+        }
+
+        // Order is the contract, not a detail: the client page commits any pending
+        // journal edit BEFORE the writer prepends the entry, and adopts the journal
+        // the writer returned afterward. Reversing these loses one of the two texts.
+        private static void WireJournalReminders(NoteEntryViewModel entry, NewClientViewModel clients)
+        {
+            entry.JournalWriteStartingAsync = clients.FlushJournalIfCurrentAsync;
+            entry.ReminderAdded += (s, e) => clients.ApplyExternalJournal(e.PersonId, e.Journal);
         }
 
         // -------------------------------------------------------------------------

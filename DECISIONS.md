@@ -940,3 +940,42 @@ Both now read the agency's date through the injected `ApiClock`.
 The desktop path keeps `DateTime.Today`, which is already the Maine date on a Maine
 workstation. That equivalence is an assumption about where the client runs, and it
 stops being true if the desktop is ever run outside Eastern time.
+
+## A Reminder is a journal entry, not a note (2026-08-18)
+
+`NoteType.Reminder` appears in the note-entry picker but never produces a `Notes`
+row. It writes one stamped entry to the top of the client's journal and stops
+there.
+
+The alternative — persisting the reminder as a note *and* mirroring it into the
+journal — was rejected because it stores the same sentence twice. The journal is
+free text a case manager edits directly, so the two copies diverge the first time
+one is reworded, and nothing says which is the record. Keeping it in one place also
+keeps it out of the paths that decide money and clinical status: a reminder has no
+status, so it cannot enter supervisory review, the billing queue, productivity
+counts, or the notes log, and no exclusion logic had to be added to any of them.
+
+The consequence to accept: reminders do not appear in the notes log or in note
+history, and are not versioned individually. What exists instead is the journal's
+own trail — `person.journal-reminder-added`, distinct from `person.journal-updated`
+so the trail separates an entry the application stamped from a free-text edit — and
+the append-only `PersonVersion` snapshot the write already produces.
+
+**The server prepends; the client does not.** `PUT /people/{id}/journal` replaces
+the whole journal, so a client that read the journal, composed the entry locally,
+and wrote it back would erase anything a concurrent session typed between its read
+and its write. `POST /people/{id}/journal/entries` sends only the text and prepends
+under the person's revision token. The desktop's transitional local `PersonService`
+does its read-prepend-write inside one short-lived context for the same reason.
+
+**The writer stamps the time, not the caller.** No timestamp crosses the wire; a
+client-supplied one would let the record claim a moment that did not happen. The
+API stamps from `ApiClock.Now` — agency-local wall clock, because an Azure host's
+own local time is UTC and would present hours off the clock the case manager just
+read. `Sati.Contracts.V1.JournalEntry` owns the stamp format and the placement so
+the desktop-local path and the API cannot order or format entries two ways.
+
+**Ordering at the seam matters.** The client page's journal box auto-saves on a 2s
+debounce and writes the same column. Its pending edit is flushed *before* the entry
+is written (`JournalWriteStartingAsync`), and the journal the writer returns is then
+adopted by that page (`ReminderAdded`). Reversed, one of the two texts is lost.

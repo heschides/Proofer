@@ -935,6 +935,63 @@ internal static class ApiEndpoints
             }
             return Results.NoContent();
         });
+
+        // A journal ENTRY is prepended by the server, not composed by the client.
+        // The PUT above replaces the whole journal, so a client that read the
+        // journal, prepended locally, and wrote it back would erase anything a
+        // concurrent session typed in between. The caller sends only the text:
+        // the stamp comes from the agency clock so the record cannot claim a
+        // moment the caller invented, and JournalEntry owns the placement so the
+        // desktop's transitional local path cannot order entries differently.
+        api.MapPost("/people/{personId:int}/journal/entries", async Task<IResult> (
+            int personId,
+            AddJournalReminderRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var text = request.Text ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(text))
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Text"] = ["A reminder needs text."]
+                });
+            if (text.Length > JournalEntry.MaxTextLength)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Text"] = [$"A reminder is limited to {JournalEntry.MaxTextLength} characters."]
+                });
+
+            // Same scope gate as the journal PUT: the person must be on this
+            // caller's caseload AND in this caller's agency.
+            var actor = Actor.From(principal);
+            var person = await db.People.SingleOrDefaultAsync(
+                x => x.Id == personId && x.UserId == actor.UserId && x.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var before = PersonLifecycle.Capture(person);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            person.Journal = JournalEntry.PrependReminder(person.Journal, clock.Now, text);
+            lifecycle.RecordChanged(actor, person, before, "JournalReminderAdded");
+            auditTrail.Record(actor, AuditActions.PersonJournalReminderAdded, "Person", personId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
+
+            // The updated journal goes back so the caller shows what was actually
+            // written rather than its own guess at it.
+            return Results.Ok<string?>(person.Journal);
+        });
     }
 
     private static void MapPeople(RouteGroupBuilder api)

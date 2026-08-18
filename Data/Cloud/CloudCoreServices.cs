@@ -24,6 +24,13 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
 
     public Task SaveJournalAsync(int personId, string? journal) =>
         api.PutAsync($"/api/v1/people/{personId}/journal", new SaveJournalRequest(journal));
+
+    // Only the text crosses the wire. The server prepends under the person's
+    // revision token and stamps from the agency clock, and hands back the
+    // journal it actually wrote.
+    public Task<string?> AddJournalReminderAsync(int personId, string text) =>
+        api.PostAsync<AddJournalReminderRequest, string?>(
+            $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
 }
 
 public sealed class CloudNoteService(CloudApiClient api) : INoteService

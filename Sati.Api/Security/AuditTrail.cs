@@ -42,6 +42,9 @@ internal static class AuditActions
     public const string PersonCreated = "person.created";
     public const string PersonUpdated = "person.updated";
     public const string PersonJournalUpdated = "person.journal-updated";
+    // Distinct from PersonJournalUpdated so the trail separates an entry the
+    // application stamped and placed from a case manager's own free-text edit.
+    public const string PersonJournalReminderAdded = "person.journal-reminder-added";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
     public const string BillingPeriodSubmitted = "billing-period.submitted";

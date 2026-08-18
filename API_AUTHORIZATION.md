@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-15, covering all 90 protected routes. Every route added,
+*Route inventory current as of 2026-08-18, covering all 91 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -44,6 +44,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Caseload | `GET /caseload` | Target user's `AgencyId` | Accessible case manager only. |
 | Caseload | `GET /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `PUT /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
+| Caseload | `POST /people/{personId}/journal/entries` | Person's assigned user and agency | Own caseload only; same gate as the journal `PUT`. Server prepends the stamped entry and stamps from `ApiClock`, so the caller supplies only the text. |
 | People | `POST /people` | Actor's user and agency | Creates only in the actor's own caseload and agency. |
 | People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. |
 | Person audit | `GET /people/{personId}/history` | Person and assigned user's `AgencyId` | Admin only; both Person and assigned user must belong to actor agency. Response is not cacheable. |

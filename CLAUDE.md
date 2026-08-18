@@ -87,7 +87,7 @@ services repeat the same restrictions rather than relying on the API being the o
 Rules that decide permission, billability, approval, or record status belong in
 `Sati.Contracts.V1`, which both the desktop client and `Sati.Api` reference, so a rule cannot be
 enforced two different ways. Current owners: `BillingComplianceGate`, `BillingRules`,
-`ServiceTimeline`, `AuditCsv`, `IncidentHealthScoring`. A second hand-written copy of one of these
+`ServiceTimeline`, `AuditCsv`, `IncidentHealthScoring`, `JournalEntry`. A second hand-written copy of one of these
 rules is a defect, not a convenience.
 
 Pure presentation and local concerns may stay in the client. Any calculation that controls

@@ -37,6 +37,7 @@ namespace Sati.ViewModels.Children
         // -------------------------------------------------------------------------
 
         private readonly INoteService _noteService;
+        private readonly IPersonService _personService;
         private readonly ISettingsService _settingsService;
         private readonly ISessionService _sessionService;
         private readonly IPersonContactService _personContactService;
@@ -70,6 +71,7 @@ namespace Sati.ViewModels.Children
 
         public NoteEntryViewModel(
             INoteService noteService,
+            IPersonService personService,
             ISettingsService settingsService,
             ISessionService sessionService,
             IPersonContactService personContactService,
@@ -78,6 +80,7 @@ namespace Sati.ViewModels.Children
             Func<string, UserMessageDialog> validationDialog)
         {
             _noteService = noteService;
+            _personService = personService;
             _settingsService = settingsService;
             _sessionService = sessionService;
             _personContactService = personContactService;
@@ -96,6 +99,18 @@ namespace Sati.ViewModels.Children
         public Func<FormType, bool, Task>? FormNoteSavedAsync { get; set; }
 
         public event EventHandler? NoteSaved;
+
+        // Awaited BEFORE a reminder is written, for the same reason
+        // FormNoteSavedAsync is a Func and not an event: ordering is the point.
+        // The host owns the client page whose journal text box writes the same
+        // column, and that page saves on a debounce — so its pending edit has to
+        // reach the database before the server prepends the entry, or the next
+        // debounced save would replace the journal with pre-reminder text.
+        public Func<int, Task>? JournalWriteStartingAsync { get; set; }
+
+        // Fired after the entry is written, carrying the journal the WRITER
+        // produced rather than a locally composed guess at it.
+        public event EventHandler<JournalReminderAddedEventArgs>? ReminderAdded;
 
         // -------------------------------------------------------------------------
         // Properties
@@ -153,13 +168,23 @@ namespace Sati.ViewModels.Children
             NoteStatus.Cancelled,
             NoteStatus.Delayed
         ];
-        public string SaveActionLabel => Status switch
-        {
-            NoteStatus.Pending => IsEditing ? "Update Draft" : "Save as Draft",
-            NoteStatus.Logged => "Submit for Supervisor Review",
-            _ => IsEditing ? "Update Note" : "Save Note"
-        };
-        public string StatusGuidance => DescribeStatus(Status);
+        public string SaveActionLabel => IsReminderNote
+            ? "Add Reminder"
+            : Status switch
+            {
+                NoteStatus.Pending => IsEditing ? "Update Draft" : "Save as Draft",
+                NoteStatus.Logged => "Submit for Supervisor Review",
+                _ => IsEditing ? "Update Note" : "Save Note"
+            };
+        public string StatusGuidance => IsReminderNote ? ReminderGuidance : DescribeStatus(Status);
+
+        // Says why the workflow fields are unavailable, so the disabled state is
+        // explained rather than merely observed. The status guidance block is a
+        // polite live region, so a screen reader announces this on selection.
+        internal const string ReminderGuidance =
+            "Reminder — adds a timestamped entry to the top of this client's journal. " +
+            "It is not a service note: it has no status, minutes, or service date, and it " +
+            "does not go to your supervisor or into billing.";
 
         internal static string DescribeStatus(NoteStatus? status) => status switch
         {
@@ -173,6 +198,15 @@ namespace Sati.ViewModels.Children
         public Array FormTypes => Enum.GetValues(typeof(FormType));
         public bool IsFormNote => SelectedNoteType == NoteType.Form;
         public bool IsVisitNote => SelectedNoteType == NoteType.Visit;
+
+        // A reminder is not service documentation. It has no place in the review
+        // workflow, no billable minutes, no service date, and no visit facts, so
+        // the controls those drive are DISABLED rather than hidden: the form keeps
+        // its shape and the case manager can see what a reminder does not carry.
+        // Client and narrative are the only inputs.
+        public bool IsReminderNote => SelectedNoteType == NoteType.Reminder;
+        public bool AreNoteFieldsEnabled => !IsReminderNote;
+        public string NarrativeLabel => IsReminderNote ? "REMINDER" : "NARRATIVE";
 
         partial void OnStatusChanged(NoteStatus? value)
         {
@@ -262,6 +296,26 @@ namespace Sati.ViewModels.Children
         {
             OnPropertyChanged(nameof(IsFormNote));
             OnPropertyChanged(nameof(IsVisitNote));
+            OnPropertyChanged(nameof(IsReminderNote));
+            OnPropertyChanged(nameof(AreNoteFieldsEnabled));
+            OnPropertyChanged(nameof(NarrativeLabel));
+            OnPropertyChanged(nameof(SaveActionLabel));
+            OnPropertyChanged(nameof(StatusGuidance));
+            FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+
+            if (value == NoteType.Reminder)
+            {
+                // Cleared, not merely disabled. A status or a set of minutes left
+                // behind by a half-finished note must not travel with the journal
+                // entry, and must not reappear if the case manager switches back to
+                // a service note and saves without revisiting these fields.
+                Status = null;
+                Minutes = null;
+                EventDate = null;
+                SelectedStartTime = null;
+                ClearAiReview();
+                AiStatusMessage = string.Empty;
+            }
 
             if (value != NoteType.Form)
                 SelectedFormType = null;
@@ -801,8 +855,11 @@ namespace Sati.ViewModels.Children
         [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
         [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
 
+        // Reminders are excluded at the command, not only in the view: the AI path
+        // drafts CASE NOTE prose from clinical context, which is the wrong shape
+        // for a reminder and would pull client context it has no reason to read.
         private bool CanFormatNarrativeWithAi() =>
-            IsLocalAiEnabled && !IsAiBusy && SelectedPerson is not null &&
+            IsLocalAiEnabled && !IsAiBusy && !IsReminderNote && SelectedPerson is not null &&
             !string.IsNullOrWhiteSpace(Narrative);
 
         [RelayCommand(CanExecute = nameof(CanFormatNarrativeWithAi))]
@@ -915,6 +972,15 @@ namespace Sati.ViewModels.Children
         [RelayCommand]
         private async Task SubmitNote()
         {
+            // A reminder leaves the note pipeline entirely — no status, no
+            // compliance gate, no billing window, and no Notes row. It is a journal
+            // entry, so it goes down its own path before any of that runs.
+            if (IsReminderNote)
+            {
+                await SubmitReminderAsync();
+                return;
+            }
+
             var errors = new List<string>();
 
             if (SelectedPerson is null) errors.Add("• Please select a client.");
@@ -969,6 +1035,52 @@ namespace Sati.ViewModels.Children
                 MessageBox.Show(
                     "Sati encountered an error saving your note. Please try again.",
                     "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Client and reminder text are the only inputs, so they are the only
+        // validation. The length bound is the contract's, so the desktop refuses
+        // exactly what the server refuses instead of discovering it in a 400.
+        private async Task SubmitReminderAsync()
+        {
+            var errors = new List<string>();
+            if (SelectedPerson is null)
+                errors.Add("• Please select a client.");
+            if (string.IsNullOrWhiteSpace(Narrative))
+                errors.Add("• Please enter the reminder.");
+            else if (Narrative.Trim().Length > JournalEntry.MaxTextLength)
+                errors.Add($"• A reminder is limited to {JournalEntry.MaxTextLength} characters.");
+
+            if (errors.Count > 0)
+            {
+                var dialog = _validationDialog(string.Join("\n", errors));
+                dialog.Owner = Application.Current.MainWindow;
+                dialog.ShowDialog();
+                return;
+            }
+
+            var personId = SelectedPerson!.Id;
+            try
+            {
+                // Flush the client page's pending journal edit FIRST — see
+                // JournalWriteStartingAsync. Then the writer prepends the stamped
+                // entry and returns the journal it actually wrote.
+                if (JournalWriteStartingAsync is not null)
+                    await JournalWriteStartingAsync(personId);
+
+                var journal = await _personService.AddJournalReminderAsync(personId, Narrative!);
+
+                // Note fields only: the client stays selected so several reminders
+                // can be added in a row, matching how notes behave here.
+                ClearNoteFields();
+                ReminderAdded?.Invoke(this, new JournalReminderAddedEventArgs(personId, journal));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SubmitReminder failed: {ex.Message}");
+                MessageBox.Show(
+                    "Sati could not add the reminder to this client's journal. Your text remains on screen, so you can try again.",
+                    "Reminder Not Added", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1220,5 +1332,16 @@ namespace Sati.ViewModels.Children
             ClearNoteFields();
             People.Clear();
         }
+    }
+
+    /// <summary>
+    /// A stamped reminder reached the client's journal. Carries the journal text
+    /// the writer produced so a host showing the same column can display what was
+    /// actually stored rather than re-composing the entry itself.
+    /// </summary>
+    public sealed class JournalReminderAddedEventArgs(int personId, string? journal) : EventArgs
+    {
+        public int PersonId { get; } = personId;
+        public string? Journal { get; } = journal;
     }
 }

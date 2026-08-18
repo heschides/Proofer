@@ -31,6 +31,8 @@ internal static class LocalAuditActions
     public const string PersonCreated = "person.created";
     public const string PersonUpdated = "person.updated";
     public const string PersonJournalUpdated = "person.journal-updated";
+    // Mirrors AuditActions.PersonJournalReminderAdded on the API side.
+    public const string PersonJournalReminderAdded = "person.journal-reminder-added";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
     public const string AuditExported = "audit.exported";

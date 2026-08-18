@@ -654,6 +654,7 @@ rather than in either client.
 | `AtRequestScreenshot` | The accepted format, downscale target, and size ceiling for a pasted item evidence clip. |
 | `BillingRules.IsValidNpi` | NPI check-digit validation, shared by claim generation and provider directory entry. |
 | `IncidentHealthScoring` | The versioned operational health score. |
+| `JournalEntry` | The stamp format, the length ceiling, and the newest-first placement of an application-written journal entry. |
 
 ---
 

@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 
 namespace Sati.Data
@@ -96,6 +97,35 @@ namespace Sati.Data
                     "Person",
                     personId);
             await context.SaveChangesAsync();
+        }
+
+        // Read, prepend, and write inside ONE short-lived context so the entry is
+        // placed against the journal as it exists at write time. The caller never
+        // supplies the journal it thinks is current, and never supplies the stamp:
+        // JournalEntry composes both. Mirrors the API's journal-entries route —
+        // the same agency gate, the same ledger snapshot, the same audit action —
+        // because this transitional local path must not enforce the rule its own way.
+        public async Task<string?> AddJournalReminderAsync(int personId, string text)
+        {
+            var actor = CurrentActor();
+            await using var context = _contextFactory.CreateDbContext();
+            var person = await context.People.SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId);
+            if (person is null)
+                throw new InvalidOperationException("This Person was not found in your agency.");
+
+            var before = PersonLifecycleLedger.Capture(person);
+            await PersonLifecycleLedger.EnsureBaselineAsync(context, person);
+            person.Journal = JournalEntry.PrependReminder(person.Journal, DateTime.Now, text);
+            if (PersonLifecycleLedger.RecordChanged(context, actor, person, before, "Journal reminder added"))
+                LocalAuditTrail.Record(
+                    context,
+                    actor,
+                    LocalAuditActions.PersonJournalReminderAdded,
+                    "Person",
+                    personId);
+            await context.SaveChangesAsync();
+            return person.Journal;
         }
 
         private User CurrentActor() => _sessionService.CurrentUser
