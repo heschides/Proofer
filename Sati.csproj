@@ -46,21 +46,25 @@
     <Compile Remove="Sati.Api.Tests\**\*.cs" />
     <Compile Remove="Sati.Tests\**\*.cs" />
     <Compile Remove="Sati.Contracts\**\*.cs" />
+    <Compile Remove="Sati.Forms\**\*.cs" />
     <Compile Remove="tmp\**\*.cs" />
     <EmbeddedResource Remove="Sati.Api\**\*" />
     <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Contracts\**\*" />
+    <EmbeddedResource Remove="Sati.Forms\**\*" />
     <EmbeddedResource Remove="tmp\**\*" />
     <None Remove="Sati.Api\**\*" />
     <None Remove="Sati.Api.Tests\**\*" />
     <None Remove="Sati.Tests\**\*" />
     <None Remove="Sati.Contracts\**\*" />
+    <None Remove="Sati.Forms\**\*" />
     <None Remove="tmp\**\*" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="Sati.Contracts\Sati.Contracts.csproj" />
+    <ProjectReference Include="Sati.Forms\Sati.Forms.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -94,6 +98,9 @@
     <PackageReference Include="Microsoft.AI.Foundry.Local.WinML" Version="1.2.3" />
     <PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+    <!-- DPAPI, for wrapping local SSN data keys with the Windows user account key.
+         Windows-only by nature; the desktop already targets net10.0-windows. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
 

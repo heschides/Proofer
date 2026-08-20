@@ -49,4 +49,14 @@ internal static class LocalAuditActions
     public const string IncidentStatusUpdated = "incident-status.updated";
     public const string BillingEdiGenerated = "billing-edi.generated";
     public const string BillingConfigurationUpdated = "billing-configuration.updated";
+    public const string PersonSsnUpdated = "person.ssn-updated";
+    // A read is the disclosure, so it is recorded separately from whatever document
+    // occasioned it. Mirrors AuditActions.PersonSsnDecrypted on the API side.
+    public const string PersonSsnRevealed = "person.ssn-revealed";
+    // Mirrors AuditActions.DhhsFormGenerated on the API side. Generating a release
+    // form is a disclosure whichever environment produced it, so both paths record it
+    // under the same action name and an audit export does not have to know which
+    // client filled the form.
+    public const string DhhsFormGenerated = "dhhs-form.generated";
+    public const string AgencyReleaseGenerated = "agency-release.generated";
 }
