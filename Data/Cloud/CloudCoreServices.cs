@@ -153,6 +153,9 @@ public sealed class CloudScratchpadService(CloudApiClient api) : IScratchpadServ
     public async Task<Scratchpad> LoadTodayAsync(int userId) =>
         CloudContractMapper.ToScratchpad(await api.GetAsync<ScratchpadDto>("/api/v1/scratchpad/today"));
 
+    public async Task<Scratchpad> LoadTomorrowAsync(int userId) =>
+        CloudContractMapper.ToScratchpad(await api.GetAsync<ScratchpadDto>("/api/v1/scratchpad/tomorrow"));
+
     public async Task<List<Scratchpad>> GetHistoryAsync(int userId) =>
         (await api.GetAsync<List<ScratchpadDto>>("/api/v1/scratchpad/history")).Select(CloudContractMapper.ToScratchpad).ToList();
 

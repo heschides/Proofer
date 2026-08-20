@@ -103,6 +103,7 @@ Provisioned and validated on August 11, 2026:
 | Compute | Free-limit General Purpose serverless, `GP_S_Gen5_2`, 0.5 minimum vCore |
 | Cost guard | `AutoPause` when the monthly free allowance is exhausted |
 | Network | Public endpoint with three exact App Service outbound-IP rules; tester IPs are not allowed |
+| SSN key vault | `sati-demo-kv-satilogica`, key `ssn-demo`; purge protection enabled; API identity has only `wrapKey` / `unwrapKey` |
 
 The imported database was read back through an exact-IP temporary firewall rule and matched the
 verified local source: `Demo` identity marker, 15 users, 167 people, and 3,769 notes. On August 12,
@@ -119,6 +120,13 @@ Both `/health/live` and `/health/ready` returned HTTP 200 after the Admin/audit 
 August 12, 2026. Authenticated verification also covered the agency-scoped Admin overview, all 167
 Person list rows, first-view lifecycle baseline creation, recent activity, and PDF export; anonymous
 Admin access returned HTTP 401.
+
+On August 20, 2026, the Demo-only SSN Key Vault and guarded operational seed route
+were deployed with OneDeploy deployment `6bd6cf80e3a2490f80777135d60bf93f`.
+Post-deploy live and ready health returned HTTP 200, and the authenticated agency
+Admin seed encrypted deterministic synthetic SSNs for all 177 Demo People. The
+ordinary read/write/form routes remain restricted to each Person's assigned case
+manager; the seed did not broaden those permissions.
 
 On August 13, 2026, the additive billing configuration/snapshot migration was applied to Azure
 `SatiDemo`, and ten clearly marked synthetic billing scenarios were seeded for Sandbox Mode:

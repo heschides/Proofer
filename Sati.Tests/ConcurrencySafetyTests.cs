@@ -49,6 +49,26 @@ public sealed class ConcurrencySafetyTests
     }
 
     [Fact]
+    public async Task ScratchpadFlushSavesTodayAndTomorrow()
+    {
+        var service = new BlockingScratchpadService();
+        service.ReleaseFirstSave.TrySetResult();
+        var viewModel = new ScratchpadViewModel(
+            service,
+            CreateSession(UserRole.CaseManager));
+        await viewModel.InitializeAsync();
+        viewModel.ScratchpadContent = "finish today's calls";
+        viewModel.TomorrowAgendaContent = "start with the annual review";
+
+        var saved = await viewModel.SaveAllScratchpadsAsync();
+
+        Assert.True(saved);
+        Assert.Equal(
+            ["finish today's calls", "start with the annual review"],
+            service.SavedContents);
+    }
+
+    [Fact]
     public async Task BillingQueueCollapsesOverlappingLoads()
     {
         var service = new BlockingBillingService();
@@ -115,6 +135,14 @@ public sealed class ConcurrencySafetyTests
             Id = 1,
             UserId = userId,
             Date = DateTime.Today,
+            Revision = 1
+        });
+
+        public Task<Scratchpad> LoadTomorrowAsync(int userId) => Task.FromResult(new Scratchpad
+        {
+            Id = 2,
+            UserId = userId,
+            Date = DateTime.Today.AddDays(1),
             Revision = 1
         });
 

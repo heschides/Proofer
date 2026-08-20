@@ -1,106 +1,223 @@
 <UserControl x:Class="Sati.Views.ScratchpadView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="AgendaTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBackground"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Margin="2"
+                                Padding="8,7">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBackground" Property="Background"
+                                        Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBackground" Property="Background"
+                                        Value="{DynamicResource SurfaceBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource AccentPressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AgendaTabControlStyle" TargetType="TabControl">
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <UniformGrid IsItemsHost="True" Rows="1" />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="2">
+                                <ItemsPresenter />
+                            </Border>
+                            <ContentPresenter Grid.Row="1"
+                                              Margin="0,10,0,0"
+                                              Content="{TemplateBinding SelectedContent}"
+                                              ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AgendaTextBoxStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource NarrativeFont}" />
+            <Setter Property="FontSize" Value="{Binding ScratchpadFontSize}" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="SpellCheck.IsEnabled" Value="True" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Resources>
+
     <Border Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6"
+            CornerRadius="8"
             Padding="14">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Header -->
-            <StackPanel Grid.Row="0"
-                        Orientation="Horizontal"
-                        Margin="0,0,0,8">
-                <TextBlock Text="TODAY'S WORK"
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="WORK AGENDA"
                            FontSize="13"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            VerticalAlignment="Center" />
-            <Button Command="{Binding OpenScratchpadHistoryCommand}"
-                    AutomationProperties.Name="Open scratchpad history"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand"
-                        Margin="8,0,0,0"
-                        Padding="4"
-                        ToolTip="Browse scratchpad history">
-                    <TextBlock Text="&#xE721;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="14"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                </Button>
-            <Button Command="{Binding DecreaseScratchpadFontCommand}"
-                    AutomationProperties.Name="Decrease scratchpad text size"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand"
-                        Padding="4,0"
-                        Margin="8,0,0,0">
-                    <TextBlock Text="A"
-                               FontSize="11"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                </Button>
-            <Button Command="{Binding IncreaseScratchpadFontCommand}"
-                    AutomationProperties.Name="Increase scratchpad text size"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand"
-                        Padding="4,0">
-                    <TextBlock Text="A"
-                               FontSize="16"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               FontWeight="SemiBold" />
-                </Button>
-            </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Command="{Binding OpenScratchpadHistoryCommand}"
+                            AutomationProperties.Name="Open scratchpad history"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Padding="4"
+                            ToolTip="Browse scratchpad history">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Button>
+                    <Button Command="{Binding DecreaseScratchpadFontCommand}"
+                            AutomationProperties.Name="Decrease agenda text size"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Padding="4,0"
+                            Margin="6,0,0,0">
+                        <TextBlock Text="A" FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Button>
+                    <Button Command="{Binding IncreaseScratchpadFontCommand}"
+                            AutomationProperties.Name="Increase agenda text size"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Padding="4,0">
+                        <TextBlock Text="A" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Button>
+                </StackPanel>
+            </Grid>
 
-            <Border Grid.Row="1"
-                    Margin="0,0,0,8"
-                    Padding="8"
-                    Background="{DynamicResource WarningFillBrush}"
-                    BorderBrush="{DynamicResource WarningBrush}"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Visibility="{Binding HasScratchpadConflict,
-                                         Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding ScratchpadConflictMessage}"
-                               Foreground="{DynamicResource WarningBrush}"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center" />
-                    <Button Grid.Column="1"
-                            Margin="8,0,0,0"
-                            Padding="8,4"
-                            Content="Reload Latest"
-                            Command="{Binding ReloadLatestScratchpadCommand}"
-                            AutomationProperties.Name="Reload latest saved scratchpad" />
-                </Grid>
-            </Border>
+            <TabControl Grid.Row="1" Style="{StaticResource AgendaTabControlStyle}">
+                <TabItem Header="TODAY'S WORK"
+                         AutomationProperties.Name="Today's Work"
+                         Style="{StaticResource AgendaTabItemStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Margin="0,0,0,8"
+                                Padding="8"
+                                Background="{DynamicResource WarningFillBrush}"
+                                BorderBrush="{DynamicResource WarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Visibility="{Binding HasScratchpadConflict,
+                                                     Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ScratchpadConflictMessage}"
+                                           Foreground="{DynamicResource WarningBrush}"
+                                           TextWrapping="Wrap" />
+                                <Button Margin="0,8,0,0"
+                                        Padding="8,4"
+                                        HorizontalAlignment="Left"
+                                        Content="Reload Latest"
+                                        Command="{Binding ReloadLatestScratchpadCommand}"
+                                        AutomationProperties.Name="Reload latest Today's Work" />
+                            </StackPanel>
+                        </Border>
+                        <TextBox x:Name="TodaysWorkBox"
+                                 Grid.Row="1"
+                                 AutomationProperties.Name="Today's Work"
+                                 Style="{StaticResource AgendaTextBoxStyle}"
+                                 Text="{Binding ScratchpadContent, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="AgendaBox_KeyDown" />
+                    </Grid>
+                </TabItem>
 
-            <!-- Scratchpad text area -->
-            <TextBox AutomationProperties.Name="Today's scratchpad" x:Name="TodaysWorkBox"
-                     Grid.Row="2"
-                     FontFamily="{StaticResource NarrativeFont}"
-                     FontSize="{Binding ScratchpadFontSize}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     SpellCheck.IsEnabled="True"
-                     VerticalScrollBarVisibility="Auto"
-                     VerticalAlignment="Stretch"
-                     Text="{Binding ScratchpadContent, UpdateSourceTrigger=PropertyChanged}"
-                     BorderThickness="0"
-                     Margin="0"
-                     Background="Transparent"
-                     KeyDown="TodaysWorkBox_KeyDown" />
+                <TabItem Header="TOMORROW'S AGENDA"
+                         AutomationProperties.Name="Tomorrow's Agenda"
+                         Style="{StaticResource AgendaTabItemStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{Binding TomorrowAgendaDateLabel}"
+                                   Margin="2,0,0,8"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <Border Grid.Row="1"
+                                Margin="0,0,0,8"
+                                Padding="8"
+                                Background="{DynamicResource WarningFillBrush}"
+                                BorderBrush="{DynamicResource WarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Visibility="{Binding HasTomorrowAgendaConflict,
+                                                     Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding TomorrowAgendaConflictMessage}"
+                                           Foreground="{DynamicResource WarningBrush}"
+                                           TextWrapping="Wrap" />
+                                <Button Margin="0,8,0,0"
+                                        Padding="8,4"
+                                        HorizontalAlignment="Left"
+                                        Content="Reload Latest"
+                                        Command="{Binding ReloadLatestTomorrowAgendaCommand}"
+                                        AutomationProperties.Name="Reload latest Tomorrow's Agenda" />
+                            </StackPanel>
+                        </Border>
+                        <TextBox x:Name="TomorrowAgendaBox"
+                                 Grid.Row="2"
+                                 AutomationProperties.Name="Tomorrow's Agenda for the next workday"
+                                 Style="{StaticResource AgendaTextBoxStyle}"
+                                 Text="{Binding TomorrowAgendaContent, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="AgendaBox_KeyDown" />
+                    </Grid>
+                </TabItem>
+            </TabControl>
         </Grid>
     </Border>
 </UserControl>

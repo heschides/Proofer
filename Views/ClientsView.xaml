@@ -59,6 +59,100 @@
                     Value="0,0,0,8" />
         </Style>
 
+        <Style x:Key="SsnFieldStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="FieldBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="FieldBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SsnActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ButtonBaseStyle}">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource HoverStrongBrush}" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Tag" Value="Primary" />
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Tag" Value="Primary" />
+                                    <Condition Property="IsPressed" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SsnPrimaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource SsnActionButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+            <Setter Property="Tag" Value="Primary" />
+        </Style>
+
         <Style TargetType="CheckBox">
             <Setter Property="Foreground"
                     Value="{DynamicResource TextPrimaryBrush}" />
@@ -1000,55 +1094,87 @@
                                  the Social Security Administration, and hiding clears it
                                  from the view model rather than merely from view. -->
                             <Border Grid.Row="5" Grid.ColumnSpan="4"
-                                    Margin="0,12,0,0"
-                                    Padding="12,10"
-                                    CornerRadius="6"
-                                    Background="{DynamicResource PersonGroupAltBrush}"
+                                    Margin="0,14,0,0"
+                                    Padding="16"
+                                    CornerRadius="12"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource SurfaceBrush}"
                                     Visibility="{Binding SsnPanel.SupportsStorage, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="SOCIAL SECURITY NUMBER" Style="{StaticResource LabelStyle}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                        <TextBlock Text="{Binding SsnPanel.Masked}"
-                                                   FontSize="15"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   AutomationProperties.Name="Social Security number on file" />
-                                        <TextBlock Text="{Binding SsnPanel.Revealed}"
-                                                   FontSize="15"
-                                                   FontWeight="Bold"
-                                                   Margin="12,0,0,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource AccentPressedBrush}"
-                                                   AutomationProperties.Name="Full Social Security number, currently shown"
-                                                   Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                        <Button Content="Show"
-                                                Margin="12,0,0,0"
-                                                Command="{Binding SsnPanel.RevealCommand}"
-                                                AutomationProperties.Name="Show the full Social Security number"
-                                                AutomationProperties.HelpText="Recorded as a disclosure in the audit trail."
-                                                Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
-                                        <Button Content="Hide"
-                                                Margin="12,0,0,0"
-                                                Command="{Binding SsnPanel.HideCommand}"
-                                                AutomationProperties.Name="Hide the full Social Security number"
-                                                Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Social Security number"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="Encrypted identity information"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Padding="12,6"
+                                                    CornerRadius="12"
+                                                    Background="{DynamicResource PersonGroupAltBrush}">
+                                                <TextBlock Text="{Binding SsnPanel.Masked}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           AutomationProperties.Name="Social Security number on file" />
+                                            </Border>
+                                            <TextBlock Text="{Binding SsnPanel.Revealed}"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Margin="12,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentPressedBrush}"
+                                                       AutomationProperties.Name="Full Social Security number, currently shown"
+                                                       Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            <Button Content="Show"
+                                                    Style="{StaticResource SsnActionButtonStyle}"
+                                                    Margin="10,0,0,0"
+                                                    Command="{Binding SsnPanel.RevealCommand}"
+                                                    AutomationProperties.Name="Show the full Social Security number"
+                                                    AutomationProperties.HelpText="Recorded as a disclosure in the audit trail."
+                                                    Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                            <Button Content="Hide"
+                                                    Style="{StaticResource SsnActionButtonStyle}"
+                                                    Margin="10,0,0,0"
+                                                    Command="{Binding SsnPanel.HideCommand}"
+                                                    AutomationProperties.Name="Hide the full Social Security number"
+                                                    Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </StackPanel>
+                                    </Grid>
 
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <TextBox Width="150"
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="220" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Style="{StaticResource SsnFieldStyle}"
                                                  Text="{Binding SsnPanel.Entry, UpdateSourceTrigger=PropertyChanged}"
                                                  AutomationProperties.Name="Enter a new Social Security number"
                                                  AutomationProperties.HelpText="Nine digits. Dashes optional." />
-                                        <Button Content="Save"
-                                                Margin="8,0,0,0"
+                                        <Button Grid.Column="1"
+                                                Content="Save securely"
+                                                Style="{StaticResource SsnPrimaryButtonStyle}"
+                                                Margin="10,0,0,0"
                                                 Command="{Binding SsnPanel.SaveCommand}"
                                                 AutomationProperties.Name="Save the Social Security number" />
-                                        <Button Content="Remove"
-                                                Margin="8,0,0,0"
+                                        <Button Grid.Column="2"
+                                                Content="Remove"
+                                                Style="{StaticResource SsnActionButtonStyle}"
+                                                Margin="10,0,0,0"
                                                 Command="{Binding SsnPanel.ClearCommand}"
                                                 AutomationProperties.Name="Remove the stored Social Security number" />
-                                    </StackPanel>
+                                    </Grid>
 
                                     <TextBlock Text="{Binding SsnPanel.StatusMessage}"
                                                Margin="0,6,0,0"

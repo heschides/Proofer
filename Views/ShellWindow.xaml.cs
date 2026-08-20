@@ -51,6 +51,12 @@ namespace Sati.Views
             _myAccountViewModelFactory = myAccountViewModelFactory;
             DataContext = shellViewModel;
 
+            // A workstation may remain open overnight. Returning to the window
+            // advances the two dated agenda views immediately; the autosave timer
+            // provides the same check while the window stays active.
+            Activated += async (s, e) =>
+                await _shellViewModel.Scratchpad.RollForwardIfNeededAsync();
+
             // The view model owns whether the panel is open; collapsing the actual grid
             // column and restoring its width is view layout, so it lives here. React to
             // the flag flipping.
@@ -138,8 +144,7 @@ namespace Sati.Views
                 if (_isSavingOnClose) return;
                 _isSavingOnClose = true;
 
-                var content = _shellViewModel.Scratchpad.ScratchpadContent;
-                if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                if (!await _shellViewModel.Scratchpad.SaveAllScratchpadsAsync())
                 {
                     _isSavingOnClose = false;
                     return;
@@ -186,8 +191,7 @@ namespace Sati.Views
                 }
                 else
                 {
-                    var content = _shellViewModel.Scratchpad.ScratchpadContent;
-                    if (!await _shellViewModel.Scratchpad.SaveScratchpadAsync(content))
+                    if (!await _shellViewModel.Scratchpad.SaveAllScratchpadsAsync())
                         return;
                     if (!await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync())
                     {

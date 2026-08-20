@@ -616,7 +616,11 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   the audit event. User-specific overrides are deliberately absent until a concrete requirement exists.
 
 ### `ScratchpadService`
-- Owns one daily Scratchpad per user plus append-only retrospective comments. Scratchpad content
+- Owns one dated Scratchpad per user plus append-only retrospective comments. Today's Work loads
+  the agency-local current date; Tomorrow's Agenda loads the next weekday through the shared
+  `WorkAgendaDates` rule (Friday, Saturday, and Sunday resolve to Monday). The future agenda is the
+  future day's actual row, not a second record copied by a rollover job, so it becomes Today's Work
+  automatically and cannot be promoted twice. Scratchpad content
   carries a `Revision`; saves load the current user's tracked row and reject stale copies instead
   of updating a detached object graph.
 - The API returns `409 stale_scratchpad` for stale or legacy autosaves. Content-identical autosaves
@@ -926,9 +930,11 @@ and confirmation; the API owns hashing and salting. Summary/overview VMs clean.
 
 ### Children ViewModels
 `CalendarViewModel`: `ToggleExempt` fires `ExemptDateChanged` (correct cross-VM coordination);
-`BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: 10-min auto-save from
-`InitializeAsync`; explicit shutdown save; diagnostics omit scratchpad content. A save conflict
-stops the timer, preserves the draft, blocks shutdown/user switching, and exposes Reload Latest;
+`BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: loads separate Today and next-
+workday drafts, rolls them forward after midnight on window activation or the 10-min timer, and
+explicitly saves both on shutdown/user-switch; diagnostics omit scratchpad content. A conflict is
+tracked and reloadable per tab, stops
+the timer, preserves both visible drafts, and blocks shutdown/user switching until resolved;
 identical autosaves are server-side no-ops.
 `GuidanceViewModel`/`HelpersViewModel`: static content.
 

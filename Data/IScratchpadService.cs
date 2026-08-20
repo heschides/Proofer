@@ -8,6 +8,7 @@ namespace Sati.Data
     public interface IScratchpadService
     {
         Task<Scratchpad> LoadTodayAsync(int userId);
+        Task<Scratchpad> LoadTomorrowAsync(int userId);
         Task<List<Scratchpad>> GetHistoryAsync(int userId);
         Task<ScratchpadComment> AddCommentAsync(
             int scratchpadId,

@@ -355,6 +355,21 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
 - [x] Carry the retry contract through the shared API contracts and local service boundary without
   beginning the deliberately post-pilot MAUI/Avalonia business-logic extraction.
 
+### Completed 2026-08-20 -- Tomorrow's Agenda
+
+- [x] Add Tomorrow's Agenda beside Today's Work in the existing scratchpad panel, with both drafts
+  included in autosave, app-close, and account-switch flushes.
+- [x] Store the agenda as the next workday's existing per-user Scratchpad row so it becomes Today's
+  Work automatically without a midnight copy or duplicate-promotion state.
+- [x] Put the Friday/Saturday/Sunday-to-Monday rule in `Sati.Contracts.V1.WorkAgendaDates` and use
+  the API's agency-local clock to select the cloud row; holidays remain deferred until Sati has an
+  authoritative agency holiday-calendar policy.
+- [x] Preserve revision conflicts independently for both tabs and cover the calendar rule, route
+  ownership, stable row identity, and cross-user isolation with automated tests.
+- [x] Deploy the matching API surface to hosted Demo with OneDeploy
+  `2bf8bd7fb3ea4ca39595a87da836f727`; readiness returned 200 and the live contract revision
+  `A4FB297F7FE6` matched the release build.
+
 ### Completed 2026-08-12 -- scratchpad concurrency boundary
 
 - [x] Protect each user's daily Scratchpad with a `Revision` token across local SQL, cloud
@@ -1443,11 +1458,18 @@ the SSN read and write routes, log-redaction enforcement, and both
 - **Migration applied 2026-08-19.** `AddEncryptedSsn` and the remaining queued schema
   migrations were applied to `SatiDemo`; local `SatiProduction` was already current.
   Controlled migration deployment remains manual; see the hosted-Demo item above.
-- **No Key Vault key is provisioned.** Until `Ssn:KeyUri` is set, startup registers
-  `UnconfiguredKeyWrapper` and every SSN operation fails closed with an explanation
-  naming what is missing. The API still starts and serves everything else. Demo and
-  Production need DIFFERENT keys, each granting `wrapKey`/`unwrapKey` and nothing
-  more.
+- **The Demo Key Vault key was provisioned 2026-08-20.** The Demo API now receives
+  the versionless `Ssn__KeyUri` for `ssn-demo` in the purge-protected
+  `sati-demo-kv-satilogica` vault. Its system-assigned identity has only `wrapKey`
+  and `unwrapKey`. Production still requires a separate key before the Production
+  API path stores SSNs; never reuse the Demo vault or key there.
+- **Synthetic Demo SSNs were seeded 2026-08-20.** The Admin-only operational route
+  encrypted deterministic synthetic values for all 177 agency People through the
+  Demo Key Vault and recorded `person.ssn-updated` per Person. The route remains
+  effective only when startup validates exactly `SatiDemo` / `Demo`; ordinary SSN
+  routes remain own-caseload only. `scripts/Seed-DemoSsns.ps1` is the repeatable
+  wrapper for a future approved Demo reset. Do not write SSN columns directly in
+  Azure SQL.
 - **Demo users and agencies carry no synthetic representative information,** so every
   Demo fill currently reports the representative boxes as needing hand-completion.
 - **Desktop UI completed 2026-08-19.** The selected consumer now has a `DHHS Forms`

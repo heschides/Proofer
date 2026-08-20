@@ -63,6 +63,29 @@ public sealed class SsnAndFormApiTests
         Assert.Equal(HttpStatusCode.NotFound, form.StatusCode);
     }
 
+    [Fact]
+    public async Task DemoSsnSeedIsAdminOnlyAndStaysInsideTheAdminsAgency()
+    {
+        using var caseManager = await CaseManagerAsync();
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        using var otherAgency = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
+        var agencyPeople = await admin.GetFromJsonAsync<List<AdminPersonListItemDto>>("/api/v1/admin/people");
+        var otherBefore = await otherAgency.GetFromJsonAsync<SsnStatusDto>(SsnRoute(OtherAgencyPerson));
+
+        var denied = await caseManager.PostAsync("/api/v1/admin/demo/seed-ssns", null);
+        var seeded = await admin.PostAsync("/api/v1/admin/demo/seed-ssns", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        seeded.EnsureSuccessStatusCode();
+        Assert.Equal(agencyPeople!.Count, (await seeded.Content.ReadFromJsonAsync<CountDto>())!.Count);
+
+        var ownStatus = await caseManager.GetFromJsonAsync<SsnStatusDto>(SsnRoute(OwnPerson));
+        var otherAfter = await otherAgency.GetFromJsonAsync<SsnStatusDto>(SsnRoute(OtherAgencyPerson));
+
+        Assert.Equal("***-**-0001", ownStatus!.Masked);
+        Assert.Equal(otherBefore, otherAfter);
+    }
+
     /// <summary>
     /// Storing a number answers with the mask. This is the containment rule at its
     /// most tempting point: the caller just sent the number, so echoing it back feels

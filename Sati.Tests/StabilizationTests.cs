@@ -456,9 +456,31 @@ public sealed class StabilizationTests
         converted.CopyPixels(pixels, 256 * 4, 0);
 
         Assert.True(pixels[3] < 16, "The application icon's outer corner should be transparent.");
-        Assert.True(
-            pixels[((128 * 256) + 128) * 4 + 3] > 240,
-            "The application icon's center should remain opaque.");
+
+        var opaquePixels = 0;
+        var minX = 256;
+        var minY = 256;
+        var maxX = -1;
+        var maxY = -1;
+        for (var y = 0; y < 256; y++)
+        {
+            for (var x = 0; x < 256; x++)
+            {
+                if (pixels[((y * 256) + x) * 4 + 3] <= 128)
+                    continue;
+
+                opaquePixels++;
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        Assert.True(opaquePixels > 256 * 256 / 4,
+            "The transparent icon should still contain substantial opaque leaf artwork.");
+        Assert.True(maxX - minX >= 190 && maxY - minY >= 220,
+            "The leaf should occupy most of the Windows icon frame.");
     }
 
     [Fact]

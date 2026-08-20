@@ -10,7 +10,7 @@ namespace Sati.Views
             InitializeComponent();
         }
 
-        private void TodaysWorkBox_KeyDown(object sender, KeyEventArgs e)
+        private void AgendaBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter &&
                 (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)

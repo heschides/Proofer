@@ -1216,3 +1216,22 @@ returns a sentence naming the cause and the fix.
 recorded whether the number was revealed for a phone call or consumed by a form fill,
 mirroring `person.ssn-decrypted` on the API side. The action is recorded; the value
 never is.
+
+## Tomorrow's Agenda is tomorrow's dated scratchpad, not a rollover copy (2026-08-20)
+
+Tomorrow's Agenda and Today's Work are two views over the existing per-user, per-date
+Scratchpad aggregate. The future entry is created against the next workday and edited in place.
+When that date arrives, the ordinary Today query returns the same row. There is no midnight copy,
+promotion flag, or background job that could duplicate, reorder, or lose text after a retry.
+
+`WorkAgendaDates` in `Sati.Contracts.V1` owns the date rule for both local Production and the API:
+Monday through Thursday advance one day, while Friday, Saturday, and Sunday resolve to Monday.
+This is a weekday rule only. Holidays are intentionally not skipped until Sati has an authoritative
+agency holiday-calendar policy; silently borrowing incentive-exclusion settings would make an
+individual scheduling preference control a durable work record.
+
+The cloud client cannot submit a future date. It asks for `/scratchpad/tomorrow`, and the API derives
+the date from its agency-local clock and scopes the row to the authenticated user. Both tabs retain
+the existing revision/409 behavior and are flushed on app close and account switching. A desktop
+left running overnight checks for rollover on window activation and on its ten-minute autosave tick;
+it saves the old visible drafts before swapping either tab to the new dated rows.

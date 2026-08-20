@@ -1192,6 +1192,39 @@ public sealed class TenantAuthorizationTests
         Assert.Equal("Scratchpad", savedEvent.ResourceType);
     }
 
+    [Fact]
+    public async Task TomorrowAgendaIsTheCurrentUsersNextWorkdayScratchpad()
+    {
+        using var user = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var otherUser = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
+
+        var today = await user.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var tomorrow = await user.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/tomorrow");
+        var sameTomorrow = await user.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/tomorrow");
+        var otherTomorrow = await otherUser.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/tomorrow");
+
+        Assert.NotNull(today);
+        Assert.NotNull(tomorrow);
+        Assert.Equal(WorkAgendaDates.NextWorkday(today!.Date), tomorrow!.Date);
+        Assert.Equal(tomorrow.Id, sameTomorrow!.Id);
+        Assert.Equal(today.UserId, tomorrow.UserId);
+        Assert.NotEqual(tomorrow.Id, otherTomorrow!.Id);
+        Assert.NotEqual(tomorrow.UserId, otherTomorrow.UserId);
+
+        var savedResponse = await user.PutAsJsonAsync(
+            "/api/v1/scratchpad",
+            new SaveScratchpadRequest(
+                tomorrow.Id,
+                "Start with the annual review",
+                tomorrow.Revision));
+        savedResponse.EnsureSuccessStatusCode();
+
+        var unchangedToday = await user.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/today");
+        var savedTomorrow = await user.GetFromJsonAsync<ScratchpadDto>("/api/v1/scratchpad/tomorrow");
+        Assert.Equal(today.Content, unchangedToday!.Content);
+        Assert.Equal("Start with the annual review", savedTomorrow!.Content);
+    }
+
     // ── Provider directory entries carry durable organization identity ────────
     // A directory entry names a real organization that may later join the platform
     // as a tenant. These identifiers are what make that recognition possible, so

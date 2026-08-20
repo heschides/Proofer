@@ -29,6 +29,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Audit | `GET /audit-events` | Audit event's `AgencyId` | Admin only; response is restricted to actor agency, a bounded date window, and at most 500 rows. |
 | Admin | `GET /admin/overview` | Actor's `AgencyId` | Admin only; every count is computed within the actor's agency. |
 | Admin | `GET /admin/people` | Person and assigned user's `AgencyId` | Admin only; both ownership markers must equal actor agency. |
+| Admin | `POST /admin/demo/seed-ssns` | Person's `AgencyId` | Admin only; enabled in effect only when the API's startup-validated identity is exactly `SatiDemo` / `Demo`. Generates deterministic synthetic values server-side, encrypts through the configured Demo Key Vault, remains within actor agency, and records `person.ssn-updated` for every Person. It does not broaden the ordinary own-caseload SSN routes. |
 | Admin | `GET /admin/activity` | Audit event's `AgencyId` | Admin only; bounded activity feed with actor display names from the same agency. |
 | Admin | `GET /admin/operations` | Actor's `AgencyId` | Admin only; reports database health, retained audit/EDI counts, oldest-record timestamps, and the configured retention policy for the actor's agency. |
 | Admin | `POST /admin/audit-export.csv` | Audit event's `AgencyId` | Admin only; agency derived from the actor and never from the caller. Requires a 10–250 character reason and a window of at most 366 days, caps at 10,000 rows, marks the response `no-store`, and records one `audit.exported` event. Exported values are neutralized against spreadsheet formula evaluation. |
@@ -92,6 +93,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Settings | `GET /settings` | Settings `AgencyId` | Actor's agency only. |
 | Settings | `PUT /settings` | Settings `AgencyId` | Admin only in actor's agency; provider references must share the agency. |
 | Scratchpad | `GET /scratchpad/today` | Scratchpad `UserId` | Own user only. |
+| Scratchpad | `GET /scratchpad/tomorrow` | Scratchpad `UserId` | Own user only; server resolves the next workday, including Friday-to-Monday rollover. |
 | Scratchpad | `GET /scratchpad/history` | Scratchpad `UserId` | Own user only. |
 | Scratchpad | `PUT /scratchpad` | Scratchpad `UserId` | Own user only. |
 | Scratchpad | `POST /scratchpad/{scratchpadId}/comments` | Scratchpad `UserId` | Own historical scratchpad only. |

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
+using Sati.Contracts.V1;
 using System.Diagnostics;
 
 namespace Sati.Data
@@ -14,16 +15,21 @@ namespace Sati.Data
             _sessionService = sessionService;
         }
 
-        public async Task<Scratchpad> LoadTodayAsync(int userId)
+        public Task<Scratchpad> LoadTodayAsync(int userId) =>
+            LoadForDateAsync(userId, DateTime.Today);
+
+        public Task<Scratchpad> LoadTomorrowAsync(int userId) =>
+            LoadForDateAsync(userId, WorkAgendaDates.NextWorkday(DateTime.Today));
+
+        private async Task<Scratchpad> LoadForDateAsync(int userId, DateTime date)
         {
             await using var context = _contextFactory.CreateDbContext();
-            var today = DateTime.Today;
             var scratchpad = await context.Scratchpad
-                .FirstOrDefaultAsync(s => s.UserId == userId && s.Date == today);
+                .FirstOrDefaultAsync(s => s.UserId == userId && s.Date == date);
 
             if (scratchpad is null)
             {
-                scratchpad = new Scratchpad { UserId = userId, Date = today };
+                scratchpad = new Scratchpad { UserId = userId, Date = date };
                 context.Scratchpad.Add(scratchpad);
                 await context.SaveChangesAsync();
             }

@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Sati.Api.Data;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
@@ -356,6 +357,59 @@ internal static class ApiEndpoints
                     user.DisplayName))
                 .ToListAsync(cancellationToken);
             return Results.Ok(people);
+        });
+
+        // Operational Demo seed only. This is deliberately not a broader permission
+        // on the ordinary SSN route: case managers still own day-to-day SSN writes,
+        // while this one bounded command lets an agency Admin restore the wholly
+        // synthetic Demo dataset without impersonating every case manager.
+        api.MapPost("/admin/demo/seed-ssns", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            EnvelopeProtector protector,
+            AuditTrail auditTrail,
+            IOptions<SatiApiOptions> options,
+            IHostEnvironment hostEnvironment,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            // DatabaseIdentityHostedService validates these configured expectations
+            // against dbo.SatiDatabaseIdentity at startup. Requiring both values here
+            // keeps this synthetic-data command absent in effect on Production even
+            // if the same API binary is deployed there later.
+            var isValidatedDemo =
+                string.Equals(options.Value.ExpectedDatabaseName, "SatiDemo", StringComparison.Ordinal) &&
+                string.Equals(options.Value.ExpectedEnvironment, "Demo", StringComparison.Ordinal);
+            var isIsolatedTestHost =
+                hostEnvironment.IsEnvironment("Testing") &&
+                string.Equals(options.Value.ExpectedDatabaseName, "SatiApiTests", StringComparison.Ordinal) &&
+                string.Equals(options.Value.ExpectedEnvironment, "Testing", StringComparison.Ordinal);
+            if (!isValidatedDemo && !isIsolatedTestHost)
+                return Results.NotFound();
+
+            var people = await db.People
+                .Where(person => person.AgencyId == actor.AgencyId)
+                .OrderBy(person => person.Id)
+                .ToListAsync(cancellationToken);
+            if (people.Count is < 1 or > 9999)
+                return Results.Conflict(new ApiErrorDto(
+                    "demo_seed_range",
+                    "The Demo Person count is outside the supported synthetic SSN seed range.",
+                    string.Empty));
+
+            for (var index = 0; index < people.Count; index++)
+            {
+                var syntheticSsn = $"89999{index + 1:D4}";
+                await ProtectSsnAsync(
+                    people[index], actor.AgencyId, syntheticSsn, protector, cancellationToken);
+                auditTrail.Record(actor, AuditActions.PersonSsnUpdated, "Person", people[index].Id);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(new CountDto(people.Count));
         });
 
         api.MapGet("/admin/activity", async Task<IResult> (
@@ -1220,14 +1274,7 @@ internal static class ApiEndpoints
                     });
                 }
 
-                var binding = new FieldBinding(actor.AgencyId, person.Id, "Ssn");
-                var protectedValue = await protector.ProtectAsync(normalized, binding, cancellationToken);
-                person.SsnCiphertext = protectedValue.Ciphertext;
-                person.SsnNonce = protectedValue.Nonce;
-                person.SsnTag = protectedValue.Tag;
-                person.SsnWrappedKey = protectedValue.WrappedDataKey;
-                person.SsnKeyId = protectedValue.KeyId;
-                person.SsnLastFour = SsnMask.LastFourOf(normalized);
+                await ProtectSsnAsync(person, actor.AgencyId, normalized, protector, cancellationToken);
             }
 
             // The action, never the value. An audit row naming what changed is the
@@ -2344,13 +2391,21 @@ internal static class ApiEndpoints
         {
             var actor = Actor.From(principal);
             var today = clock.Today;
-            var scratchpad = await db.Scratchpads.SingleOrDefaultAsync(x => x.UserId == actor.UserId && x.Date == today, cancellationToken);
-            if (scratchpad is null)
-            {
-                scratchpad = new ServerScratchpad { UserId = actor.UserId, Date = today };
-                db.Scratchpads.Add(scratchpad);
-                await db.SaveChangesAsync(cancellationToken);
-            }
+            var scratchpad = await GetOrCreateScratchpadAsync(
+                db, actor.UserId, today, cancellationToken);
+            return ContractMapper.ToScratchpad(scratchpad, []);
+        });
+
+        api.MapGet("/scratchpad/tomorrow", async (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var agendaDate = WorkAgendaDates.NextWorkday(clock.Today);
+            var scratchpad = await GetOrCreateScratchpadAsync(
+                db, actor.UserId, agendaDate, cancellationToken);
             return ContractMapper.ToScratchpad(scratchpad, []);
         });
 
@@ -2442,6 +2497,24 @@ internal static class ApiEndpoints
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.Ok(ContractMapper.ToScratchpadComment(comment));
         });
+    }
+
+    private static async Task<ServerScratchpad> GetOrCreateScratchpadAsync(
+        ApiDbContext db,
+        int userId,
+        DateTime date,
+        CancellationToken cancellationToken)
+    {
+        var scratchpad = await db.Scratchpads.SingleOrDefaultAsync(
+            candidate => candidate.UserId == userId && candidate.Date == date,
+            cancellationToken);
+        if (scratchpad is not null)
+            return scratchpad;
+
+        scratchpad = new ServerScratchpad { UserId = userId, Date = date };
+        db.Scratchpads.Add(scratchpad);
+        await db.SaveChangesAsync(cancellationToken);
+        return scratchpad;
     }
 
     private static void MapExemptDates(RouteGroupBuilder api)
@@ -4112,6 +4185,23 @@ internal static class ApiEndpoints
         person.SsnWrappedKey = null;
         person.SsnKeyId = null;
         person.SsnLastFour = null;
+    }
+
+    private static async Task ProtectSsnAsync(
+        ServerPerson person,
+        int agencyId,
+        string normalized,
+        EnvelopeProtector protector,
+        CancellationToken cancellationToken)
+    {
+        var binding = new FieldBinding(agencyId, person.Id, "Ssn");
+        var protectedValue = await protector.ProtectAsync(normalized, binding, cancellationToken);
+        person.SsnCiphertext = protectedValue.Ciphertext;
+        person.SsnNonce = protectedValue.Nonce;
+        person.SsnTag = protectedValue.Tag;
+        person.SsnWrappedKey = protectedValue.WrappedDataKey;
+        person.SsnKeyId = protectedValue.KeyId;
+        person.SsnLastFour = SsnMask.LastFourOf(normalized);
     }
 
     private static string SafeFileName(string value)
