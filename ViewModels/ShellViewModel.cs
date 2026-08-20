@@ -25,6 +25,7 @@ namespace Sati.ViewModels
         private readonly AdminDashboardViewModel _adminDashboardViewModel;
         private readonly PlatformHealthViewModel _platformHealthViewModel;
         private readonly DataEnvironmentInfo _dataEnvironment;
+        private readonly IApiCompatibilityService _apiCompatibility;
 
 
         // -------------------------------------------------------------------------
@@ -39,8 +40,10 @@ namespace Sati.ViewModels
             BillingDashboardViewModel billingDashboardViewModel,
             AdminDashboardViewModel adminDashboardViewModel,
             PlatformHealthViewModel platformHealthViewModel,
-            DataEnvironmentInfo dataEnvironment)
+            DataEnvironmentInfo dataEnvironment,
+            IApiCompatibilityService apiCompatibility)
         {
+            _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
             _supervisorDashboardViewModel = supervisorViewModel;
             _sessionService = sessionService;
@@ -170,9 +173,26 @@ namespace Sati.ViewModels
         // Initialization
         // -------------------------------------------------------------------------
 
+        // -------------------------------------------------------------------------
+        // API compatibility
+        // -------------------------------------------------------------------------
+
+        /// <summary>
+        /// Set when the server serves a different route surface than this build
+        /// expects. Drives a banner rather than blocking anything: most of the
+        /// application still works, and the point is to name the cause before a
+        /// missing route surfaces somewhere else as a missing record.
+        /// </summary>
+        [ObservableProperty]
+        private bool _serverSurfaceDisagrees;
+
+        [ObservableProperty]
+        private string _serverSurfaceWarning = string.Empty;
+
         public async Task InitializeAsync()
         {
             NotifyRoleDependentProperties();
+            await CheckApiCompatibilityAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
                 await NavigateToPlatformHealth();
@@ -193,6 +213,25 @@ namespace Sati.ViewModels
             await NotesViewModel.Clients.ReloadAsync();
 
             await NavigateByRoleAsync();
+        }
+
+        /// <summary>
+        /// Never allowed to break sign-in. A compatibility check that could stop a
+        /// case manager working would be a worse failure than the one it detects.
+        /// </summary>
+        private async Task CheckApiCompatibilityAsync()
+        {
+            try
+            {
+                var compatibility = await _apiCompatibility.CheckAsync();
+                ServerSurfaceDisagrees = compatibility.Disagrees;
+                ServerSurfaceWarning = compatibility.Detail ?? string.Empty;
+            }
+            catch (Exception)
+            {
+                ServerSurfaceDisagrees = false;
+                ServerSurfaceWarning = string.Empty;
+            }
         }
 
         public async Task ReinitializeAsync()

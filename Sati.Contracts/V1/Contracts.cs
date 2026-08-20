@@ -540,3 +540,11 @@ public sealed record UpdateFormRequest(DateTime? CompletedDate, DateTime? Opened
 public sealed record DeleteFormsRequest(IReadOnlyList<int> FormIds);
 
 public sealed record ApiErrorDto(string Code, string Message, string CorrelationId);
+
+/// <summary>
+/// What <c>GET /health/version</c> reports. <c>ContractRevision</c> is the field that
+/// decides compatibility; <c>ReleaseVersion</c> is for humans reading a log, because
+/// a release number is bumped when a release is cut rather than when a route changes
+/// and so cannot answer "does this server serve what my client calls".
+/// </summary>
+public sealed record ApiVersionDto(string Product, string ReleaseVersion, string ContractRevision);

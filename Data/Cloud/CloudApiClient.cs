@@ -82,6 +82,29 @@ public sealed class CloudApiClient(HttpClient httpClient)
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// A byte response together with the values of one response header.
+    ///
+    /// Exists for the DHHS form fill, where the body is a PDF and the server still has
+    /// something to say about it — which boxes it could not fill. Putting that in a
+    /// header rather than wrapping the PDF in JSON keeps the response a file the
+    /// caller can hand straight to a save dialog.
+    /// </summary>
+    public async Task<(byte[] Bytes, IReadOnlyList<string> HeaderValues)> PostBytesWithHeaderAsync<TRequest>(
+        string path,
+        TRequest body,
+        string headerName,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, path, body);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        var values = response.Headers.TryGetValues(headerName, out var found)
+            ? found.ToList()
+            : [];
+        return (await response.Content.ReadAsByteArrayAsync(cancellationToken), values);
+    }
+
     private async Task<TResponse> SendAsync<TResponse>(
         HttpMethod method,
         string path,

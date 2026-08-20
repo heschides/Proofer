@@ -66,6 +66,29 @@
                                    FontSize="12"
                                    FontWeight="Bold" />
                     </Border>
+                    <!-- Raised when the server serves a different set of routes than
+                         this build calls. It is a warning, not a block: most of the
+                         application still works, and the point is to name the cause
+                         here rather than let a missing route surface three screens
+                         away as a missing record.
+
+                         The wording carries the meaning on its own and the tooltip
+                         carries the detail, so nothing depends on noticing a colour. -->
+                    <Border Background="#FFFDF3E3"
+                            BorderBrush="#FFD79A33"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="9,4"
+                            Margin="0,0,8,0"
+                            ToolTip="{Binding ServerSurfaceWarning}"
+                            Visibility="{Binding ServerSurfaceDisagrees, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="SERVER OUT OF DATE"
+                                   Foreground="#FF6B4A12"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   AutomationProperties.Name="Server out of date"
+                                   AutomationProperties.HelpText="{Binding ServerSurfaceWarning}" />
+                    </Border>
                     <!-- Navigation tabs. Appearance, including how selection is
                          shown, belongs to NavTabButton in App.xaml — nothing about
                          the look lives here. Each tab supplies only what is
