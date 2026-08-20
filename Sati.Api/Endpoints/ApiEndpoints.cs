@@ -8,6 +8,7 @@ using Sati.Api.Data;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
 using Sati.Contracts.V1;
+using Sati.Forms;
 
 namespace Sati.Api.Endpoints;
 
@@ -1156,6 +1157,255 @@ internal static class ApiEndpoints
                 pdf,
                 "application/pdf",
                 $"person-{person.Id}-{safeName}-lifecycle-audit.pdf");
+        });
+
+        // The mask, never the number. There is no route anywhere that returns a
+        // plaintext SSN: the only thing that decrypts is the form fill below, and what
+        // leaves this process is a PDF, not a string.
+        api.MapGet("/people/{personId:int}/ssn", async Task<IResult> (
+            int personId,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            PreventSensitiveResponseCaching(httpContext);
+            var lastFour = await db.People.AsNoTracking()
+                .Where(person => person.Id == personId)
+                .Select(person => person.SsnLastFour)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            return Results.Ok(new SsnStatusDto(
+                SsnMask.Format(lastFour),
+                !string.IsNullOrEmpty(lastFour)));
+        });
+
+        api.MapPut("/people/{personId:int}/ssn", async Task<IResult> (
+            int personId,
+            SsnUpdateRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            EnvelopeProtector protector,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var person = await db.People.SingleOrDefaultAsync(
+                candidate => candidate.Id == personId, cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var normalized = SsnMask.Normalize(request.Ssn);
+            if (normalized is null)
+            {
+                ClearSsn(person);
+            }
+            else
+            {
+                // Shape-checked before it is encrypted. A transposed digit that reaches
+                // an official form is a rejected application; catching it here costs
+                // nothing, and once encrypted nothing can look at it again to check.
+                if (!SsnMask.IsWellFormed(normalized))
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["Ssn"] = ["Enter a valid nine-digit Social Security number."],
+                    });
+                }
+
+                var binding = new FieldBinding(actor.AgencyId, person.Id, "Ssn");
+                var protectedValue = await protector.ProtectAsync(normalized, binding, cancellationToken);
+                person.SsnCiphertext = protectedValue.Ciphertext;
+                person.SsnNonce = protectedValue.Nonce;
+                person.SsnTag = protectedValue.Tag;
+                person.SsnWrappedKey = protectedValue.WrappedDataKey;
+                person.SsnKeyId = protectedValue.KeyId;
+                person.SsnLastFour = SsnMask.LastFourOf(normalized);
+            }
+
+            // The action, never the value. An audit row naming what changed is the
+            // point; an audit row containing the number would defeat the column.
+            auditTrail.Record(actor, AuditActions.PersonSsnUpdated, "Person", personId);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(new SsnStatusDto(
+                SsnMask.Format(person.SsnLastFour),
+                !string.IsNullOrEmpty(person.SsnLastFour)));
+        });
+
+        // The one operation permitted to decrypt an SSN, and the reason the filler
+        // lives on the server at all.
+        api.MapPost("/people/{personId:int}/forms.pdf", async Task<IResult> (
+            int personId,
+            DhhsFormRequest request,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            EnvelopeProtector protector,
+            DhhsFormFiller filler,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enum.TryParse<DhhsFormDefinition.FormKey>(request.Form, out var form))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Form"] = ["Unknown DHHS form."],
+                });
+            }
+
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
+                candidate => candidate.Id == personId, cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var caseManager = await db.Users.AsNoTracking().SingleAsync(
+                user => user.Id == actor.UserId, cancellationToken);
+            var agency = await db.Agencies.AsNoTracking().SingleAsync(
+                candidate => candidate.Id == actor.AgencyId, cancellationToken);
+
+            string? ssn = null;
+            if (person.SsnCiphertext is not null && person.SsnKeyId is not null)
+            {
+                var binding = new FieldBinding(actor.AgencyId, person.Id, "Ssn");
+                ssn = await protector.UnprotectAsync(
+                    new ProtectedValue(
+                        person.SsnCiphertext,
+                        person.SsnNonce!,
+                        person.SsnTag!,
+                        person.SsnWrappedKey!,
+                        person.SsnKeyId),
+                    binding,
+                    cancellationToken);
+                auditTrail.Record(actor, AuditActions.PersonSsnDecrypted, "Person", personId);
+            }
+
+            var subject = new DhhsFormDefinition.Subject(
+                    FullName: $"{person.LastName}, {person.FirstName}".Trim(' ', ','),
+                    BirthDate: person.BirthDate,
+                    Address: person.Address,
+                    PhoneNumber: person.PhoneNumber,
+                    SocialSecurityNumber: ssn,
+                    RepresentativeName: null,
+                    RepresentativeAddress: null,
+                    RepresentativePhone: null,
+                    RepresentativeEmail: null)
+                .WithRepresentative(
+                    caseManager.DisplayName,
+                    caseManager.Phone,
+                    caseManager.Email,
+                    agency.Street,
+                    agency.City,
+                    agency.State,
+                    agency.Zip);
+
+            var selections = new DhhsFormDefinition.Selections(request.Checks, request.Text);
+
+            byte[] pdf;
+            try
+            {
+                pdf = filler.Fill(form, subject, selections);
+            }
+            catch (InvalidOperationException refusal)
+            {
+                // A selection naming something that is not a consent field of this
+                // form. Surfaced rather than ignored: silently dropping it would let a
+                // case manager believe they recorded a choice the PDF never received.
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Selections"] = [refusal.Message],
+                });
+            }
+
+            PreventSensitiveResponseCaching(httpContext);
+            auditTrail.Record(actor, AuditActions.DhhsFormGenerated, "Person", personId,
+                metadataJson: JsonSerializer.Serialize(new { Form = form.ToString() }));
+            await db.SaveChangesAsync(cancellationToken);
+
+            // Which boxes could not be filled, as a header rather than a JSON wrapper,
+            // so the body stays a PDF the client can hand straight to a save dialog. A
+            // blank box is never an error — the form is still correct and usable, it
+            // just needs a pen — so this is advisory, not a failure.
+            var unfilled = DhhsFormDefinition.UnfilledFields(form, subject);
+            if (unfilled.Count > 0)
+                httpContext.Response.Headers["X-Sati-Unfilled-Fields"] = string.Join("|", unfilled);
+
+            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
+            return Results.File(pdf, "application/pdf", $"{form}-{personId}-{safeName}.pdf");
+        });
+
+        // Agency-owned release. Unlike the DHHS route this never decrypts an SSN,
+        // but it is still a disclosure artifact: identity is derived from the
+        // authorized person/session, generation is audited, and the PDF is no-store.
+        api.MapPost("/people/{personId:int}/agency-release.pdf", async Task<IResult> (
+            int personId,
+            AgencyReleaseRequest request,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            AgencyReleasePdfGenerator generator,
+            AuditTrail auditTrail,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var validation = AgencyReleaseRules.Validate(request);
+            if (validation.Count > 0)
+                return Results.ValidationProblem(validation);
+
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
+                candidate => candidate.Id == personId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+            var agency = await db.Agencies.AsNoTracking().SingleAsync(
+                candidate => candidate.Id == actor.AgencyId,
+                cancellationToken);
+
+            var subject = new AgencyReleaseSubject(
+                person.Id,
+                $"{person.FirstName} {person.LastName}".Trim(),
+                person.BirthDate,
+                person.HasGuardian ? person.GuardianName : null,
+                agency.Name,
+                ComposeAddress(agency.Street, agency.City, agency.State, agency.Zip),
+                agency.EdiContactPhone,
+                actor.DisplayName,
+                actor.Role);
+            var generatedAtUtc = clock.UtcNow.UtcDateTime;
+            var pdf = generator.Generate(subject, request, generatedAtUtc);
+
+            PreventSensitiveResponseCaching(httpContext);
+            auditTrail.Record(
+                actor,
+                AuditActions.AgencyReleaseGenerated,
+                "Person",
+                personId,
+                metadataJson: JsonSerializer.Serialize(new
+                {
+                    Scope = request.Scope,
+                    StaffAttestation = request.ConfirmedObtainedRoi,
+                    Revocation = request.IsRevocation,
+                }));
+            await db.SaveChangesAsync(cancellationToken);
+
+            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
+            var prefix = request.IsRevocation ? "Agency-Release-Revocation" : "Agency-Release";
+            return Results.File(pdf, "application/pdf", $"{prefix}-{personId}-{safeName}.pdf");
         });
 
         api.MapGet("/people/{personId:int}/contacts", async Task<IResult> (
@@ -3847,6 +4097,23 @@ internal static class ApiEndpoints
         context.Response.Headers.Pragma = "no-cache";
     }
 
+    /// <summary>
+    /// Removes a stored SSN.
+    ///
+    /// Every part goes, including the last four. Leaving the tail behind would keep a
+    /// consumer who asked to have their number removed partially on file, and would
+    /// leave the mask claiming a number that can no longer be produced.
+    /// </summary>
+    private static void ClearSsn(ServerPerson person)
+    {
+        person.SsnCiphertext = null;
+        person.SsnNonce = null;
+        person.SsnTag = null;
+        person.SsnWrappedKey = null;
+        person.SsnKeyId = null;
+        person.SsnLastFour = null;
+    }
+
     private static string SafeFileName(string value)
     {
         var safe = new string(value
@@ -3857,6 +4124,14 @@ internal static class ApiEndpoints
         while (safe.Contains("--", StringComparison.Ordinal))
             safe = safe.Replace("--", "-", StringComparison.Ordinal);
         return string.IsNullOrWhiteSpace(safe.Trim('-')) ? "person" : safe.Trim('-');
+    }
+
+    private static string? ComposeAddress(params string?[] parts)
+    {
+        var present = parts.Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim())
+            .ToArray();
+        return present.Length == 0 ? null : string.Join(", ", present);
     }
 
     private static List<string> ContextServices(ServerPerson person)

@@ -45,6 +45,13 @@ internal static class AuditActions
     // Distinct from PersonJournalUpdated so the trail separates an entry the
     // application stamped and placed from a case manager's own free-text edit.
     public const string PersonJournalReminderAdded = "person.journal-reminder-added";
+    public const string PersonSsnUpdated = "person.ssn-updated";
+    // Recorded on every decryption, separately from the form generation that caused
+    // it. An SSN read is a disclosure, and accounting of disclosures needs the read
+    // itself in the trail, not merely the document that occasioned it.
+    public const string PersonSsnDecrypted = "person.ssn-decrypted";
+    public const string DhhsFormGenerated = "dhhs-form.generated";
+    public const string AgencyReleaseGenerated = "agency-release.generated";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
     public const string BillingPeriodSubmitted = "billing-period.submitted";

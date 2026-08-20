@@ -1,3 +1,4 @@
+using Azure.Identity;
 using System.Globalization;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -13,6 +14,7 @@ using Sati.Api.Endpoints;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
 using Sati.Contracts.V1;
+using Sati.Forms;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +56,28 @@ builder.Services.AddScoped<ValidatedActorFilter>();
 builder.Services.AddScoped<AuditTrail>();
 builder.Services.AddScoped<PersonLifecycle>();
 builder.Services.AddSingleton<PersonAuditPdfGenerator>();
+builder.Services.AddSingleton<DhhsFormFiller>();
+builder.Services.AddSingleton<AgencyReleasePdfGenerator>();
+
+// SSN protection. A configured key gives the real Key Vault wrapper; an unconfigured
+// one gives a wrapper that fails closed, so an environment that stores no SSNs still
+// starts and serves everything else. Validated here rather than on first use so a
+// malformed URI is a startup error, not a surprise during a form fill.
+var ssnOptions = builder.Configuration.GetSection(SsnProtectionOptions.SectionName)
+    .Get<SsnProtectionOptions>() ?? new SsnProtectionOptions();
+if (string.IsNullOrWhiteSpace(ssnOptions.KeyUri))
+{
+    builder.Services.AddSingleton<IKeyWrapper, UnconfiguredKeyWrapper>();
+}
+else
+{
+    if (!Uri.TryCreate(ssnOptions.KeyUri, UriKind.Absolute, out var ssnKeyUri))
+        throw new InvalidOperationException("Ssn:KeyUri must be an absolute Azure Key Vault key URI.");
+    builder.Services.AddSingleton<IKeyWrapper>(
+        _ => new KeyVaultKeyWrapper(ssnKeyUri, new DefaultAzureCredential()));
+}
+
+builder.Services.AddSingleton<EnvelopeProtector>();
 builder.Services.AddSingleton<IncidentAggregator>();
 builder.Services.AddSingleton<ApiIncidentRecorder>();
 builder.Services.AddHostedService<DatabaseIdentityHostedService>();
@@ -146,10 +170,19 @@ app.UseAuthorization();
 
 var releaseVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous();
+// contractRotation is the field that matters for compatibility. releaseVersion is a
+// release number, bumped when a release is cut rather than when a route is added, so
+// on 2026-08-19 it read 1.2.17 on both sides while this server was missing five
+// routes the client already called. The fingerprint is derived from the route table
+// itself and cannot say "in sync" about a surface that is not.
+//
+// The fingerprint only — never the route list. An anonymous caller has no business
+// being handed a map of the API's surface.
 app.MapGet("/health/version", () => Results.Ok(new
 {
     product = "Sati.Api",
-    releaseVersion
+    releaseVersion,
+    contractRevision = ApiSurface.Revision
 })).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions()).AllowAnonymous();
 app.MapSatiApi();

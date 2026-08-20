@@ -203,7 +203,31 @@ namespace Sati.Data
                 entity.Property(p => p.BillingState).HasMaxLength(2);
                 entity.Property(p => p.BillingZip).HasMaxLength(15);
                 entity.Property(p => p.PrimaryCareProvider).HasMaxLength(100);
-                entity.Property(p => p.HealthcareSystemName).HasMaxLength(100); entity.HasOne<User>()
+                entity.Property(p => p.HealthcareSystemName).HasMaxLength(100);
+
+                // Encrypted SSN, declared as shadow properties on purpose.
+                //
+                // The columns have to exist here because this context owns the schema
+                // both environments are migrated to. Nothing on the desktop may read
+                // them: an SSN is cloud-only, decrypted only inside the API during an
+                // audited form fill. Declaring them as shadow properties rather than
+                // adding them to Person means the local path physically cannot reach a
+                // consumer's SSN — there is no property to bind, project, or forget to
+                // exclude from a DTO. See DECISIONS.md, "An SSN is cloud-only".
+                //
+                // SsnLastFour is the exception and is stored in the clear: it is what
+                // the mask displays, it cannot reconstruct the number, and keeping it
+                // out of the ciphertext lets every read path stay plaintext-free
+                // without a Key Vault call. It is still shadow here, because the
+                // desktop displays what the API hands it rather than reading the column.
+                entity.Property<byte[]>("SsnCiphertext");
+                entity.Property<byte[]>("SsnNonce");
+                entity.Property<byte[]>("SsnTag");
+                entity.Property<byte[]>("SsnWrappedKey");
+                entity.Property<string>("SsnKeyId").HasMaxLength(400);
+                entity.Property<string>("SsnLastFour").HasMaxLength(4);
+
+                entity.HasOne<User>()
                       .WithMany()
                       .HasForeignKey(p => p.UserId)
                       .OnDelete(DeleteBehavior.Restrict);

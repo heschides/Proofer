@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.10.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
@@ -18,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sati.Contracts\Sati.Contracts.csproj" />
+    <ProjectReference Include="..\Sati.Forms\Sati.Forms.csproj" />
   </ItemGroup>
 
   <ItemGroup>

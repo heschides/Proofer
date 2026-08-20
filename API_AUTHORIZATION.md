@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-18, covering all 91 protected routes. Every route added,
+*Route inventory current as of 2026-08-19, covering all 95 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -47,6 +47,10 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Caseload | `POST /people/{personId}/journal/entries` | Person's assigned user and agency | Own caseload only; same gate as the journal `PUT`. Server prepends the stamped entry and stamps from `ApiClock`, so the caller supplies only the text. |
 | People | `POST /people` | Actor's user and agency | Creates only in the actor's own caseload and agency. |
 | People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. |
+| SSN | `GET /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Returns the mask and an on-file flag; no route anywhere returns a plaintext SSN. Response is not cacheable. |
+| SSN | `PUT /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Shape-checked before encryption; audited as `person.ssn-updated` without the value. Null or empty clears every stored part including the last four. |
+| DHHS forms | `POST /people/{personId}/forms.pdf` | Person's assigned user and agency | Own caseload only. The ONLY operation permitted to decrypt an SSN; records `person.ssn-decrypted` alongside `dhhs-form.generated`. Consent selections are taken only from the request body, never derived. Response is not cacheable. |
+| Agency release | `POST /people/{personId}/agency-release.pdf` | Person's assigned user and agency | Own caseload only. Consumer and staff identities are derived server-side; the request carries only recipient details and explicit authorization choices. Records `agency-release.generated`; response is not cacheable. No SSN is read. |
 | Person audit | `GET /people/{personId}/history` | Person and assigned user's `AgencyId` | Admin only; both Person and assigned user must belong to actor agency. Response is not cacheable. |
 | Person audit | `GET /people/{personId}/history.pdf` | Person and assigned user's `AgencyId` | Admin only in actor agency; generated PDF remains behind the same check and is not cacheable. |
 | Contacts | `GET /people/{personId}/contacts` | Contact's person, assigned user, and agency | Own caseload only. |

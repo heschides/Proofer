@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Sati.Api.Data;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
@@ -29,6 +30,12 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private readonly Dictionary<string, string> _tokens = new(StringComparer.Ordinal);
     private bool _seeded;
+
+    /// <summary>
+    /// The in-memory stand-in for this environment's Key Vault key. Exposed so a test
+    /// can rotate it and confirm rows wrapped under the old version still decrypt.
+    /// </summary>
+    internal static TestKeyWrapper TestVault { get; } = new();
 
     public SatiApiFactory()
     {
@@ -85,6 +92,19 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             services.AddScoped(provider =>
                 provider.GetRequiredService<IDbContextFactory<ApiDbContext>>().CreateDbContext());
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
+
+            // Startup registers UnconfiguredKeyWrapper when Ssn:KeyUri is absent, which
+            // is correct for a real environment with no vault and useless for testing
+            // the SSN paths. Substituting an in-memory wrapper exercises the real
+            // EnvelopeProtector — envelope, binding, and tag — without a vault or a
+            // secret. Configuring a Key Vault URI here instead would make the suite
+            // depend on Azure to run.
+            services.RemoveAll<IKeyWrapper>();
+            services.AddSingleton<IKeyWrapper>(TestVault);
+
+            // Added rather than replacing the console provider, so the redaction test
+            // reads the same stream the hosted API writes to App Service.
+            services.AddSingleton<ILoggerProvider, CapturingLoggerProvider>();
         });
     }
 

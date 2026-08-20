@@ -43,6 +43,11 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("People");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Revision).IsConcurrencyToken();
+            // Lengths match the shadow declarations in SatiContext, which owns the
+            // schema; a mismatch here surfaces as drift rather than as a silent
+            // truncation of a key identifier.
+            entity.Property(x => x.SsnKeyId).HasMaxLength(400);
+            entity.Property(x => x.SsnLastFour).HasMaxLength(4);
             entity.HasMany(x => x.Forms)
                 .WithOne()
                 .HasForeignKey(x => x.PersonId)
@@ -349,6 +354,23 @@ internal sealed class ServerPerson
     public bool HasEmploymentSpecialist { get; set; }
     public bool HasWorkSupports { get; set; }
     public bool IsEmployed { get; set; }
+
+    // Encrypted SSN. Real properties here, and deliberately shadow properties on the
+    // desktop's SatiContext, because this is the only process allowed to hold the
+    // plaintext. Every part is required to decrypt and none is secret alone — the row
+    // is inert without the Key Vault key named by SsnKeyId. See EnvelopeProtector.
+    public byte[]? SsnCiphertext { get; set; }
+    public byte[]? SsnNonce { get; set; }
+    public byte[]? SsnTag { get; set; }
+    public byte[]? SsnWrappedKey { get; set; }
+    public string? SsnKeyId { get; set; }
+
+    /// <summary>
+    /// The last four digits, stored in the clear so a masked list costs no Key Vault
+    /// unwraps. Safe to project into a DTO; the other six columns never are.
+    /// </summary>
+    public string? SsnLastFour { get; set; }
+
     public List<ServerForm> Forms { get; set; } = [];
 }
 
