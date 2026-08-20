@@ -1019,3 +1019,200 @@ written to go together. Tracked in `AGENDA.md`.
 body — so loading the journal of any such client raised "the journal could not be
 loaded from the cloud" rather than showing an empty journal. `GetStringOrNullAsync`
 expresses that shape, and `GetJournalAsync` now uses it.
+
+## An official DHHS form is filled, never redrawn (2026-08-18)
+
+Sati now stamps two Maine DHHS forms — Appointment of Authorized Representative
+(rev. 10.10.24) and Authorization to Release/Obtain Information (rev. 11.24.25) —
+from a consumer profile. `DhhsFormDefinition` in `Sati.Contracts.V1` owns which
+value goes in which box; `DhhsFormFiller` in `Sati.Api` does the stamping.
+
+**Why not the AT exporter's technique.** `ATRequestPdfExporter` composes a Sati
+document with MigraDoc, and says in its own header that it is not a reproduction of
+the OADS form. That is right for a document Sati owns and wrong for one it does
+not: a redrawn state form is a lookalike, and a lookalike is what gets rejected at
+intake. Both PDFs turned out to carry real AcroForm fields — 21 and 64 — so the
+filler sets field values and never touches a page content stream.
+`DhhsFormFillerTests` compares the SHA-256 of every decompressed page content
+stream before and after filling and requires them equal, so the layout, seal, and
+legal text are provably the ones DHHS published. Deliberately mutating the filler
+to draw on the page instead fails that test on both forms.
+
+**A profile answers who someone is, never what they agreed to.** Every checkbox on
+both forms, and every signature, printed name, and signing date, records a decision
+made at the moment of signing: which offices may disclose, what authority a
+representative holds, whether 42 CFR Part 2 substance-use records and mental-health
+records travel with the rest. Deriving any of it from stored data would manufacture
+a consent nobody gave, on a page the consumer then signs. `ConsentFields` names
+them per form and `AssertFillable` makes filling one an exception rather than a
+code-review question. Consent choices a case manager recorded on the consumer's
+instruction arrive through a separate, explicit `Selections` input, guarded from the
+other direction by `AssertSelectable` so a typo cannot silently drop a choice.
+
+The consent lists enumerate names rather than testing "is it a checkbox", because a
+category test would stop protecting the free-text boxes that qualify one — "Other
+(explain)", the earlier-expiry date, the initials authorizing emailed delivery.
+Those are consent too, and they are text.
+
+**The filler runs wherever the data already is.** The Appointment form asks for an
+SSN, so on the cloud path the fill happens server-side and the client receives
+finished PDF bytes — shipping decrypted SSNs to every workstation is exactly what
+that avoids. Local Production fills on the workstation instead, with no network and
+no SSN to protect. Both call the same `DhhsFormFiller` in the shared `Sati.Forms`
+library; a second copy of the stamping would be the duplication this file's own
+rules forbid.
+
+**The result stays a fillable form.** Flattening would take the consumer's own pen
+out of a document they are the one who has to sign.
+
+**The desktop records choices, not signatures.** The WPF workspace offers readable
+controls for disclosure scope and other consumer-directed selections, but it does
+not offer fields for a signature, signing date, printed signer name, or signer-
+authority attestation. Those remain blank on the fillable official PDF. This avoids
+turning ordinary data entry into an unevaluated electronic-signature workflow while
+still letting the case manager prepare the rest of the document with the consumer.
+
+**Blank forms are embedded resources,** named with their revision, so the binary
+that filled a form carries the exact blank it filled; a form on disk could be
+swapped for another revision without anything noticing.
+
+## An SSN is cloud-only, envelope-encrypted, and readable only during a form fill (2026-08-18)
+
+Storing SSNs was chosen over leaving the Appointment form's SSN box blank. Sati had
+no encryption at rest before this — `PasswordHasher` is a one-way PBKDF2 hash, not
+reversible encryption — so the mechanism is new.
+
+**Envelope encryption, per record.** A fresh AES-256-GCM data key and 96-bit nonce
+per encryption, the data key wrapped by an Azure Key Vault key reached with the
+API's managed identity holding only `wrapKey`/`unwrapKey`. Stored per row:
+ciphertext, nonce, tag, wrapped data key, and the full Key Vault key identifier
+including version. Recording the version per row is what makes rotation a
+non-event — new rows wrap under the new version, old rows keep decrypting under
+theirs, and no backfill is required.
+
+**The binding is the part that is easy to leave out.** Tenant, record id, and field
+name are bound into the encryption as additional authenticated data. Envelope
+encryption alone protects the value from someone who steals the database; the
+binding is what stops someone who can *write* to the table from moving one
+consumer's ciphertext onto another's row and having it decrypt cleanly. Tested in
+all three directions — other agency, other consumer, other field.
+
+**GCM rather than a mode without a tag** so a modified row throws instead of
+returning a plausible wrong number onto a state form.
+
+**The last four digits are stored in the clear, deliberately.** They are what the
+mask displays, they cannot reconstruct the number, and keeping them outside the
+ciphertext is what lets every read path stay both fast and plaintext-free — a list
+of fifty consumers costs zero Key Vault unwraps. `SsnMask` in `Sati.Contracts.V1`
+owns the display form so the desktop and the API cannot mask differently.
+
+**Decryption has exactly one caller:** the audited `POST /people/{personId}/forms.pdf`.
+No ordinary read path decrypts and no DTO carries plaintext — the SSN routes answer
+with `SsnMask`, including the route that just stored the number, since echoing it
+back would put it in a response body, a proxy log, and a client cache. The desktop
+never decrypts at all: on the cloud path it receives finished PDF bytes, and on the
+local path there is no SSN and no key.
+
+**Per-environment keys are the cross-environment safeguard.** Demo and Production
+wrap under different Key Vault keys, so Demo ciphertext is inert against the
+Production vault and vice versa — a mis-pointed connection string fails closed
+rather than decrypting the wrong environment's data. `EnvelopeProtectorTests`
+demonstrates that property directly.
+
+## An agency release is a Sati document, with a staff attestation rather than an inferred signature (2026-08-19)
+
+The agency release shown in the legacy reference is an agency-owned workflow rather than a
+government-issued form. Sati therefore composes a clear, branded two-page release instead of
+imitating the old application's screen or treating screenshots as a fillable template. The shared
+contract owns recipient details, record categories, authorization dates, special confidentiality
+choices, and revocation state; desktop, local Production, and API-backed Demo all validate the same
+request.
+
+**No consent is derived.** Profile data answers who the consumer, guardian, agency, and signed-in
+case manager are. It never answers whether authorization was granted, what records may be disclosed,
+whether specially protected information is included, or whether repeated disclosure is permitted.
+Those remain explicit, required choices that are cleared whenever the selected consumer changes.
+
+**The case manager may attest only to their own act.** Selecting “I obtained this release” requires
+an immediate confirmation and stamps the authenticated staff identity and UTC generation time. The
+document says this is not the consumer's electronic signature. Consumer and guardian signature
+lines remain blank until Sati has a separately designed, legally reviewed electronic-signature
+workflow.
+
+**Generation follows the data boundary.** `IAgencyReleaseService` is local/cloud abstracted. Local
+Production reads and renders through EF on the encrypted workstation; Demo sends the choices through
+the API and renders after the server re-derives consumer, agency, and actor identities. Both paths
+audit generation with PHI-minimized metadata. The resulting PDF is plaintext disclosure material
+and must be saved only to an agency-approved location.
+
+## The desktop backs up before it migrates a database with records in it (2026-08-19)
+
+`App.xaml.cs` has always run `Database.Migrate()` for Local Production at startup,
+before the splash screen. That is right for a tool whose users are case managers
+rather than developers — nobody should have to run a script to open their caseload —
+but it had no safety net, and the stakes are not the same on every machine. The
+development database on the primary login has nothing to lose. The other Windows
+login holds real consumer records, and a partner's laptop would hold theirs, with
+nobody present who could read a stack trace.
+
+`LocalDatabaseUpdater` keeps the automation and adds the net:
+
+- Do nothing unless migrations are actually pending, which is the usual case.
+- Back up first, but only when the database holds consumer records — an empty
+  database would cost time and disk on every launch to protect nothing.
+- A backup that cannot be written is a stop, not a warning. Migrating anyway would
+  choose the least recoverable order of events available.
+- A failure ends in a message naming the backup file and saying the records are
+  unchanged, not an application that refuses to start and explains nothing.
+
+**It does not try to repair a diverged history.** `SatiProduction` has acquired
+columns outside the migration chain before, and deciding which side is right needs
+judgement about a specific database. A startup path doing that unattended, on real
+consumer records, is not a trade worth making — so it stops and says so, and the
+guarded script under `scripts/` remains how that is resolved deliberately.
+
+**Order is the load-bearing property** and is tested rather than trusted:
+`LocalDatabaseUpdaterTests` asserts backup-then-migrate, and reversing the two in the
+source fails three of its eight tests.
+
+**Known gap.** The migration runs before sign-in, so there is no actor to attribute
+an audit event to and none is written. The backup file and its timestamp are the only
+record that a schema changed. Tracked in `AGENDA.md`.
+
+## Local Production stores SSNs under the Windows account key (2026-08-19)
+
+Reverses the cloud-only decision taken earlier the same day. The reason is workflow,
+not architecture: filling the Appointment form is occasional, but reading a
+consumer's number to the Social Security Administration on their behalf is routine
+case-management work, and it cannot be done from a mask. Credible exposes a plain SSN
+box for exactly this, and a local Sati that could not was not usable as a daily tool.
+
+The envelope is unchanged — `EnvelopeProtector`, a fresh AES-256-GCM data key per
+record, tenant and record and field bound in as authenticated data. Only the wrapper
+differs, which is what `IKeyWrapper` existed for: Key Vault in the API,
+`DpapiKeyWrapper` on the workstation. A local ciphertext is structurally identical to
+an Azure one. Both now live in `Sati.Contracts` so there is one implementation.
+
+**What DPAPI protects:** a copied database. The `.mdf` lifted off the machine, or
+opened under another Windows account, will not unwrap. With the BitLocker requirement
+in `OPERATIONS.md`, that covers a stolen or salvaged laptop.
+
+**What it does not:** anything running as that user while they are signed in. DPAPI is
+a boundary between Windows accounts and machines, not between programs. On a
+single-operator workstation that is the boundary that matters, and it is weaker than
+the cloud path — which is why the cloud path was not changed to match.
+
+**Recovery is re-entry.** Lose the Windows profile and the wrapped keys go with it.
+Acceptable only because Sati is not the system of record for an SSN; Credible is.
+Nothing else in Sati is stored this way, and nothing that exists nowhere else should be.
+
+**Databases stop being portable.** Copying a local database between logins or machines
+has been done before, and the SSN column will not survive it. The stored last-four is
+plaintext and keeps displaying, so the symptom would be a healthy-looking mask beside
+a reveal that fails — `DpapiKeyWrapper` therefore catches the platform error and
+returns a sentence naming the cause and the fix.
+
+**A read is audited separately from what occasioned it.** `person.ssn-revealed` is
+recorded whether the number was revealed for a phone call or consumed by a form fill,
+mirroring `person.ssn-decrypted` on the API side. The action is recorded; the value
+never is.

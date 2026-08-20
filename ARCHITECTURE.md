@@ -34,6 +34,45 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 
 ---
 
+## Session Changelog — 2026-08-19
+
+DHHS form desktop workflow:
+
+- Added a `DHHS Forms` workspace to the selected consumer's record. The workspace owns only
+  presentation state and calls `IDhhsFormService`; the existing local and cloud implementations
+  continue to decide where the official PDF is filled.
+- `DhhsFormsViewModel` maps the official AcroForm field names to readable, grouped controls for
+  consumer-directed consent. Choices are cleared whenever the selected consumer changes and only
+  affirmative/nonblank selections cross the service boundary.
+- Demo can read the SSN mask and send a one-time replacement value through the API for envelope
+  encryption. The WPF `PasswordBox` is deliberately unbound and cleared after the send attempt;
+  observable desktop state receives only `SsnStatusDto`. Local Production exposes the same screen
+  but disables SSN storage and explains that the PDF field will remain blank.
+- Signatures, signing dates, and signer-authority attestations are not desktop inputs. They remain
+  blank on the fillable official PDF for the consumer or representative to complete.
+- PDF bytes return through a ViewModel event; the view owns the save dialog. Missing demographic
+  boxes remain non-blocking and are translated into a hand-completion warning after generation.
+
+Agency release workflow:
+
+- Added a Sati-owned `Agency Release` workspace beside the official DHHS forms. It records the
+  recipient, exact information categories, authorization window, special confidentiality choices,
+  revocation state, and whether the authenticated case manager attests they obtained the release.
+- `AgencyReleaseRules` in the shared contracts project is the single validation owner for desktop,
+  local Production, and API-backed Demo. It enforces explicit yes/no choices, bounded authorization
+  windows, and descriptions for `Other` rather than permitting a visually complete but ambiguous
+  document.
+- `IAgencyReleaseService` keeps the workspace independent of storage mode. Local Production reads
+  the consumer and agency through EF and renders on the workstation; Demo posts the same request to
+  `POST /people/{personId}/agency-release.pdf`, where tenant/caseload access and identity derivation
+  happen before rendering. Both paths record `agency-release.generated` without recipient PHI in
+  audit metadata.
+- `AgencyReleasePdfGenerator` creates a two-page Sati-branded PDF. Consumer signature lines remain
+  blank. The optional staff attestation records the signed-in user and UTC generation time only and
+  explicitly states that it is not the consumer's electronic signature.
+
+---
+
 ## Session Changelog — 2026-08-07
 
 First functional Comprehensive Assessment slice:

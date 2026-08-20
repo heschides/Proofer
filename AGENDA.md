@@ -1339,13 +1339,26 @@ be added retroactively. Everything below waits for Karuna.
   reminder takes the transitional whole-journal fallback and the client page says so. Verify with an
   unauthenticated POST to that route: 401 means the route is present, 404 means the server is still
   behind.
+  **The same deployment now gates four more routes.** Confirmed live on 2026-08-19 by unauthenticated
+  probe — `people/{id}/notes` and `people/{id}/contacts` answer 401 while `people/{id}/ssn`,
+  `people/{id}/forms.pdf`, and `people/{id}/agency-release.pdf` answer 404. In the DHHS wizard that
+  404 surfaces as "the record was not found or is outside your caseload", which points the case
+  manager at a caseload problem that does not exist. This is the third time a behind-server has been
+  diagnosed as something else; see the startup version-comparison item below, which would replace
+  per-route handling with one check.
 - [ ] **Remove the whole-journal fallback once nothing predates the route.** Delete the 404 `catch`
   in `CloudPersonService.AddJournalReminderAsync`, `JournalReminderResult.UsedLegacyJournalWrite`
   and the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs`. See `DECISIONS.md`.
-- [ ] **Decide whether the client should detect a behind-server generally.** The reminder route now
-  disambiguates its own 404, but every future route has the same failure mode, and
-  `/health/version` already reports the deployed release. A single startup comparison would replace
-  per-route handling. Not built; the reminder path does not depend on it.
+- [x] **Detect a behind-server generally.** Built 2026-08-19. **Comparing the release number would
+  not have worked** — on the day this was written the hosted API and the client both reported
+  1.2.17 while the server was missing five routes, because a release is numbered when it is cut and
+  not when a route is added. The comparison is therefore over the route surface:
+  `ApiSurface` in `Sati.Contracts.V1` holds the generated route list and a fingerprint of it,
+  `/health/version` reports the fingerprint (never the list — that is a map of the attack surface),
+  and `IApiCompatibilityService` compares once at sign-in and raises a "SERVER OUT OF DATE" banner
+  with the cause. `ApiSurfaceTests` fails the build if the manifest drifts from the API's real
+  endpoint table, so the fingerprint cannot go stale. The check never throws and never blocks
+  sign-in: an unreachable server is a network problem other screens report better.
 - [ ] **Audit other `GetAsync<T>` calls for legitimately empty bodies.** `GetJournalAsync` threw on
   any client whose journal was never written, because `GetAsync<string?>` treats a null result as an
   empty response. Fixed there with `GetStringOrNullAsync`; other nullable-scalar routes may carry
@@ -1353,3 +1366,149 @@ be added retroactively. Everything below waits for Karuna.
 - [ ] **Reconsider whether a reminder should be visible outside the journal.** Reminders are journal
   entries by decision, so they do not appear in the notes log or note history and are not versioned
   individually. Revisit if reminders start carrying anything a reviewer needs to find.
+
+## DHHS form fill — remaining verification and profile work
+
+The official-form filler, encrypted cloud SSN envelope, audited API routes, local
+and cloud service implementations, migrations, and desktop workflow are now built.
+See `DECISIONS.md`, "An official DHHS form is filled, never redrawn" and "An SSN is
+cloud-only".
+
+- **Profile gap the forms exposed.** `Person` has no email. The Release form's
+  optional combined telephone/email box receives the phone number when present;
+  email remains blank for hand-completion until the profile has an appropriate
+  email field.
+- **Field rendering is unverified against DHHS.** The byte comparison proves the
+  page is unchanged; it does not prove a DHHS intake worker accepts the field
+  appearance. The forms set `/NeedAppearances` so the viewer rebuilds appearance
+  streams. Worth one printed submission before this is used in earnest.
+
+## Production behind the API, without losing local Production (2026-08-18)
+
+Direction set by Josh: "move local Production behind the API" means **adding
+API-backed access to the Production database while preserving both operating
+modes**, not retiring the local one. The desktop must continue to support Demo and
+Production as explicitly selected data sources.
+
+Requirements for that work:
+
+- Explicit environment selection, extending the existing bootstrap chooser and the
+  validated hard-coded environment mapping in `DATABASE_ENVIRONMENTS.md`.
+- Separate credentials, configuration, service identities, and Key Vault keys per
+  environment.
+- Authorization checks on the API-backed Production path equal to Demo's —
+  `TenantAccess` plus `ValidatedActorFilter`, not a relaxed variant.
+- Conspicuous UI labeling, as the Demo indicator does today, so the operating mode
+  is never ambiguous on screen.
+- Safeguards against cross-environment reads and writes. `DatabaseIdentityValidator`
+  and `dbo.SatiDatabaseIdentity` already gate this at connection time; per-environment
+  Key Vault keys extend it to the data itself, since one environment's ciphertext is
+  inert against the other's vault.
+
+**Where plaintext SSNs exist, by mode** (see `DECISIONS.md`, "An SSN is cloud-only"):
+
+| Mode | Plaintext SSN |
+|---|---|
+| Demo (API-backed) | Only in API process memory during entry and form fill, and inside the generated PDF. Demo data is synthetic. |
+| Production via local EF (today) | None. SSN is cloud-only; the column is never populated or read on this path. |
+| Production via API (planned) | Same as Demo: API process memory, and the generated PDF. |
+
+Never at rest outside ciphertext, never in a DTO, an EF entity exposed to a client,
+a log, telemetry, an exception, a cache, or a backup.
+
+**Document generation splits by where the protected data is, not by document.**
+Superseded by Josh's 2026-08-18 direction that local Production keep generation on
+the workstation: `DhhsFormFiller` lives in the shared `Sati.Forms` library and runs
+in whichever process holds the data. On the cloud path it runs server-side, because
+that is where the decryptable SSN is and it must not travel. On the local path it
+runs on the workstation with no network and no SSN at all. One implementation of the
+stamping, two callers — a second copy would be the duplication CLAUDE.md forbids.
+The AT request PDF carries no protected field and stays where it is.
+
+**The generated PDF is itself plaintext.** The form has an SSN box, so the finished
+document contains the number in the clear by design. Encryption protects the
+database; it cannot protect the artifact the fill produces. Once a case manager
+saves, prints, emails, or uploads that PDF, the number is loose in whatever handled
+it. The controls that matter there are the BitLocker requirement in
+`OPERATIONS.md`, agency-approved storage locations, and the audit event on
+generation — not anything in the crypto.
+
+### DHHS form work status
+
+Everything below the UI is built and tested as of 2026-08-18: the encrypted columns
+and the `AddEncryptedSsn` migration, the audited `POST /people/{personId}/forms.pdf`,
+the SSN read and write routes, log-redaction enforcement, and both
+`IDhhsFormService` implementations.
+
+- **Migration applied 2026-08-19.** `AddEncryptedSsn` and the remaining queued schema
+  migrations were applied to `SatiDemo`; local `SatiProduction` was already current.
+  Controlled migration deployment remains manual; see the hosted-Demo item above.
+- **No Key Vault key is provisioned.** Until `Ssn:KeyUri` is set, startup registers
+  `UnconfiguredKeyWrapper` and every SSN operation fails closed with an explanation
+  naming what is missing. The API still starts and serves everything else. Demo and
+  Production need DIFFERENT keys, each granting `wrapKey`/`unwrapKey` and nothing
+  more.
+- **Demo users and agencies carry no synthetic representative information,** so every
+  Demo fill currently reports the representative boxes as needing hand-completion.
+- **Desktop UI completed 2026-08-19.** The selected consumer now has a `DHHS Forms`
+  workspace covering both official forms, grouped consumer-directed selections,
+  masked SSN status/update on the cloud path, local-Production explanation, PDF save,
+  missing-field warnings, automation names, keyboard reachability, live status text,
+  and selection clearing when the consumer changes. Signatures and signing dates are
+  intentionally left to the fillable PDF rather than treated as ordinary data entry.
+- **Local Production always prints a blank SSN box,** because SSNs are cloud-only and
+  that path has no key. Reported through `DhhsFormResult.BlankFields` rather than
+  left for the case manager to notice on paper. Confirmed with Josh 2026-08-18.
+- **`SsnMask.IsWellFormed` is a shape check, not proof of ownership.** Nothing local
+  can establish that a number belongs to the consumer.
+
+## Agency releases and transportation documents (2026-08-19)
+
+- **Agency release completed.** The selected-consumer workspace, shared validation contract,
+  local/cloud service seam, audited no-store API route, two-page Sati PDF, staff-attestation
+  confirmation, and automated desktop/API tests are in place. Consumer signatures are deliberately
+  left for the document rather than represented as ordinary data entry.
+- **Transportation source forms analyzed; implementation is next.** The ModivCare Standing Order
+  and LogistiCare Single Trip PDFs supplied on 2026-08-19 are both one-page, flat PDFs with zero
+  AcroForm fields or widgets. They cannot use the DHHS field-filling path.
+- **Preserve the official/vendor page.** Build a coordinate-overlay definition for each exact source
+  revision and prove that the original page content stream remains unchanged, rather than redrawing
+  a lookalike. Put both behind an `ITransportationFormService` local/cloud seam, derive consumer,
+  agency, and logged-in requestor identity on the authoritative side, and audit generation. Before
+  operational use, print one sample of each and confirm acceptance plus the required MaineCare
+  billing-section interpretation with the transportation broker.
+
+## Local schema updates — outstanding after the 2026-08-19 safety net
+
+See `DECISIONS.md`, "The desktop backs up before it migrates a database with records
+in it".
+
+- **No audit event for a schema change.** The startup migration runs before sign-in,
+  so there is no actor and `LocalAuditTrail.Record` cannot be called. The backup file
+  is the only trace. Options: attribute to a system actor, or defer the event until
+  the first sign-in after an applied migration and record it then.
+- **Backups are never pruned.** Every migration on a database with records writes a
+  new `.bak` under `%LOCALAPPDATA%\Sati\schema-backups` and nothing removes old ones.
+  Fine at the current rate; wrong once several people are running it for a year.
+- **The backup is not verified.** `BACKUP DATABASE` returning without error is taken
+  as success. A `RESTORE VERIFYONLY` would prove it is readable before the migration
+  proceeds, which is the entire point of taking it.
+- **Untested against a real diverged database.** The diverged-history path is covered
+  by a fake that throws the right exception. Nothing has exercised it against an
+  actual database whose `__EFMigrationsHistory` disagrees with its schema — and the
+  other Windows login's `SatiProduction` is the most likely place that is true.
+
+## SSN panel — outstanding after the 2026-08-19 profile work
+
+- **`DhhsFormsViewModel` still has its own SSN code.** `SsnPanelViewModel` is now the
+  shared owner and the consumer profile uses it, but the forms workspace was not
+  refactored onto it in the same pass. Two implementations of "how do we show and
+  store an SSN" is the duplication this class was created to remove; finish the move
+  and delete the older copy. The forms workspace's `SsnStorageExplanation` is already
+  stale — it still says local Production does not store numbers.
+- **A revealed number does not time out.** It clears when the consumer changes, when
+  Hide is pressed, and on any failure, but a panel left open on a locked-away
+  workstation keeps showing it. A short auto-hide would close that.
+- **The reveal is not rate limited.** Nothing stops a bulk read of every consumer's
+  number one profile at a time. Each read is audited, so it is visible after the
+  fact, but nothing makes it slow or noisy while it happens.
