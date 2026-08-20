@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Data.Billing;
 using Sati.Data.Cloud;
@@ -146,6 +147,7 @@ namespace Sati
                         // in both environments. Registering it inside AddLocalDataServices
                         // made every Demo start fail service-provider validation.
                         services.AddSingleton<ATRequestPdfExporter>();
+                        services.AddSingleton<Sati.Forms.AgencyReleasePdfGenerator>();
 
                         if (dataEnvironment.UsesCloudApi)
                             AddCloudDataServices(services, dataEnvironment);
@@ -190,7 +192,10 @@ namespace Sati
                         services.AddTransient<MyAccountViewModel>();
                         services.AddTransient<MyAccountWindow>();
                         services.AddTransient<SchedulerViewModel>();
+                        services.AddTransient<SsnPanelViewModel>();
                         services.AddTransient<NewClientViewModel>();
+                        services.AddTransient<ViewModels.ClientDocuments.DhhsFormsViewModel>();
+                        services.AddTransient<ViewModels.ClientDocuments.AgencyReleaseViewModel>();
 
                         // Transient by intent: injected into two singleton hosts
                         // (CaseManagerDashboardViewModel, NotesWindowViewModel),
@@ -231,11 +236,31 @@ namespace Sati
 
                 // The desktop owns Local Production migrations. The deployed API
                 // validates Azure Demo and never lets the client mutate its schema.
+                //
+                // Backed by a backup on any database holding consumer records. This
+                // runs before the splash screen on every machine that uses a local
+                // database — including logins and laptops with real caseloads and
+                // nobody present who could read a stack trace — so a failure has to
+                // end in a sentence someone can act on, not an application that
+                // silently refuses to start. See LocalDatabaseUpdater.
                 if (!dataEnvironment.UsesCloudApi)
                 {
                     using var scope = _host.Services.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<SatiContext>();
-                    db.Database.Migrate();
+                    var updater = new LocalDatabaseUpdater(
+                        new SqlLocalDatabaseMaintenance(
+                            scope.ServiceProvider.GetRequiredService<SatiContext>()));
+                    var update = await updater.UpdateAsync();
+
+                    if (update.Outcome == LocalDatabaseUpdateOutcome.Failed)
+                    {
+                        MessageBox.Show(
+                            update.FailureMessage(),
+                            "Sati cannot start",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                        Shutdown();
+                        return;
+                    }
                 }
 
                 // Login sequence
@@ -339,6 +364,15 @@ namespace Sati
             services.AddSingleton<IClientAiContextService, ClientAiContextService>();
             services.AddTransient<IATRequestService, ATRequestService>();
             services.AddTransient<IProviderService, ProviderService>();
+            services.AddTransient<IDhhsFormService, DhhsFormService>();
+            // Local SSN protection: the same envelope the API uses, wrapped by the
+            // Windows user account key instead of Key Vault. Singleton because none
+            // of the three holds per-request state.
+            services.AddSingleton<IKeyWrapper, DpapiKeyWrapper>();
+            services.AddSingleton<EnvelopeProtector>();
+            services.AddSingleton<LocalSsnStore>();
+            services.AddTransient<IApiCompatibilityService, LocalApiCompatibilityService>();
+            services.AddTransient<IAgencyReleaseService, AgencyReleaseService>();
             services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
             services.AddDbContextFactory<SatiContext>(options =>
@@ -373,6 +407,9 @@ namespace Sati
             services.AddTransient<IReviewItemService, CloudReviewItemService>();
             services.AddTransient<IATRequestService, CloudAtRequestService>();
             services.AddTransient<IProviderService, CloudProviderService>();
+            services.AddTransient<IDhhsFormService, CloudDhhsFormService>();
+            services.AddTransient<IApiCompatibilityService, CloudApiCompatibilityService>();
+            services.AddTransient<IAgencyReleaseService, CloudAgencyReleaseService>();
             services.AddTransient<IComprehensiveAssessmentService, CloudComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, CloudPersonCenteredPlanSourceService>();
             services.AddTransient<IConsumerBillingLossReportService, CloudConsumerBillingLossReportService>();
