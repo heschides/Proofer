@@ -880,6 +880,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -986,6 +987,81 @@
                                            TextWrapping="Wrap"
                                            MaxHeight="42" />
                             </StackPanel>
+
+                            <!-- Social Security number.
+                                 Deliberately NOT part of the demographic editor above.
+                                 It saves through its own audited route, and folding it
+                                 into the ordinary profile save would put the number in a
+                                 DTO that travels everywhere and lose the audit event that
+                                 records who set it.
+
+                                 The mask is what is displayed. The number appears only
+                                 while the case manager explicitly shows it, for reading to
+                                 the Social Security Administration, and hiding clears it
+                                 from the view model rather than merely from view. -->
+                            <Border Grid.Row="5" Grid.ColumnSpan="4"
+                                    Margin="0,12,0,0"
+                                    Padding="12,10"
+                                    CornerRadius="6"
+                                    Background="{DynamicResource PersonGroupAltBrush}"
+                                    Visibility="{Binding SsnPanel.SupportsStorage, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="SOCIAL SECURITY NUMBER" Style="{StaticResource LabelStyle}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding SsnPanel.Masked}"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   AutomationProperties.Name="Social Security number on file" />
+                                        <TextBlock Text="{Binding SsnPanel.Revealed}"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Margin="12,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentPressedBrush}"
+                                                   AutomationProperties.Name="Full Social Security number, currently shown"
+                                                   Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <Button Content="Show"
+                                                Margin="12,0,0,0"
+                                                Command="{Binding SsnPanel.RevealCommand}"
+                                                AutomationProperties.Name="Show the full Social Security number"
+                                                AutomationProperties.HelpText="Recorded as a disclosure in the audit trail."
+                                                Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                        <Button Content="Hide"
+                                                Margin="12,0,0,0"
+                                                Command="{Binding SsnPanel.HideCommand}"
+                                                AutomationProperties.Name="Hide the full Social Security number"
+                                                Visibility="{Binding SsnPanel.IsRevealed, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBox Width="150"
+                                                 Text="{Binding SsnPanel.Entry, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Enter a new Social Security number"
+                                                 AutomationProperties.HelpText="Nine digits. Dashes optional." />
+                                        <Button Content="Save"
+                                                Margin="8,0,0,0"
+                                                Command="{Binding SsnPanel.SaveCommand}"
+                                                AutomationProperties.Name="Save the Social Security number" />
+                                        <Button Content="Remove"
+                                                Margin="8,0,0,0"
+                                                Command="{Binding SsnPanel.ClearCommand}"
+                                                AutomationProperties.Name="Remove the stored Social Security number" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding SsnPanel.StatusMessage}"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Visibility="{Binding SsnPanel.HasStatusMessage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    <TextBlock Text="{Binding SsnPanel.Explanation}"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </Border>
 
@@ -1763,6 +1839,16 @@
                         <TabItem Header="Classification"
                                  Style="{StaticResource ClientWorkspaceTabItemStyle}">
                             <clientDocuments:ClassificationWorkspace />
+                        </TabItem>
+
+                        <TabItem Header="DHHS Forms"
+                                 Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <clientDocuments:DhhsFormsWorkspace DataContext="{Binding DhhsForms}" />
+                        </TabItem>
+
+                        <TabItem Header="Agency Release"
+                                 Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <clientDocuments:AgencyReleaseWorkspace DataContext="{Binding AgencyRelease}" />
                         </TabItem>
 
                         <!-- AT REQUESTS

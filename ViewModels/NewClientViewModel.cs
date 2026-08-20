@@ -6,6 +6,7 @@ using Sati.Models;
 using Sati.Reporting;
 using Sati.Services;
 using Sati.ViewModels.Children;
+using Sati.ViewModels.ClientDocuments;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
@@ -31,6 +32,16 @@ namespace Sati.ViewModels
         private readonly IPersonContactService _personContactService;
         private readonly IATRequestService _atRequestService;
         private readonly ATRequestPdfExporter _atRequestPdfExporter;
+
+        public DhhsFormsViewModel DhhsForms { get; }
+
+        /// <summary>
+        /// Social Security number, shared with the DHHS forms workspace so both screens
+        /// display, store, and reveal it the same way. Its own audited save; never part
+        /// of the demographic save, which must not carry the number.
+        /// </summary>
+        public SsnPanelViewModel SsnPanel { get; }
+        public AgencyReleaseViewModel AgencyRelease { get; }
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
         // keystroke — Stop()+Start() on every edit means it fires once typing pauses,
@@ -241,6 +252,9 @@ namespace Sati.ViewModels
             _ = LoadAppointmentsAsync(value);
             _ = LoadContactsAsync(value);
             _ = LoadAtRequestsAsync(value);
+            SsnPanel.SetPerson(value?.Id);
+            DhhsForms.SetPerson(value);
+            AgencyRelease.SetPerson(value);
             RefreshUpcomingItems(value);
 
             // The panel is persistent now, so it can't be left showing one client's
@@ -445,7 +459,10 @@ namespace Sati.ViewModels
                            IReviewItemService reviewItemService,
                            IPersonContactService personContactService,
                            IATRequestService atRequestService,
-                           ATRequestPdfExporter atRequestPdfExporter)
+                           ATRequestPdfExporter atRequestPdfExporter,
+                           DhhsFormsViewModel dhhsForms,
+                           AgencyReleaseViewModel agencyRelease,
+                           SsnPanelViewModel ssnPanel)
         {
             _personService = personService;
             _sessionService = session;
@@ -456,6 +473,9 @@ namespace Sati.ViewModels
             _personContactService = personContactService;
             _atRequestService = atRequestService;
             _atRequestPdfExporter = atRequestPdfExporter;
+            DhhsForms = dhhsForms;
+            SsnPanel = ssnPanel;
+            AgencyRelease = agencyRelease;
             _ = LoadHealthcareOptionsAsync();
         }
 
