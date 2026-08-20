@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Sati.Forms</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Blank official DHHS forms. Embedded so the binary that fills a state form
+         also carries the exact revision it filled; a form on disk could be swapped
+         for a different revision without anything noticing. -->
+    <EmbeddedResource Include="*.pdf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sati.Contracts\Sati.Contracts.csproj" />
+  </ItemGroup>
+</Project>

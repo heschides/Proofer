@@ -2,6 +2,7 @@
   <Project Path="Sati.Api/Sati.Api.csproj" />
   <Project Path="Sati.Api.Tests/Sati.Api.Tests.csproj" />
   <Project Path="Sati.Contracts/Sati.Contracts.csproj" />
+  <Project Path="Sati.Forms/Sati.Forms.csproj" />
   <Project Path="Sati.Tests/Sati.Tests.csproj" />
   <Project Path="Sati.csproj" />
 </Solution>
