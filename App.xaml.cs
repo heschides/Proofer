@@ -228,7 +228,14 @@ namespace Sati
                 // or any application query. A mismatched selection fails closed.
                 var dataEnvironment = _host.Services.GetRequiredService<DataEnvironmentInfo>();
                 if (!dataEnvironment.UsesCloudApi)
+                {
+                    using var provisioningScope = _host.Services.CreateScope();
+                    await new LocalDatabaseProvisioner(
+                        dataEnvironment,
+                        provisioningScope.ServiceProvider.GetRequiredService<SatiContext>())
+                        .ProvisionIfMissingAsync();
                     await _host.Services.GetRequiredService<DatabaseIdentityValidator>().ValidateAsync();
+                }
 
                 // Resolve before splash/login so the user's saved appearance is
                 // applied to every window created during this session.

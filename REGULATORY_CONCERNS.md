@@ -324,12 +324,18 @@ must be approved before deployment to agency devices.
 
 ### Cross-consumer isolation (added 2026-08-14)
 
-One in-process model instance serves every draft on the workstation, which raises the question of
-whether one consumer's context can influence another consumer's note. Sati does not rely on the
-native inference runtime to discard conversational state between chat-completion calls.
-`ConsumerSessionBoundary` records which consumer the model last drafted for and forces a clean model
-reload whenever the target consumer changes. This is a confidentiality control, not a performance
-choice, and `Sati.Tests/LocalAiConsumerIsolationTests.cs` covers it.
+The AI data-access path now returns only the currently selected own-caseload person's ID and first
+name; it does not retrieve prior notes, assessments, Bio, deadlines, or other historical records.
+The model request contains only a snapshot of current note-entry facts. Tenant and own-caseload
+checks are enforced at both the local service and API route, and source fingerprints prevent a
+result from being displayed or accepted after a client or input change.
+
+One in-process model instance still serves drafts on the workstation. Sati does not rely on the
+native inference runtime to discard conversational state between calls. `ConsumerSessionBoundary`
+records the consumer whose facts most recently reached the model and forces unload/reload before a
+different consumer can be processed. An unload failure stops generation rather than allowing the
+boundary to degrade. Automated tests cover authorization scope, context exclusion, reset decisions,
+and stale-result suppression.
 
 This addresses in-process carryover only. It does not address disk cache contents, swap, crash
 dumps, or runtime telemetry, all of which remain open items in the paragraph above.

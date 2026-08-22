@@ -38,6 +38,13 @@ namespace Sati.Models
         [Description("Not assessed")] NotAssessed
     }
 
+    public enum VisitPresence
+    {
+        [Description("Not documented")] NotDocumented,
+        [Description("Present")] Present,
+        [Description("Not present")] NotPresent
+    }
+
     /// <summary>
     /// Immutable-by-convention attendee data stored with a note. SourceContactId
     /// permits an editor to re-select a current contact, while the text snapshot is
@@ -63,7 +70,9 @@ namespace Sati.Models
         public VisitParticipation Participation { get; set; }
         public VisitSafetyObservation SafetyObservation { get; set; }
 
-        public bool ConsumerPresent { get; set; } = true;
+        // Nullable preserves existing JSON booleans while making new documentation explicit:
+        // null means the case manager did not document presence either way.
+        public bool? ConsumerPresent { get; set; }
         public bool ExpressedPreferences { get; set; }
         public bool AskedQuestions { get; set; }
         public bool MadeChoices { get; set; }

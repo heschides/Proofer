@@ -571,11 +571,18 @@
                                          ToolTip="Optional location or setting details. Enter only what should appear in the record." />
 
                                 <DockPanel Margin="0,11,0,5">
-                                    <CheckBox DockPanel.Dock="Right"
-                                              Content="Consumer was present"
-                                              IsChecked="{Binding VisitConsumerPresent}"
+                                    <ComboBox DockPanel.Dock="Right"
+                                              Width="170"
+                                              ItemsSource="{Binding VisitPresences}"
+                                              SelectedItem="{Binding VisitPresence}"
                                               Margin="12,0,0,0"
-                                              AutomationProperties.Name="Consumer was present" />
+                                              AutomationProperties.Name="Consumer attendance status">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
                                     <TextBlock Text="ATTENDEES FROM THE CONSUMER PROFILE"
                                                Style="{StaticResource LabelStyle}"
                                                Margin="0" />
@@ -690,8 +697,8 @@
                                      Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" />
 
                             <!-- Disabled for a Reminder: the local AI path drafts
-                                 case note prose from clinical context, which a
-                                 reminder neither needs nor should pull. The command
+                                 case note prose from current note-entry facts, which a
+                                 reminder neither needs nor should supply. The command
                                  refuses it too — this is not the only gate. -->
                             <StackPanel Grid.Row="8"
                                         Margin="0,2,0,10"
@@ -746,7 +753,7 @@
                                             <Ellipse Style="{StaticResource AiThinkingPearlTwo}" />
                                             <Ellipse Style="{StaticResource AiThinkingPearlThree}" />
                                         </StackPanel>
-                                        <TextBlock Text="Sati is gathering context and shaping the draft…"
+                                        <TextBlock Text="Sati is checking current facts and shaping the draft…"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource AiPanelTextBrush}"
                                                    FontWeight="SemiBold"
@@ -800,7 +807,7 @@
 
                                     <Expander Margin="0,2,0,8"
                                               Header="{Binding AiContextSummary}"
-                                              AutomationProperties.Name="Show client context sources used by local AI">
+                                              AutomationProperties.Name="Show current note inputs used by local AI">
                                         <Border Margin="0,5,0,0"
                                                 Padding="9"
                                                 Background="{DynamicResource SurfaceBrush}"
@@ -812,7 +819,7 @@
                                                            FontSize="11"
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            TextWrapping="Wrap"
-                                                           Text="Historical records were supplied as background only. They cannot establish what happened during this contact." />
+                                                           Text="Only the selected client identity and the current note inputs shown below were supplied. No prior records were used." />
                                                 <ItemsControl ItemsSource="{Binding AiContextSources}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>

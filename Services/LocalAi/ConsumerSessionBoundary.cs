@@ -1,7 +1,7 @@
 namespace Sati.Services.LocalAi
 {
     /// <summary>
-    /// Tracks which consumer the shared in-process model last generated a draft for.
+    /// Tracks which consumer's fact packet the shared in-process model most recently received.
     /// Sati does not trust the native local-inference runtime to discard conversational
     /// state between chat-completion calls on its own, so this is the hard boundary:
     /// whenever the target consumer changes, the caller must force a clean model reload

@@ -5,20 +5,18 @@ namespace Sati.Services.LocalAi
         string Description);
 
     public sealed record ClientAiContext(
-        string PromptText,
+        int PersonId,
+        string? ConsumerFirstName,
         IReadOnlyList<ClientAiContextSource> Sources);
 
     /// <summary>
-    /// Builds a purpose-limited, permission-checked snapshot for local case-note
-    /// formatting. The snapshot is transient and is never persisted as a prompt.
+    /// Validates the selected-client boundary and returns only the minimum identity used by local
+    /// drafting. Historical record content is intentionally outside this contract.
     /// </summary>
     public interface IClientAiContextService
     {
         Task<ClientAiContext> BuildAsync(
             int personId,
-            int requestingUserId,
-            string roughNarrative,
-            int? excludedNoteId = null,
             CancellationToken cancellationToken = default);
     }
 }

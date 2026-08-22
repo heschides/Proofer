@@ -2026,83 +2026,25 @@ internal static class ApiEndpoints
 
     private static void MapAiContext(RouteGroupBuilder api)
     {
-        api.MapPost("/people/{personId:int}/ai-context", async Task<IResult> (
-            int personId, BuildClientAiContextRequest request, ClaimsPrincipal principal,
-            ApiDbContext db, CancellationToken cancellationToken) =>
+        api.MapGet("/people/{personId:int}/ai-context", async Task<IResult> (
+            int personId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(
-                x => x.Id == personId && x.UserId == request.RequestingUserId,
-                cancellationToken);
-            if (person is null || !await TenantAccess.CanAccessUserAsync(db, actor, request.RequestingUserId, cancellationToken))
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
                 return Results.Forbid();
 
-            var forms = await db.Forms.AsNoTracking().Where(x => x.PersonId == personId)
-                .OrderBy(x => x.DueDate).ToListAsync(cancellationToken);
-            var noteQuery = db.Notes.AsNoTracking().Where(x => x.PersonId == personId && x.Status != 4 && x.Status != 8);
-            if (request.ExcludedNoteId.HasValue) noteQuery = noteQuery.Where(x => x.Id != request.ExcludedNoteId.Value);
-            var recent = await noteQuery.OrderByDescending(x => x.EventDate).ThenByDescending(x => x.Id)
-                .Take(10).ToListAsync(cancellationToken);
-            var recentIds = recent.Select(x => x.Id).ToList();
-            var terms = ExtractContextTerms(request.RoughNarrative).Take(8).ToList();
-            var matches = new Dictionary<int, ServerNote>();
-            foreach (var term in terms)
-            {
-                var found = await noteQuery.Where(x => !recentIds.Contains(x.Id) && x.Narrative.Contains(term))
-                    .OrderByDescending(x => x.EventDate).Take(3).ToListAsync(cancellationToken);
-                foreach (var note in found) matches.TryAdd(note.Id, note);
-            }
-            var assessment = await db.ComprehensiveAssessments.AsNoTracking()
-                .Where(x => x.PersonId == personId && x.AuthorUserId == request.RequestingUserId &&
-                            (x.Status == "Draft" || x.Status == "Returned"))
-                .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken);
-            assessment ??= await db.ComprehensiveAssessments.AsNoTracking()
-                .Where(x => x.PersonId == personId && x.Status == "Approved")
-                .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken);
+            var selected = await db.People
+                .AsNoTracking()
+                .Where(person => person.Id == personId && person.AgencyId == actor.AgencyId)
+                .Select(person => new { person.Id, person.FirstName })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (selected is null)
+                return Results.Forbid();
 
-            var sources = new List<ClientAiContextSourceDto>();
-            var text = new StringBuilder();
-            text.AppendLine("CLIENT BACKGROUND SNAPSHOT");
-            text.AppendLine($"Generated: {DateTime.UtcNow:MMMM d, yyyy HH:mm} UTC");
-            text.AppendLine(); text.AppendLine("PROFILE");
-            text.AppendLine($"Name: {$"{person.FirstName} {person.LastName}".Trim()}");
-            text.AppendLine($"General bio: {(string.IsNullOrWhiteSpace(person.Bio) ? "Not recorded" : CollapseContext(person.Bio))}");
-            text.AppendLine($"Effective date: {(person.EffectiveDate?.ToString("MMMM d, yyyy") ?? "Not recorded")}");
-            if (person.HasGuardian) text.AppendLine($"Guardian: {person.GuardianName ?? "Not recorded"}");
-            if (!string.IsNullOrWhiteSpace(person.PrimaryCareProvider)) text.AppendLine($"Primary care provider: {person.PrimaryCareProvider}");
-            if (!string.IsNullOrWhiteSpace(person.HealthcareSystemName)) text.AppendLine($"Healthcare system: {person.HealthcareSystemName}");
-            sources.Add(new("Profile", "Current client profile, including general Bio"));
-            var services = ContextServices(person);
-            text.AppendLine(); text.AppendLine("RECORDED SERVICES AND EMPLOYMENT");
-            if (services.Count == 0) text.AppendLine("No active service flags are recorded.");
-            else foreach (var service in services) text.AppendLine($"- {service}");
-            sources.Add(new("Services", "Current service and employment flags"));
-            text.AppendLine(); text.AppendLine("FORM AND REVIEW DEADLINES");
-            foreach (var form in forms.Where(x => !x.IsCompliant || x.DueDate.Date >= DateTime.UtcNow.Date.AddDays(-120)).Take(16))
-            {
-                var state = form.IsCompliant ? "complete" : form.DueDate.Date < DateTime.UtcNow.Date ? "overdue and incomplete" : "incomplete";
-                var name = ContractMapper.FormTypeNameSafe(form.Type);
-                text.AppendLine($"- {name}: due {form.DueDate:MMMM d, yyyy}; {state}");
-                sources.Add(new("Deadline", $"{name} due {form.DueDate:MMM d, yyyy}"));
-            }
-            if (assessment is not null)
-            {
-                text.AppendLine(); text.AppendLine($"COMPREHENSIVE ASSESSMENT VERSION {assessment.Version} ({assessment.Status})");
-                var assessmentJson = assessment.DocumentJson.Length > 8000 ? assessment.DocumentJson[..8000] + " [truncated]" : assessment.DocumentJson;
-                text.AppendLine(assessmentJson);
-                sources.Add(new("Assessment", $"Comprehensive Assessment v{assessment.Version}, {assessment.Status}"));
-            }
-            text.AppendLine(); text.AppendLine("RECENT CASE NOTES (historical background; not current-contact evidence)");
-            foreach (var note in recent) AppendContextNote(text, sources, note, "Recent note");
-            var rankedMatches = matches.Values.OrderByDescending(x => terms.Count(t => x.Narrative.Contains(t, StringComparison.OrdinalIgnoreCase)))
-                .ThenByDescending(x => x.EventDate).Take(5).ToList();
-            if (rankedMatches.Count > 0)
-            {
-                text.AppendLine(); text.AppendLine("OLDER TOPIC-MATCHED NOTES (historical background; not current-contact evidence)");
-                foreach (var note in rankedMatches) AppendContextNote(text, sources, note, "Topic match");
-            }
-            var prompt = text.ToString().Trim(); if (prompt.Length > 24000) prompt = prompt[..24000] + "\n[Context truncated.]";
-            return Results.Ok(new ClientAiContextDto(prompt, sources));
+            return Results.Ok(new ClientAiContextDto(
+                selected.Id,
+                selected.FirstName,
+                [new ClientAiContextSourceDto("Scope", "Selected client identity only; no prior records")]));
         });
     }
 
@@ -4152,18 +4094,6 @@ internal static class ApiEndpoints
             : null;
     }
 
-    private static IEnumerable<string> ExtractContextTerms(string value)
-    {
-        var stop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "about", "after", "again", "also", "been", "before", "being", "client", "community", "from", "have", "note", "their", "there", "these", "they", "this", "today", "with", "would" };
-        return new string(value.Select(c => char.IsLetterOrDigit(c) || c is '\'' or '-' ? c : ' ').ToArray())
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => x.Length >= 4 && !stop.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static string CollapseContext(string value) => string.Join(' ', value.Split((char[]?)null,
-        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
     private static void PreventSensitiveResponseCaching(HttpContext context)
     {
         context.Response.Headers.CacheControl = "no-store, no-cache";
@@ -4222,32 +4152,6 @@ internal static class ApiEndpoints
             .Select(part => part!.Trim())
             .ToArray();
         return present.Length == 0 ? null : string.Join(", ", present);
-    }
-
-    private static List<string> ContextServices(ServerPerson person)
-    {
-        var result = new List<string>();
-        if (person.HasHomeSupport) result.Add("Home Support");
-        if (person.HasSelfDirectedHomeSupport) result.Add("Self-Directed Home Support");
-        if (person.HasSharedLiving) result.Add("Shared Living");
-        if (person.HasCommunitySupport1To1) result.Add("Community Support (1:1)");
-        if (person.HasCommunitySupportSelfDirected) result.Add("Self-Directed Community Support");
-        if (person.HasCommunitySupportDayProgram) result.Add($"Community Support day program ({Math.Max(1, person.DayProgramCount)} program(s))");
-        if (person.HasEmploymentSpecialist) result.Add("Employment Specialist");
-        if (person.HasWorkSupports) result.Add("Work Supports");
-        if (person.OpenWithVR) result.Add("Open Vocational Rehabilitation case");
-        if (person.IsEmployed) result.Add("Currently employed");
-        return result;
-    }
-
-    private static void AppendContextNote(StringBuilder text, ICollection<ClientAiContextSourceDto> sources,
-        ServerNote note, string category)
-    {
-        var date = note.EventDate?.ToString("MMMM d, yyyy") ?? "date not recorded";
-        var excerpt = CollapseContext(note.Narrative);
-        if (excerpt.Length > 1500) excerpt = excerpt[..1500] + "…";
-        text.AppendLine($"- Note #{note.Id}; {date}"); text.AppendLine($"  {excerpt}");
-        sources.Add(new(category, $"Case note #{note.Id}, {date}"));
     }
 
 }

@@ -6,11 +6,29 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Startup resource safety and concurrency";
-    public const string ReleaseDate = "August 14, 2026";
+    public const string ReleaseName = "Grounded local AI and Carika";
+    public const string ReleaseDate = "August 22, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
+        new(
+            "Grounded local AI",
+            [
+                "Local AI drafting now receives only the selected client's identity and the current unsaved note inputs; prior notes and other clients' narratives are never included.",
+                "Every selected visit option, attendee, detail, checkbox, and current sentence fragment is compiled into a required fact that the draft must represent.",
+                "Drafts are rejected when they omit required facts, reverse attribution, introduce unsupported names, numbers, quotations, negation, chronology, or clinical conclusions, or lose quoted wording.",
+                "Changing the client or any source control cancels and invalidates an in-flight draft so a stale response cannot appear or be accepted.",
+                "A deterministic closed-world fallback keeps drafting available if the local model is unavailable or cannot pass validation, while leaving final review and acceptance with the user.",
+                "Added synthetic competence, tenant-isolation, stale-response, fact-coverage, and hallucination-resistance tests, including an opt-in gate against the actual local model."
+            ]),
+        new(
+            "Carika note entry",
+            [
+                "Refreshed Carika with a clearer client rail, client summary, structured note card, stronger typography, and accessible status messaging.",
+                "Note type, workflow status, and form type are now explicit selections backed by the same safe contract choices used by Sati.",
+                "Carika now prevents stale client drafts or local transcriptions from being inserted after the selected client or narrative changes.",
+                "Added Carika tests for allowed choices, safe defaults, form behavior, and API round trips for Visit, Contact, Form, and Other notes."
+            ]),
         new(
             "Admin and audit",
             [
@@ -22,6 +40,9 @@ public static class ProductReleaseNotes
         new(
             "Safety and reliability",
             [
+                "The Local Production installer now carries Microsoft's signed LocalDB prerequisite and a clean workstation can safely create its own empty, environment-marked database on first launch.",
+                "Failed shutdown saves now show a technical code and support reference, keep unsaved text visible, and let the user explicitly remain open or close without saving.",
+                "Application shutdown now flushes both work agendas and the selected client's journal before closing.",
                 "Corrected Demo startup resource addresses so the renamed Sati.Demo executable can always load its icon and watercolor branding without looking for a nonexistent Sati assembly.",
                 "Completed a focused concurrency audit and added deterministic overlap tests for scratchpad saves, calendar navigation, billing loads, and stale client-note responses.",
                 "Serialized scratchpad, billing, and account-switch operations so repeated clicks, timers, window closing, and session transitions cannot compete for the same state.",

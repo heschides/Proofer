@@ -1,0 +1,193 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Carika.MainWindow"
+        x:Name="Root"
+        Title="Carika — Sati field notes"
+        Width="1180" Height="800" MinWidth="860" MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="72,*">
+    <Border Grid.Row="0" Background="{DynamicResource CarikaNavyBrush}" Padding="24,0">
+      <Grid ColumnDefinitions="Auto,14,*,Auto" VerticalAlignment="Center">
+        <Border Grid.Column="0" Width="42" Height="42" CornerRadius="21"
+                Background="{DynamicResource CarikaTealBrush}">
+          <TextBlock Text="C" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     FontSize="22" FontWeight="Bold" Foreground="White" />
+        </Border>
+        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+          <TextBlock Text="Carika" FontSize="23" FontWeight="SemiBold" Foreground="White" />
+          <TextBlock Text="Secure field notes through Sati" FontSize="11" Foreground="#C5D5E1" />
+        </StackPanel>
+        <Border Grid.Column="3" IsVisible="{Binding IsSignedIn}" Padding="10,5" CornerRadius="12"
+                Background="#264A63">
+          <TextBlock Text="API CONNECTED" FontSize="10" FontWeight="SemiBold" Foreground="#C8F2E8" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="24">
+      <Border IsVisible="{Binding !IsSignedIn}" Classes="card" MaxWidth="500"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="13">
+          <TextBlock Text="SECURE ACCESS" Classes="eyebrow" />
+          <TextBlock Text="Sign in to Sati" FontSize="27" FontWeight="SemiBold"
+                     Foreground="{DynamicResource CarikaNavyBrush}" />
+          <TextBlock Text="Carika uses the authenticated Sati API. It never connects directly to a database."
+                     Classes="guidance" Margin="0,0,0,8" />
+          <StackPanel>
+            <TextBlock Text="API ADDRESS" Classes="fieldLabel" />
+            <TextBox Text="{Binding ApiAddress}" AutomationProperties.Name="Sati API address" />
+          </StackPanel>
+          <StackPanel>
+            <TextBlock Text="USERNAME" Classes="fieldLabel" />
+            <TextBox Text="{Binding Username}" AutomationProperties.Name="Username" />
+          </StackPanel>
+          <StackPanel>
+            <TextBlock Text="PASSWORD" Classes="fieldLabel" />
+            <TextBox PasswordChar="●" Text="{Binding Password}" AutomationProperties.Name="Password" />
+          </StackPanel>
+          <Button Content="Sign in securely" Command="{Binding SignInCommand}" Classes="primary"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  AutomationProperties.Name="Sign in to Sati" />
+          <Border Padding="11,9" CornerRadius="7" Background="{DynamicResource CarikaNavySoftBrush}">
+            <TextBlock Text="{Binding Status}" Classes="guidance" AutomationProperties.LiveSetting="Polite" />
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Grid IsVisible="{Binding IsSignedIn}" ColumnDefinitions="286,18,*">
+        <Border Grid.Column="0" CornerRadius="14" Background="{DynamicResource CarikaNavyBrush}" Padding="18">
+          <Grid RowDefinitions="Auto,Auto,*">
+            <TextBlock Grid.Row="0" Text="MY CASELOAD" FontSize="11" FontWeight="SemiBold"
+                       Foreground="#9EC2D8" Margin="5,2,0,8" />
+            <TextBlock Grid.Row="1" Text="Choose a client" FontSize="20" FontWeight="SemiBold"
+                       Foreground="White" Margin="5,0,0,14" />
+            <ListBox Grid.Row="2" Classes="clientList" ItemsSource="{Binding People}"
+                     SelectedItem="{Binding SelectedPerson}" AutomationProperties.Name="Client caseload">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="36,10,*">
+                    <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17" Background="#315871">
+                      <TextBlock Text="{Binding Initials}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 FontWeight="SemiBold" Foreground="White" />
+                    </Border>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="White" />
+                      <TextBlock Text="{Binding WaiverLabel}" FontSize="10" Foreground="#BBD0DD" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="16" MaxWidth="820">
+            <Border Classes="card" Background="{DynamicResource CarikaNavySoftBrush}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="5">
+                  <TextBlock Text="SELECTED CLIENT" Classes="eyebrow" />
+                  <TextBlock Text="{Binding SelectedPerson.DisplayName}" FontSize="27" FontWeight="SemiBold"
+                             Foreground="{DynamicResource CarikaNavyBrush}" />
+                  <TextBlock Text="{Binding SelectedPerson.ProfileSummary}" TextWrapping="Wrap"
+                             Foreground="{DynamicResource CarikaMutedBrush}" />
+                </StackPanel>
+                <Border Grid.Column="1" Padding="12,6" CornerRadius="14" VerticalAlignment="Top"
+                        Background="{DynamicResource CarikaWhiteBrush}">
+                  <TextBlock Text="{Binding SelectedPerson.WaiverLabel}" FontSize="11" FontWeight="SemiBold"
+                             Foreground="{DynamicResource CarikaTealBrush}" />
+                </Border>
+              </Grid>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="CASE NOTE" Classes="eyebrow" />
+                  <TextBlock Text="Document current work" Classes="sectionTitle" />
+                  <TextBlock Text="Choose the note workflow first, then write and review the narrative before saving."
+                             Classes="guidance" />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="*,16,*">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="NOTE TYPE" Classes="fieldLabel" />
+                    <ComboBox ItemsSource="{Binding NoteTypeOptions}" SelectedItem="{Binding SelectedNoteType}"
+                              AutomationProperties.Name="Note type">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{Binding NoteTypeGuidance}" Classes="guidance" Margin="0,5,0,0" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="STATUS" Classes="fieldLabel" />
+                    <ComboBox ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding SelectedStatus}"
+                              AutomationProperties.Name="Note status">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{Binding StatusGuidance}" Classes="guidance" Margin="0,5,0,0" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel IsVisible="{Binding IsFormNote}">
+                  <TextBlock Text="FORM DOCUMENTED" Classes="fieldLabel" />
+                  <ComboBox ItemsSource="{Binding FormTypeOptions}" SelectedItem="{Binding SelectedFormType}"
+                            AutomationProperties.Name="Form documented">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+
+                <Grid ColumnDefinitions="*,16,*">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="SERVICE DATE" Classes="fieldLabel" />
+                    <DatePicker SelectedDate="{Binding EventDate}" AutomationProperties.Name="Service date" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="MINUTES" Classes="fieldLabel" />
+                    <NumericUpDown Value="{Binding Minutes}" Minimum="1" Maximum="1440"
+                                   AutomationProperties.Name="Service minutes" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel>
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="NARRATIVE" Classes="fieldLabel" />
+                    <TextBlock Grid.Column="1" Text="Review required before saving" Classes="guidance" />
+                  </Grid>
+                  <TextBox Text="{Binding Narrative}" AcceptsReturn="True" MinHeight="240"
+                           TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           Watermark="Document what occurred, who participated, the response, and stated follow-up."
+                           AutomationProperties.Name="Case note narrative" />
+                </StackPanel>
+
+                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <Button Content="Transcribe local WAV…" Command="{Binding TranscribeCommand}"
+                          Classes="secondary" Margin="0,0,8,8" AutomationProperties.Name="Transcribe local WAV audio" />
+                  <Button Content="Save encrypted draft" Command="{Binding SaveDraftCommand}"
+                          Classes="secondary" Margin="0,0,8,8" AutomationProperties.Name="Save encrypted client draft" />
+                  <Button Content="Save note to Sati" Command="{Binding SaveNoteCommand}"
+                          Classes="primary" Margin="0,0,0,8" AutomationProperties.Name="Save note through Sati API" />
+                </WrapPanel>
+
+                <Border Padding="12,10" CornerRadius="8" Background="{DynamicResource CarikaSuccessSoftBrush}"
+                        BorderBrush="{DynamicResource CarikaBorderBrush}" BorderThickness="1">
+                  <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                             Foreground="{DynamicResource CarikaInkBrush}"
+                             AutomationProperties.LiveSetting="Polite" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="Local drafts are encrypted for this Windows user and client. WAV transcription stays on this device."
+                       Classes="guidance" HorizontalAlignment="Center" Margin="12,0,12,18" />
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

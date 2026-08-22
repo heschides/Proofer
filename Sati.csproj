@@ -11,9 +11,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.2.17</Version>
-    <AssemblyVersion>1.2.17.0</AssemblyVersion>
-    <FileVersion>1.2.17.0</FileVersion>
+    <Version>1.2.20</Version>
+    <AssemblyVersion>1.2.20.0</AssemblyVersion>
+    <FileVersion>1.2.20.0</FileVersion>
     <Company>SatiLogica</Company>
   </PropertyGroup>
 
@@ -47,18 +47,27 @@
     <Compile Remove="Sati.Tests\**\*.cs" />
     <Compile Remove="Sati.Contracts\**\*.cs" />
     <Compile Remove="Sati.Forms\**\*.cs" />
+    <Compile Remove="Carika\**\*.cs" />
+    <Compile Remove="Carika.Tests\**\*.cs" />
+    <Compile Remove="installer\Sati.LocalBootstrap\**\*.cs" />
     <Compile Remove="tmp\**\*.cs" />
     <EmbeddedResource Remove="Sati.Api\**\*" />
     <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Contracts\**\*" />
     <EmbeddedResource Remove="Sati.Forms\**\*" />
+    <EmbeddedResource Remove="Carika\**\*" />
+    <EmbeddedResource Remove="Carika.Tests\**\*" />
+    <EmbeddedResource Remove="installer\Sati.LocalBootstrap\**\*" />
     <EmbeddedResource Remove="tmp\**\*" />
     <None Remove="Sati.Api\**\*" />
     <None Remove="Sati.Api.Tests\**\*" />
     <None Remove="Sati.Tests\**\*" />
     <None Remove="Sati.Contracts\**\*" />
     <None Remove="Sati.Forms\**\*" />
+    <None Remove="Carika\**\*" />
+    <None Remove="Carika.Tests\**\*" />
+    <None Remove="installer\Sati.LocalBootstrap\**\*" />
     <None Remove="tmp\**\*" />
   </ItemGroup>
 

@@ -485,13 +485,13 @@ public sealed class CloudEdiService(CloudApiClient api) : IEdiService
 
 public sealed class CloudClientAiContextService(CloudApiClient api) : IClientAiContextService
 {
-    public async Task<ClientAiContext> BuildAsync(int personId, int requestingUserId, string roughNarrative,
-        int? excludedNoteId = null, CancellationToken cancellationToken = default)
+    public async Task<ClientAiContext> BuildAsync(
+        int personId,
+        CancellationToken cancellationToken = default)
     {
-        var context = await api.PostAsync<BuildClientAiContextRequest, ClientAiContextDto>(
-            $"/api/v1/people/{personId}/ai-context",
-            new BuildClientAiContextRequest(requestingUserId, roughNarrative, excludedNoteId), cancellationToken);
-        return new ClientAiContext(context.PromptText,
+        var context = await api.GetAsync<ClientAiContextDto>(
+            $"/api/v1/people/{personId}/ai-context", cancellationToken);
+        return new ClientAiContext(context.PersonId, context.ConsumerFirstName,
             context.Sources.Select(x => new ClientAiContextSource(x.Category, x.Description)).ToList());
     }
 }

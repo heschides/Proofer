@@ -1,6 +1,5 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Sati.Data;
 using Sati.Models;
 using Sati.Services.LocalAi;
@@ -39,31 +38,40 @@ public sealed class LocalAiConsumerIsolationTests
     }
 
     [Fact]
-    public async Task ClientAiContextNeverCrossesFromOneConsumerToAnother()
+    public async Task ClientAiContextReturnsOnlyTheSelectedIdentityAndNoHistoricalRecordText()
     {
         await using var fixture = await ContextFixture.CreateAsync();
-        var options = Options.Create(new LocalAiOptions());
-        var service = new ClientAiContextService(fixture.Factory, options);
+        var service = new ClientAiContextService(fixture.Factory, SessionFor(fixture.CaseManager));
 
-        var contextForA = await service.BuildAsync(fixture.PersonAId, fixture.CaseManager.Id, "check-in");
-        var contextForB = await service.BuildAsync(fixture.PersonBId, fixture.CaseManager.Id, "check-in");
+        var contextForA = await service.BuildAsync(fixture.PersonAId);
+        var contextForB = await service.BuildAsync(fixture.PersonBId);
 
-        Assert.Contains(ContextFixture.MarkerA, contextForA.PromptText);
-        Assert.DoesNotContain(ContextFixture.MarkerB, contextForA.PromptText);
-
-        Assert.Contains(ContextFixture.MarkerB, contextForB.PromptText);
-        Assert.DoesNotContain(ContextFixture.MarkerA, contextForB.PromptText);
+        Assert.Equal(fixture.PersonAId, contextForA.PersonId);
+        Assert.Equal("Alpha", contextForA.ConsumerFirstName);
+        Assert.Equal(fixture.PersonBId, contextForB.PersonId);
+        Assert.Equal("Beta", contextForB.ConsumerFirstName);
+        Assert.All(contextForA.Sources, source =>
+        {
+            Assert.DoesNotContain(ContextFixture.MarkerA, source.Description);
+            Assert.DoesNotContain(ContextFixture.MarkerB, source.Description);
+        });
     }
 
     [Fact]
     public async Task ClientAiContextRefusesAConsumerNotAssignedToTheRequestingUser()
     {
         await using var fixture = await ContextFixture.CreateAsync();
-        var options = Options.Create(new LocalAiOptions());
-        var service = new ClientAiContextService(fixture.Factory, options);
+        var service = new ClientAiContextService(fixture.Factory, SessionFor(fixture.CaseManager));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            service.BuildAsync(fixture.ForeignPersonId, fixture.CaseManager.Id, "check-in"));
+            service.BuildAsync(fixture.ForeignPersonId));
+    }
+
+    private static ISessionService SessionFor(User user)
+    {
+        var session = new SessionService();
+        session.SetUser(user);
+        return session;
     }
 
     private sealed class ContextFixture : IAsyncDisposable

@@ -23,6 +23,29 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task AiDraftScopeIsOwnCaseloadOnlyAndContainsNoHistoricalRecordText()
+    {
+        using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        var ownResponse = await caseManager.GetAsync("/api/v1/people/101/ai-context");
+        var foreignResponse = await caseManager.GetAsync("/api/v1/people/201/ai-context");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, foreignResponse.StatusCode);
+        var scope = await ownResponse.Content.ReadFromJsonAsync<ClientAiContextDto>();
+        Assert.NotNull(scope);
+        Assert.Equal(101, scope.PersonId);
+        Assert.Equal("Person", scope.ConsumerFirstName);
+        var serialized = await ownResponse.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Agency one note", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("DocumentJson", serialized, StringComparison.Ordinal);
+
+        using var supervisor = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await supervisor.GetAsync("/api/v1/people/101/ai-context")).StatusCode);
+    }
+
+    [Fact]
     public async Task ReleaseVersionIsPublicAndMatchesThePackagedClientRelease()
     {
         using var client = _factory.CreateAnonymousClient();
@@ -31,7 +54,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.17", release["releaseVersion"]);
+        Assert.Equal("1.2.20", release["releaseVersion"]);
     }
 
     [Fact]

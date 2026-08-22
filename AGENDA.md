@@ -2,6 +2,20 @@
 
 # Sati — Refactor Agenda
 
+## Carika limited client — 2026-08-21
+
+- [x] Add an Avalonia client using safe contracts and the API, without EF/SQL/LocalDB.
+- [x] Add authenticated caseload profile display and API-mediated draft-note creation.
+- [x] Add contract-backed note type, workflow status, and conditional form-type selections, with
+      stale draft-load and transcription suppression when the selected person or narrative changes.
+- [x] Refresh the limited client's visual hierarchy and accessible note-entry status messaging.
+- [x] Add DPAPI-protected, actor/person-bound optional local drafts.
+- [x] Add local-only Whisper transcription of an existing WAV with no cloud fallback or auto-download.
+- [ ] Add ephemeral microphone capture after privacy indicators, cancellation, device selection,
+      audio-lifetime behavior, and accessibility are designed and tested.
+- [ ] Add session expiry/re-authentication, sign-out/zeroization, note editing/concurrency UI,
+      integration tests, packaging, threat modeling, model controls, and deployment review.
+
 A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM, and SQL LocalDB.
 
 ---
@@ -645,23 +659,23 @@ and broad supervisory analytics are not assumed to belong in the first mobile cl
 
 ### Local AI case-note drafting
 
-Development slice shipped 2026-08-07: lazy in-process Foundry Local integration, `phi-4-mini`,
-500-word input cap, editable rules file, progress state, separate preview, explicit accept/discard,
-and deterministic warnings for omitted numeric details and placeholders. The original narrative is
-not changed unless the user accepts the draft. `LocalAi:Enabled=false` disables the feature.
+Closed-world revision shipped 2026-08-22: prior notes, assessments, Bio, deadlines, contacts, and
+other historical records were removed from AI context. The selected-client route now returns only
+the own-caseload person's ID and first name and never receives rough-note text. Every rough fragment
+and every selected Visit checkbox, selector value, attendee, or detail becomes a stable required
+fact. The model must return fact-cited JSON; shared deterministic rules reject the whole result for
+omission, selector-value loss, wrong-section use, or unsupported names, numbers, quotations,
+negation, and content words. `Not documented`, `Not assessed`, and unchecked controls assert nothing.
 
-First approved style rule added 2026-08-07: required `Community Case Manager (CCM)
-[full name]` opening, required final `Follow-up:` section, actual form-record fallback
-when no follow-up is evident, SLP/SLC role expansion, and trailing whole-number unit
-shorthand. One rough-note/desired-note pair is now embedded in `AI_CASE_NOTE_RULES.md`.
-
-Structured visit slice shipped 2026-08-07: consumer-profile contacts/support-team editor,
-separately loaded contact service, visit attendee selection, constrained setting/appearance/
-participation/safety choices, independent verified-fact checkboxes, additional-attendee and
-observation detail fields, and a persisted note-owned JSON snapshot. The local formatter receives
-these selections in a trusted current-visit block; historical AI context remains background-only.
-Concern selections require descriptive text, while `Not documented` never becomes a default
-normal observation.
+The original narrative remains unchanged until explicit acceptance. A source fingerprint and latest-
+request identity prevent a result from publishing or being accepted after the person, narrative, or
+template state changes. Consumer presence is explicitly selected instead of defaulting to present.
+Cross-consumer model switching fails closed if unload fails. Follow-up is supported by a current fact
+or exactly `No follow-up was documented.`; historical form deadlines are no longer inferred.
+The model can explicitly select Sati's validated deterministic renderer instead of risking an
+unsupported rewrite. Runtime failures and rejected model output use the same renderer with a visible
+warning. The opt-in device gate requires safe completion of all synthetic scenarios through the real
+local runtime; explicit safe deferral is accepted rather than forcing unsupported prose.
 
 Before any shared or production release:
 
@@ -670,12 +684,16 @@ Before any shared or production release:
   contacts, forms, sparse notes, ambiguity, quotations, negative statements, and safety content.
 - Define and pass acceptance thresholds for zero invented facts, retained attribution/negation,
   required formatting, latency, memory use, and accessibility.
-- Add regression tests with a fake formatter plus a separately run local-model evaluation suite.
+- Run the separately controlled local-model/device evaluation suite; deterministic compiler,
+  grounding, tenant-scope, and stale-client regressions are now automated. The representative
+  target-device smoke gate runs only with `SATI_RUN_LOCAL_AI_MODEL_EVAL=1` so ordinary CI cannot
+  acquire model weights implicitly.
 - Persist an audit record for accepted AI drafts: source, draft, final user-edited text, rule-set
   version, model alias/version/hash, user, timestamps, and explicit acceptance. Decide retention and
   access rules before adding this to the database.
-- Add cancellation and model-download/retry controls; test first-run, cached/offline, low-disk,
-  unavailable-model, corrupt-cache, and runtime-unload behavior.
+- Add model-download/retry controls; test first-run, cached/offline, low-disk, unavailable-model,
+  corrupt-cache, and runtime-unload behavior on supported devices. In-flight generation now cancels
+  when its selected client or source inputs change.
 - Complete privacy, security, clinical/documentation, labor, and records-retention review. Confirm
   runtime telemetry is disabled or contains no PHI and that no cloud fallback can occur.
 - Pin the approved model variant and license terms; prevent an unreviewed catalog update from

@@ -10,7 +10,6 @@ using Sati.Views;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Text;
 using System.Windows;
 
 namespace Sati.ViewModels.Children
@@ -48,10 +47,13 @@ namespace Sati.ViewModels.Children
         private Settings? _settings;
         private Note? _editingNote;
         private string? _aiSourceNarrative;
+        private string? _aiSourceFingerprint;
         private bool _applyingAiDraft;
         private VisitDocumentation? _pendingVisitDocumentation;
         private int _attendeeLoadVersion;
         private bool _suppressVisitChangeNotifications;
+        private readonly LatestRequestTracker _aiDraftRequests = new();
+        private CancellationTokenSource? _aiDraftCancellation;
 
         // Time already claimed by this case manager's other notes on EventDate.
         // Reloaded whenever the date changes; the tracker keeps a slow load for a
@@ -140,7 +142,7 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private double? aiDownloadProgress;
         [ObservableProperty] private IReadOnlyList<string> aiWarnings = [];
         [ObservableProperty] private IReadOnlyList<ClientAiContextSource> aiContextSources = [];
-        [ObservableProperty] private string aiContextSummary = "Context used";
+        [ObservableProperty] private string aiContextSummary = "Verified inputs";
 
         // Structured visit facts. Exclusive observations use enum pickers; the
         // independent facts are checkboxes and may be combined.
@@ -148,7 +150,7 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private VisitAppearance visitAppearance;
         [ObservableProperty] private VisitParticipation visitParticipation;
         [ObservableProperty] private VisitSafetyObservation visitSafetyObservation;
-        [ObservableProperty] private bool visitConsumerPresent = true;
+        [ObservableProperty] private VisitPresence visitPresence;
         [ObservableProperty] private bool visitExpressedPreferences;
         [ObservableProperty] private bool visitAskedQuestions;
         [ObservableProperty] private bool visitMadeChoices;
@@ -234,6 +236,7 @@ namespace Sati.ViewModels.Children
         public Array VisitAppearances => Enum.GetValues(typeof(VisitAppearance));
         public Array VisitParticipations => Enum.GetValues(typeof(VisitParticipation));
         public Array VisitSafetyObservations => Enum.GetValues(typeof(VisitSafetyObservation));
+        public Array VisitPresences => Enum.GetValues(typeof(VisitPresence));
         public ObservableCollection<VisitAttendeeOptionViewModel> VisitAttendees { get; } = [];
 
         // -------------------------------------------------------------------------
@@ -273,6 +276,8 @@ namespace Sati.ViewModels.Children
                 return;
             }
 
+            InvalidateAiGeneration();
+
             // Genuine client switch: reset the draft; edit mode ends because the
             // note being edited belongs to the previous client.
             if (IsEditing)
@@ -294,6 +299,7 @@ namespace Sati.ViewModels.Children
 
         partial void OnSelectedNoteTypeChanged(NoteType? value)
         {
+            InvalidateAiGeneration();
             OnPropertyChanged(nameof(IsFormNote));
             OnPropertyChanged(nameof(IsVisitNote));
             OnPropertyChanged(nameof(IsReminderNote));
@@ -340,6 +346,9 @@ namespace Sati.ViewModels.Children
         {
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
 
+            if (!_applyingAiDraft)
+                InvalidateAiGeneration();
+
             if (!_applyingAiDraft && IsAiReviewVisible &&
                 !string.Equals(value, _aiSourceNarrative, StringComparison.Ordinal))
             {
@@ -355,7 +364,7 @@ namespace Sati.ViewModels.Children
         partial void OnVisitAppearanceChanged(VisitAppearance value) => VisitFactsChanged();
         partial void OnVisitParticipationChanged(VisitParticipation value) => VisitFactsChanged();
         partial void OnVisitSafetyObservationChanged(VisitSafetyObservation value) => VisitFactsChanged();
-        partial void OnVisitConsumerPresentChanged(bool value) => VisitFactsChanged();
+        partial void OnVisitPresenceChanged(VisitPresence value) => VisitFactsChanged();
         partial void OnVisitExpressedPreferencesChanged(bool value) => VisitFactsChanged();
         partial void OnVisitAskedQuestionsChanged(bool value) => VisitFactsChanged();
         partial void OnVisitMadeChoicesChanged(bool value) => VisitFactsChanged();
@@ -369,6 +378,7 @@ namespace Sati.ViewModels.Children
 
         partial void OnSelectedFormTypeChanged(FormType? value)
         {
+            InvalidateAiGeneration();
             if (value is null || SelectedPerson is null || !string.IsNullOrWhiteSpace(Narrative))
                 return;
 
@@ -465,6 +475,8 @@ namespace Sati.ViewModels.Children
             if (_suppressVisitChangeNotifications)
                 return;
 
+            InvalidateAiGeneration();
+
             if (IsAiReviewVisible)
             {
                 ClearAiReview();
@@ -485,7 +497,7 @@ namespace Sati.ViewModels.Children
                 VisitAppearance = VisitAppearance.NotDocumented;
                 VisitParticipation = VisitParticipation.NotDocumented;
                 VisitSafetyObservation = VisitSafetyObservation.NotDocumented;
-                VisitConsumerPresent = true;
+                VisitPresence = VisitPresence.NotDocumented;
                 VisitExpressedPreferences = false;
                 VisitAskedQuestions = false;
                 VisitMadeChoices = false;
@@ -523,7 +535,12 @@ namespace Sati.ViewModels.Children
                 VisitAppearance = documentation.Appearance;
                 VisitParticipation = documentation.Participation;
                 VisitSafetyObservation = documentation.SafetyObservation;
-                VisitConsumerPresent = documentation.ConsumerPresent;
+                VisitPresence = documentation.ConsumerPresent switch
+                {
+                    true => VisitPresence.Present,
+                    false => VisitPresence.NotPresent,
+                    null => VisitPresence.NotDocumented
+                };
                 VisitExpressedPreferences = documentation.ExpressedPreferences;
                 VisitAskedQuestions = documentation.AskedQuestions;
                 VisitMadeChoices = documentation.MadeChoices;
@@ -581,7 +598,12 @@ namespace Sati.ViewModels.Children
                 Appearance = VisitAppearance,
                 Participation = VisitParticipation,
                 SafetyObservation = VisitSafetyObservation,
-                ConsumerPresent = VisitConsumerPresent,
+                ConsumerPresent = VisitPresence switch
+                {
+                    VisitPresence.Present => true,
+                    VisitPresence.NotPresent => false,
+                    _ => null
+                },
                 ExpressedPreferences = VisitExpressedPreferences,
                 AskedQuestions = VisitAskedQuestions,
                 MadeChoices = VisitMadeChoices,
@@ -594,70 +616,6 @@ namespace Sati.ViewModels.Children
                 AdditionalAttendees = Normalize(VisitAdditionalAttendees),
                 Attendees = selected
             };
-        }
-
-        private string BuildStructuredVisitFacts()
-        {
-            var documentation = BuildVisitDocumentation();
-            if (documentation is null)
-                return "Not a Visit note; no structured in-person observations were selected.";
-
-            var builder = new StringBuilder();
-            builder.AppendLine($"Case manager present: {_sessionService.CurrentUser?.DisplayName ?? "Signed-in case manager"}");
-            builder.AppendLine($"Consumer present: {(documentation.ConsumerPresent ? "Yes" : "No")}");
-            builder.AppendLine($"Meeting setting: {GetDescription(documentation.Setting)}");
-            builder.AppendLine($"Appearance: {GetDescription(documentation.Appearance)}");
-            builder.AppendLine($"Participation: {GetDescription(documentation.Participation)}");
-            builder.AppendLine($"Health/safety observation: {GetDescription(documentation.SafetyObservation)}");
-
-            if (!string.IsNullOrWhiteSpace(documentation.SettingDetails))
-                builder.AppendLine($"Setting details: {documentation.SettingDetails}");
-
-            if (documentation.Attendees.Count == 0)
-                builder.AppendLine("Selected profile contacts in attendance: None");
-            else
-            {
-                builder.AppendLine("Selected profile contacts in attendance:");
-                foreach (var attendee in documentation.Attendees)
-                {
-                    var role = string.IsNullOrWhiteSpace(attendee.Role) ? string.Empty : $", {attendee.Role}";
-                    var organization = string.IsNullOrWhiteSpace(attendee.Organization)
-                        ? string.Empty
-                        : $" ({attendee.Organization})";
-                    builder.AppendLine($"- {attendee.FullName}{role}{organization}");
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(documentation.AdditionalAttendees))
-                builder.AppendLine($"Additional attendees entered by the case manager: {documentation.AdditionalAttendees}");
-
-            AppendSelectedFact(builder, documentation.ExpressedPreferences, "Consumer expressed preferences");
-            AppendSelectedFact(builder, documentation.AskedQuestions, "Consumer asked questions");
-            AppendSelectedFact(builder, documentation.MadeChoices, "Consumer made choices");
-            AppendSelectedFact(builder, documentation.CommunicationSupportUsed, "Communication support was used");
-            AppendSelectedFact(builder, documentation.GoalsReviewed, "Goals were reviewed");
-            AppendSelectedFact(builder, documentation.ServicesDiscussed, "Services were discussed");
-            AppendSelectedFact(builder, documentation.DocumentsReviewed, "Documents were reviewed");
-
-            if (!string.IsNullOrWhiteSpace(documentation.ObservationDetails))
-                builder.AppendLine($"Case-manager observation details: {documentation.ObservationDetails}");
-
-            return builder.ToString().Trim();
-        }
-
-        private static void AppendSelectedFact(StringBuilder builder, bool selected, string fact)
-        {
-            if (selected)
-                builder.AppendLine($"Selected fact: {fact}");
-        }
-
-        private static string GetDescription<T>(T value) where T : struct, Enum
-        {
-            var member = typeof(T).GetMember(value.ToString()).FirstOrDefault();
-            return member?.GetCustomAttributes(typeof(DescriptionAttribute), false)
-                       .OfType<DescriptionAttribute>()
-                       .FirstOrDefault()?.Description
-                   ?? value.ToString();
         }
 
         private static string? Normalize(string? value) =>
@@ -855,9 +813,8 @@ namespace Sati.ViewModels.Children
         [RelayCommand] private void IncreaseNarrativeFont() => NarrativeFontSize = Math.Min(NarrativeFontSize + 2, 28);
         [RelayCommand] private void DecreaseNarrativeFont() => NarrativeFontSize = Math.Max(NarrativeFontSize - 2, 10);
 
-        // Reminders are excluded at the command, not only in the view: the AI path
-        // drafts CASE NOTE prose from clinical context, which is the wrong shape
-        // for a reminder and would pull client context it has no reason to read.
+        // Reminders are excluded at the command, not only in the view: the grounded
+        // drafting contract is for case-note facts and the service-note review path.
         private bool CanFormatNarrativeWithAi() =>
             IsLocalAiEnabled && !IsAiBusy && !IsReminderNote && SelectedPerson is not null &&
             !string.IsNullOrWhiteSpace(Narrative);
@@ -868,56 +825,100 @@ namespace Sati.ViewModels.Children
             if (string.IsNullOrWhiteSpace(Narrative))
                 return;
 
+            var currentUser = _sessionService.CurrentUser
+                ?? throw new InvalidOperationException("A signed-in user is required to use local AI.");
+            var selectedPerson = SelectedPerson
+                ?? throw new InvalidOperationException("Select a client before formatting a note.");
             var source = Narrative.Trim();
+            var capturedNoteType = SelectedNoteType;
+            var capturedFormType = SelectedFormType;
+            var capturedVisit = BuildVisitDocumentation();
+            var requestIdentity = _aiDraftRequests.Begin();
+            var cancellation = new CancellationTokenSource();
+            var previousCancellation = Interlocked.Exchange(ref _aiDraftCancellation, cancellation);
+            previousCancellation?.Cancel();
+
             IsAiBusy = true;
             ClearAiReview();
             AiStatusMessage = "Preparing the local case-note assistant…";
 
             var progress = new Progress<CaseNoteFormattingProgress>(update =>
             {
+                if (!_aiDraftRequests.IsCurrent(requestIdentity))
+                    return;
                 AiStatusMessage = update.Message;
                 AiDownloadProgress = update.Percent;
             });
 
             try
             {
-                var currentUser = _sessionService.CurrentUser
-                    ?? throw new InvalidOperationException("A signed-in user is required to use client-aware local AI.");
-                var selectedPerson = SelectedPerson
-                    ?? throw new InvalidOperationException("Select a client before formatting a note.");
-
-                AiStatusMessage = "Gathering permitted client context locally…";
+                AiStatusMessage = "Confirming the selected client boundary…";
                 var clientContext = await _clientAiContextService.BuildAsync(
                     selectedPerson.Id,
-                    currentUser.Id,
-                    source,
-                    IsEditing ? _editingNote?.Id : null);
+                    cancellation.Token);
 
-                AiContextSources = clientContext.Sources;
-                AiContextSummary = $"Context used ({clientContext.Sources.Count} sources)";
+                if (!_aiDraftRequests.IsCurrent(requestIdentity) ||
+                    SelectedPerson?.Id != selectedPerson.Id ||
+                    clientContext.PersonId != selectedPerson.Id)
+                    return;
+
+                var snapshot = CaseNoteFactCompiler.Build(
+                    selectedPerson.Id,
+                    source,
+                    capturedNoteType,
+                    capturedFormType,
+                    currentUser.DisplayName,
+                    clientContext.ConsumerFirstName,
+                    capturedVisit);
+
+                AiContextSources = clientContext.Sources
+                    .Concat(snapshot.Facts
+                        .Where(fact => fact.Id != CaseNoteDraftRules.NoFollowUpFactId)
+                        .GroupBy(fact => fact.Category)
+                        .Select(group => new ClientAiContextSource(
+                            group.Key,
+                            $"{group.Count()} current-note fact{(group.Count() == 1 ? string.Empty : "s")}")))
+                    .ToList();
+                var requiredFactCount = snapshot.Facts.Count(fact => fact.Required);
+                AiContextSummary = $"Verified inputs ({requiredFactCount} required facts)";
 
                 var result = await _caseNoteFormatter.FormatAsync(
                     new CaseNoteFormattingRequest(
-                        selectedPerson.Id,
-                        source,
-                        SelectedNoteType,
-                        SelectedFormType,
-                        currentUser.DisplayName,
-                        selectedPerson.FirstName,
-                        BuildFallbackFollowUp(selectedPerson),
-                        clientContext.PromptText,
-                        BuildStructuredVisitFacts()),
-                    progress);
+                        snapshot.PersonId,
+                        snapshot.RawNarrative,
+                        snapshot.NoteType,
+                        snapshot.FormType,
+                        snapshot.CaseManagerFullName,
+                        snapshot.ConsumerFirstName,
+                        snapshot.Fingerprint,
+                        snapshot.Facts),
+                    progress,
+                    cancellation.Token);
+
+                if (!_aiDraftRequests.IsCurrent(requestIdentity) ||
+                    SelectedPerson?.Id != snapshot.PersonId ||
+                    !CurrentAiInputsMatch(result.SourceFingerprint, currentUser))
+                    return;
 
                 _aiSourceNarrative = source;
+                _aiSourceFingerprint = result.SourceFingerprint;
                 AiDraftNarrative = result.DraftNarrative;
                 AiWarnings = result.Warnings;
                 IsAiReviewVisible = true;
-                AiStatusMessage = "Compare the draft with your original. Nothing changes until you accept it.";
+                AiStatusMessage = $"All {requiredFactCount} required facts were accounted for. Compare the draft before accepting it.";
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                // A client, template, or source change invalidated this request. The change handler
+                // already cleared the review surface; a cancellation is not an error dialog.
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Local case-note formatting failed: {ex}");
+                if (!_aiDraftRequests.IsCurrent(requestIdentity))
+                    return;
+
+                // Do not write exception messages here; grounding failures may quote draft content.
+                Debug.WriteLine($"Local case-note formatting failed: {ex.GetType().Name}");
                 AiStatusMessage = "The local assistant could not create a draft.";
 
                 var dialog = _validationDialog(
@@ -928,8 +929,14 @@ namespace Sati.ViewModels.Children
             }
             finally
             {
-                IsAiBusy = false;
-                AiDownloadProgress = null;
+                Interlocked.CompareExchange(ref _aiDraftCancellation, null, cancellation);
+                cancellation.Dispose();
+
+                if (_aiDraftRequests.IsCurrent(requestIdentity))
+                {
+                    IsAiBusy = false;
+                    AiDownloadProgress = null;
+                }
             }
         }
 
@@ -938,6 +945,15 @@ namespace Sati.ViewModels.Children
         {
             if (!IsAiReviewVisible || string.IsNullOrWhiteSpace(AiDraftNarrative))
                 return;
+
+            var currentUser = _sessionService.CurrentUser;
+            if (currentUser is null || string.IsNullOrWhiteSpace(_aiSourceFingerprint) ||
+                !CurrentAiInputsMatch(_aiSourceFingerprint, currentUser))
+            {
+                ClearAiReview();
+                AiStatusMessage = "The client or note inputs changed, so the AI draft was discarded. Format the current facts again.";
+                return;
+            }
 
             _applyingAiDraft = true;
             try
@@ -1255,12 +1271,40 @@ namespace Sati.ViewModels.Children
         private void ClearAiReview()
         {
             _aiSourceNarrative = null;
+            _aiSourceFingerprint = null;
             IsAiReviewVisible = false;
             AiDraftNarrative = string.Empty;
             AiWarnings = [];
             AiContextSources = [];
-            AiContextSummary = "Context used";
+            AiContextSummary = "Verified inputs";
             AiDownloadProgress = null;
+        }
+
+        private void InvalidateAiGeneration()
+        {
+            _aiDraftRequests.Invalidate();
+            Interlocked.Exchange(ref _aiDraftCancellation, null)?.Cancel();
+            if (IsAiBusy)
+            {
+                IsAiBusy = false;
+                AiDownloadProgress = null;
+            }
+        }
+
+        private bool CurrentAiInputsMatch(string fingerprint, User currentUser)
+        {
+            if (SelectedPerson is null || string.IsNullOrWhiteSpace(Narrative))
+                return false;
+
+            var current = CaseNoteFactCompiler.Build(
+                SelectedPerson.Id,
+                Narrative,
+                SelectedNoteType,
+                SelectedFormType,
+                currentUser.DisplayName,
+                SelectedPerson.FirstName,
+                BuildVisitDocumentation());
+            return string.Equals(current.Fingerprint, fingerprint, StringComparison.Ordinal);
         }
 
         private static string GetFriendlyAiError(Exception exception)
@@ -1271,57 +1315,14 @@ namespace Sati.ViewModels.Children
 
             return root switch
             {
+                CaseNoteDraftRejectedException rejected =>
+                    rejected.Message + "\n\n" + string.Join("\n", rejected.Errors.Take(6).Select(error => $"• {error}")),
                 ArgumentException => root.Message,
                 UnauthorizedAccessException => root.Message,
                 OperationCanceledException => "The operation was canceled.",
                 _ => "The model may still need to be downloaded, or the configured model may not be available. " +
                      "Check the development configuration and try again."
             };
-        }
-
-        private static string BuildFallbackFollowUp(Person? person)
-        {
-            if (person is null)
-                return "review the consumer's upcoming case-management deadlines";
-
-            var majorTypes = new[]
-            {
-                FormType.Q1R, FormType.Q2R, FormType.Q3R, FormType.Q4R,
-                FormType.ComprehensiveAssessment,
-                FormType.PCP,
-                FormType.Reclassification
-            };
-
-            var incomplete = person.Forms
-                .Where(form => majorTypes.Contains(form.Type) && !form.IsCompliant)
-                .ToList();
-
-            var today = DateTime.Today;
-            var target = incomplete
-                .Where(form => form.DueDate.Date < today)
-                .OrderByDescending(form => form.DueDate)
-                .FirstOrDefault()
-                ?? incomplete
-                    .Where(form => form.DueDate.Date >= today)
-                    .OrderBy(form => form.DueDate)
-                    .FirstOrDefault();
-
-            if (target is null)
-                return "review the consumer's upcoming case-management deadlines";
-
-            var formName = target.Type switch
-            {
-                FormType.Q1R => "Q1 90-Day Review",
-                FormType.Q2R => "Q2 90-Day Review",
-                FormType.Q3R => "Q3 90-Day Review",
-                FormType.Q4R => "Q4 90-Day Review",
-                FormType.PCP => "Person-Centered Plan",
-                _ => Person.FormDisplayName(target.Type)
-            };
-
-            return target.DueDate.Date < today
-                ? $"complete the overdue {formName}, which was due {target.DueDate:MMMM d, yyyy}"
-                : $"prepare for the {formName} due {target.DueDate:MMMM d, yyyy}";
         }
 
         public void Reset()

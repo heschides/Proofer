@@ -97,6 +97,35 @@ public sealed class NotePipelineApiTests
         }
     }
 
+    [Theory]
+    [InlineData("Visit")]
+    [InlineData("Contact")]
+    [InlineData("Form")]
+    [InlineData("Other")]
+    public async Task EveryCarikaNoteTypeRoundTripsThroughTheApi(string noteType)
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var formType = noteType == "Form" ? "PCP" : null;
+        var request = new SaveNoteRequest(
+            $"Carika {noteType} note.",
+            new DateTime(2026, 8, 3),
+            "Pending",
+            15,
+            null,
+            101,
+            formType,
+            noteType,
+            null,
+            null);
+
+        var response = await client.PostAsJsonAsync("/api/v1/notes", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<NoteDto>();
+        Assert.Equal(noteType, created!.NoteType);
+        Assert.Equal(formType, created.FormType);
+    }
+
     [Fact]
     public async Task ApprovalAndReturnAcceptOnlyASubmittedNote()
     {

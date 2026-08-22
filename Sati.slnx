@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Carika/Carika.csproj" />
+  <Project Path="Carika.Tests/Carika.Tests.csproj" />
   <Project Path="Sati.Api/Sati.Api.csproj" />
   <Project Path="Sati.Api.Tests/Sati.Api.Tests.csproj" />
   <Project Path="Sati.Contracts/Sati.Contracts.csproj" />

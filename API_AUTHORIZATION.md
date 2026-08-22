@@ -81,7 +81,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | AT | `DELETE /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only; stale or omitted revisions are rejected, and a published request is refused. |
 | AT | `POST /at-requests/{id}/publish` | Request person's assigned user and agency | Accessible case manager only. The attestation signer is taken from the validated actor; no request field can name a different signer. Completeness is decided by `AtRequestPublication`. Refused if already published or if the revision is stale. |
 | AT | `POST /at-requests/{id}/reopen` | Request person's assigned user and agency | Accessible case manager only. Discards the attestation, returns the request to `Development`, and records the discarded signer in the audit event. Refused if the revision is stale. |
-| AI context | `POST /people/{personId}/ai-context` | Person's assigned user and agency | Accessible requesting user; person and requested user must agree. |
+| AI context | `GET /people/{personId}/ai-context` | Person's assigned user and agency | Own caseload only; actor identity is derived from the validated session and the response contains selected-client identity only. |
 | Notes | `POST /notes` | Note person's assigned user and agency | Own caseload only; note agency is assigned server-side. |
 | Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces the `NoteWorkflow` transition table and rejects stale revisions. |
 | Notes | `DELETE /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces deletable workflow states and rejects stale revisions. |

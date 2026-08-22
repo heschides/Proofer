@@ -5,6 +5,8 @@ using Sati.Models;
 using System.Windows;
 using System.Windows.Threading;
 
+using Sati.Contracts.V1;
+
 namespace Sati.Views
 {
     public partial class ShellWindow : Window
@@ -144,18 +146,61 @@ namespace Sati.Views
                 if (_isSavingOnClose) return;
                 _isSavingOnClose = true;
 
-                if (!await _shellViewModel.Scratchpad.SaveAllScratchpadsAsync())
+                try
+                {
+                    var scratchpadsSaved = await _shellViewModel.Scratchpad.SaveAllScratchpadsAsync();
+                    var journalSaved = await _shellViewModel.NotesViewModel.Clients.FlushJournalAsync();
+                    if (!scratchpadsSaved || !journalSaved)
+                    {
+                        var closeAnyway = MessageBox.Show(
+                            "Sati could not save all open work. The unsaved text is still visible.\n\n" +
+                            "Choose No to keep Sati open, check the connection, and try closing again. " +
+                            "Choose Yes only if you want to close without saving that work.",
+                            "Open Work Not Saved",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning,
+                            MessageBoxResult.No);
+
+                        if (closeAnyway != MessageBoxResult.Yes)
+                            return;
+                    }
+
+                    _closeAfterSuccessfulSave = true;
+                    // Do not call Close from the continuation of the Closing event.
+                    // WPF can still have its internal closing guard raised even though
+                    // this async handler already set Cancel. Queue the final close so
+                    // the original event and its continuation unwind completely first.
+                    _ = Dispatcher.BeginInvoke(new Action(Close), DispatcherPriority.ApplicationIdle);
+                }
+                catch (Exception ex)
+                {
+                    var reference = AppErrorLog.Record(ex, "application.shutdown-save");
+                    _ = _incidentReporter.ReportAsync(
+                        ex,
+                        "application.shutdown-save",
+                        reference,
+                        IncidentSeverities.Critical);
+                    var closeAnyway = MessageBox.Show(
+                        "Sati encountered an unexpected error while saving open work. " +
+                        "The text that was on screen may not have been saved.\n\n" +
+                        $"Technical code: {ex.GetType().Name} (0x{ex.HResult:X8})\n" +
+                        $"Support reference: {reference}\n\n" +
+                        "Choose No to keep Sati open. Choose Yes only if you want to close without saving.",
+                        "Could Not Finish Closing",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Error,
+                        MessageBoxResult.No);
+
+                    if (closeAnyway == MessageBoxResult.Yes)
+                    {
+                        _closeAfterSuccessfulSave = true;
+                        _ = Dispatcher.BeginInvoke(new Action(Close), DispatcherPriority.ApplicationIdle);
+                    }
+                }
+                finally
                 {
                     _isSavingOnClose = false;
-                    return;
                 }
-
-                _closeAfterSuccessfulSave = true;
-                // Do not call Close from the continuation of the Closing event.
-                // WPF can still have its internal closing guard raised even though
-                // this async handler already set Cancel. Queue the final close so
-                // the original event and its continuation unwind completely first.
-                _ = Dispatcher.BeginInvoke(new Action(Close), DispatcherPriority.ApplicationIdle);
             };
 
             Closed += (s, e) => Application.Current.Shutdown();

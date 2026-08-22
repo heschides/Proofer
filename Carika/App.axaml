@@ -1,0 +1,95 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Carika.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <SolidColorBrush x:Key="CarikaCanvasBrush" Color="#F4F7FB" />
+    <SolidColorBrush x:Key="CarikaNavyBrush" Color="#16324A" />
+    <SolidColorBrush x:Key="CarikaNavySoftBrush" Color="#E8F0F6" />
+    <SolidColorBrush x:Key="CarikaTealBrush" Color="#187C7A" />
+    <SolidColorBrush x:Key="CarikaTealHoverBrush" Color="#126664" />
+    <SolidColorBrush x:Key="CarikaInkBrush" Color="#172B3A" />
+    <SolidColorBrush x:Key="CarikaMutedBrush" Color="#607585" />
+    <SolidColorBrush x:Key="CarikaBorderBrush" Color="#D8E2EA" />
+    <SolidColorBrush x:Key="CarikaWhiteBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="CarikaSuccessSoftBrush" Color="#E8F6F2" />
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="Background" Value="{DynamicResource CarikaCanvasBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaInkBrush}" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CarikaWhiteBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CarikaBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="22" />
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaTealBrush}" />
+    </Style>
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaNavyBrush}" />
+    </Style>
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaInkBrush}" />
+      <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+    <Style Selector="TextBlock.guidance">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaMutedBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="DatePicker">
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="16,8" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource CarikaTealBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CarikaTealBrush}" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CarikaTealHoverBrush}" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="{DynamicResource CarikaNavySoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CarikaNavyBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CarikaBorderBrush}" />
+    </Style>
+    <Style Selector="ListBox.clientList">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.clientList ListBoxItem">
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+  </Application.Styles>
+</Application>

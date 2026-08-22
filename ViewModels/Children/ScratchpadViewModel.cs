@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 
+using Sati.Services;
+
 namespace Sati.ViewModels.Children
 {
     public partial class ScratchpadViewModel : ObservableObject
@@ -277,8 +279,16 @@ namespace Sati.ViewModels.Children
         private static void ShowSaveError(Exception ex, string agendaName)
         {
             Debug.WriteLine($"{agendaName} save failed: {ex.Message}");
+            var reference = AppErrorLog.Record(
+                ex,
+                agendaName == "Today's Work"
+                    ? "scratchpad.save.today"
+                    : "scratchpad.save.tomorrow");
             MessageBox.Show(
-                $"Sati encountered an error saving {agendaName}. Your work may not have been saved.",
+                $"Sati could not save {agendaName}. Your text is still visible, but it has not reached the cloud.\n\n" +
+                $"Technical code: {ex.GetType().Name} (0x{ex.HResult:X8})\n" +
+                $"Support reference: {reference}\n\n" +
+                "Check the internet connection and try closing again. If it still fails, give the support reference to Sati support.",
                 "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 

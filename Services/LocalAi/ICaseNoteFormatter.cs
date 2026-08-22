@@ -1,4 +1,5 @@
 using Sati.Models;
+using Sati.Contracts.V1;
 
 namespace Sati.Services.LocalAi
 {
@@ -9,9 +10,8 @@ namespace Sati.Services.LocalAi
         FormType? FormType,
         string CaseManagerFullName,
         string? ConsumerFirstName,
-        string FallbackFollowUp,
-        string ClientContext,
-        string StructuredVisitFacts);
+        string SourceFingerprint,
+        IReadOnlyList<CaseNoteDraftFact> Facts);
 
     public sealed record CaseNoteFormattingProgress(
         string Message,
@@ -19,7 +19,16 @@ namespace Sati.Services.LocalAi
 
     public sealed record CaseNoteFormattingResult(
         string DraftNarrative,
-        IReadOnlyList<string> Warnings);
+        IReadOnlyList<string> Warnings,
+        string SourceFingerprint,
+        IReadOnlySet<string> UsedFactIds);
+
+    public sealed class CaseNoteDraftRejectedException(
+        string message,
+        IReadOnlyList<string> errors) : InvalidOperationException(message)
+    {
+        public IReadOnlyList<string> Errors { get; } = errors;
+    }
 
     public interface ICaseNoteFormatter
     {

@@ -533,8 +533,10 @@ public sealed record ReopenAtRequestRequest(int ExpectedRevision);
 public sealed record BinaryPayloadDto(string? Base64);
 
 public sealed record ClientAiContextSourceDto(string Category, string Description);
-public sealed record ClientAiContextDto(string PromptText, IReadOnlyList<ClientAiContextSourceDto> Sources);
-public sealed record BuildClientAiContextRequest(int RequestingUserId, string RoughNarrative, int? ExcludedNoteId);
+public sealed record ClientAiContextDto(
+    int PersonId,
+    string? ConsumerFirstName,
+    IReadOnlyList<ClientAiContextSourceDto> Sources);
 
 public sealed record UpdateFormRequest(DateTime? CompletedDate, DateTime? OpenedDate);
 public sealed record DeleteFormsRequest(IReadOnlyList<int> FormIds);

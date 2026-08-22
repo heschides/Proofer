@@ -1,4 +1,39 @@
-# Sati Demo installer
+# Sati desktop installers
+
+The repository builds two separate per-user Windows installers:
+
+- `Build-DemoInstaller.ps1` packages the cloud/API-backed Demo client as
+  `SatiDemoSetup-x.y.z.exe`. It contains only the public HTTPS API mapping.
+- `Build-LocalInstaller.ps1` packages the Local Production/LocalDB client as
+  `SatiLocalSetup-x.y.z.exe`. It embeds a Microsoft-signed `SqlLocalDB.msi`, contains the
+  workstation database mapping, and requires Windows integrated security; the builder rejects SQL
+  credentials and rejects an unsigned or non-Microsoft LocalDB prerequisite.
+
+They install side by side under `%LOCALAPPDATA%\Programs\SatiLogica\Sati Demo` and
+`%LOCALAPPDATA%\Programs\SatiLogica\Sati`, with separate shortcuts and uninstall entries.
+
+Build both from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-DemoInstaller.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-LocalInstaller.ps1 `
+    -LocalDbMsiPath C:\path\to\SqlLocalDB.msi
+```
+
+Validate the LocalDB install payload without touching the normal installation:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+    .\scripts\Test-LocalInstaller.ps1 `
+    -InstallerPath .\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.20.exe
+```
+
+On a clean workstation, the combined installer requests elevation only when LocalDB is absent. Sati
+then creates an empty `SatiProduction` database, applies controlled migrations, writes the Production
+identity marker, and opens guarded first-administrator setup. An existing database is never adopted
+or relabeled by this path.
+
+## API-backed Demo installer
 
 `Build-DemoInstaller.ps1` publishes a self-contained Windows x64 Demo client and wraps it in a per-user installer.
 
@@ -25,7 +60,7 @@ Run the isolated installation and launch acceptance test from the repository roo
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
     .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.17.exe `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.18.exe `
     -LaunchIterations 5
 ```
 

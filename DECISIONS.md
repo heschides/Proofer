@@ -342,6 +342,10 @@ audit record; this does not imply a billing override.
 
 ## Local AI-Assisted Case Notes
 
+> Historical note: the original background-context and calculated-follow-up decisions below were
+> superseded by the closed-world transformation decision dated 2026-08-22. They remain here as the
+> development record, not as a description of current behavior.
+
 ### The model drafts; the case manager authors
 
 AI output is never written directly to a note, submitted, logged, billed, approved, or used to
@@ -407,14 +411,12 @@ Sati does not have visibility into whether the underlying native runtime retains
 per-call state, and does not assume it doesn't.
 
 `CaseNoteFormattingRequest` now carries the target `PersonId`. `ConsumerSessionBoundary`
-(`Services/LocalAi/ConsumerSessionBoundary.cs`) records the consumer of the last completed request
-and reports whether the next request targets someone else. When it does, the formatter unloads and
-reloads the model before generating — a full reset, not a best-effort clear — so no consumer's
-formatting call can begin on a model instance that just carried a different consumer's context.
-Consecutive requests for the same consumer skip the reload, so formatting several notes for one
-client in a row stays fast. `LocalAiConsumerIsolationTests` covers the reset-boundary decision logic
-and proves, against a seeded database, that one consumer's note content never appears in another
-consumer's assembled context.
+(`Services/LocalAi/ConsumerSessionBoundary.cs`) records the consumer whose facts most recently
+reached the model and reports whether the next request targets someone else. When it does, the
+formatter must successfully unload and reload the model before generating; an unload failure stops
+the next request. Consecutive requests for the same consumer skip the reload. Isolation regressions
+cover reset decisions, own-caseload identity context, absence of historical record text, and
+suppression of an in-flight result after a client switch.
 
 ## 2026-08-12 — Protected API requests revalidate the actor and distinguish review from authorship
 
@@ -1235,3 +1237,62 @@ the date from its agency-local clock and scopes the row to the authenticated use
 the existing revision/409 behavior and are flushed on app close and account switching. A desktop
 left running overnight checks for rollover on window activation and on its ten-minute autosave tick;
 it saves the old visible drafts before swapping either tab to the new dated rows.
+
+## Carika is an API client, not a database client (2026-08-21)
+
+Carika references `Sati.Contracts`, not the `Sati.Api` executable project. Its system of record is
+reached through authenticated HTTPS routes, so it cannot acquire an Azure SQL credential, run
+migrations, or bypass server-side caseload and tenant checks. Its initial scope is profile display
+and note drafting only.
+
+Local speech transcription has no cloud fallback. Models are provisioned separately and the first
+slice transcribes user-selected WAV input without copying or retaining it. Optional narrative drafts
+are DPAPI encrypted for the current Windows user and bound to the Sati actor and person IDs. This
+reduces exposure from copied files but does not defend against code running as that Windows user and
+is not a compliance conclusion.
+
+## The Local Production package bootstraps software, never PHI (2026-08-21)
+
+The Local Production deliverable is one executable containing Sati and Microsoft's signed LocalDB
+MSI. The builder rejects a missing, invalidly signed, or non-Microsoft prerequisite. Installation
+requests elevation for LocalDB only when absent; the Sati application remains per-user.
+
+On first launch, Sati may provision only when the configured `SatiProduction` database is completely
+absent. It applies the controlled migration chain and writes a new Production identity marker before
+ordinary identity validation. If any database of that name already exists, the bootstrap path makes
+no change and the fail-closed identity gate remains authoritative. No database backup, seeded
+credential, user data, or PHI is packaged. A human creates the first administrator through the
+existing guarded flow.
+
+## Local case-note drafting is a closed-world transformation (2026-08-22)
+
+This decision supersedes the earlier local-AI design that assembled Bio, assessment, deadline, and
+historical-note background and calculated a form-based follow-up. The case-note model may now receive
+only the selected client's minimal identity and a captured packet of current note-entry facts. The
+selected-client authorization service derives the actor from the signed-in session; its API route is
+GET, own-caseload-only, and receives no rough narrative.
+
+Every rough-note fragment and selected template value is assigned a stable fact ID and is required
+in the result. The model proposes a JSON plan whose sentences cite their supporting fact IDs.
+`CaseNoteDraftRules` is the shared deterministic authority: it rejects omitted facts, citations that
+do not retain required selector values, wrong-section use, and unsupported names, numbers,
+quotations, negation, or content vocabulary. Sati, not the model, adds the fixed note envelope. In
+the absence of an explicit current-note follow-up, the only permitted text is `No follow-up was
+documented.` Unchecked, `Not documented`, and `Not assessed` controls supply no affirmative fact,
+and consumer presence has no affirmative default.
+
+The model may decline a rewrite by returning the exact `USE_SAFE_BASELINE` token. Sati then
+renders its deterministic current-fact plan and validates it through the same shared rules. This is
+a successful safe deferral, not permission to omit a fact. Runtime failures and two invalid model
+answers also fall back to that plan but are surfaced to the user as warnings. The target-device
+competence gate requires all representative scenarios to finish through the actual local runtime
+without a rejection warning. Safe deferral counts because the product guarantee is a grounded draft,
+not a requirement to force the model to change already-professional source wording.
+
+A fingerprint covers the person, narrative, template state, user identity, and complete fact packet.
+Selection or input changes cancel and invalidate generation, and Sati recomputes the fingerprint
+before publishing and again before accepting a draft. A different consumer's packet cannot be sent
+until the previous model unload succeeds. These controls reduce the model to a fallible prose
+organizer with fail-closed output gates; they do not make generated language intrinsically truthful
+or remove the need for human review, device evaluation, privacy review, and accepted-draft audit and
+retention decisions before production.

@@ -377,10 +377,16 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.17", version);
+        Assert.Equal("1.2.20", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Startup resource safety and concurrency", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Grounded local AI and Carika", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Grounded local AI" &&
+            section.Items.Any(item => item.Contains("selected client's identity", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Carika note entry" &&
+            section.Items.Any(item => item.Contains("workflow status", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
@@ -494,6 +500,10 @@ public sealed class StabilizationTests
         var source = File.ReadAllText(Path.Combine(directory!.FullName, "Views", "ShellWindow.xaml.cs"));
         Assert.Contains("Dispatcher.BeginInvoke", source);
         Assert.Contains("DispatcherPriority.ApplicationIdle", source);
+        Assert.Contains("SaveAllScratchpadsAsync", source);
+        Assert.Contains("FlushJournalAsync", source);
+        Assert.Contains("application.shutdown-save", source);
+        Assert.Contains("close without saving", source, StringComparison.OrdinalIgnoreCase);
 
         var settingsView = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml"));
         var settingsCodeBehind = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml.cs"));

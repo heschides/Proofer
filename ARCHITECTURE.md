@@ -155,6 +155,18 @@ It is not aspirational. Every claim here should be verifiable in the current cod
 
 ## Platform Direction and Architectural Boundary
 
+### Carika limited Avalonia client (2026-08-21)
+
+`Carika` is a Windows-targeted Avalonia client limited to authenticated caseload profile display and
+case-note drafting. It references `Sati.Contracts` and calls `Sati.Api` over HTTPS; it has no EF Core,
+SQL, LocalDB, migration, or database-credential dependency. The API remains authoritative for
+identity, tenant/caseload authorization, note validation, workflow, audit, concurrency, and Azure SQL.
+
+Optional local drafts are encrypted with Windows DPAPI for the current OS user and bound to the
+authenticated Sati user and person. Local Whisper transcription accepts an already-provisioned model
+and WAV input; the client has no cloud fallback or automatic model download. This first slice does
+not capture microphone audio, and neither local execution nor encryption is a HIPAA-compliance claim.
+
 This reference primarily documents the application that exists today. The target architecture
 below is recorded separately so that transitional code is not mistaken for the intended cloud
 design.
@@ -1006,66 +1018,54 @@ and the `BoardTabConverter` throw this session).
 
 ---
 
-## Local Case-Note Drafting (Development Slice, 2026-08-07)
+## Local Case-Note Drafting (Closed-World Revision, 2026-08-22)
 
-`ICaseNoteFormatter` is the application boundary for assisted note drafting.
-`FoundryLocalCaseNoteFormatter` is a singleton because both long-lived `NoteEntryViewModel`
-instances may use it and only one multi-gigabyte model should be loaded. A semaphore serializes
-inference requests. The model is initialized lazily on the first formatting request; ordinary
-startup and note entry do not initialize Foundry Local.
+`ICaseNoteFormatter` remains the application boundary for assisted drafting. The singleton
+`FoundryLocalCaseNoteFormatter` lazily loads one in-process Foundry Local model and serializes
+inference. `LocalAi:Enabled=false` prevents initialization and hides the feature; no cloud inference
+fallback exists. Runtime data is rooted at `%LOCALAPPDATA%\Sati\LocalAi`.
 
-The implementation uses the in-process `Microsoft.AI.Foundry.Local.WinML` runtime and the
-configured `phi-4-mini` catalog alias. The first request may contact the model catalog and download
-the selected hardware variant. Note inference occurs locally. Runtime data is explicitly rooted at
-`%LOCALAPPDATA%\Sati\LocalAi`; the repository, SQL database, and note record do not contain model
-weights or runtime logs.
+The model is no longer given prior notes, assessments, Bio, deadlines, contacts, billing data, or
+any other historical client record. `IClientAiContextService` has become a selected-client
+authorization boundary: it derives the actor from the current session, requires the selected person
+to belong to that actor and agency, and returns only the person's ID and first name. Its API
+counterpart is the actor-derived, own-caseload-only `GET /api/v1/people/{personId}/ai-context` route.
+The rough note is not sent to that endpoint.
 
-`LocalAiOptions` is bound from the `LocalAi` section in `appsettings.json`. `Enabled=false` removes
-the feature from the note-entry UI without changing XAML or DI. `AI_CASE_NOTE_RULES.md` is copied
-beside the executable and forms the editable agency-policy portion of the system prompt.
+`CaseNoteFactCompiler` takes a snapshot of the current rough narrative and current template state.
+It splits every rough-note fragment into a required fact and turns every selected Visit control,
+selector value, detail, and attendee snapshot into its own stable required fact ID. Unchecked,
+`Not documented`, and `Not assessed` values produce no asserted finding. Consumer presence is an
+explicit three-state selector rather than a checked-by-default boolean.
 
-The UI preserves the existing narrative and holds generated text in `AiDraftNarrative`. The user
-must compare and explicitly accept it before it replaces the editable narrative; submission remains
-the existing separate command. Edits to the source invalidate an outstanding draft. Numeric-token
-and placeholder checks produce review warnings but are deliberately not treated as proof of factual
-equivalence.
+The model receives that closed-world packet and returns JSON sentences with the fact IDs supporting
+each sentence. Shared `Sati.Contracts.V1.CaseNoteDraftRules` reject the entire draft if a required
+fact is omitted, a cited template value is not retained, a fact is used in the wrong section, or the
+prose introduces an unsupported name, number, quotation, negation, or content word. The required CCM
+opening and `Follow-up:` envelope are rendered by Sati only after validation. Follow-up is either
+explicitly supported by a current-note fact or exactly `No follow-up was documented.`; form records
+are not used to invent a fallback task.
 
-`CaseNoteFormattingRequest` also carries trusted context from the current session and selected
-consumer: case-manager display name, consumer first name, and a deterministic fallback follow-up.
-`NoteEntryViewModel.BuildFallbackFollowUp` selects the most recently overdue incomplete core form,
-or otherwise the next upcoming incomplete core form, and supplies its stored due date. Required
-opening and missing-`Follow-up:` envelopes are enforced after generation as well as in the prompt.
+One repair attempt is permitted when the first response fails deterministic validation; the same
+current fact packet and validation errors are reissued locally. The model may instead return the
+exact `USE_SAFE_BASELINE` control token, in which case Sati renders and revalidates its deterministic
+current-fact plan rather than asking the model to risk a rewrite. Runtime failure or two rejected
+answers also uses that verified plan and surfaces a warning. `LocalAiModelCompetenceTests` is an
+explicit opt-in target-device gate. It requires every representative scenario to complete through
+the local runtime without a rejection warning; safe deferral is permitted because forcing prose from
+an uncertain small model would conflict with the zero-addition requirement. It remains skipped unless
+`SATI_RUN_LOCAL_AI_MODEL_EVAL=1` is set, because enabling it may
+acquire multi-gigabyte model weights. Ordinary CI never downloads a model and covers the compiler,
+validation, tenant boundary, consumer reset, deterministic renderer, and stale-result behavior.
 
-`IClientAiContextService` is the separate data-access boundary for client-aware drafting. Its
-implementation first projects a person only when `Person.UserId == requestingUserId`; a failed
-ownership check returns no context. The projection always includes the general Bio plus the
-current waiver, limited care-team fields, service/employment flags, and form status. It deliberately
-does not select Journal, address, phone, MaineCare ID, diagnosis code, place-of-service, or billing
-fields. The Journal is therefore excluded at the SQL boundary rather than merely omitted later.
+`NoteEntryViewModel` preserves the rough narrative and requires explicit human acceptance. It
+captures a deterministic fingerprint of the selected person and every source fact. A person,
+template, selector, detail, or narrative change cancels and invalidates in-flight work; both result
+publication and acceptance recompute the fingerprint. Switching consumers must successfully unload
+the previous model before new facts can be sent, and an unload failure stops generation.
 
-The context service adds the ten most recent non-cancelled/non-abandoned notes and up to five older
-notes matched locally from meaningful terms in the rough narrative. When editing, the note being
-edited is excluded. An assessment author may receive their own active Draft/Returned version;
-otherwise only the latest Approved assessment is eligible. Context and per-note excerpts have
-configurable size ceilings under `LocalAi`.
-
-Historical material is wrapped as untrusted data in the model request. The system prompt forbids
-following instructions found inside client records and forbids treating prior notes or assessment
-answers as current-contact evidence. The draft review panel exposes the profile/service/deadline,
-assessment-version, and note-ID sources used. The assembled prompt is transient and is not stored.
-
-Visit documentation now has a separate trusted-current-facts path. `PersonContact` and
-`IPersonContactService` own the consumer's live support-network directory; the Overview page edits
-that reference data without loading it into the caseload query. A Visit note stores
-`VisitDocumentationJson`, a note-owned snapshot containing selected attendee names/roles,
-setting, appearance, participation, safety status, and independent verified-fact checkboxes.
-The snapshot deliberately retains names and roles even when a profile contact is later edited or
-archived. `NoteEntryViewModel` converts those explicit selections into
-`StructuredVisitFacts`; the system prompt treats that block as current evidence while continuing to
-treat historical client context as untrusted background. `Not documented` and `Not assessed`
-choices are never translated into normal findings.
-
-Current production gaps: no persisted source/draft/model-version audit record; no validated agency
-note standard or de-identified regression corpus; no formal factual-fidelity threshold; no model
-hash/version pin in the note; no cancellation control; and no security/privacy assessment of the
-model catalog/cache lifecycle. The feature must remain development-only until these are resolved.
+This is still a development feature, not a compliance or factual-truth guarantee. Before production
+it needs an approved agency note standard and de-identified evaluation corpus, pinned model/rule
+versions, measured rejection and factual-fidelity thresholds on actual target devices, a deliberate
+accepted-draft audit/retention design, and review of model acquisition, cache, logs, telemetry, swap,
+crash dumps, device encryption, and runtime lifecycle.

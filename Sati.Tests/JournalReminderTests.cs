@@ -300,6 +300,32 @@ public sealed class JournalReminderTests
         Assert.False(viewModel.FormatNarrativeWithAiCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task AClientSwitchWhileLocalAiIsRunningCannotPublishTheOldClientsDraft()
+    {
+        await using var fixture = await ReminderFixture.CreateAsync();
+        var formatter = new BlockingCaseNoteFormatter();
+        var viewModel = fixture.NoteEntry(
+            aiContext: new StubClientAiContextService(),
+            formatter: formatter);
+        var first = await fixture.PersonOneAsync();
+        var second = await fixture.PersonTwoAsync();
+        viewModel.SelectedPerson = first;
+        viewModel.SelectedNoteType = NoteType.Contact;
+        viewModel.Narrative = "Current facts for the first client.";
+
+        var formatting = viewModel.FormatNarrativeWithAiCommand.ExecuteAsync(null);
+        await formatter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        viewModel.SelectedPerson = second;
+        formatter.Release.TrySetResult();
+        await formatting;
+
+        Assert.Equal(second.Id, viewModel.SelectedPerson!.Id);
+        Assert.False(viewModel.IsAiReviewVisible);
+        Assert.True(string.IsNullOrEmpty(viewModel.AiDraftNarrative));
+    }
+
     // -------------------------------------------------------------------------
     // Fixture
     // -------------------------------------------------------------------------
@@ -318,6 +344,7 @@ public sealed class JournalReminderTests
         public User CaseManagerOne { get; private set; } = null!;
         public User CaseManagerTwo { get; private set; } = null!;
         public int PersonOneId { get; private set; }
+        public int PersonTwoId { get; private set; }
 
         public static async Task<ReminderFixture> CreateAsync()
         {
@@ -338,20 +365,30 @@ public sealed class JournalReminderTests
             return await db.People.AsNoTracking().SingleAsync(x => x.Id == PersonOneId);
         }
 
+        public async Task<Person> PersonTwoAsync()
+        {
+            await using var db = Factory.CreateDbContext();
+            return await db.People.AsNoTracking().SingleAsync(x => x.Id == PersonTwoId);
+        }
+
         /// <summary>
         /// The note-entry module wired to this fixture's database as Case Manager
         /// One. The validation dialog factory throws by design — a test that
         /// reaches it is asserting about validation, and the throw proves the write
         /// never happened.
         /// </summary>
-        public NoteEntryViewModel NoteEntry(bool aiEnabled = false, IPersonService? people = null) => new(
+        public NoteEntryViewModel NoteEntry(
+            bool aiEnabled = false,
+            IPersonService? people = null,
+            IClientAiContextService? aiContext = null,
+            ICaseNoteFormatter? formatter = null) => new(
             new NoteService(Factory, SessionFor(CaseManagerOne)),
             people ?? PeopleAs(CaseManagerOne),
             new StubSettingsService(),
             SessionFor(CaseManagerOne),
             new StubPersonContactService(),
-            new StubClientAiContextService(),
-            new StubCaseNoteFormatter(aiEnabled),
+            aiContext ?? new StubClientAiContextService(),
+            formatter ?? new StubCaseNoteFormatter(aiEnabled),
             _ => throw new NotSupportedException("No dialog is expected in this test."));
 
         private static ISessionService SessionFor(User user)
@@ -380,10 +417,15 @@ public sealed class JournalReminderTests
                 new DateTime(1990, 1, 1), null, WaiverType.Section21, new Settings());
             person.AgencyId = AgencyOne;
             person.Gender = Gender.Unknown;
-            db.People.Add(person);
+            var secondPerson = Person.CreatePerson(CaseManagerOne.Id, "Second", "Person", string.Empty,
+                new DateTime(1991, 1, 1), null, WaiverType.Section21, new Settings());
+            secondPerson.AgencyId = AgencyOne;
+            secondPerson.Gender = Gender.Unknown;
+            db.People.AddRange(person, secondPerson);
 
             await db.SaveChangesAsync();
             PersonOneId = person.Id;
+            PersonTwoId = secondPerson.Id;
         }
 
         public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
@@ -427,10 +469,10 @@ public sealed class JournalReminderTests
     {
         public Task<ClientAiContext> BuildAsync(
             int personId,
-            int requestingUserId,
-            string roughNarrative,
-            int? excludedNoteId = null,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default) => Task.FromResult(new ClientAiContext(
+                personId,
+                personId.ToString(),
+                [new ClientAiContextSource("Scope", "Selected client identity only; no prior records")]));
     }
 
     private sealed class StubCaseNoteFormatter(bool enabled) : ICaseNoteFormatter
@@ -442,5 +484,27 @@ public sealed class JournalReminderTests
             CaseNoteFormattingRequest request,
             IProgress<CaseNoteFormattingProgress>? progress = null,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class BlockingCaseNoteFormatter : ICaseNoteFormatter
+    {
+        public bool IsEnabled => true;
+        public int MaxInputWords => 500;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<CaseNoteFormattingResult> FormatAsync(
+            CaseNoteFormattingRequest request,
+            IProgress<CaseNoteFormattingProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            await Release.Task;
+            return new CaseNoteFormattingResult(
+                "Draft for the first client.",
+                [],
+                request.SourceFingerprint,
+                request.Facts.Where(fact => fact.Required).Select(fact => fact.Id).ToHashSet());
+        }
     }
 }
