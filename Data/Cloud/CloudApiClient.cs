@@ -19,7 +19,34 @@ public sealed class CloudApiClient
 
     private readonly HttpClient _httpClient;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly SemaphoreSlim _sessionRenewalGate = new(1, 1);
+    private readonly Lock _tokenLock = new();
     private string? _accessToken;
+    private DateTimeOffset? _accessTokenExpiresAtUtc;
+    private int _sessionEnded;
+
+    /// <summary>
+    /// How long before expiry a token is replaced. Public because the keep-alive
+    /// schedules against it: a caller that guesses its own interval can step over
+    /// the window entirely and wake up holding a token the server has already
+    /// stopped accepting.
+    /// </summary>
+    public static readonly TimeSpan RenewalMargin = TimeSpan.FromMinutes(5);
+
+    /// <summary>When the current token expires, or null when no session is open.</summary>
+    public DateTimeOffset? AccessTokenExpiresAtUtc
+    {
+        get { lock (_tokenLock) return _accessTokenExpiresAtUtc; }
+    }
+
+    /// <summary>
+    /// Raised once when the session is over and renewal can no longer revive it.
+    /// Signing in again clears the state, so a handler may prompt for credentials.
+    /// </summary>
+    public event EventHandler? SessionEnded;
+
+    /// <summary>True once renewal has been refused; every authenticated call then fails fast.</summary>
+    public bool HasSessionEnded => Volatile.Read(ref _sessionEnded) == 1;
 
     public CloudApiClient(HttpClient httpClient)
         : this(httpClient, Task.Delay)
@@ -35,9 +62,33 @@ public sealed class CloudApiClient
     }
 
     public void SetAccessToken(string accessToken) =>
-        _accessToken = string.IsNullOrWhiteSpace(accessToken)
-            ? throw new ArgumentException("An access token is required.", nameof(accessToken))
-            : accessToken;
+        SetAccessToken(accessToken, null);
+
+    public void SetAccessToken(string accessToken, DateTimeOffset? expiresAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken))
+            throw new ArgumentException("An access token is required.", nameof(accessToken));
+
+        // The keep-alive reads these from a background loop while sign-in and renewal
+        // write them, so the pair moves under a lock rather than being torn apart.
+        lock (_tokenLock)
+        {
+            _accessToken = accessToken;
+            _accessTokenExpiresAtUtc = expiresAtUtc;
+        }
+
+        // A fresh credential revives the client. Without this an ended session would
+        // stay latched shut after the user signed back in.
+        Volatile.Write(ref _sessionEnded, 0);
+    }
+
+    /// <summary>
+    /// Renews now if the token has entered its <see cref="RenewalMargin"/>, and does
+    /// nothing otherwise. The keep-alive calls this on the token's own schedule so a
+    /// session survives a quiet stretch that produces no requests of its own.
+    /// </summary>
+    public Task EnsureSessionRenewedAsync(CancellationToken cancellationToken = default) =>
+        RenewSessionIfNeededAsync(cancellationToken);
 
     public async Task<TResponse> PostAnonymousAsync<TRequest, TResponse>(
         string path,
@@ -159,8 +210,18 @@ public sealed class CloudApiClient
         string path,
         object? body,
         bool authenticated,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool renewSession = true)
     {
+        // Renewal needs a token the server still accepts, so once it has been refused
+        // the session cannot be recovered by trying again. Failing here stops one dead
+        // session from turning every later screen into its own rejected round trip.
+        if (authenticated && HasSessionEnded)
+            throw new CloudSessionEndedException();
+
+        if (authenticated && renewSession)
+            await RenewSessionIfNeededAsync(cancellationToken);
+
         for (var attempt = 0; ; attempt++)
         {
             using var request = CreateRequest(method, path, body, authenticated);
@@ -188,6 +249,52 @@ public sealed class CloudApiClient
             }
         }
     }
+
+    private async Task RenewSessionIfNeededAsync(CancellationToken cancellationToken)
+    {
+        if (!NeedsSessionRenewal())
+            return;
+
+        await _sessionRenewalGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!NeedsSessionRenewal())
+                return;
+
+            using var response = await SendHttpAsync(
+                HttpMethod.Post,
+                "/api/v1/auth/renew",
+                body: null,
+                authenticated: true,
+                cancellationToken: cancellationToken,
+                renewSession: false);
+
+            // A refused renewal is terminal, not transient: either the token was already
+            // too old to authenticate the renewal itself, or the twelve-hour cap from
+            // credential entry has passed. Only a new sign-in restores the session, and
+            // the caller has to be told that rather than shown an empty screen.
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+                throw MarkSessionEnded();
+
+            var renewal = await ReadAsync<SessionRenewalResponse>(response, cancellationToken);
+            SetAccessToken(renewal.AccessToken, renewal.ExpiresAtUtc);
+        }
+        finally
+        {
+            _sessionRenewalGate.Release();
+        }
+    }
+
+    private CloudSessionEndedException MarkSessionEnded()
+    {
+        if (Interlocked.Exchange(ref _sessionEnded, 1) == 0)
+            SessionEnded?.Invoke(this, EventArgs.Empty);
+        return new CloudSessionEndedException();
+    }
+
+    private bool NeedsSessionRenewal() =>
+        AccessTokenExpiresAtUtc is DateTimeOffset expiresAt &&
+        expiresAt <= DateTimeOffset.UtcNow.Add(RenewalMargin);
 
     private static bool IsNameResolutionFailure(Exception exception)
     {
@@ -217,12 +324,18 @@ public sealed class CloudApiClient
         object? body,
         bool authenticated = true)
     {
-        if (authenticated && string.IsNullOrWhiteSpace(_accessToken))
+        bool hasToken;
+        lock (_tokenLock) hasToken = !string.IsNullOrWhiteSpace(_accessToken);
+        if (authenticated && !hasToken)
             throw new InvalidOperationException("The Demo API session is not authenticated.");
 
         var request = new HttpRequestMessage(method, path);
         if (authenticated)
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+        {
+            string? token;
+            lock (_tokenLock) token = _accessToken;
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
         if (body is not null)
             request.Content = JsonContent.Create(body, options: JsonOptions);
         return request;
@@ -280,7 +393,7 @@ public sealed class CloudApiClient
     }
 }
 
-public sealed class CloudApiException(
+public class CloudApiException(
     HttpStatusCode statusCode,
     string message,
     string? correlationId,
@@ -292,6 +405,20 @@ public sealed class CloudApiException(
     public string? CorrelationId { get; } = correlationId;
     public TimeSpan? RetryAfter { get; } = retryAfter;
     public string? Code { get; } = code;
+}
+
+/// <summary>
+/// The signed-in session is over; no further request can succeed until the user signs
+/// in again. Derives from <see cref="CloudApiException"/> carrying 401 so that existing
+/// unauthorized handling â the agenda's session-expiry warning among it â keeps working,
+/// while a caller that can offer a sign-in prompt is able to catch this case alone.
+/// </summary>
+public sealed class CloudSessionEndedException()
+    : CloudApiException(
+        HttpStatusCode.Unauthorized,
+        "Your Demo session has expired. Sign in again to continue.",
+        correlationId: null)
+{
 }
 
 public sealed class CloudConnectivityException : Exception

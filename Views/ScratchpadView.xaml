@@ -89,6 +89,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -137,7 +138,22 @@
                 </StackPanel>
             </Grid>
 
-            <TabControl Grid.Row="1" Style="{StaticResource AgendaTabControlStyle}">
+            <Border Grid.Row="1"
+                    Margin="0,0,0,10"
+                    Padding="9"
+                    Background="{DynamicResource WarningFillBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    AutomationProperties.LiveSetting="Assertive"
+                    Visibility="{Binding HasScratchpadSessionExpired,
+                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="{Binding ScratchpadSessionExpiredMessage}"
+                           Foreground="{DynamicResource WarningBrush}"
+                           TextWrapping="Wrap" />
+            </Border>
+
+            <TabControl Grid.Row="2" Style="{StaticResource AgendaTabControlStyle}">
                 <TabItem Header="TODAY'S WORK"
                          AutomationProperties.Name="Today's Work"
                          Style="{StaticResource AgendaTabItemStyle}">

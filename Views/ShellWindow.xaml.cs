@@ -3,6 +3,7 @@ using Sati.ViewModels;
 using Sati.Services;
 using Sati.Models;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 using Sati.Contracts.V1;
@@ -18,6 +19,8 @@ namespace Sati.Views
         private readonly Func<MyAccountWindow> _myAccountWindowFactory;
         private readonly Func<MyAccountViewModel> _myAccountViewModelFactory;
         private readonly ISessionService _sessionService;
+        private readonly ISessionLifetime _sessionLifetime;
+        private readonly SessionKeepAlive? _sessionKeepAlive;
         private readonly IIncidentReporter _incidentReporter;
         private readonly ApplicationRunState _applicationRunState;
         private readonly DatabaseActivityViewModel _databaseActivity;
@@ -35,6 +38,7 @@ namespace Sati.Views
         public ShellWindow(ShellViewModel shellViewModel,
             CaseManagerDashboardViewModel caseManagerDashboardViewModel,
             ISessionService sessionService,
+            ISessionLifetime sessionLifetime,
             IIncidentReporter incidentReporter,
             ApplicationRunState applicationRunState,
             Func<SettingsWindow> settingsWindowFactory,
@@ -43,12 +47,15 @@ namespace Sati.Views
             Func<LoginWindow> loginWindowFactory,
             Func<MyAccountWindow> myAccountWindowFactory,
             Func<MyAccountViewModel> myAccountViewModelFactory,
-            Func<DatabasePatienceWindow> databasePatienceWindowFactory)
+            Func<DatabasePatienceWindow> databasePatienceWindowFactory,
+            SessionKeepAlive? sessionKeepAlive = null)
         {
             InitializeComponent();
             _shellViewModel = shellViewModel;
             _caseManagerDashboardViewModel = caseManagerDashboardViewModel;
             _sessionService = sessionService;
+            _sessionLifetime = sessionLifetime;
+            _sessionKeepAlive = sessionKeepAlive;
             _incidentReporter = incidentReporter;
             _applicationRunState = applicationRunState;
             _switchUserWindowFactory = switchUserWindowFactory;
@@ -60,6 +67,16 @@ namespace Sati.Views
             DataContext = shellViewModel;
 
             _databaseActivity.PropertyChanged += OnDatabaseActivityPropertyChanged;
+            _sessionLifetime.SessionEnded += OnSessionEnded;
+
+            // Raw input is what proves someone is still at the machine, so the
+            // keep-alive is told from here rather than inferring presence from
+            // whichever screens happen to poll.
+            if (_sessionKeepAlive is not null)
+            {
+                InputManager.Current.PreProcessInput += (s, e) => _sessionKeepAlive.NoteUserActivity();
+                _sessionKeepAlive.Start();
+            }
 
             // A workstation may remain open overnight. Returning to the window
             // advances the two dated agenda views immediately; the autosave timer
@@ -279,6 +296,59 @@ namespace Sati.Views
         // The switch-to-another-user flow, formerly inline in the greeting handler,
         // now reached from the My Account window's "Switch user" button. Preserved
         // Save the outgoing user's scratchpad and journal, open the switch modal,
+        // The session ended mid-use: renewal was refused, so nothing will succeed until
+        // credentials are entered again. Raised from a background thread, hence the
+        // dispatcher hop before any window is touched.
+        private void OnSessionEnded(object? sender, EventArgs e) =>
+            Dispatcher.BeginInvoke(new Action(async () => await PromptForReauthenticationAsync()));
+
+        /// <summary>
+        /// Asks for credentials in place rather than making the user restart Sati.
+        ///
+        /// Signing back in as the same person is not an account switch: the loaded
+        /// screens are still theirs, so nothing is reinitialized and unsaved agenda
+        /// text survives to be saved under the new token. A different account is a
+        /// switch, and takes the same path the Switch User flow does.
+        ///
+        /// Declining leaves the window open. The session stays dead and every action
+        /// says so, but forcing the app closed would take unsaved text with it.
+        /// </summary>
+        private async Task PromptForReauthenticationAsync()
+        {
+            var expected = _sessionService.CurrentUser;
+            if (expected is null)
+                return;
+
+            // Shares the account-switch gate: a lapse arriving while the user is
+            // already changing accounts must not stack a second modal on top.
+            if (!await _accountSwitchGate.WaitAsync(0))
+                return;
+
+            try
+            {
+                var login = _loginWindowFactory();
+                login.Owner = this;
+                login.Title = "Session Expired — Sign in to continue";
+                if (login.ShowDialog() != true || login.LoggedInUser is not { } user)
+                    return;
+
+                if (user.Id == expected.Id)
+                {
+                    _shellViewModel.Scratchpad.ResumeAfterReauthentication();
+                    return;
+                }
+
+                _sessionService.SetUser(user);
+                await _applicationRunState.StartSessionAsync(user, _incidentReporter);
+                await _incidentReporter.FlushAsync();
+                await _shellViewModel.ReinitializeAsync();
+            }
+            finally
+            {
+                _accountSwitchGate.Release();
+            }
+        }
+
         // and on success swap the session user and reinitialize the shell.
         private async Task OpenSwitchUserFlowAsync()
         {

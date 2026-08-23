@@ -100,6 +100,14 @@ namespace Sati.ViewModels
                 foreach (var user in all.OrderBy(u => u.DisplayName))
                     Users.Add(user);
             }
+            catch (SessionExpiredException ex)
+            {
+                Debug.WriteLine($"Switch-user directory load failed: {ex.Message}");
+                Users.Clear();
+                ErrorMessage =
+                    "Your session has expired, so the account list could not be loaded. " +
+                    "Close this window and restart Sati to sign in again.";
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Switch-user directory load failed: {ex.Message}");

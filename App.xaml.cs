@@ -217,6 +217,17 @@ namespace Sati
 
                         // Factories
                         services.AddTransient<Func<string, UserMessageDialog>>(sp => message => new UserMessageDialog(message));
+
+                        // Asks before unsaved work is thrown away. Destructive
+                        // styling, Cancel focused, Esc cancels — see ConfirmationDialog.
+                        services.AddTransient<DiscardChangesPrompt>(sp => (title, message) =>
+                        {
+                            var dialog = new ConfirmationDialog(title, message, "Discard changes", isDestructive: true)
+                            {
+                                Owner = Application.Current.MainWindow
+                            };
+                            return dialog.ShowDialog() == true;
+                        });
                         services.AddTransient<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
                         services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
                         services.AddTransient<Func<FirstRunAdminWindow>>(sp => () => sp.GetRequiredService<FirstRunAdminWindow>());
@@ -364,6 +375,7 @@ namespace Sati
             services.AddTransient<INoteService, NoteService>();
             services.AddTransient<IAuthService, AuthService>();
             services.AddTransient<IUserService, UserService>();
+            services.AddSingleton<ISessionLifetime, NeverEndingSessionLifetime>();
             services.AddTransient<IScratchpadService, ScratchpadService>();
             services.AddTransient<IIncentiveService, IncentiveService>();
             services.AddTransient<ISettingsService, SettingsService>();
@@ -406,6 +418,12 @@ namespace Sati
             }).AddHttpMessageHandler<DatabaseActivityHandler>();
             services.AddSingleton(sp => new CloudApiClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
+
+            // Only a token-bearing session can end or need renewing, so both live in
+            // the cloud branch. Local Production gets the never-ending implementation
+            // and no keep-alive at all.
+            services.AddSingleton<ISessionLifetime, CloudSessionLifetime>();
+            services.AddSingleton<SessionKeepAlive>();
             services.AddSingleton<IncidentOutbox>();
             services.AddTransient<IAuthService, CloudAuthService>();
             services.AddTransient<IAdminService, CloudAdminService>();

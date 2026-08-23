@@ -23,6 +23,9 @@ namespace Sati.ViewModels.Children
         private Scratchpad? _tomorrowAgenda;
         private DispatcherTimer? _scratchpadTimer;
         private readonly SemaphoreSlim _saveGate = new(1, 1);
+        private string _lastSavedScratchpadContent = string.Empty;
+        private string _lastSavedTomorrowAgendaContent = string.Empty;
+        private bool _sessionExpiredDuringSave;
 
         // -------------------------------------------------------------------------
         // Constructor
@@ -52,6 +55,8 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string scratchpadConflictMessage = string.Empty;
         [ObservableProperty] private bool hasTomorrowAgendaConflict;
         [ObservableProperty] private string tomorrowAgendaConflictMessage = string.Empty;
+        [ObservableProperty] private bool hasScratchpadSessionExpired;
+        [ObservableProperty] private string scratchpadSessionExpiredMessage = string.Empty;
 
         // -------------------------------------------------------------------------
         // Commands
@@ -63,6 +68,7 @@ namespace Sati.ViewModels.Children
         {
             var userId = _sessionService.CurrentUser!.Id;
             _scratchpad = await _scratchpadService.LoadTodayAsync(userId);
+            _lastSavedScratchpadContent = _scratchpad.Content;
             ScratchpadContent = _scratchpad.Content;
             HasScratchpadConflict = false;
             ScratchpadConflictMessage = string.Empty;
@@ -74,6 +80,7 @@ namespace Sati.ViewModels.Children
         {
             var userId = _sessionService.CurrentUser!.Id;
             _tomorrowAgenda = await _scratchpadService.LoadTomorrowAsync(userId);
+            _lastSavedTomorrowAgendaContent = _tomorrowAgenda.Content;
             TomorrowAgendaContent = _tomorrowAgenda.Content;
             TomorrowAgendaDateLabel = FormatAgendaDate(_tomorrowAgenda.Date);
             HasTomorrowAgendaConflict = false;
@@ -98,9 +105,12 @@ namespace Sati.ViewModels.Children
                 await Task.WhenAll(todayTask, tomorrowTask);
                 _scratchpad = await todayTask;
                 _tomorrowAgenda = await tomorrowTask;
+                _lastSavedScratchpadContent = _scratchpad.Content;
+                _lastSavedTomorrowAgendaContent = _tomorrowAgenda.Content;
                 ScratchpadContent = _scratchpad.Content;
                 TomorrowAgendaContent = _tomorrowAgenda.Content;
                 TomorrowAgendaDateLabel = FormatAgendaDate(_tomorrowAgenda.Date);
+                ClearExpiredSessionWarning();
                 StartScratchpadTimer();
             }
             catch (Exception ex)
@@ -138,9 +148,19 @@ namespace Sati.ViewModels.Children
             await _saveGate.WaitAsync();
             try
             {
-                var todaySaved = _scratchpad is null ||
+                var todayDirty = IsTodayDirty;
+                var tomorrowDirty = IsTomorrowDirty;
+                if (!todayDirty && !tomorrowDirty)
+                    return true;
+                if (_sessionExpiredDuringSave)
+                    return false;
+
+                var todaySaved = !todayDirty ||
                     (!HasScratchpadConflict && await SaveTodayCoreAsync());
-                var tomorrowSaved = _tomorrowAgenda is null ||
+                if (_sessionExpiredDuringSave)
+                    return false;
+
+                var tomorrowSaved = !tomorrowDirty ||
                     (!HasTomorrowAgendaConflict && await SaveTomorrowCoreAsync());
                 return todaySaved && tomorrowSaved;
             }
@@ -170,6 +190,8 @@ namespace Sati.ViewModels.Children
 
                 _scratchpad = await todayTask;
                 _tomorrowAgenda = await tomorrowTask;
+                _lastSavedScratchpadContent = _scratchpad.Content;
+                _lastSavedTomorrowAgendaContent = _tomorrowAgenda.Content;
                 ScratchpadContent = _scratchpad.Content;
                 TomorrowAgendaContent = _tomorrowAgenda.Content;
                 TomorrowAgendaDateLabel = FormatAgendaDate(_tomorrowAgenda.Date);
@@ -214,11 +236,14 @@ namespace Sati.ViewModels.Children
         {
             if (_scratchpad is null)
                 return true;
+            if (!IsTodayDirty)
+                return true;
 
             _scratchpad.Content = ScratchpadContent;
             try
             {
                 await _scratchpadService.SaveAsync(_scratchpad);
+                _lastSavedScratchpadContent = ScratchpadContent;
                 HasScratchpadConflict = false;
                 ScratchpadConflictMessage = string.Empty;
                 return true;
@@ -229,6 +254,11 @@ namespace Sati.ViewModels.Children
                 HasScratchpadConflict = true;
                 ScratchpadConflictMessage = ConflictMessage;
                 ShowConflict(ex, "Today's Work");
+                return false;
+            }
+            catch (ScratchpadSessionExpiredException ex)
+            {
+                HandleExpiredSession(ex);
                 return false;
             }
             catch (ScratchpadSaveException ex)
@@ -247,11 +277,14 @@ namespace Sati.ViewModels.Children
         {
             if (_tomorrowAgenda is null)
                 return true;
+            if (!IsTomorrowDirty)
+                return true;
 
             _tomorrowAgenda.Content = TomorrowAgendaContent;
             try
             {
                 await _scratchpadService.SaveAsync(_tomorrowAgenda);
+                _lastSavedTomorrowAgendaContent = TomorrowAgendaContent;
                 HasTomorrowAgendaConflict = false;
                 TomorrowAgendaConflictMessage = string.Empty;
                 return true;
@@ -262,6 +295,11 @@ namespace Sati.ViewModels.Children
                 HasTomorrowAgendaConflict = true;
                 TomorrowAgendaConflictMessage = ConflictMessage;
                 ShowConflict(ex, "Tomorrow's Agenda");
+                return false;
+            }
+            catch (ScratchpadSessionExpiredException ex)
+            {
+                HandleExpiredSession(ex);
                 return false;
             }
             catch (ScratchpadSaveException ex)
@@ -278,6 +316,45 @@ namespace Sati.ViewModels.Children
 
         private static string FormatAgendaDate(DateTime date) =>
             $"Next workday · {date:ddd, MMM d}";
+
+        private bool IsTodayDirty =>
+            _scratchpad is not null && ScratchpadContent != _lastSavedScratchpadContent;
+
+        private bool IsTomorrowDirty =>
+            _tomorrowAgenda is not null && TomorrowAgendaContent != _lastSavedTomorrowAgendaContent;
+
+        private void HandleExpiredSession(ScratchpadSessionExpiredException ex)
+        {
+            Debug.WriteLine($"Scratchpad save paused after session expiry: {ex.Message}");
+            _scratchpadTimer?.Stop();
+            _sessionExpiredDuringSave = true;
+            HasScratchpadSessionExpired = true;
+            ScratchpadSessionExpiredMessage =
+                "Your Demo session expired. Your unsaved agenda text remains here. " +
+                "Sign in again when prompted and it will save.";
+        }
+
+        /// <summary>
+        /// Resumes autosave after the user signs back in as the same person.
+        ///
+        /// Deliberately reloads nothing. The visible drafts are the newer text — the
+        /// whole reason the save was paused rather than abandoned — so replacing them
+        /// with what the server last stored would discard exactly what was being
+        /// protected. A different person signing in is an account switch, which
+        /// reinitializes through its own path.
+        /// </summary>
+        public void ResumeAfterReauthentication()
+        {
+            ClearExpiredSessionWarning();
+            StartScratchpadTimer();
+        }
+
+        private void ClearExpiredSessionWarning()
+        {
+            _sessionExpiredDuringSave = false;
+            HasScratchpadSessionExpired = false;
+            ScratchpadSessionExpiredMessage = string.Empty;
+        }
 
         private static void ShowConflict(Exception ex, string agendaName)
         {

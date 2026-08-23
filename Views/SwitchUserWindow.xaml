@@ -56,21 +56,28 @@
                                      Margin="0,0,0,16"
                                      PasswordChanged="PasswordBox_PasswordChanged" />
 
+            <!-- Visibility is decided by the style alone. A local Visibility binding
+                 outranks every setter and trigger below it, and BoolToVisibility
+                 collapses anything that is not a bool, so a string routed through it
+                 could never appear however the view model was set. -->
             <TextBlock Text="{Binding ErrorMessage}"
                        AutomationProperties.LiveSetting="Assertive"
                        FontSize="12"
                        Foreground="{DynamicResource OverdueBrush}"
                        TextWrapping="Wrap"
-                       Margin="0,0,0,12"
-                       Visibility="{Binding ErrorMessage,
-                           Converter={StaticResource BoolToVisibilityConverter}}">
+                       Margin="0,0,0,12">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility"
-                                Value="Collapsed" />
+                                Value="Visible" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ErrorMessage}"
                                          Value="">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ErrorMessage}"
+                                         Value="{x:Null}">
                                 <Setter Property="Visibility"
                                         Value="Collapsed" />
                             </DataTrigger>

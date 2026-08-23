@@ -48,10 +48,22 @@ public sealed class CloudUserService(CloudApiClient api) : IUserService
             plainText = string.Empty;
         }
     }
-    public async Task<List<User>> GetAllAsync() =>
-        (await api.GetAsync<List<UserProfileDto>>("/api/v1/users/switchable"))
-        .Select(CloudContractMapper.ToUser)
-        .ToList();
+    public async Task<List<User>> GetAllAsync()
+    {
+        try
+        {
+            return (await api.GetAsync<List<UserProfileDto>>("/api/v1/users/switchable"))
+                .Select(CloudContractMapper.ToUser)
+                .ToList();
+        }
+        catch (CloudSessionEndedException ex)
+        {
+            // The switch-user directory is the one screen a user reaches *because*
+            // something looks wrong, so an expired session has to be named here
+            // rather than collapsing into an empty account list.
+            throw new SessionExpiredException(ex);
+        }
+    }
     public Task UpdateAsync(User user) => api.PutAsync($"/api/v1/users/{user.Id}", ToRequest(user));
     public async Task ResetPasswordAsync(User user, SecureString newPassword)
     {
