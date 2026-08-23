@@ -1,0 +1,552 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sati — Workflow Promotional Brochure</title>
+<!--
+  SOURCE OF TRUTH for output/pdf/Sati_Workflow_Promotional_Brochure.pdf.
+  Each slide is one 960x540pt <svg> using the PDF's own coordinate system, so a number
+  here is the number the PDF gets. Text is real text and stays selectable.
+  Build: powershell -ExecutionPolicy Bypass -File scripts/build-brochure.ps1
+-->
+<style>
+  @page { size: 960pt 540pt; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .slide { display: block; width: 960pt; height: 540pt; break-after: page; }
+  .slide:last-of-type { break-after: auto; }
+  text { white-space: pre; }
+  @media screen {
+    body { background: #45464e; padding: 24px; }
+    .slide { margin: 0 auto 24px; box-shadow: 0 6px 28px rgba(0,0,0,.45); background: #fff; }
+  }
+</style>
+<body>
+
+<!-- =============== slide 1 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="1">
+  <image href="assets/slide1-backdrop.jpg" x="0" y="0" width="960" height="540" preserveAspectRatio="none"/>
+  <!-- Bodhi leaf. Centred in the space right of the panel: the panel ends at x=508, so the
+       leaf artwork's centre sits at (508+960)/2 = 734, and on the page's vertical centre 270.
+       The PNG carries 24px of transparent margin at 0.3506 pt/px, hence the 8.4pt offsets. -->
+  <image href="assets/img-35.png" x="590.8" y="70" width="286.4" height="400"/>
+  <path d="M0 540 L960 540 C960 540 960 540 960 540 L960 0 C960 0 960 0 960 0 L0 0 C0 0 0 0 0 0 L0 540 C0 540 0 540 0 540 Z" fill="none" stroke="#ffffff" stroke-width="0.8"/>
+  <rect x="38" y="42" width="470" height="456" rx="24" fill="#ffffff"/>
+  <image href="assets/img-04.png" x="66" y="65" width="34" height="34" preserveAspectRatio="none"/>
+  <text x="108" y="88" font-family="'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="700" fill="#1c2a3f">Sati</text>
+  <text x="108" y="102" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" font-weight="400" fill="#56657a">Human Services Infrastructure for Maine</text>
+  <rect x="66" y="130" width="183.0642" height="22" rx="11" fill="#566da8"/>
+  <text x="77" y="143.75" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#ffffff">WORKFLOW PROMOTIONAL OVERVIEW</text>
+  <!-- Cover headline. Four lines at 40pt rather than three at 44 because the panel's inner
+       width is 414pt and "paperwork were the" is the longest line the copy allows. The question
+       opens the interrogative arc that every slide carries and slide 14 answers. -->
+  <text x="66" y="214" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">What if the</text>
+  <text x="66" y="256" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">paperwork were the</text>
+  <text x="66" y="298" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">easiest part of</text>
+  <text x="66" y="340" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">your day?</text>
+  <!-- The subhead has to close the loop the headline opens. It still names every product area,
+       but it ends on what the workflow buys back rather than on the list itself. -->
+  <text x="66" y="376" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">One workflow for caseload, documentation, forms,</text>
+  <text x="66" y="398" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">supervision, billing, and audit evidence - so the</text>
+  <text x="66" y="420" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">time it saves comes back as time in the community.</text>
+  <rect x="66" y="446" width="157.3801" height="23" rx="11.5" fill="#eaf1f6"/>
+  <text x="77" y="460.1" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.2" font-weight="700" fill="#3d528a">DEMO SHOWN / SYNTHETIC DATA</text>
+  <text x="66" y="489" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.5" font-weight="400" fill="#7b8798">SatiLogica / RobinBradleyAMS</text>
+</svg>
+
+<!-- =============== slide 2 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="2">
+  <defs>
+    <linearGradient id="g2-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f3f7fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g2-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#566da8">BEGIN WITH THE DAY</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#566da8" stroke-width="2.5"/>
+  <text x="44" y="92" font-family="'Segoe UI', system-ui, sans-serif" font-size="32" font-weight="700" fill="#13233d">What if the next right task were already in view?</text>
+  <rect x="44" y="114" width="5" height="20" rx="2.5" fill="#3fc3c7"/>
+  <text x="60" y="130" font-family="Georgia, 'Times New Roman', serif" font-size="15.5" font-weight="400" font-style="italic" fill="#1c2a3f">Upcoming document requirements, sorted by consumer and by type.</text>
+  <rect x="44" y="144" width="5" height="20" rx="2.5" fill="#3fc3c7"/>
+  <text x="60" y="160" font-family="Georgia, 'Times New Roman', serif" font-size="15.5" font-weight="400" font-style="italic" fill="#1c2a3f">Upcoming items flagged for urgency.</text>
+  <rect x="44" y="174" width="5" height="20" rx="2.5" fill="#3fc3c7"/>
+  <text x="60" y="190" font-family="Georgia, 'Times New Roman', serif" font-size="15.5" font-weight="400" font-style="italic" fill="#1c2a3f">Overdue items immediately front and center, apart from any distraction.</text>
+  <text x="44" y="221" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#3d528a">It starts on one screen. The rest of the day is yours.</text>
+  <!-- Two panels, matched to 262pt tall so their tops and bottoms align despite very different
+       crops: the deadline rail is portrait (0.778), the dashboard is landscape (1.813). -->
+  <rect x="136" y="244" width="204" height="262" rx="14" fill="#13233d"/>
+  <image href="assets/s02-deadlines.jpg" x="131" y="238" width="204" height="262" preserveAspectRatio="none"/>
+  <rect x="131" y="238" width="204" height="262" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="360" y="244" width="474" height="262" rx="14" fill="#13233d"/>
+  <image href="assets/s02-requirements.jpg" x="355" y="238" width="474" height="262" preserveAspectRatio="none"/>
+  <rect x="355" y="238" width="474" height="262" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <!-- Callout over the per-client requirement checkboxes. Positioned as a fraction of the
+       dashboard crop, so it must be re-measured if s02-requirements.jpg is re-shot. -->
+  <rect x="528" y="380" width="299" height="48" rx="5" fill="#3fc3c7" fill-opacity="0.16" stroke="#2a9da1" stroke-width="2"/>
+  <text x="528" y="373" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#2a9da1">PER-CONSUMER REQUIREMENTS</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / THE DAY IN VIEW</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">02</text>
+</svg>
+
+<!-- =============== slide 3 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="3">
+  <defs>
+    <linearGradient id="g3-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f3f7fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g3-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#566da8">KEEP THE WHOLE PERSON PRESENT</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#566da8" stroke-width="2.5"/>
+  <text x="44" y="95" font-family="'Segoe UI', system-ui, sans-serif" font-size="29" font-weight="700" fill="#13233d">What if the information you need were all on one page?</text>
+  <text x="44" y="132" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">One consumer record, not six places to look.</text>
+  <!-- Every item here is a field the consumer record actually carries. 27pt pitch fits seven
+       plus the trailing note above the closing beat. -->
+  <rect x="44" y="163" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="177" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Waiver and services</text>
+  <rect x="44" y="190" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="204" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Open with VR</text>
+  <rect x="44" y="217" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="231" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Note history</text>
+  <rect x="44" y="244" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="258" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Contact list and support team</text>
+  <rect x="44" y="271" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="285" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Guardian information</text>
+  <rect x="44" y="298" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="312" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Representative payee profile</text>
+  <rect x="44" y="325" width="5" height="18" rx="2.5" fill="#3fc3c7"/>
+  <text x="62" y="339" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#1c2a3f">Encrypted identity information</text>
+  <text x="62" y="365" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" font-style="italic" fill="#7b8798">... and more</text>
+  <text x="44" y="400" font-family="'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="700" fill="#3d528a">Arrive already knowing.</text>
+  <text x="44" y="422" font-family="'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="700" fill="#3d528a">Spend the visit on the visit.</text>
+  <rect x="360" y="156" width="556" height="304" rx="14" fill="#13233d"/>
+  <image href="assets/s03-client-page.jpg" x="355" y="150" width="556" height="304" preserveAspectRatio="none"/>
+  <rect x="355" y="150" width="556" height="304" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="370" y="416" width="72.5117" height="21" rx="10.5" fill="#13233d"/>
+  <text x="381" y="429" font-family="'Segoe UI', system-ui, sans-serif" font-size="8" font-weight="700" fill="#ffffff">ONE RECORD</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / THE CONSUMER RECORD</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">03</text>
+</svg>
+
+<!-- =============== slide 4 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="4">
+  <defs>
+    <linearGradient id="g4-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#eef7f7"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g4-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#3fc3c7">DOCUMENTATION WITHOUT DETOURS</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#3fc3c7" stroke-width="2.5"/>
+  <!-- Slides 4-6 drop the interrogative frame the first three set up and run on a shared
+       construction instead: do the work without the detour it normally costs. -->
+  <text x="44" y="100" font-family="'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" fill="#13233d">Write the note</text>
+  <text x="44" y="138" font-family="'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" fill="#13233d">without leaving</text>
+  <text x="44" y="176" font-family="'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" fill="#13233d">the page.</text>
+  <text x="44" y="212" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">Select your client, status, time, and narrative</text>
+  <text x="44" y="231" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">with no extra clicking, no popups or embedded</text>
+  <text x="44" y="250" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">pages. And Sati's smart time entry system</text>
+  <text x="44" y="269" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">ensures your billing windows never overlap.</text>
+  <text x="44" y="304" font-family="'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="700" fill="#3d528a">One page. One pass.</text>
+  <text x="44" y="326" font-family="'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="700" fill="#3d528a">Nothing left half-open.</text>
+  <rect x="44" y="352" width="336" height="90" rx="12" fill="#ffffff" stroke="#d8e1ea" stroke-width="0.8"/>
+  <text x="60" y="376" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#2a9da1">ONLY SEE WHAT YOU NEED.</text>
+  <text x="60" y="397" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">Note entry workflow adapts to your selections. A</text>
+  <text x="60" y="411" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">status tells you where the note goes next; a visit</text>
+  <text x="60" y="425" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">opens the in-person meeting details.</text>
+  <rect x="438" y="82" width="430" height="388" rx="14" fill="#13233d"/>
+  <image href="assets/s04-note-entry.jpg" x="433" y="76" width="430" height="388" preserveAspectRatio="none"/>
+  <rect x="433" y="76" width="430" height="388" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / NOTE CAPTURE</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">04</text>
+</svg>
+
+<!-- =============== slide 5 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="5">
+  <defs>
+    <linearGradient id="g5-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f3f7fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g5-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f6a72b">DEADLINES MADE VISIBLE</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#f6a72b" stroke-width="2.5"/>
+  <text x="44" y="101" font-family="'Segoe UI', system-ui, sans-serif" font-size="33" font-weight="700" fill="#13233d">Reviews, updates, and assessments, front and center.</text>
+  <text x="44" y="146.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">See the entire caseload at a glance, grouped and sorted so nothing gets overlooked. Track quarterly medical, dental, and goals</text>
+  <text x="44" y="164.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">documentation requests from "not started" to "requested," "received," and "logged."</text>
+  <!-- Matrix and Reviews share a 325pt band so their tops and bottoms line up; the widths come
+       from each crop's own aspect (1.570 and 0.906) rather than from a shared column. -->
+  <rect x="49" y="184" width="511" height="325" rx="14" fill="#13233d"/>
+  <image href="assets/s05-matrix.jpg" x="44" y="178" width="511" height="325" preserveAspectRatio="none"/>
+  <rect x="44" y="178" width="511" height="325" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="580" y="184" width="294" height="325" rx="14" fill="#13233d"/>
+  <image href="assets/s05-reviews.jpg" x="575" y="178" width="294" height="325" preserveAspectRatio="none"/>
+  <rect x="575" y="178" width="294" height="325" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / REVIEW TRACKING</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">05</text>
+</svg>
+
+<!-- =============== slide 6 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="6">
+  <defs>
+    <linearGradient id="g6-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fbf2ef"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g6-1)"/>
+  <path d="M1052 40 C1052 -5.287 1015.287 -42 970 -42 C924.713 -42 888 -5.287 888 40 C888 85.287 924.713 122 970 122 C1015.287 122 1052 85.287 1052 40" fill="#fdecea"/>
+  <path d="M1087 40 C1087 -24.617 1034.617 -77 970 -77 C905.383 -77 853 -24.617 853 40 C853 104.617 905.383 157 970 157 C1034.617 157 1087 104.617 1087 40" fill="#fdecea"/>
+  <path d="M1122 40 C1122 -43.947 1053.947 -112 970 -112 C886.053 -112 818 -43.947 818 40 C818 123.947 886.053 192 970 192 C1053.947 192 1122 123.947 1122 40" fill="#fdecea"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#ad3427">THE FIRST BILLING GATE</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#ad3427" stroke-width="2.5"/>
+  <text x="44" y="103" font-family="'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="700" fill="#13233d">Overdue items make work unbillable. The note stops here.</text>
+  <text x="44" y="147" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">When a required form is overdue, Sati names it - PCP, comprehensive assessment, reclassification, safety plan - and holds the note</text>
+  <text x="44" y="166" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">at submission rather than letting it travel. You see exactly what to fix, and no supervisor reviews work that could never be billed.</text>
+  <!-- 872x242 is the capture's own 3.605 aspect at full content width, so it is not stretched.
+       That leaves a band underneath, which the callout and the billing disclaimer share. -->
+  <rect x="49" y="197" width="872" height="242" rx="14" fill="#13233d"/>
+  <image href="assets/s06-compliance.jpg" x="44" y="191" width="872" height="242" preserveAspectRatio="none"/>
+  <rect x="44" y="191" width="872" height="242" rx="14" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="44" y="449" width="500" height="48" rx="10" fill="#ffffff" stroke="#d8e1ea" stroke-width="0.8"/>
+  <text x="60" y="470" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#ad3427">THE GATE DOES NOT HIDE THE PROBLEM.</text>
+  <text x="60" y="486" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">The gate names the problem, so the team can fix it upstream.</text>
+  <text x="558.2009" y="476" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="400" fill="#7b8798">Billing and 837P capabilities are an early-stage workflow and require payer validation before live submission.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / BILLING GATES</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">06</text>
+</svg>
+
+<!-- =============== slide 7 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="7">
+  <defs>
+    <linearGradient id="g7-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#edf2fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g7-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#427a4a">SUPERVISION AT THE SPEED OF THE WORK</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#427a4a" stroke-width="2.5"/>
+  <text x="44" y="103" font-family="'Segoe UI', system-ui, sans-serif" font-size="32" font-weight="700" fill="#13233d">Frictionless supervisor review is the second billing gate.</text>
+  <text x="44" y="142.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Pending notes arrive with client, narrative, service date, type, and units already in context. Approve, and the note is cleared for the</text>
+  <text x="44" y="160.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">billing queue once every billing requirement passes. Return it with a reason and it goes back to the case manager as editable work.</text>
+  <rect x="49" y="184" width="872" height="314" rx="14" fill="#13233d"/>
+  <image href="assets/img-23.jpg" x="44" y="178" width="872" height="314" preserveAspectRatio="none"/>
+  <path d="M58 492 L902 492 C909.739 492 916 485.739 916 478 L916 192 C916 184.261 909.739 178 902 178 L58 178 C50.261 178 44 184.261 44 192 L44 478 C44 485.739 50.261 492 58 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / SUPERVISOR WORKFLOW</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">07</text>
+</svg>
+
+<!-- =============== slide 8 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="8">
+  <defs>
+    <linearGradient id="g8-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f3f7fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g8-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#427a4a">METRICS CONNECTED TO DECISIONS</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#427a4a" stroke-width="2.5"/>
+  <text x="44" y="94" font-family="'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="700" fill="#13233d">What if you could see which lost units were lost visits?</text>
+  <text x="44" y="157.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Productivity history connects documentation to billable days, lost units, attainment, and incentive calculations across the reporting</text>
+  <text x="44" y="175.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">window you choose.</text>
+  <rect x="49" y="191" width="872" height="307" rx="14" fill="#13233d"/>
+  <image href="assets/img-27.jpg" x="44" y="185" width="872" height="307" preserveAspectRatio="none"/>
+  <path d="M58 492 L902 492 C909.739 492 916 485.739 916 478 L916 199 C916 191.261 909.739 185 902 185 L58 185 C50.261 185 44 191.261 44 199 L44 478 C44 485.739 50.261 492 58 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <image href="assets/img-28.jpg" x="650" y="364" width="246" height="112" preserveAspectRatio="none"/>
+  <path d="M660 476 L886 476 C891.528 476 896 471.528 896 466 L896 374 C896 368.472 891.528 364 886 364 L660 364 C654.472 364 650 368.472 650 374 L650 466 C650 471.528 654.472 476 660 476 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="60" y="396" width="250" height="82" rx="10" fill="#ffffff" stroke="#d8e1ea" stroke-width="0.8"/>
+  <text x="76" y="421" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="700" fill="#427a4a">THE NUMBERS HAVE A JOB</text>
+  <text x="76" y="443.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">Show where to act. Show why. Show what</text>
+  <text x="76" y="457.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">changes next.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / PRODUCTIVITY AND BILLABILITY</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">08</text>
+</svg>
+
+<!-- =============== slide 9 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="9">
+  <defs>
+    <linearGradient id="g9-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#eef2f7"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g9-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#7838c2">EVIDENCE FOR OVERSIGHT</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#7838c2" stroke-width="2.5"/>
+  <text x="44" y="101" font-family="'Segoe UI', system-ui, sans-serif" font-size="35" font-weight="700" fill="#13233d">What if the evidence assembled itself?</text>
+  <text x="44" y="146.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Know who signed in. Know what changed. Know what was exported. Admin brings usage, protected activity, incident health, retention</text>
+  <text x="44" y="164.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">status, recent events, and versioned person history into one oversight workspace.</text>
+  <rect x="49" y="187" width="872" height="122" rx="14" fill="#13233d"/>
+  <image href="assets/img-30.jpg" x="44" y="181" width="872" height="122" preserveAspectRatio="none"/>
+  <path d="M58 303 L902 303 C909.739 303 916 296.739 916 289 L916 195 C916 187.261 909.739 181 902 181 L58 181 C50.261 181 44 187.261 44 195 L44 289 C44 296.739 50.261 303 58 303 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="49" y="328" width="276" height="170" rx="14" fill="#13233d"/>
+  <image href="assets/img-31.jpg" x="44" y="322" width="276" height="170" preserveAspectRatio="none"/>
+  <path d="M58 492 L306 492 C313.739 492 320 485.739 320 478 L320 336 C320 328.261 313.739 322 306 322 L58 322 C50.261 322 44 328.261 44 336 L44 478 C44 485.739 50.261 492 58 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="347" y="328" width="276" height="170" rx="14" fill="#13233d"/>
+  <image href="assets/img-32.jpg" x="342" y="322" width="276" height="170" preserveAspectRatio="none"/>
+  <path d="M356 492 L604 492 C611.739 492 618 485.739 618 478 L618 336 C618 328.261 611.739 322 604 322 L356 322 C348.261 322 342 328.261 342 336 L342 478 C342 485.739 348.261 492 356 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="645" y="328" width="276" height="170" rx="14" fill="#13233d"/>
+  <image href="assets/img-33.jpg" x="640" y="322" width="276" height="170" preserveAspectRatio="none"/>
+  <path d="M654 492 L902 492 C909.739 492 916 485.739 916 478 L916 336 C916 328.261 909.739 322 902 322 L654 322 C646.261 322 640 328.261 640 336 L640 478 C640 485.739 646.261 492 654 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="58" y="458" width="84.9993" height="20" rx="10" fill="#13233d"/>
+  <text x="69" y="470.25" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#ffffff">RECENT ACTIVITY</text>
+  <rect x="356" y="458" width="48.7188" height="20" rx="10" fill="#566da8"/>
+  <text x="367" y="470.25" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#ffffff">PEOPLE</text>
+  <rect x="654" y="458" width="89.2217" height="20" rx="10" fill="#7838c2"/>
+  <text x="665" y="470.25" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#ffffff">PERSON LIFECYCLE</text>
+  <text x="540.5526" y="511" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.8" font-weight="400" fill="#7b8798">Audit evidence can support internal review; no dashboard by itself establishes legal or regulatory compliance.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / AUDIT AND ADMINISTRATION</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">09</text>
+</svg>
+
+<!-- =============== slide 10 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="10">
+  <defs>
+    <linearGradient id="g10-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f3f7fa"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g10-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#566da8">FROM KNOWN FACTS TO USABLE FORMS</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#566da8" stroke-width="2.5"/>
+  <text x="44" y="97" font-family="'Segoe UI', system-ui, sans-serif" font-size="31" font-weight="700" fill="#13233d">How much of your day is re-typing</text>
+  <text x="44" y="131" font-family="'Segoe UI', system-ui, sans-serif" font-size="31" font-weight="700" fill="#13233d">what the record already knows?</text>
+  <text x="44" y="156.3" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.3" font-weight="400" fill="#56657a">Profile and agency details flow into guided form workspaces. Consumer-directed choices remain explicit. Signatures remain with the signer.</text>
+  <text x="44" y="174.3" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.3" font-weight="400" fill="#56657a">Prepare Maine DHHS forms, agency releases, and assistive-technology payment requests from the same client record.</text>
+  <rect x="49" y="196" width="364" height="302" rx="14" fill="#13233d"/>
+  <image href="assets/img-15.jpg" x="44" y="190" width="364" height="302" preserveAspectRatio="none"/>
+  <path d="M58 492 L394 492 C401.739 492 408 485.739 408 478 L408 204 C408 196.261 401.739 190 394 190 L58 190 C50.261 190 44 196.261 44 204 L44 478 C44 485.739 50.261 492 58 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="431" y="196" width="490" height="150" rx="14" fill="#13233d"/>
+  <image href="assets/img-16.jpg" x="426" y="190" width="490" height="150" preserveAspectRatio="none"/>
+  <path d="M440 340 L902 340 C909.739 340 916 333.739 916 326 L916 204 C916 196.261 909.739 190 902 190 L440 190 C432.261 190 426 196.261 426 204 L426 326 C426 333.739 432.261 340 440 340 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="431" y="364" width="490" height="134" rx="14" fill="#13233d"/>
+  <image href="assets/img-17.jpg" x="426" y="358" width="490" height="134" preserveAspectRatio="none"/>
+  <path d="M440 492 L902 492 C909.739 492 916 485.739 916 478 L916 372 C916 364.261 909.739 358 902 358 L440 358 C432.261 358 426 364.261 426 372 L426 478 C426 485.739 432.261 492 440 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+  <rect x="57" y="457" width="73.7656" height="21" rx="10.5" fill="#f6a72b"/>
+  <text x="68" y="470" font-family="'Segoe UI', system-ui, sans-serif" font-size="8" font-weight="700" fill="#13233d">AT REQUESTS</text>
+  <rect x="439" y="305" width="132.0117" height="21" rx="10.5" fill="#566da8"/>
+  <text x="450" y="318" font-family="'Segoe UI', system-ui, sans-serif" font-size="8" font-weight="700" fill="#ffffff">OFFICIAL DHHS WORKSPACE</text>
+  <rect x="439" y="457" width="92.625" height="21" rx="10.5" fill="#3fc3c7"/>
+  <text x="450" y="470" font-family="'Segoe UI', system-ui, sans-serif" font-size="8" font-weight="700" fill="#13233d">AGENCY RELEASES</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / GUIDED FORMS</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">10</text>
+</svg>
+
+<!-- =============== slide 11 =============== -->
+<!-- Placeholder blocks below are dashed frames awaiting real screenshots. Replace each with
+     <image href="assets/..." x=".." y=".." width=".." height=".." preserveAspectRatio="none"/>
+     at the same coordinates and delete the frame and its two labels. -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="11">
+  <defs>
+    <linearGradient id="g11-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#eef3fb"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g11-1)"/>
+  <path d="M1087 40 C1087 -24.617 1034.617 -77 970 -77 C905.383 -77 853 -24.617 853 40 C853 104.617 905.383 157 970 157 C1034.617 157 1087 104.617 1087 40" fill="#e6ecf8"/>
+  <path d="M1122 40 C1122 -43.947 1053.947 -112 970 -112 C886.053 -112 818 -43.947 818 40 C818 123.947 886.053 192 970 192 C1053.947 192 1122 123.947 1122 40" fill="#eef2fb"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#3d528a">SECURITY IS THE ARCHITECTURE</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#3d528a" stroke-width="2.5"/>
+  <text x="44" y="103" font-family="'Segoe UI', system-ui, sans-serif" font-size="33" font-weight="700" fill="#13233d">What if no laptop ever held a database credential?</text>
+  <text x="44" y="147" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">Distributed clients hold no Azure SQL credential and run no migrations. Every request carries a short-lived token, and the server re-confirms</text>
+  <text x="44" y="166" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">the caller's identity, role, and agency against the database before a caseload or agency identifier ever reaches a query.</text>
+  <rect x="44" y="191" width="872" height="277" rx="14" fill="#eef2f7" stroke="#b9c6d6" stroke-width="1.5" stroke-dasharray="9 7"/>
+  <text x="480" y="322" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="#8593a6">SCREENSHOT PLACEHOLDER</text>
+  <text x="480" y="343" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#8593a6">Environment chooser and the permanent Demo indicator, or the sign-in screen showing separated environments</text>
+  <text x="44" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#3d528a">TENANT ISOLATION IS ENFORCED ON THE SERVER.</text>
+  <text x="393" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">Interface visibility is never treated as a security boundary.</text>
+  <text x="44" y="508" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="400" fill="#7b8798">Demo and Production are separated in databases, credentials, service identities, deployments, logs, and administrative access. This architecture is designed to produce evidence of access control; no architecture by itself establishes regulatory compliance.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / SECURITY MODEL</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">11</text>
+</svg>
+
+<!-- =============== slide 12 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="12">
+  <defs>
+    <linearGradient id="g12-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f2f4fb"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g12-1)"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f0eefb"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#eef2fb"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#566da8">ONE RULE, ONE OWNER</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#566da8" stroke-width="2.5"/>
+  <text x="44" y="103" font-family="'Segoe UI', system-ui, sans-serif" font-size="33" font-weight="700" fill="#13233d">What if every rule had exactly one place to live?</text>
+  <text x="44" y="147" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">Permission, billability, approval, and record-status rules sit in one shared contracts library that the Windows client and the server both</text>
+  <text x="44" y="166" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">reference, so a rule cannot quietly be enforced two ways. Submitted records gain versions and amendments rather than silent overwrites.</text>
+  <rect x="44" y="191" width="872" height="277" rx="14" fill="#eef2f7" stroke="#b9c6d6" stroke-width="1.5" stroke-dasharray="9 7"/>
+  <text x="480" y="322" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="#8593a6">DIAGRAM PLACEHOLDER</text>
+  <text x="480" y="343" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#8593a6">Client and server both pointing at one shared rules library, with audit events and record versions behind the API</text>
+  <text x="44" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#566da8">A SECOND COPY OF A RULE IS A DEFECT.</text>
+  <text x="341" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">Append-only audit events, versioned person history, and concurrency tokens are foundations, not later additions.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / PLATFORM FOUNDATIONS</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">12</text>
+</svg>
+
+<!-- =============== slide 13 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="13">
+  <defs>
+    <linearGradient id="g13-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f4f0fb"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g13-1)"/>
+  <path d="M1052 40 C1052 -5.287 1015.287 -42 970 -42 C924.713 -42 888 -5.287 888 40 C888 85.287 924.713 122 970 122 C1015.287 122 1052 85.287 1052 40" fill="#f0e9fa"/>
+  <path d="M1122 40 C1122 -43.947 1053.947 -112 970 -112 C886.053 -112 818 -43.947 818 40 C818 123.947 886.053 192 970 192 C1053.947 192 1122 123.947 1122 40" fill="#f5f0fc"/>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#6b4fa8">CARIKA - THE COMPANION CLIENT</text>
+  <path d="M44 51 L78 51" fill="none" stroke="#6b4fa8" stroke-width="2.5"/>
+  <text x="44" y="103" font-family="'Segoe UI', system-ui, sans-serif" font-size="33" font-weight="700" fill="#13233d">What if the note started before you got back to the car?</text>
+  <text x="44" y="147" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">Carika is a deliberately limited companion client for profile access and note drafting. Speech is transcribed by a model provisioned on the</text>
+  <text x="44" y="166" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#56657a">device, with no cloud transcription fallback and no audio retained. You read every word before anything is saved.</text>
+  <rect x="44" y="191" width="872" height="277" rx="14" fill="#eef2f7" stroke="#b9c6d6" stroke-width="1.5" stroke-dasharray="9 7"/>
+  <text x="480" y="322" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="#8593a6">SCREENSHOT PLACEHOLDER</text>
+  <text x="480" y="343" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#8593a6">Carika showing a client profile alongside a transcript awaiting review, with the note status and type selectors visible</text>
+  <text x="44" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#6b4fa8">CARIKA REACHES DATA ONLY THROUGH THE API.</text>
+  <text x="382" y="493" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">No database client, no connection string, no migration path.</text>
+  <text x="44" y="508" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="400" fill="#7b8798">Carika is an early architectural slice. Current scope is profile display and note drafting; audio is imported rather than captured live, and models are provisioned separately. This is not a compliance conclusion.</text>
+  <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / CARIKA</text>
+  <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">13</text>
+</svg>
+
+<!-- =============== slide 14 =============== -->
+<svg class="slide" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" data-slide="14">
+  <defs>
+    <linearGradient id="g14-1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ddeaf7"/>
+      <stop offset="1" stop-color="#f7fbfc"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="-1" width="960" height="541" fill="url(#g14-1)"/>
+  <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#e8f8f8"/>
+  <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#e3f1fd"/>
+  <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#efe7f8"/>
+  <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef4e6"/>
+  <path d="M1037 262 C1037 121.167 922.833 7 782 7 C641.167 7 527 121.167 527 262 C527 402.833 641.167 517 782 517 C922.833 517 1037 402.833 1037 262" fill="#ffffff"/>
+  <image href="assets/img-35.png" x="583.564" y="62" width="297.872" height="416" preserveAspectRatio="none" opacity="0.94"/>
+  <rect x="55" y="51" width="98" height="23" rx="11.5" fill="#566da8"/>
+  <text x="66" y="65.25" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#ffffff">WHAT COMES NEXT</text>
+  <text x="55" y="156" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">Fortunately, you no</text>
+  <text x="55" y="200" font-family="'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="700" fill="#13233d">longer have to ask.</text>
+  <!-- Closing tagline, ahead of the summary so the last idea the reader carries out is the
+       person rather than the feature list. This replaced a "Remember the person / deadline /
+       reason" triple; slides 6, 9 and 10 already closed on triple anaphora and by the last slide the
+       device was spent. -->
+  <text x="55" y="240" font-family="'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="700" fill="#3d528a">Your caseload doesn't live on a computer.</text>
+  <text x="55" y="266" font-family="'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="700" fill="#3d528a">You shouldn't have to, either.</text>
+  <text x="55" y="304" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">Sati runs today as a Windows client on an</text>
+  <text x="55" y="326" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">API-mediated foundation, with a hosted Demo,</text>
+  <text x="55" y="348" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="400" fill="#56657a">guided forms, and a working audit path.</text>
+  <text x="55" y="382" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="700" fill="#7b8798">DIRECTIONS, NOT CURRENT FEATURES</text>
+  <text x="55" y="398" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#56657a">Person-centered plans, reportable incident management, EVV,</text>
+  <text x="55" y="412" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#56657a">mobile and offline documentation, and the full claim and</text>
+  <text x="55" y="426" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#56657a">remittance lifecycle.</text>
+  <rect x="55" y="444" width="202.4419" height="29" rx="14.5" fill="#13233d"/>
+  <text x="69" y="461.75" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#ffffff">REQUEST A GUIDED DEMONSTRATION</text>
+  <text x="55" y="495" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="700" fill="#1c2a3f">Sati / SatiLogica / RobinBradleyAMS</text>
+  <text x="570" y="499.3" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.3" font-weight="400" fill="#56657a">Sati is under active development and is not currently represented as HIPAA compliant or</text>
+  <text x="570" y="508.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.3" font-weight="400" fill="#56657a">production-ready. Feature availability may vary by deployment.</text>
+</svg>
+</body>
+
+<script>
+// Layout guard. SVG text does not wrap, so a lengthened line runs silently off the slide or
+// under an image instead of reflowing. Open this file in a browser and check the console, or
+// call checkLayout() there for the list. Defining it costs the PDF build nothing.
+function checkLayout() {
+  const problems = [];
+
+  // Reordering slides means touching data-slide, the footer number and the gradient ids in
+  // step. Check they agree, so a slide that is out of step says so instead of shipping.
+  const ids = new Set();
+  document.querySelectorAll('svg.slide').forEach((svg, i) => {
+    const position = i + 1;
+    if (+svg.getAttribute('data-slide') !== position)
+      problems.push(`position ${position} is labelled data-slide="${svg.getAttribute('data-slide')}"`);
+    const footer = [...svg.querySelectorAll('text')].find(t => t.getAttribute('x') === '907.3721');
+    if (footer && footer.textContent !== String(position).padStart(2, '0'))
+      problems.push(`position ${position} has footer number "${footer.textContent}"`);
+    svg.querySelectorAll('[id]').forEach(e => {
+      if (ids.has(e.id)) problems.push(`duplicate id "${e.id}" on slide ${position}`);
+      ids.add(e.id);
+    });
+  });
+
+  document.querySelectorAll('svg.slide').forEach(svg => {
+    const slide = svg.getAttribute('data-slide');
+    const blocks = [...svg.querySelectorAll('image,rect')].map(e => ({
+      x: +e.getAttribute('x') || 0, y: +e.getAttribute('y') || 0,
+      w: +e.getAttribute('width') || 0, h: +e.getAttribute('height') || 0,
+      fill: e.getAttribute('fill') || ''
+    })).filter(b => b.w > 120 && b.w < 950 && !b.fill.startsWith('url('));
+
+    svg.querySelectorAll('text').forEach(t => {
+      const size = +t.getAttribute('font-size');
+      const w = t.getComputedTextLength();
+      const x = +t.getAttribute('x'), y = +t.getAttribute('y');
+      const left = t.getAttribute('text-anchor') === 'middle' ? x - w / 2 : x;
+      const right = left + w, top = y - size * 0.78, bottom = y + size * 0.25;
+      const snippet = t.textContent.slice(0, 46);
+      if (right > 916.5) problems.push(`slide ${slide}: past the right edge by ${(right - 916).toFixed(1)}pt | "${snippet}"`);
+      blocks.forEach(b => {
+        if (right > b.x + 2 && left < b.x + b.w - 2 && bottom > b.y + 2 && top < b.y + b.h - 2 && b.x > left + 4)
+          problems.push(`slide ${slide}: runs under the block at x=${b.x} by ${(right - b.x).toFixed(1)}pt | "${snippet}"`);
+      });
+    });
+  });
+  return problems;
+}
+window.__layoutProblems = checkLayout();
+if (window.__layoutProblems.length) console.warn('Brochure layout problems:\n' + window.__layoutProblems.join('\n'));
+</script>
