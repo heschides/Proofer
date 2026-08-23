@@ -56,6 +56,7 @@ namespace Sati.ViewModels
         private bool _suppressJournalSave;
         private int _journalLoadVersion;
         private readonly JournalSaveCoordinator _journalSaveCoordinator = new();
+        private readonly JournalDraftTracker _journalDraftTracker = new();
 
         [ObservableProperty]
         private string? journal;
@@ -235,7 +236,9 @@ namespace Sati.ViewModels
             // acceptable: the write is a single-column UPDATE and the timer is stopped
             // so it can't also fire.
             _journalSaveTimer?.Stop();
-            if (_journalPersonId is int leavingId && !_suppressJournalSave)
+            if (_journalPersonId is int leavingId &&
+                !_suppressJournalSave &&
+                _journalDraftTracker.IsDirty(leavingId, Journal))
                 _ = TrySaveJournalAsync(leavingId, Journal);
 
             _ = LoadJournalAsync(newValue);
@@ -1075,6 +1078,13 @@ namespace Sati.ViewModels
         {
             if (_suppressJournalSave)
                 return;
+            if (_journalPersonId is not int personId)
+                return;
+            if (!_journalDraftTracker.IsDirty(personId, value))
+            {
+                _journalSaveTimer?.Stop();
+                return;
+            }
 
             _journalSaveTimer ??= CreateJournalTimer();
             _journalSaveTimer.Stop();
@@ -1103,6 +1113,7 @@ namespace Sati.ViewModels
             _suppressJournalSave = true;
             Journal = string.Empty;
             _journalPersonId = null;
+            _journalDraftTracker.Clear();
             _suppressJournalSave = false;
             OnPropertyChanged(nameof(CanEditJournal));
 
@@ -1122,6 +1133,7 @@ namespace Sati.ViewModels
                 _suppressJournalSave = true;
                 Journal = text ?? string.Empty;
                 _journalPersonId = person.Id;
+                _journalDraftTracker.Load(person.Id, Journal);
                 _suppressJournalSave = false;
                 JournalSaveWarning = null;
                 OnPropertyChanged(nameof(CanEditJournal));
@@ -1145,7 +1157,7 @@ namespace Sati.ViewModels
         public async Task<bool> FlushJournalAsync()
         {
             _journalSaveTimer?.Stop();
-            if (_journalPersonId is int id)
+            if (_journalPersonId is int id && _journalDraftTracker.IsDirty(id, Journal))
                 return await TrySaveJournalAsync(id, Journal);
             return true;
         }
@@ -1176,6 +1188,7 @@ namespace Sati.ViewModels
             _journalSaveTimer?.Stop();
             _suppressJournalSave = true;
             Journal = journal ?? string.Empty;
+            _journalDraftTracker.Load(personId, Journal);
             _suppressJournalSave = false;
 
             // The entry saved either way; the warning band reports HOW, because a
@@ -1192,6 +1205,7 @@ namespace Sati.ViewModels
                 () => _personService.SaveJournalAsync(personId, content));
             if (result.Succeeded)
             {
+                _journalDraftTracker.MarkSaved(personId, content);
                 JournalSaveWarning = null;
                 return true;
             }

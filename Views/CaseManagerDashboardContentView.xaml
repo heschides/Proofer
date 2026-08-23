@@ -7,6 +7,15 @@
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
 
+    <!-- Escape returns the note panel to a blank New Note and drops the notes
+         grid's highlight with it. The selected CLIENT survives — it scopes this
+         whole page. Declared here as well as on the module so the key works from
+         the grid and the toolbar, not only from inside the form. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape"
+                    Command="{Binding NoteEntry.StartNewNoteCommand}" />
+    </UserControl.InputBindings>
+
     <!--
         LAYOUT: 5 columns (3 content + 2 spacers), 3 rows
         ┌─────────────┬───┬─────────────┬───┬─────────────┐

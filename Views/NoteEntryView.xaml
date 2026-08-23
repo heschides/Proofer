@@ -4,6 +4,15 @@
              xmlns:sati="clr-namespace:Sati"
              TextElement.FontFamily="{StaticResource AppFont}">
 
+    <!-- Escape returns the panel to a blank New Note, the same command the New
+         Note button runs. Declared on the MODULE so both hosts inherit it while
+         focus is anywhere in the form; each host repeats it at page level so the
+         key also works from its grid. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape"
+                    Command="{Binding StartNewNoteCommand}" />
+    </UserControl.InputBindings>
+
     <UserControl.Resources>
         <!-- Three staggered, gently pulsing pearls. The animations start only while
              the local assistant is busy and are removed as soon as it finishes. -->
@@ -146,11 +155,75 @@
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="14">
+
+            <!-- ═══ READ-ONLY MODE ═══
+                 Scoped to the FORM subtree, so the compliance overlay below is
+                 unaffected. Two different mechanisms, chosen deliberately:
+
+                   TextBox  -> IsReadOnly. A locked note must still be fully
+                               legible, selectable, scrollable and copyable, and
+                               a disabled TextBox is none of those.
+                   Pickers  -> IsEnabled=False. Nothing here should change the
+                               saved record while the note is locked.
+
+                 Controls that already bind IsEnabled locally (to
+                 AreNoteFieldsEnabled) keep their local value, which folds the
+                 lock in through that property instead — same outcome, one owner.
+
+                 IsLocked is read off the UserControl's DataContext rather than
+                 the local one: these styles also apply inside ItemsControls whose
+                 items are attendee view models with no such property. -->
+            <Border.Resources>
+                <Style TargetType="TextBox"
+                       BasedOn="{StaticResource {x:Type TextBox}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.IsLocked,
+                                         RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="IsReadOnly" Value="True" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+                <Style TargetType="ComboBox"
+                       BasedOn="{StaticResource {x:Type ComboBox}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.IsLocked,
+                                         RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+                <Style TargetType="RadioButton">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.IsLocked,
+                                         RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+                <Style TargetType="CheckBox">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.IsLocked,
+                                         RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Resources>
+
             <DockPanel LastChildFill="True">
 
-                <!-- Docked FIRST so it reserves bottom space before the fill child. -->
+                <!-- Docked FIRST so it reserves bottom space before the fill child.
+                     Hidden while the note is locked: there is nothing to save from
+                     a view of the saved record, and a disabled Save button would
+                     only invite the question. The command refuses it as well. -->
                 <Button DockPanel.Dock="Bottom"
                         Command="{Binding SubmitNoteCommand}"
+                        Visibility="{Binding IsUnlocked,
+                            Converter={StaticResource BoolToVisibilityConverter}}"
                         Margin="0,10,0,0">
                     <Button.Style>
                         <Style TargetType="Button"
@@ -174,9 +247,142 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Text="NEW NOTE"
-                                   Grid.Row="0"
-                                   Style="{StaticResource SectionHeader}" />
+                        <!-- ═══ HEADING AND LOCK ═══
+                             The heading is the authoritative mode cue — New Note,
+                             View Note, or Edit Note — and it is a polite live
+                             region, so the mode change is announced and not only
+                             seen. The padlock is a second cue, never the only one. -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="0"
+                                       Text="{Binding EditorHeading}"
+                                       Style="{StaticResource SectionHeader}"
+                                       VerticalAlignment="Center"
+                                       AutomationProperties.Name="Note panel mode"
+                                       AutomationProperties.LiveSetting="Polite" />
+
+                            <!-- Only meaningful once a saved note is loaded: a new
+                                 note has no record behind it to protect. -->
+                            <Button Grid.Row="0"
+                                    Grid.Column="1"
+                                    Style="{StaticResource IconButton}"
+                                    Width="28"
+                                    Height="28"
+                                    Margin="8,0,0,8"
+                                    Command="{Binding ToggleLockCommand}"
+                                    ToolTip="{Binding LockToggleTooltip}"
+                                    AutomationProperties.Name="{Binding LockToggleLabel}"
+                                    AutomationProperties.HelpText="{Binding LockToggleTooltip}"
+                                    Visibility="{Binding IsEditing,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="{Binding LockGlyph}"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="15"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Button>
+
+                            <!-- ═══ BACK TO A NEW NOTE ═══
+                                 The way out, present in both hosts because it lives
+                                 in the module rather than in either page. Always
+                                 visible, and merely DISABLED when the panel is
+                                 already a blank new note: an affordance that comes
+                                 and goes is one the case manager has to discover
+                                 again each time, and a control that appears mid-form
+                                 also reorders keyboard focus. Escape runs the same
+                                 command. The label names the destination rather than
+                                 the mechanism, because the destination is the part
+                                 worth recognising. -->
+                            <Button Grid.Row="0"
+                                    Grid.Column="2"
+                                    Style="{StaticResource SmallButton}"
+                                    Margin="8,0,0,8"
+                                    Command="{Binding StartNewNoteCommand}"
+                                    ToolTip="Start a new note (Esc). Clears the selected note and keeps the client."
+                                    AutomationProperties.Name="Start a new note"
+                                    AutomationProperties.HelpText="Returns this panel to a blank new note and clears the selected row. The client stays selected. Unsaved changes are confirmed first. Keyboard shortcut: Escape.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE710;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="11"
+                                               Margin="0,0,6,0"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="New Note"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- The supervisor's return reason travelled with the
+                                 note; it belongs beside the note it is about. -->
+                            <Border Grid.Row="1"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource HoverBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding HasReturnReason,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="RETURNED BY SUPERVISOR"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding ReturnReason}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               TextWrapping="Wrap"
+                                               AutomationProperties.Name="Reason this note was returned" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ═══ THIS NOTE MOVED UNDER YOU ═══
+                                 Raised by the freshness read taken when the note is
+                                 unlocked. Assertive rather than polite: the case
+                                 manager is about to type into this record, and the
+                                 news that it is not the record they think it is
+                                 should not wait for a pause in their work. The
+                                 heading carries the meaning, so the warning colour
+                                 is never the only cue. -->
+                            <Border Grid.Row="2"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Background="{DynamicResource OverdueFillBrush}"
+                                    BorderBrush="{DynamicResource OverdueBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding HasStaleNoteMessage,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="NOTE CHANGED ON THE SERVER"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource DangerStrongBrush}"
+                                               Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding StaleNoteMessage}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               TextWrapping="Wrap"
+                                               AutomationProperties.Name="Note changed on the server"
+                                               AutomationProperties.LiveSetting="Assertive" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
                         <TextBlock Text="CLIENT"
                            Grid.Row="1"
@@ -306,8 +512,13 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Text="MINUTES"
+                            <!-- Carries the unit count the removed detail panel
+                                 used to show. Units are derived from minutes by
+                                 Note.CalculateUnits — one owner, not a second
+                                 rounding rule written here. -->
+                            <TextBlock Text="{Binding MinutesLabel}"
                                Grid.Row="0"
+                               AutomationProperties.Name="Minutes and resulting billable units"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Minutes" Grid.Row="1"
                              IsEnabled="{Binding AreNoteFieldsEnabled}"
@@ -369,25 +580,30 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemContainerStyle>
+                                        <!-- Only the constant sits here. The horizontal
+                                             offset is a margin on the band below, because
+                                             a container style is applied before the
+                                             container joins the tree and an ancestor
+                                             binding has nothing to bind to yet. -->
                                         <Style TargetType="ContentPresenter">
                                             <Setter Property="Canvas.Top" Value="1" />
-                                            <Setter Property="Canvas.Left">
-                                                <Setter.Value>
-                                                    <MultiBinding Converter="{StaticResource TimelineOffsetConverter}">
-                                                        <Binding Path="StartFraction" />
-                                                        <Binding Path="ActualWidth"
-                                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                                    </MultiBinding>
-                                                </Setter.Value>
-                                            </Setter>
+                                            <Setter Property="Canvas.Left" Value="0" />
                                         </Style>
                                     </ItemsControl.ItemContainerStyle>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Height="22"
                                                     CornerRadius="2"
+                                                    HorizontalAlignment="Left"
                                                     ToolTip="{Binding Description}"
                                                     AutomationProperties.Name="{Binding Description}">
+                                                <Border.Margin>
+                                                    <MultiBinding Converter="{StaticResource TimelineOffsetMarginConverter}">
+                                                        <Binding Path="StartFraction" />
+                                                        <Binding Path="ActualWidth"
+                                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    </MultiBinding>
+                                                </Border.Margin>
                                                 <Border.Width>
                                                     <MultiBinding Converter="{StaticResource TimelineWidthConverter}">
                                                         <Binding Path="WidthFraction" />
@@ -662,6 +878,18 @@
                                    Style="{StaticResource LabelStyle}" />
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal">
+                            <Button Command="{Binding CopyNarrativeCommand}"
+                                    Style="{StaticResource IconButton}"
+                                    Width="26"
+                                    Height="26"
+                                    Margin="0,0,4,0"
+                                    ToolTip="Copy this narrative to the clipboard"
+                                    AutomationProperties.Name="Copy narrative to clipboard">
+                                <TextBlock Text="&#xE8C8;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Button>
                 <Button Command="{Binding DecreaseNarrativeFontCommand}"
                         AutomationProperties.Name="Decrease note text size"
                                     Background="Transparent"

@@ -10,6 +10,7 @@ using Sati.Views;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace Sati.ViewModels.Children
@@ -43,6 +44,7 @@ namespace Sati.ViewModels.Children
         private readonly IClientAiContextService _clientAiContextService;
         private readonly ICaseNoteFormatter _caseNoteFormatter;
         private readonly Func<string, UserMessageDialog> _validationDialog;
+        private readonly DiscardChangesPrompt _confirmDiscard;
 
         private Settings? _settings;
         private Note? _editingNote;
@@ -52,6 +54,7 @@ namespace Sati.ViewModels.Children
         private VisitDocumentation? _pendingVisitDocumentation;
         private int _attendeeLoadVersion;
         private bool _suppressVisitChangeNotifications;
+        private bool _suppressDirtyTracking;
         private readonly LatestRequestTracker _aiDraftRequests = new();
         private CancellationTokenSource? _aiDraftCancellation;
 
@@ -59,6 +62,10 @@ namespace Sati.ViewModels.Children
         // Reloaded whenever the date changes; the tracker keeps a slow load for a
         // date the user has already moved away from from publishing stale bands.
         private readonly LatestRequestTracker _dayScheduleLoad = new();
+
+        // Guards the freshness read taken when a note is unlocked, so a slow reply
+        // for a note the panel has already moved off cannot publish over it.
+        private readonly LatestRequestTracker _freshnessChecks = new();
         private IReadOnlyList<ServiceBlock> _recordedDayBlocks = [];
 
         // True when the open dialog was triggered by a billing-window block (note
@@ -79,7 +86,8 @@ namespace Sati.ViewModels.Children
             IPersonContactService personContactService,
             IClientAiContextService clientAiContextService,
             ICaseNoteFormatter caseNoteFormatter,
-            Func<string, UserMessageDialog> validationDialog)
+            Func<string, UserMessageDialog> validationDialog,
+            DiscardChangesPrompt confirmDiscard)
         {
             _noteService = noteService;
             _personService = personService;
@@ -89,6 +97,7 @@ namespace Sati.ViewModels.Children
             _clientAiContextService = clientAiContextService;
             _caseNoteFormatter = caseNoteFormatter;
             _validationDialog = validationDialog;
+            _confirmDiscard = confirmDiscard;
         }
 
         // -------------------------------------------------------------------------
@@ -101,6 +110,11 @@ namespace Sati.ViewModels.Children
         public Func<FormType, bool, Task>? FormNoteSavedAsync { get; set; }
 
         public event EventHandler? NoteSaved;
+
+        // The panel went back to a blank New Note. Hosts use this to drop the row
+        // their grid still has highlighted, so the highlight and the panel never
+        // describe different things.
+        public event EventHandler? EditorCleared;
 
         // Awaited BEFORE a reminder is written, for the same reason
         // FormNoteSavedAsync is a Func and not an event: ordering is the point.
@@ -131,6 +145,27 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string serviceTimeMessage = NoStartTimeMessage;
         [ObservableProperty] private bool hasServiceTimeConflict;
         [ObservableProperty] private bool isEditing;
+
+        // A loaded note starts LOCKED: the panel opens as a reader of the record
+        // and only becomes an editor when the case manager says so. Locked is not
+        // a permission — the API is still the authority on who may change a note —
+        // it is protection against editing a clinical record by accident.
+        [ObservableProperty] private bool isLocked;
+
+        // True once the case manager has changed something that is not on disk.
+        // Tracked with an explicit flag rather than by diffing against the saved
+        // note: loading a note writes every field, and the visit attendees arrive
+        // asynchronously, so a diff would report changes the user never made.
+        [ObservableProperty] private bool hasUnsavedChanges;
+
+        // The supervisor's reason, carried by the loaded note. Displayed rather
+        // than edited — the case manager answers it in the narrative.
+        [ObservableProperty] private string? returnReason;
+
+        // Says that the note on screen is no longer what the server holds, and what
+        // was done about it. Null whenever the panel is showing a copy it has no
+        // reason to doubt.
+        [ObservableProperty] private string? staleNoteMessage;
         [ObservableProperty] private double narrativeFontSize = 14;
         [ObservableProperty] private bool isComplianceDialogVisible;
         [ObservableProperty] private string pendingJustification = string.Empty;
@@ -178,6 +213,36 @@ namespace Sati.ViewModels.Children
                 NoteStatus.Logged => "Submit for Supervisor Review",
                 _ => IsEditing ? "Update Note" : "Save Note"
             };
+
+        // Three modes, one panel. New Note is the resting state; selecting a note
+        // in a host's grid shows it as View Note; the lock toggle turns that into
+        // Edit Note. The heading is the primary cue — the lock glyph is a second
+        // one, never the only one.
+        public string EditorHeading => !IsEditing
+            ? "New Note"
+            : IsLocked ? "View Note" : "Edit Note";
+
+        public bool IsUnlocked => !IsLocked;
+
+        // Segoe MDL2: E72E Lock, E785 Unlock. The glyph shows the CURRENT state,
+        // and the tooltip and automation name say what clicking it will do.
+        public string LockGlyph => IsLocked ? "\uE72E" : "\uE785";
+
+        public string LockToggleLabel => IsLocked
+            ? "Unlock this note for editing"
+            : "Lock this note and return to viewing it";
+
+        public string LockToggleTooltip => IsLocked
+            ? "This note is locked. Unlock it to change the saved record."
+            : "Lock this note. Any unsaved changes are discarded and the saved record is shown again.";
+
+        public string MinutesLabel => Note.CalculateUnits(Minutes) is int units
+            ? $"MINUTES — {units} UNIT{(units == 1 ? string.Empty : "S")}"
+            : "MINUTES";
+
+        public bool HasReturnReason => !string.IsNullOrWhiteSpace(ReturnReason);
+
+        public bool HasStaleNoteMessage => !string.IsNullOrWhiteSpace(StaleNoteMessage);
         public string StatusGuidance => IsReminderNote ? ReminderGuidance : DescribeStatus(Status);
 
         // Says why the workflow fields are unavailable, so the disabled state is
@@ -207,29 +272,83 @@ namespace Sati.ViewModels.Children
         // its shape and the case manager can see what a reminder does not carry.
         // Client and narrative are the only inputs.
         public bool IsReminderNote => SelectedNoteType == NoteType.Reminder;
-        public bool AreNoteFieldsEnabled => !IsReminderNote;
+        // Reminder disables the service-note fields; a lock disables everything
+        // that would change the record. Both funnel through this one property so
+        // a control never has to know which of the two is currently in force.
+        public bool AreNoteFieldsEnabled => !IsReminderNote && !IsLocked;
         public string NarrativeLabel => IsReminderNote ? "REMINDER" : "NARRATIVE";
 
         partial void OnStatusChanged(NoteStatus? value)
         {
             OnPropertyChanged(nameof(SaveActionLabel));
             OnPropertyChanged(nameof(StatusGuidance));
+            MarkDirty();
 
             // Cancelled and Delayed release the time the draft was holding.
             RedrawServiceDay();
         }
 
-        partial void OnIsEditingChanged(bool value) => OnPropertyChanged(nameof(SaveActionLabel));
+        partial void OnIsEditingChanged(bool value)
+        {
+            OnPropertyChanged(nameof(SaveActionLabel));
+            OnPropertyChanged(nameof(EditorHeading));
+            ToggleLockCommand.NotifyCanExecuteChanged();
+            StartNewNoteCommand.NotifyCanExecuteChanged();
+        }
+
+        partial void OnHasUnsavedChangesChanged(bool value) =>
+            StartNewNoteCommand.NotifyCanExecuteChanged();
+
+        partial void OnIsComplianceDialogVisibleChanged(bool value) =>
+            StartNewNoteCommand.NotifyCanExecuteChanged();
+
+        partial void OnIsLockedChanged(bool value)
+        {
+            OnPropertyChanged(nameof(IsUnlocked));
+            OnPropertyChanged(nameof(AreNoteFieldsEnabled));
+            OnPropertyChanged(nameof(EditorHeading));
+            OnPropertyChanged(nameof(LockGlyph));
+            OnPropertyChanged(nameof(LockToggleLabel));
+            OnPropertyChanged(nameof(LockToggleTooltip));
+            SubmitNoteCommand.NotifyCanExecuteChanged();
+            FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+        }
+
+        partial void OnReturnReasonChanged(string? value) =>
+            OnPropertyChanged(nameof(HasReturnReason));
+
+        partial void OnStaleNoteMessageChanged(string? value) =>
+            OnPropertyChanged(nameof(HasStaleNoteMessage));
 
         partial void OnEventDateChanged(DateTime? value)
         {
             OnPropertyChanged(nameof(ServiceDayHeading));
+            MarkDirty();
             _ = RefreshServiceDayAsync();
         }
 
-        partial void OnSelectedStartTimeChanged(ServiceStartOption? value) => RedrawServiceDay();
+        partial void OnSelectedStartTimeChanged(ServiceStartOption? value)
+        {
+            MarkDirty();
+            RedrawServiceDay();
+        }
 
-        partial void OnMinutesChanged(int? value) => RedrawServiceDay();
+        partial void OnMinutesChanged(int? value)
+        {
+            OnPropertyChanged(nameof(MinutesLabel));
+            MarkDirty();
+            RedrawServiceDay();
+        }
+
+        // One place decides that the panel now holds work the database does not.
+        // Suppressed while a note is being loaded into the fields, which is a
+        // read, not an edit.
+        private void MarkDirty()
+        {
+            if (_suppressDirtyTracking)
+                return;
+            HasUnsavedChanges = true;
+        }
 
         public bool IsLocalAiEnabled => _caseNoteFormatter.IsEnabled;
         public Array VisitSettings => Enum.GetValues(typeof(VisitSetting));
@@ -283,6 +402,8 @@ namespace Sati.ViewModels.Children
             if (IsEditing)
             {
                 IsEditing = false;
+                IsLocked = false;
+                ReturnReason = null;
                 _editingNote = null;
             }
             Status = null;
@@ -294,12 +415,17 @@ namespace Sati.ViewModels.Children
             SelectedStartTime = null;
             _pendingVisitDocumentation = null;
             ResetVisitDocumentation(clearAttendees: true);
+
+            // The draft this flag was tracking no longer exists — it was just
+            // wiped by the client switch, which is itself the deliberate act.
+            HasUnsavedChanges = false;
             _ = LoadVisitAttendeesAsync(newValue);
         }
 
         partial void OnSelectedNoteTypeChanged(NoteType? value)
         {
             InvalidateAiGeneration();
+            MarkDirty();
             OnPropertyChanged(nameof(IsFormNote));
             OnPropertyChanged(nameof(IsVisitNote));
             OnPropertyChanged(nameof(IsReminderNote));
@@ -345,6 +471,7 @@ namespace Sati.ViewModels.Children
         partial void OnNarrativeChanged(string? value)
         {
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            MarkDirty();
 
             if (!_applyingAiDraft)
                 InvalidateAiGeneration();
@@ -379,6 +506,7 @@ namespace Sati.ViewModels.Children
         partial void OnSelectedFormTypeChanged(FormType? value)
         {
             InvalidateAiGeneration();
+            MarkDirty();
             if (value is null || SelectedPerson is null || !string.IsNullOrWhiteSpace(Narrative))
                 return;
 
@@ -475,6 +603,7 @@ namespace Sati.ViewModels.Children
             if (_suppressVisitChangeNotifications)
                 return;
 
+            MarkDirty();
             InvalidateAiGeneration();
 
             if (IsAiReviewVisible)
@@ -773,26 +902,106 @@ namespace Sati.ViewModels.Children
         }
 
         // -------------------------------------------------------------------------
-        // Edit mode
+        // View and edit modes
         // -------------------------------------------------------------------------
 
-        public void EnterEditMode(Note note)
+        /// <summary>Shows a saved note in the panel, locked against editing.</summary>
+        public void EnterViewMode(Note note) => LoadNote(note, locked: true);
+
+        /// <summary>Shows a saved note in the panel, open for editing.</summary>
+        public void EnterEditMode(Note note) => LoadNote(note, locked: false);
+
+        /// <summary>
+        /// Lifts the lock on the note already loaded. Used by the double-click
+        /// gesture, where the preceding selection has already loaded the note.
+        /// </summary>
+        public void UnlockForEdit()
         {
-            _editingNote = note;
+            if (IsEditing)
+                IsLocked = false;
+        }
+
+        /// <summary>
+        /// Opens a note for editing on behalf of a host's grid gesture. Unlocks in
+        /// place when the panel is already showing that note; otherwise loads it,
+        /// asking first if that would throw away unsaved work.
+        /// </summary>
+        /// <remarks>
+        /// Both hosts route their double-click through here rather than each
+        /// writing the same three branches. Two copies of this decision would be
+        /// two chances to forget the guard, and the notes log and the dashboard
+        /// already differed on it once.
+        /// </remarks>
+        public void OpenForEdit(Note? note)
+        {
+            if (note is null)
+                return;
+
+            if (IsShowing(note))
+            {
+                UnlockForEdit();
+                return;
+            }
+
+            if (!TryReleaseDraft())
+                return;
+
+            EnterEditMode(note);
+        }
+
+        /// <summary>True when this panel is currently showing that exact note.</summary>
+        public bool IsShowing(Note note) => ReferenceEquals(_editingNote, note);
+
+        /// <summary>
+        /// Asks whether the panel's contents may be replaced. True when there is
+        /// nothing to lose, or the case manager agreed to lose it. Hosts must call
+        /// this BEFORE loading something else, never after.
+        /// </summary>
+        public bool TryReleaseDraft() =>
+            !HasUnsavedChanges ||
+            _confirmDiscard(
+                "Discard this note?",
+                "The note in the panel has changes that are not saved. " +
+                "Opening another note will discard them.");
+
+        private void LoadNote(Note note, bool locked)
+        {
+            // Whatever the panel was showing is being replaced, so a freshness read
+            // still in flight for it has nothing left to say.
+            _freshnessChecks.Invalidate();
+            StaleNoteMessage = null;
 
             // Select the person FIRST — OnSelectedPersonChanged clears the draft
-            // fields, so populating them before selection would wipe them.
+            // fields, so populating them before selection would wipe them. The note
+            // is attached AFTER that runs: a genuine client switch nulls
+            // _editingNote, so attaching it first left IsEditing true with no note
+            // behind it and the next save wrote a duplicate instead of an update.
             SelectedPerson = People.FirstOrDefault(p => p.Id == note.PersonId);
+            _editingNote = note;
 
-            IsEditing = true;
-            Narrative = note.Narrative;
-            EventDate = note.EventDate;
-            Minutes = note.Minutes;
-            SelectedStartTime = FindStartOption(note.StartTime);
-            Status = note.Status;
-            SelectedNoteType = note.NoteType;
-            SelectedFormType = note.FormType;
-            ApplyVisitDocumentation(note.VisitDocumentation);
+            // Filling the fields from the record is a read, not the case manager's
+            // work, so it must not register as unsaved changes.
+            _suppressDirtyTracking = true;
+            try
+            {
+                IsEditing = true;
+                IsLocked = locked;
+                ReturnReason = note.ReturnReason;
+                Narrative = note.Narrative;
+                EventDate = note.EventDate;
+                Minutes = note.Minutes;
+                SelectedStartTime = FindStartOption(note.StartTime);
+                Status = note.Status;
+                SelectedNoteType = note.NoteType;
+                SelectedFormType = note.FormType;
+                ApplyVisitDocumentation(note.VisitDocumentation);
+            }
+            finally
+            {
+                _suppressDirtyTracking = false;
+            }
+
+            HasUnsavedChanges = false;
             _ = LoadVisitAttendeesAsync(SelectedPerson);
             _ = RefreshServiceDayAsync();
         }
@@ -816,8 +1025,8 @@ namespace Sati.ViewModels.Children
         // Reminders are excluded at the command, not only in the view: the grounded
         // drafting contract is for case-note facts and the service-note review path.
         private bool CanFormatNarrativeWithAi() =>
-            IsLocalAiEnabled && !IsAiBusy && !IsReminderNote && SelectedPerson is not null &&
-            !string.IsNullOrWhiteSpace(Narrative);
+            IsLocalAiEnabled && !IsAiBusy && !IsReminderNote && IsUnlocked &&
+            SelectedPerson is not null && !string.IsNullOrWhiteSpace(Narrative);
 
         [RelayCommand(CanExecute = nameof(CanFormatNarrativeWithAi))]
         private async Task FormatNarrativeWithAi()
@@ -976,16 +1185,111 @@ namespace Sati.ViewModels.Children
             AiStatusMessage = "AI draft discarded. Your original narrative was preserved.";
         }
 
+        /// <summary>
+        /// Full reset, client included. Hosts wanting "another note for the same
+        /// client" want <see cref="ReturnToNewNote"/> instead.
+        /// </summary>
         [RelayCommand]
-        private void Clear()
+        public void Clear()
         {
             SelectedPerson = null;
+            ReturnToNewNote();
+        }
+
+        /// <summary>
+        /// Puts the panel back to a blank New Note, keeping the selected client.
+        /// </summary>
+        /// <remarks>
+        /// The client deliberately stays. On the dashboard this module's
+        /// SelectedPerson is mirrored onto the page and scopes the notes grid,
+        /// compliance checkboxes, and forms — clearing the note there must not
+        /// blank the page around it. On both hosts the next thing a case manager
+        /// usually does is write another note for the same person, which is why
+        /// saving already leaves the client in place.
+        /// </remarks>
+        public void ReturnToNewNote()
+        {
             _editingNote = null;
             IsEditing = false;
+            IsLocked = false;
+            ReturnReason = null;
             ClearNoteFields();
         }
 
+        // Offered whenever it would do something: a note is loaded, or there is
+        // typing to drop. Withheld while the compliance dialog is up, so Escape
+        // cannot reset the note out from under a decision the case manager is
+        // being asked to make.
+        private bool CanStartNewNote() =>
+            (IsEditing || HasUnsavedChanges) && !IsComplianceDialogVisible;
+
+        /// <summary>
+        /// The one way back to a blank New Note, from a button and from Escape in
+        /// both hosts. Hosts clear their own grid selection off
+        /// <see cref="EditorCleared"/> — the module does not know about grids.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanStartNewNote))]
+        private void StartNewNote()
+        {
+            if (!TryReleaseDraft())
+                return;
+
+            ReturnToNewNote();
+            EditorCleared?.Invoke(this, EventArgs.Empty);
+        }
+
+        private bool CanToggleLock() => IsEditing;
+
+        // Unlock is free. Lock is not: it puts the SAVED record back on screen, so
+        // anything typed since the unlock would vanish behind a panel that then
+        // claims to be showing what is stored. Confirm before that happens.
+        [RelayCommand(CanExecute = nameof(CanToggleLock))]
+        private void ToggleLock()
+        {
+            if (IsLocked)
+            {
+                IsLocked = false;
+
+                // Unlocking is the moment a stale copy starts to cost something.
+                // Reading an old version is a nuisance; editing one means either
+                // overwriting somebody else's change or losing a finished narrative
+                // to a conflict at the very end. So the check happens here, when
+                // the case manager commits to editing, rather than on a timer that
+                // would poll the server for an uncommon event. It runs BEHIND the
+                // unlock: a Demo round trip can take seconds and the panel must not
+                // sit frozen waiting for one.
+                _ = VerifyLoadedNoteIsCurrentAsync();
+                return;
+            }
+
+            if (!TryReleaseDraft())
+                return;
+
+            if (_editingNote is Note note)
+                LoadNote(note, locked: true);
+        }
+
         [RelayCommand]
+        private void CopyNarrative()
+        {
+            if (string.IsNullOrEmpty(Narrative))
+                return;
+
+            try
+            {
+                Clipboard.SetText(Narrative);
+            }
+            catch (ExternalException)
+            {
+                // The clipboard is held by another process. Nothing to recover.
+            }
+        }
+
+        // Locked is a read-only view of a saved record, so the save path is closed
+        // at the command as well as hidden in the view — the button is not the gate.
+        private bool CanSubmitNote() => IsUnlocked;
+
+        [RelayCommand(CanExecute = nameof(CanSubmitNote))]
         private async Task SubmitNote()
         {
             // A reminder leaves the note pipeline entirely — no status, no
@@ -1201,17 +1505,100 @@ namespace Sati.ViewModels.Children
                 FormNoteSavedAsync is not null)
                 await FormNoteSavedAsync(savedFormType.Value, wasEdit);
 
-            IsEditing = false;
-            _editingNote = null;
-            ClearNoteFields();
+            // Same shape as the New Note button: the note goes, the client stays,
+            // so the next note for this person needs no re-selection.
+            ReturnToNewNote();
 
             NoteSaved?.Invoke(this, EventArgs.Empty);
         }
 
+        // There is no single-note read on INoteService, so the caseload read is
+        // filtered — the same route the save-time reconcile has always used.
+        private async Task<Note?> FindLatestAsync(Note note) =>
+            (await _noteService.GetAllByPersonAsync(note.PersonId))
+                .SingleOrDefault(candidate => candidate.Id == note.Id);
+
+        /// <summary>
+        /// Confirms that the note on screen is still what the server holds, and
+        /// says so if it is not. Fire-and-forget from the unlock; awaited directly
+        /// by tests.
+        /// </summary>
+        /// <remarks>
+        /// This does not replace the concurrency check on save — that one is
+        /// authoritative and catches a change made in the seconds after this ran.
+        /// This exists so the case manager finds out BEFORE writing a narrative
+        /// against a copy that is already out of date, rather than after.
+        /// </remarks>
+        internal async Task VerifyLoadedNoteIsCurrentAsync()
+        {
+            if (_editingNote is not Note shown)
+                return;
+
+            var identity = _freshnessChecks.Begin();
+            Note? latest;
+            try
+            {
+                latest = await FindLatestAsync(shown);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Swallowed on purpose: a background check that cannot reach the
+                // server is not a reason to interrupt the edit, and the save path
+                // still refuses a stale write. The message carries no exception
+                // detail — nothing about a note belongs in one.
+                if (IsStillShowing(shown, identity))
+                    StaleNoteMessage =
+                        "Sati could not check whether this is still the current version of this note. " +
+                        "It will be checked again when you save.";
+                return;
+            }
+
+            if (!IsStillShowing(shown, identity))
+                return;
+
+            if (latest is null)
+            {
+                StaleNoteMessage =
+                    "This note is no longer on the server — it may have been removed. " +
+                    "Copy anything you still need; saving will not bring it back.";
+                return;
+            }
+
+            if (latest.Revision == shown.Revision)
+                return;
+
+            var differences = GetDifferingNoteFields(shown, latest);
+            var summary = differences.Count == 0
+                ? "Only its revision moved; the editable fields still match what you were shown."
+                : $"It differs in: {string.Join(", ", differences)}.";
+
+            // Nothing has been typed yet, so showing the current version costs the
+            // case manager nothing and starts the edit from the record as it now
+            // stands — including a supervisor's return reason, which is the most
+            // likely thing to have changed under a note being opened for editing.
+            if (!HasUnsavedChanges)
+            {
+                LoadNote(latest, locked: false);
+                StaleNoteMessage =
+                    $"This note changed after you opened it. {summary} " +
+                    "The panel now shows the current version.";
+                return;
+            }
+
+            StaleNoteMessage =
+                $"This note changed after you opened it. {summary} " +
+                "Your unsaved changes are still on screen and were not replaced — " +
+                "review them against the saved copy before saving.";
+        }
+
+        // A slow reply for a note the panel has since moved off must not publish
+        // into shared UI state.
+        private bool IsStillShowing(Note note, int request) =>
+            _freshnessChecks.IsCurrent(request) && ReferenceEquals(_editingNote, note);
+
         private async Task ReconcileNoteConflictAsync(Note draft)
         {
-            var latest = (await _noteService.GetAllByPersonAsync(draft.PersonId))
-                .SingleOrDefault(note => note.Id == draft.Id);
+            var latest = await FindLatestAsync(draft);
             if (latest is null)
             {
                 MessageBox.Show(
@@ -1266,6 +1653,12 @@ namespace Sati.ViewModels.Children
             ResetVisitDocumentation(clearAttendees: true);
             ClearAiReview();
             AiStatusMessage = string.Empty;
+
+            _freshnessChecks.Invalidate();
+            StaleNoteMessage = null;
+
+            // Last, because the assignments above each mark the panel dirty.
+            HasUnsavedChanges = false;
         }
 
         private void ClearAiReview()
@@ -1331,6 +1724,8 @@ namespace Sati.ViewModels.Children
             _editingNote = null;
             _pendingVisitDocumentation = null;
             IsEditing = false;
+            IsLocked = false;
+            ReturnReason = null;
             ClearNoteFields();
             People.Clear();
         }

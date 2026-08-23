@@ -815,10 +815,9 @@
             <!-- Service-day bar: position and length as fractions of the measured
                  track. The width instance keeps a floor so a five-minute contact
                  is still visible. -->
-            <converters:TimelineFractionConverter x:Key="TimelineOffsetConverter"
-                                                  MinimumPixels="0" />
             <converters:TimelineFractionConverter x:Key="TimelineWidthConverter"
                                                   MinimumPixels="3" />
+            <converters:TimelineOffsetMarginConverter x:Key="TimelineOffsetMarginConverter" />
             <!-- View → ViewModel DataTemplates -->
             <DataTemplate DataType="{x:Type viewmodels:CaseManagerDashboardViewModel}">
                 <views:CaseManagerDashboardView />

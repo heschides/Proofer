@@ -5,7 +5,6 @@ using Sati.Models;
 using Sati.ViewModels.Children;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Data;
 
@@ -24,6 +23,11 @@ namespace Sati.ViewModels
         // than a paperwork-gate failure. Same fork as the entry module: window
         // block => Hold saves ComplianceBlocked; paperwork gate => HeldForCompliance.
         private bool _dialogIsWindowBlock;
+
+        // Set while the grid selection is being put back after the case manager
+        // declined to discard a draft, so the restore does not re-enter the
+        // selection handler and ask again.
+        private bool _restoringSelection;
 
         private readonly ObservableCollection<Note> _allNotes = [];
 
@@ -60,8 +64,46 @@ namespace Sati.ViewModels
         partial void OnSearchTextChanged(string? value) => RefreshView();
         partial void OnRangeStartChanged(DateTime? value) => RefreshView();
         partial void OnRangeEndChanged(DateTime? value) => RefreshView();
-        partial void OnSelectedNoteChanged(Note? value) =>
-            OnPropertyChanged(nameof(IsSelectedNoteReturned));
+        // The entry module IS the detail view now, so the grid selection drives
+        // it: pick a row and that note appears in the panel, locked. An unsaved
+        // draft is the case manager's work and is never replaced silently — if
+        // they decline to discard it, the selection snaps back where it was.
+        partial void OnSelectedNoteChanged(Note? oldValue, Note? newValue)
+        {
+            if (_restoringSelection)
+                return;
+
+            if (newValue is null)
+            {
+                // The row was dropped. Only a locked view follows it back to a
+                // blank form; an open draft or edit is left exactly as it was, and
+                // the client stays selected either way.
+                if (NoteEntry.IsLocked)
+                    NoteEntry.ReturnToNewNote();
+                return;
+            }
+
+            if (!NoteEntry.TryReleaseDraft())
+            {
+                RestoreSelection(oldValue);
+                return;
+            }
+
+            NoteEntry.EnterViewMode(newValue);
+        }
+
+        private void RestoreSelection(Note? previous)
+        {
+            _restoringSelection = true;
+            try
+            {
+                SelectedNote = previous;
+            }
+            finally
+            {
+                _restoringSelection = false;
+            }
+        }
 
         // COMPUTED
         public int ReturnedCount => _allNotes.Count(n => n.Status == NoteStatus.Returned);
@@ -69,7 +111,6 @@ namespace Sati.ViewModels
         public bool HasReturned => ReturnedCount > 0;
         public bool HasHeld => HeldCount > 0;
         public bool HasAttentionItems => HasReturned || HasHeld;
-        public bool IsSelectedNoteReturned => SelectedNote?.Status == NoteStatus.Returned;
 
         // RANGE SUMMARY — scoped by person/search/date range, independent of the status combobox
         public int RangePendingUnits =>
@@ -102,9 +143,16 @@ namespace Sati.ViewModels
             // existing NoteStatusChanged seam so productivity and the board track.
             noteEntryViewModel.NoteSaved += async (s, e) =>
             {
+                // The panel returns to New Note after a save, so the grid must not
+                // keep a row highlighted as though it were still on display.
+                SelectedNote = null;
                 await ReloadAsync();
                 NoteStatusChanged?.Invoke(this, EventArgs.Empty);
             };
+
+            // New Note (button or Escape) resets the panel; the grid drops its
+            // highlight to match, so the two never describe different notes.
+            noteEntryViewModel.EditorCleared += (s, e) => SelectedNote = null;
         }
 
         // COMMANDS
@@ -116,6 +164,12 @@ namespace Sati.ViewModels
         private void ShowHeld() =>
             SelectedStatusOption = StatusOptions.First(s => s.Value == NoteStatus.HeldForCompliance);
 
+
+        // Double-click opens the selected row for editing. The single click that
+        // preceded it has normally already loaded the note, so this usually just
+        // lifts the lock. The module owns that decision — see NoteEntryViewModel
+        // .OpenForEdit — because the dashboard makes the same one.
+        public void OpenSelectedNoteForEdit() => NoteEntry.OpenForEdit(SelectedNote);
 
         [RelayCommand]
         private async Task MarkNoteLogged()
@@ -151,7 +205,19 @@ namespace Sati.ViewModels
             SelectedNote.Status = NoteStatus.Logged;
             if (!await TryUpdateNoteAsync(SelectedNote)) return;
             RefreshView();
+            RefreshPanelForSelectedNote();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // The panel copies a note's fields in when it loads rather than binding
+        // through to the instance, so a status change made from the grid has to be
+        // pushed back into it — otherwise a note just marked Logged still reads
+        // Pending on screen. Only while it is showing that same note and locked;
+        // an open edit is the case manager's and is never overwritten.
+        private void RefreshPanelForSelectedNote()
+        {
+            if (SelectedNote is not null && NoteEntry.IsLocked && NoteEntry.IsShowing(SelectedNote))
+                NoteEntry.EnterViewMode(SelectedNote);
         }
 
         [RelayCommand]
@@ -166,6 +232,7 @@ namespace Sati.ViewModels
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             RefreshView();
+            RefreshPanelForSelectedNote();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -182,6 +249,7 @@ namespace Sati.ViewModels
             IsComplianceDialogVisible = false;
             PendingJustification = string.Empty;
             RefreshView();
+            RefreshPanelForSelectedNote();
         }
 
         [RelayCommand]
@@ -192,22 +260,6 @@ namespace Sati.ViewModels
             PendingJustification = string.Empty;
             NotesView.Refresh();
             NoteStatusChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        [RelayCommand]
-        private void CopyNarrative()
-        {
-            var text = SelectedNote?.Narrative;
-            if (string.IsNullOrEmpty(text)) return;
-
-            try
-            {
-                Clipboard.SetText(text);
-            }
-            catch (ExternalException)
-            {
-                //NO CATCH NEEDED
-            }
         }
 
         // METHODS

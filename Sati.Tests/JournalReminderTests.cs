@@ -4,6 +4,7 @@ using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Sati.Services.LocalAi;
+using Sati.ViewModels;
 using Sati.ViewModels.Children;
 using Sati.Views;
 using Xunit;
@@ -90,7 +91,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task TheEntryIsPrependedToTheStoredJournalAndTheNewTextIsReturned()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var people = fixture.PeopleAs(fixture.CaseManagerOne);
         await people.SaveJournalAsync(fixture.PersonOneId, "Handwritten line.");
 
@@ -108,7 +109,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task AReminderCannotBeWrittenToAnotherAgencysClient()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var outsider = fixture.PeopleAs(fixture.CaseManagerTwo);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -122,7 +123,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task TheWriteIsRecordedAsAReminderRatherThanAPlainJournalEdit()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
 
         await fixture.PeopleAs(fixture.CaseManagerOne)
             .AddJournalReminderAsync(fixture.PersonOneId, "Confirm transportation.");
@@ -143,7 +144,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task SelectingReminderDisablesTheServiceFieldsAndClearsWhatWasInThem()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry();
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
 
@@ -172,7 +173,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task ChoosingAServiceNoteAgainRestoresTheFields()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry();
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
 
@@ -185,9 +186,74 @@ public sealed class JournalReminderTests
     }
 
     [Fact]
+    public async Task ExistingNoteChangesTheEditorHeadingUntilTheEditIsCleared()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var viewModel = fixture.NoteEntry();
+        var person = await fixture.PersonOneAsync();
+        viewModel.SetPeople([person]);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        Assert.Equal("New Note", viewModel.EditorHeading);
+
+        var existing = Note.Create(
+            "Existing narrative",
+            new DateTime(2026, 8, 20),
+            NoteStatus.Pending,
+            15,
+            person.Id,
+            null,
+            NoteType.Contact);
+        viewModel.EnterEditMode(existing);
+
+        Assert.True(viewModel.IsEditing);
+        Assert.Equal("Edit Note", viewModel.EditorHeading);
+        Assert.Contains(nameof(NoteEntryViewModel.EditorHeading), changedProperties);
+
+        changedProperties.Clear();
+        viewModel.ClearCommand.Execute(null);
+
+        Assert.False(viewModel.IsEditing);
+        Assert.Equal("New Note", viewModel.EditorHeading);
+        Assert.Contains(nameof(NoteEntryViewModel.EditorHeading), changedProperties);
+    }
+
+    /// <summary>
+    /// Dropping the grid's highlight — by Ctrl-clicking the row, or by anything
+    /// else that nulls the selection — must not reach into an edit the case
+    /// manager has open. Returning to a blank panel is New Note's job, and it asks
+    /// first; this path is not that and must stay quiet.
+    /// </summary>
+    [Fact]
+    public async Task ClearingTheGridSelectionDoesNotDisturbAnOpenEdit()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var viewModel = fixture.NotesWindow();
+        var person = await fixture.PersonOneAsync();
+        viewModel.NoteEntry.SetPeople([person]);
+        var existing = Note.Create(
+            "Keep this editor draft",
+            new DateTime(2026, 8, 21),
+            NoteStatus.Pending,
+            15,
+            person.Id,
+            null,
+            NoteType.Contact);
+        viewModel.SelectedNote = existing;
+        viewModel.NoteEntry.EnterEditMode(existing);
+
+        viewModel.SelectedNote = null;
+
+        Assert.Null(viewModel.SelectedNote);
+        Assert.True(viewModel.NoteEntry.IsEditing);
+        Assert.Equal("Keep this editor draft", viewModel.NoteEntry.Narrative);
+    }
+
+    [Fact]
     public async Task SavingAReminderWritesTheJournalAndCreatesNoNote()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry();
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
         viewModel.SelectedNoteType = NoteType.Reminder;
@@ -219,7 +285,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task ThePendingJournalEditIsFlushedBeforeTheEntryIsWritten()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry();
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
         viewModel.SelectedNoteType = NoteType.Reminder;
@@ -241,7 +307,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task AReminderWithNoTextWritesNothing()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry();
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
         viewModel.SelectedNoteType = NoteType.Reminder;
@@ -269,7 +335,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task AFallbackWriteIsReportedToTheHost()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry(people: new LegacyWritePersonService());
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
         viewModel.SelectedNoteType = NoteType.Reminder;
@@ -288,7 +354,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task TheLocalAiDraftingCommandIsUnavailableForAReminder()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var viewModel = fixture.NoteEntry(aiEnabled: true);
         viewModel.SelectedPerson = await fixture.PersonOneAsync();
         viewModel.Narrative = "rough text";
@@ -303,7 +369,7 @@ public sealed class JournalReminderTests
     [Fact]
     public async Task AClientSwitchWhileLocalAiIsRunningCannotPublishTheOldClientsDraft()
     {
-        await using var fixture = await ReminderFixture.CreateAsync();
+        await using var fixture = await NoteEntryFixture.CreateAsync();
         var formatter = new BlockingCaseNoteFormatter();
         var viewModel = fixture.NoteEntry(
             aiContext: new StubClientAiContextService(),
@@ -326,117 +392,6 @@ public sealed class JournalReminderTests
         Assert.True(string.IsNullOrEmpty(viewModel.AiDraftNarrative));
     }
 
-    // -------------------------------------------------------------------------
-    // Fixture
-    // -------------------------------------------------------------------------
-
-    private sealed class ReminderFixture : IAsyncDisposable
-    {
-        private const int AgencyOne = 201;
-        private const int AgencyTwo = 202;
-
-        private readonly SqliteConnection _connection;
-
-        private ReminderFixture(SqliteConnection connection, DbContextOptions<SatiContext> options) =>
-            (_connection, Factory) = (connection, new ReminderContextFactory(options));
-
-        public IDbContextFactory<SatiContext> Factory { get; }
-        public User CaseManagerOne { get; private set; } = null!;
-        public User CaseManagerTwo { get; private set; } = null!;
-        public int PersonOneId { get; private set; }
-        public int PersonTwoId { get; private set; }
-
-        public static async Task<ReminderFixture> CreateAsync()
-        {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
-            var options = new DbContextOptionsBuilder<SatiContext>().UseSqlite(connection).Options;
-            var fixture = new ReminderFixture(connection, options);
-            await fixture.SeedAsync();
-            return fixture;
-        }
-
-        public IPersonService PeopleAs(User user) =>
-            new PersonService(Factory, new StubSettingsService(), SessionFor(user));
-
-        public async Task<Person> PersonOneAsync()
-        {
-            await using var db = Factory.CreateDbContext();
-            return await db.People.AsNoTracking().SingleAsync(x => x.Id == PersonOneId);
-        }
-
-        public async Task<Person> PersonTwoAsync()
-        {
-            await using var db = Factory.CreateDbContext();
-            return await db.People.AsNoTracking().SingleAsync(x => x.Id == PersonTwoId);
-        }
-
-        /// <summary>
-        /// The note-entry module wired to this fixture's database as Case Manager
-        /// One. The validation dialog factory throws by design — a test that
-        /// reaches it is asserting about validation, and the throw proves the write
-        /// never happened.
-        /// </summary>
-        public NoteEntryViewModel NoteEntry(
-            bool aiEnabled = false,
-            IPersonService? people = null,
-            IClientAiContextService? aiContext = null,
-            ICaseNoteFormatter? formatter = null) => new(
-            new NoteService(Factory, SessionFor(CaseManagerOne)),
-            people ?? PeopleAs(CaseManagerOne),
-            new StubSettingsService(),
-            SessionFor(CaseManagerOne),
-            new StubPersonContactService(),
-            aiContext ?? new StubClientAiContextService(),
-            formatter ?? new StubCaseNoteFormatter(aiEnabled),
-            _ => throw new NotSupportedException("No dialog is expected in this test."));
-
-        private static ISessionService SessionFor(User user)
-        {
-            var session = new SessionService();
-            session.SetUser(user);
-            return session;
-        }
-
-        private async Task SeedAsync()
-        {
-            await using var db = Factory.CreateDbContext();
-            await db.Database.EnsureCreatedAsync();
-
-            db.Agencies.AddRange(
-                new Agency { Id = AgencyOne, Name = "Agency One" },
-                new Agency { Id = AgencyTwo, Name = "Agency Two" });
-
-            CaseManagerOne = User.Create(31, "cm-one", "Case Manager One", "hash", "salt",
-                UserRole.CaseManager, null, AgencyOne);
-            CaseManagerTwo = User.Create(32, "cm-two", "Case Manager Two", "hash", "salt",
-                UserRole.CaseManager, null, AgencyTwo);
-            db.Users.AddRange(CaseManagerOne, CaseManagerTwo);
-
-            var person = Person.CreatePerson(CaseManagerOne.Id, "Journal", "Person", string.Empty,
-                new DateTime(1990, 1, 1), null, WaiverType.Section21, new Settings());
-            person.AgencyId = AgencyOne;
-            person.Gender = Gender.Unknown;
-            var secondPerson = Person.CreatePerson(CaseManagerOne.Id, "Second", "Person", string.Empty,
-                new DateTime(1991, 1, 1), null, WaiverType.Section21, new Settings());
-            secondPerson.AgencyId = AgencyOne;
-            secondPerson.Gender = Gender.Unknown;
-            db.People.AddRange(person, secondPerson);
-
-            await db.SaveChangesAsync();
-            PersonOneId = person.Id;
-            PersonTwoId = secondPerson.Id;
-        }
-
-        public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
-
-        private sealed class ReminderContextFactory(DbContextOptions<SatiContext> options)
-            : IDbContextFactory<SatiContext>
-        {
-            public SatiContext CreateDbContext() => new(options);
-        }
-    }
-
     /// <summary>Stands in for a Demo server that predates the journal-entries route.</summary>
     private sealed class LegacyWritePersonService : IPersonService
     {
@@ -449,41 +404,6 @@ public sealed class JournalReminderTests
         public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
         public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
         public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) => throw new NotSupportedException();
-    }
-
-    private sealed class StubSettingsService : ISettingsService
-    {
-        public Task<Settings> LoadAsync() => Task.FromResult(new Settings());
-        public Task SaveAsync(Settings settings) => Task.CompletedTask;
-    }
-
-    private sealed class StubPersonContactService : IPersonContactService
-    {
-        public Task<List<PersonContact>> GetActiveByPersonAsync(int personId) =>
-            Task.FromResult(new List<PersonContact>());
-        public Task<PersonContact> SaveAsync(PersonContact contact) => throw new NotSupportedException();
-        public Task ArchiveAsync(int contactId) => throw new NotSupportedException();
-    }
-
-    private sealed class StubClientAiContextService : IClientAiContextService
-    {
-        public Task<ClientAiContext> BuildAsync(
-            int personId,
-            CancellationToken cancellationToken = default) => Task.FromResult(new ClientAiContext(
-                personId,
-                personId.ToString(),
-                [new ClientAiContextSource("Scope", "Selected client identity only; no prior records")]));
-    }
-
-    private sealed class StubCaseNoteFormatter(bool enabled) : ICaseNoteFormatter
-    {
-        public bool IsEnabled { get; } = enabled;
-        public int MaxInputWords => 400;
-
-        public Task<CaseNoteFormattingResult> FormatAsync(
-            CaseNoteFormattingRequest request,
-            IProgress<CaseNoteFormattingProgress>? progress = null,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class BlockingCaseNoteFormatter : ICaseNoteFormatter

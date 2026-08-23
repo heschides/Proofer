@@ -151,6 +151,117 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void NotesWorkspacePutsFiltersOverTheGridAndHasNoSeparateDetailPanel()
+    {
+        var repositoryRoot = FindRepositoryRootFromSource();
+        var notesView = System.Xml.Linq.XDocument.Load(
+            Path.Combine(repositoryRoot, "Views", "NotesLogView.xaml"));
+
+        // Two columns: the note panel runs full height on the left, the filters
+        // sit directly above the grid they scope on the right.
+        AssertPanelPlacement("NoteEntryPanel", "0", "0");
+        AssertPanelPlacement("NotesFilterPanel", "0", "2");
+        AssertPanelPlacement("NotesDataGridPanel", "2", "2");
+        Assert.Equal("3", FindPanel("NoteEntryPanel").Attributes()
+            .Single(attribute => attribute.Name.LocalName == "Grid.RowSpan").Value);
+
+        // The detail panel is gone: the entry module is the only place a note is
+        // shown, so there is no second copy of the same fields to drift from it.
+        Assert.DoesNotContain(notesView.Descendants(), element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Name" && attribute.Value == "NotesDetailPanel"));
+
+        var entryView = System.Xml.Linq.XDocument.Load(
+            Path.Combine(repositoryRoot, "Views", "NoteEntryView.xaml"));
+        Assert.Contains(entryView.Descendants(), element =>
+            element.Name.LocalName == "TextBlock" &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Text" &&
+                attribute.Value.Contains("EditorHeading", StringComparison.Ordinal)));
+
+        // The lock toggle carries an automation name and a tooltip, and the
+        // heading beside it is a live region — the padlock glyph is never the
+        // only signal that the panel is read-only.
+        var lockToggle = entryView.Descendants().Single(element =>
+            element.Name.LocalName == "Button" &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Command" &&
+                attribute.Value.Contains("ToggleLockCommand", StringComparison.Ordinal)));
+        Assert.Contains(lockToggle.Attributes(), attribute =>
+            attribute.Name.LocalName == "AutomationProperties.Name" &&
+            attribute.Value.Contains("LockToggleLabel", StringComparison.Ordinal));
+        Assert.Contains(lockToggle.Attributes(), attribute =>
+            attribute.Name.LocalName == "ToolTip" &&
+            attribute.Value.Contains("LockToggleTooltip", StringComparison.Ordinal));
+        Assert.Contains(entryView.Descendants(), element =>
+            element.Name.LocalName == "TextBlock" &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Text" &&
+                attribute.Value.Contains("EditorHeading", StringComparison.Ordinal)) &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.LiveSetting" &&
+                attribute.Value == "Polite"));
+
+        // The way back to a blank New Note has to exist on BOTH hosts of the note
+        // panel, by button and by Escape. The button lives in the module, so both
+        // pages inherit it; each page repeats the Escape binding so the key also
+        // works from its grid rather than only from inside the form.
+        var newNoteButton = entryView.Descendants().Single(element =>
+            element.Name.LocalName == "Button" &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Command" &&
+                attribute.Value.Contains("StartNewNoteCommand", StringComparison.Ordinal)));
+        Assert.Contains(newNoteButton.Attributes(), attribute =>
+            attribute.Name.LocalName == "AutomationProperties.Name" &&
+            attribute.Value.Contains("new note", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(newNoteButton.Descendants(), element =>
+            element.Name.LocalName == "TextBlock" &&
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Text" && attribute.Value == "New Note"));
+
+        // It must not be hidden when idle: an affordance that comes and goes is one
+        // the case manager has to rediscover, so it is disabled rather than absent.
+        Assert.DoesNotContain(newNoteButton.Attributes(), attribute =>
+            attribute.Name.LocalName == "Visibility");
+
+        AssertEscapeStartsANewNote(entryView, "Views/NoteEntryView.xaml");
+        AssertEscapeStartsANewNote(notesView, "Views/NotesLogView.xaml");
+        AssertEscapeStartsANewNote(
+            System.Xml.Linq.XDocument.Load(
+                Path.Combine(repositoryRoot, "Views", "CaseManagerDashboardContentView.xaml")),
+            "Views/CaseManagerDashboardContentView.xaml");
+
+        static void AssertEscapeStartsANewNote(System.Xml.Linq.XDocument document, string label) =>
+            Assert.True(
+                document.Descendants().Any(element =>
+                    element.Name.LocalName == "KeyBinding" &&
+                    element.Attributes().Any(attribute =>
+                        attribute.Name.LocalName == "Key" && attribute.Value == "Escape") &&
+                    element.Attributes().Any(attribute =>
+                        attribute.Name.LocalName == "Command" &&
+                        attribute.Value.Contains("StartNewNoteCommand", StringComparison.Ordinal))),
+                $"{label} has no Escape binding that returns the panel to a new note.");
+
+        void AssertPanelPlacement(string name, string expectedRow, string expectedColumn)
+        {
+            var panel = FindPanel(name);
+            Assert.Equal(expectedRow, panel.Attributes()
+                .Single(attribute => attribute.Name.LocalName == "Grid.Row").Value);
+            Assert.Equal(expectedColumn, panel.Attributes()
+                .Single(attribute => attribute.Name.LocalName == "Grid.Column").Value);
+        }
+
+        System.Xml.Linq.XElement FindPanel(string name) =>
+            notesView.Descendants().Single(element =>
+                element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Name" && attribute.Value == name));
+    }
+
+    private static string FindRepositoryRootFromSource(
+        [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFilePath)!, ".."));
+
+    [Fact]
     public void SharedBillingComplianceGateReturnsEveryActionableReason()
     {
         var today = new DateTime(2026, 8, 14);
@@ -258,6 +369,33 @@ public sealed class StabilizationTests
 
         Assert.False(result.Succeeded);
         Assert.IsType<InvalidOperationException>(result.Error);
+    }
+
+    [Fact]
+    public void JournalDraftTrackerOnlyMarksRealChangesDirty()
+    {
+        var tracker = new JournalDraftTracker();
+        tracker.Load(17, "saved journal");
+
+        Assert.False(tracker.IsDirty(17, "saved journal"));
+        Assert.False(tracker.IsDirty(18, "another person's text"));
+        Assert.True(tracker.IsDirty(17, "saved journal plus a line"));
+
+        tracker.MarkSaved(17, "saved journal plus a line");
+        Assert.False(tracker.IsDirty(17, "saved journal plus a line"));
+    }
+
+    [Fact]
+    public void JournalDraftTrackerDoesNotLetAnOutgoingSaveReplaceTheNewPersonsBaseline()
+    {
+        var tracker = new JournalDraftTracker();
+        tracker.Load(17, "first person's journal");
+        tracker.Load(18, "second person's journal");
+
+        tracker.MarkSaved(17, "late outgoing save");
+
+        Assert.False(tracker.IsDirty(18, "second person's journal"));
+        Assert.True(tracker.IsDirty(18, "second person's edit"));
     }
 
     [Theory]
@@ -777,105 +915,72 @@ public sealed class StabilizationTests
     [Fact]
     public void ParameterlessFeatureViewsCanOpenRenderAndCloseOnAnStaThread()
     {
-        Exception? failure = null;
         string? currentType = null;
         var exercisedTypes = new List<string>();
-        using var completed = new ManualResetEventSlim();
-        var thread = new Thread(() =>
-        {
-            App? application = null;
-            IHost? host = null;
-            FieldInfo? hostField = null;
-            try
+
+        // The Application and its STA thread belong to WpfUiHarness. WPF allows one
+        // per process for the life of the process, so a test that builds its own
+        // makes whichever test runs second fail — see the remarks on the harness.
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
             {
-                application = new App
+                services.AddSingleton<ISessionService, SessionService>();
+                services.AddSingleton<IComprehensiveAssessmentService, SmokeAssessmentService>();
+                services.AddSingleton<IPersonCenteredPlanSourceService, SmokePlanSourceService>();
+            })
+            .Build();
+
+        WpfUiHarness.RunWithHost(host, () =>
+        {
+            var viewTypes = typeof(App).Assembly.GetTypes()
+                .Where(type => type.IsPublic && !type.IsAbstract)
+                .Where(type => type.Namespace?.StartsWith("Sati.Views", StringComparison.Ordinal) == true)
+                .Where(type => typeof(System.Windows.FrameworkElement).IsAssignableFrom(type))
+                .Where(type => type.GetConstructor(Type.EmptyTypes) is not null)
+                .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                .ToList();
+
+            foreach (var type in viewTypes)
+            {
+                currentType = type.FullName;
+                try
                 {
-                    ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown
-                };
-                application.InitializeComponent();
-                host = Host.CreateDefaultBuilder()
-                    .ConfigureServices(services =>
+                    var element = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(
+                        Activator.CreateInstance(type));
+                    if (element is System.Windows.Window window)
                     {
-                        services.AddSingleton<ISessionService, SessionService>();
-                        services.AddSingleton<IComprehensiveAssessmentService, SmokeAssessmentService>();
-                        services.AddSingleton<IPersonCenteredPlanSourceService, SmokePlanSourceService>();
-                    })
-                    .Build();
-                hostField = typeof(App).GetField("_host", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?? throw new InvalidOperationException("App host field was not found.");
-                hostField.SetValue(application, host);
-
-                var viewTypes = typeof(App).Assembly.GetTypes()
-                    .Where(type => type.IsPublic && !type.IsAbstract)
-                    .Where(type => type.Namespace?.StartsWith("Sati.Views", StringComparison.Ordinal) == true)
-                    .Where(type => typeof(System.Windows.FrameworkElement).IsAssignableFrom(type))
-                    .Where(type => type.GetConstructor(Type.EmptyTypes) is not null)
-                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
-                    .ToList();
-
-                foreach (var type in viewTypes)
-                {
-                    currentType = type.FullName;
-                    try
-                    {
-                        var element = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(
-                            Activator.CreateInstance(type));
-                        if (element is System.Windows.Window window)
-                        {
-                            window.Show();
-                            window.UpdateLayout();
-                            window.Close();
-                        }
-                        else
-                        {
-                            element.Measure(new System.Windows.Size(1280, 720));
-                            element.Arrange(new System.Windows.Rect(0, 0, 1280, 720));
-                            element.UpdateLayout();
-                            element.RaiseEvent(new System.Windows.RoutedEventArgs(
-                                System.Windows.FrameworkElement.LoadedEvent));
-                            element.RaiseEvent(new System.Windows.RoutedEventArgs(
-                                System.Windows.FrameworkElement.UnloadedEvent));
-                        }
-
-                        exercisedTypes.Add(type.FullName!);
-                        currentType = null;
+                        window.Show();
+                        window.UpdateLayout();
+                        window.Close();
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        throw new InvalidOperationException(
-                            $"Feature view '{type.FullName}' could not open, render, and close.", ex);
+                        element.Measure(new System.Windows.Size(1280, 720));
+                        element.Arrange(new System.Windows.Rect(0, 0, 1280, 720));
+                        element.UpdateLayout();
+                        element.RaiseEvent(new System.Windows.RoutedEventArgs(
+                            System.Windows.FrameworkElement.LoadedEvent));
+                        element.RaiseEvent(new System.Windows.RoutedEventArgs(
+                            System.Windows.FrameworkElement.UnloadedEvent));
                     }
+
+                    exercisedTypes.Add(type.FullName!);
+                    currentType = null;
                 }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Feature view '{type.FullName}' could not open, render, and close.", ex);
+                }
+            }
 
-                if (viewTypes.Count < 20)
-                    throw new InvalidOperationException($"Only {viewTypes.Count} feature views were discovered.");
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-            finally
-            {
-                if (application is not null && hostField is not null)
-                    hostField.SetValue(application, null);
-                host?.Dispose();
-                application?.Shutdown();
-                completed.Set();
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "Sati feature-view smoke test"
-        };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
+            if (viewTypes.Count < 20)
+                throw new InvalidOperationException($"Only {viewTypes.Count} feature views were discovered.");
+        }, TimeSpan.FromSeconds(60));
 
-        Assert.True(completed.Wait(TimeSpan.FromSeconds(30)),
-            $"Feature-view smoke test did not complete within 30 seconds. Current view: {currentType ?? "none"}; completed: {exercisedTypes.Count}.");
-        thread.Join();
-        Assert.Null(failure);
         Assert.True(exercisedTypes.Count >= 20,
-            $"Expected at least 20 feature views, exercised {exercisedTypes.Count}.");
+            $"Expected at least 20 feature views, exercised {exercisedTypes.Count}. " +
+            $"Current view: {currentType ?? "none"}.");
     }
     [Fact]
     public void RepeatedUiFailuresHaveAStableTechnicalFingerprint()

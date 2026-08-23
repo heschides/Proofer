@@ -5,281 +5,286 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d">
 
+    <!-- Escape returns the note panel to a blank New Note and drops the grid's
+         highlight with it. Declared here as well as on the module so the key works
+         from the grid and the filters, not only from inside the form. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape"
+                    Command="{Binding NoteEntry.StartNewNoteCommand}" />
+    </UserControl.InputBindings>
+
     <!--
-        LAYOUT (post-restructure):
-        Outer grid owns the top/bottom split now. Row 0 holds the sidebar (col 0)
-        and the note-entry module (col 2); row 2 holds the notes grid, which spans
-        cols 0-2 so it runs full-width beneath BOTH the filter sidebar and the entry
-        form. The detail panel (col 4) RowSpans the whole thing to stay full-height
-        on the right.
-
-        The 4*/5* + MinHeight split that used to live on the inner col-2 grid was
-        lifted up to this outer grid — same short-screen protection (module keeps its
-        share and scrolls internally; grid keeps a floor and never leaves the viewport),
-        just applied one level higher now that the grid is a peer of the sidebar.
-
-        The sidebar no longer gets full window height (it's confined to row 0), so its
-        content is wrapped in a ScrollViewer — if the attention section expands past the
-        row's share it scrolls rather than clipping. This is the one addition beyond a
-        pure move.
+        Two columns. The note panel runs full height on the left and is the only
+        place a note is read or written — selecting a row in the grid shows that
+        note there, locked, and the padlock in its header opens it for editing.
+        There is no separate detail panel: one note, one panel, one set of fields.
+        On the right the filters sit directly above the grid they filter.
     -->
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*" />
+            <ColumnDefinition Width="5*"
+                              MinWidth="340" />
             <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="4*" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="3*" />
+            <ColumnDefinition Width="7*"
+                              MinWidth="380" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="2*"
-                           MinHeight="240" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
-            <RowDefinition Height="1*"
-                           MinHeight="140" />
+            <RowDefinition Height="*"
+                           MinHeight="200" />
         </Grid.RowDefinitions>
 
-        <!-- ═══ SIDEBAR ═══ -->
-        <Border Grid.Column="0"
+        <!-- ═══ NOTE ENTRY MODULE ═══
+             Second host of the shared entry module. Its own instance — drafts
+             here are independent of the dashboard's copy. It is also the detail
+             view: the grid selection loads the note into it, locked. -->
+        <ContentControl x:Name="NoteEntryPanel"
+                        Grid.Row="0"
+                        Grid.RowSpan="3"
+                        Grid.Column="0"
+                        Content="{Binding NoteEntry}" />
+
+        <!-- ═══ FILTERS ═══
+             A horizontal band directly above the grid it scopes. The groups sit
+             in a WrapPanel rather than fixed columns so a narrow window reflows
+             them onto a second line instead of clipping a date picker. -->
+        <Border x:Name="NotesFilterPanel"
+                Grid.Column="2"
                 Grid.Row="0"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="12">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-                <StackPanel>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                    <TextBlock Text="FILTERS"
-                               Style="{StaticResource SectionHeader}" />
-                    <Separator Background="{DynamicResource BorderBrush}"
-                               Margin="0,0,0,10" />
+                <!-- No Deselect Note button here any more. It existed to stop the
+                     old detail panel showing a note while the editor beside it held
+                     something else; with one panel, "un-highlight the row but keep
+                     showing its note" describes nothing a case manager wants. The
+                     New Note button in the note panel clears the row and the panel
+                     together, and Escape does the same. -->
+                <TextBlock Grid.Row="0"
+                           Text="FILTERS"
+                           Style="{StaticResource SectionHeader}" />
 
-                    <TextBlock Text="CLIENT"
-                               Style="{StaticResource LabelStyle}" />
-                    <ComboBox AutomationProperties.Name="Filter by person" Margin="0,0,0,10"
-                              ItemsSource="{Binding FilterPeople}"
-                              SelectedItem="{Binding SelectedFilterPerson, Mode=TwoWay}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding FullName, FallbackValue='All Clients'}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                <WrapPanel Grid.Row="1">
 
-                    <TextBlock Text="STATUS"
-                               Style="{StaticResource LabelStyle}" />
-                    <ComboBox AutomationProperties.Name="Filter by status" Margin="0,0,0,10"
-                              ItemsSource="{Binding StatusOptions}"
-                              SelectedItem="{Binding SelectedStatusOption, Mode=TwoWay}"
-                              DisplayMemberPath="Display" />
+                    <StackPanel Width="180"
+                                Margin="0,0,14,6">
+                        <TextBlock Text="CLIENT"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ComboBox AutomationProperties.Name="Filter by person"
+                                  ItemsSource="{Binding FilterPeople}"
+                                  SelectedItem="{Binding SelectedFilterPerson, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding FullName, FallbackValue='All Clients'}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
 
-                    <TextBlock Text="SEARCH"
-                               Style="{StaticResource LabelStyle}" />
-                    <TextBox AutomationProperties.Name="Search Text" Margin="0,0,0,20"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             Padding="6,4" />
+                    <StackPanel Width="150"
+                                Margin="0,0,14,6">
+                        <TextBlock Text="STATUS"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ComboBox AutomationProperties.Name="Filter by status"
+                                  ItemsSource="{Binding StatusOptions}"
+                                  SelectedItem="{Binding SelectedStatusOption, Mode=TwoWay}"
+                                  DisplayMemberPath="Display" />
+                    </StackPanel>
 
-                    <TextBlock Text="DATE RANGE"
-                               Style="{StaticResource LabelStyle}" />
-                    <DatePicker Margin="0,0,0,6"
-                                SelectedDate="{Binding RangeStart, Mode=TwoWay}"
-                                AutomationProperties.Name="Range start date" />
-                    <DatePicker Margin="0,0,0,16"
-                                SelectedDate="{Binding RangeEnd, Mode=TwoWay}"
-                                AutomationProperties.Name="Range end date" />
+                    <StackPanel Width="220"
+                                Margin="0,0,14,6">
+                        <TextBlock Text="SEARCH"
+                                   Style="{StaticResource LabelStyle}" />
+                        <TextBox AutomationProperties.Name="Search Text"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="6,4" />
+                    </StackPanel>
 
-                    <!-- Units summary — scoped by the filters above, fixed to Pending/Logged -->
-                    <Border Background="{DynamicResource WindowBackgroundBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="10,8"
-                            Margin="0,0,0,20">
-                        <StackPanel>
-                            <TextBlock Text="UNITS IN RANGE"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Margin="0,0,0,6" />
-                            <Grid Margin="0,0,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="Pending"
+                    <StackPanel Margin="0,0,14,6">
+                        <TextBlock Text="DATE RANGE"
+                                   Style="{StaticResource LabelStyle}" />
+                        <StackPanel Orientation="Horizontal">
+                            <DatePicker Width="128"
+                                        SelectedDate="{Binding RangeStart, Mode=TwoWay}"
+                                        AutomationProperties.Name="Range start date" />
+                            <DatePicker Width="128"
+                                        Margin="6,0,0,0"
+                                        SelectedDate="{Binding RangeEnd, Mode=TwoWay}"
+                                        AutomationProperties.Name="Range end date" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Units summary — scoped by the filters beside it, fixed to Pending/Logged -->
+                    <StackPanel Margin="0,0,14,6">
+                        <TextBlock Text="UNITS IN RANGE"
+                                   Style="{StaticResource LabelStyle}" />
+                        <Border Background="{DynamicResource WindowBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="10,5">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Pending"
                                            FontSize="12"
+                                           VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding RangePendingUnits}"
+                                <TextBlock Text="{Binding RangePendingUnits}"
                                            FontSize="12"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                            </Grid>
-                            <Grid Margin="0,0,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="Logged"
+                                           Margin="5,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           AutomationProperties.Name="Pending units in range" />
+                                <TextBlock Text="Logged"
                                            FontSize="12"
+                                           Margin="14,0,0,0"
+                                           VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding RangeLoggedUnits}"
+                                <TextBlock Text="{Binding RangeLoggedUnits}"
                                            FontSize="12"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                            </Grid>
-                            <Separator Background="{DynamicResource BorderBrush}"
-                                       Margin="0,4" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="Total"
+                                           Margin="5,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           AutomationProperties.Name="Logged units in range" />
+                                <TextBlock Text="Total"
                                            FontSize="12"
                                            FontWeight="SemiBold"
+                                           Margin="16,0,0,0"
+                                           VerticalAlignment="Center"
                                            Foreground="{DynamicResource AccentBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding RangeTotalUnits}"
+                                <TextBlock Text="{Binding RangeTotalUnits}"
                                            FontSize="12"
                                            FontWeight="Bold"
-                                           Foreground="{DynamicResource AccentBrush}" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+                                           Margin="5,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           AutomationProperties.Name="Total units in range" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Attention section — hidden when nothing needs action -->
-                    <StackPanel Visibility="{Binding HasAttentionItems,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-
+                    <StackPanel Margin="0,0,0,6"
+                                Visibility="{Binding HasAttentionItems,
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="ATTENTION NEEDED"
-                                   Style="{StaticResource SectionHeader}" />
-                        <Separator Background="{DynamicResource BorderBrush}"
-                                   Margin="0,0,0,10" />
+                                   Style="{StaticResource LabelStyle}" />
+                        <StackPanel Orientation="Horizontal">
 
-                        <!-- Returned notes link -->
-                        <Button Margin="0,0,0,8"
-                                AutomationProperties.Name="Show returned notes"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Command="{Binding ShowReturnedCommand}"
-                                Visibility="{Binding HasReturned,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Background="{TemplateBinding Background}"
-                                            CornerRadius="4"
-                                            Padding="4,6">
-                                        <ContentPresenter />
+                            <!-- Returned notes link -->
+                            <Button AutomationProperties.Name="Show returned notes"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Command="{Binding ShowReturnedCommand}"
+                                    Visibility="{Binding HasReturned,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="6,5">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource SurfaceRaisedBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{DynamicResource AccentBrush}"
+                                            CornerRadius="10"
+                                            MinWidth="20"
+                                            Height="20"
+                                            Padding="5,0"
+                                            Margin="0,0,8,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ReturnedCount}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SurfaceBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
                                     </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SurfaceRaisedBrush}" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                            <StackPanel Orientation="Horizontal">
-                                <Border Background="{DynamicResource AccentBrush}"
-                                        CornerRadius="10"
-                                        MinWidth="20"
-                                        Height="20"
-                                        Padding="5,0"
-                                        Margin="0,0,8,0"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding ReturnedCount}"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SurfaceBrush}"
-                                               HorizontalAlignment="Center"
+                                    <TextBlock Text="Returned"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center" />
-                                </Border>
-                                <TextBlock Text="Returned"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                </StackPanel>
+                            </Button>
 
-                        <!-- Held for compliance link -->
-                        <Button Background="Transparent"
-                                AutomationProperties.Name="Show notes held for compliance"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Command="{Binding ShowHeldCommand}"
-                                Visibility="{Binding HasHeld,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Background="{TemplateBinding Background}"
-                                            CornerRadius="4"
-                                            Padding="4,6">
-                                        <ContentPresenter />
+                            <!-- Held for compliance link -->
+                            <Button Background="Transparent"
+                                    AutomationProperties.Name="Show notes held for compliance"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding ShowHeldCommand}"
+                                    Visibility="{Binding HasHeld,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="6,5">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource SurfaceRaisedBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{DynamicResource DangerStrongBrush}"
+                                            CornerRadius="10"
+                                            MinWidth="20"
+                                            Height="20"
+                                            Padding="5,0"
+                                            Margin="0,0,8,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding HeldCount}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SurfaceBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
                                     </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SurfaceRaisedBrush}" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                            <StackPanel Orientation="Horizontal">
-                                <Border Background="{DynamicResource DangerStrongBrush}"
-                                        CornerRadius="10"
-                                        MinWidth="20"
-                                        Height="20"
-                                        Padding="5,0"
-                                        Margin="0,0,8,0"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding HeldCount}"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SurfaceBrush}"
-                                               HorizontalAlignment="Center"
+                                    <TextBlock Text="Held for Compliance"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center" />
-                                </Border>
-                                <TextBlock Text="Held for Compliance"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
+                </WrapPanel>
+            </Grid>
         </Border>
 
-        <!-- ═══ NOTE ENTRY MODULE ═══
-             Second host of the shared entry module. Its own instance — drafts
-             here are independent of the dashboard's copy. Now a direct child of
-             the outer grid (row 0, col 2); the inner wrapper grid it used to live
-             in was dissolved when the notes grid moved out to span full-width. -->
-        <ContentControl Grid.Row="0"
-                        Grid.Column="2"
-                        Content="{Binding NoteEntry}" />
-
         <!-- ═══ NOTES DATAGRID ═══
-             Row 2, spanning cols 0-2 (sidebar, gutter, entry) so it runs full-width
-             beneath both. -->
-        <Border Grid.Row="2"
-                Grid.Column="0"
-                Grid.ColumnSpan="5"
+             Single click shows the row's note in the entry panel, locked.
+             Double click opens it there for editing. -->
+        <Border x:Name="NotesDataGridPanel"
+                Grid.Row="2"
+                Grid.Column="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -327,167 +332,11 @@
             </DataGrid>
         </Border>
 
-        <!-- ═══ NOTE DETAIL PANEL ═══
-             Col 4, RowSpan 3 to stay full-height on the right across the new split. -->
-        <Border Grid.Column="4"
-                Grid.Row="0"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="6"
-                Padding="16">
-            <Grid>
-
-                <!-- Placeholder when nothing selected -->
-                <TextBlock Text="Select a note to view details."
-                           Foreground="{DynamicResource HoverStrongBrush}"
-                           FontSize="13"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility"
-                                    Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedNote}"
-                                             Value="{x:Null}">
-                                    <Setter Property="Visibility"
-                                            Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <!-- Detail content -->
-                <StackPanel>
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility"
-                                    Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedNote}"
-                                             Value="{x:Null}">
-                                    <Setter Property="Visibility"
-                                            Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-
-                    <TextBlock Text="NOTE DETAIL"
-                               Style="{StaticResource SectionHeader}" />
-                    <Separator Background="{DynamicResource BorderBrush}"
-                               Margin="0,0,0,10" />
-
-                    <TextBlock Text="CLIENT"
-                               Style="{StaticResource LabelStyle}" />
-                    <TextBlock Text="{Binding SelectedNote.Person.FullName}"
-                               FontSize="13"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Margin="0,0,0,10" />
-
-                    <TextBlock Text="TYPE"
-                               Style="{StaticResource LabelStyle}" />
-                    <TextBlock Text="{Binding SelectedNote.NoteType}"
-                               FontSize="13"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Margin="0,0,0,10" />
-
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="60" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="DATE"
-                                       Style="{StaticResource LabelStyle}" />
-                            <TextBlock Text="{Binding SelectedNote.EventDate, StringFormat={}{0:MM/dd/yyyy}}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="STATUS"
-                                       Style="{StaticResource LabelStyle}" />
-                            <TextBlock Text="{Binding SelectedNote.Status}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="4">
-                            <TextBlock Text="UNITS"
-                                       Style="{StaticResource LabelStyle}" />
-                            <TextBlock Text="{Binding SelectedNote.Units}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Return reason banner — only for returned notes -->
-                    <Border Background="{DynamicResource SurfaceRaisedBrush}"
-                            BorderBrush="{DynamicResource HoverBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="10,8"
-                            Margin="0,0,0,10"
-                            Visibility="{Binding IsSelectedNoteReturned,
-                                Converter={StaticResource BoolToVisibilityConverter}}">
-                        <StackPanel>
-                            <TextBlock Text="RETURNED BY SUPERVISOR"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource AccentBrush}"
-                                       Margin="0,0,0,4" />
-                            <TextBlock Text="{Binding SelectedNote.ReturnReason}"
-                                       FontSize="12"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-
-                    <Grid Margin="0,0,0,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="NARRATIVE"
-                                   Style="{StaticResource LabelStyle}"
-                                   VerticalAlignment="Center" />
-                        <Button Grid.Column="1"
-                                Style="{StaticResource IconButton}"
-                                Width="26"
-                                Height="26"
-                                Command="{Binding CopyNarrativeCommand}"
-                                ToolTip="Copy narrative to clipboard"
-                                AutomationProperties.Name="Copy narrative to clipboard">
-                            <TextBlock Text="&#xE8C8;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </Button>
-                    </Grid>
-                    <TextBox AutomationProperties.Name="Narrative" Text="{Binding SelectedNote.Narrative, Mode=OneWay}"
-                             IsReadOnly="True"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             Height="300"
-                             Background="{DynamicResource WindowBackgroundBrush}"
-                             BorderBrush="{DynamicResource BorderBrush}"
-                             Padding="8" />
-
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- Compliance dialog overlay — spans the full grid (all 5 cols, all 3 rows)
-             so the scrim covers the whole view after the row split. -->
+        <!-- Compliance dialog overlay — spans the full grid (all 3 cols, all 3 rows)
+             so the scrim covers the whole view, note panel included. -->
         <Grid Background="{DynamicResource ScrimBrush}"
               Grid.Column="0"
-              Grid.ColumnSpan="5"
+              Grid.ColumnSpan="3"
               Grid.Row="0"
               Grid.RowSpan="3"
               Visibility="{Binding IsComplianceDialogVisible,

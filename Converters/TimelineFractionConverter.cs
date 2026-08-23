@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Data;
 
 namespace Sati.Converters
@@ -26,6 +27,27 @@ namespace Sati.Converters
 
             return Math.Max(MinimumPixels, Math.Round(fraction * trackWidth));
         }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// The same scaling expressed as a left margin instead of a Canvas.Left.
+    ///
+    /// A Canvas.Left set through an ItemContainerStyle is applied while the container
+    /// is still detached, so its FindAncestor binding to the track has nothing to
+    /// resolve against and WPF logs a binding failure on every item before recovering.
+    /// Carrying the offset on the item template — which is applied once the container
+    /// is in the tree, as the width binding beside it already relies on — positions
+    /// the band identically without the noise.
+    /// </summary>
+    public class TimelineOffsetMarginConverter : IMultiValueConverter
+    {
+        private readonly TimelineFractionConverter _offset = new() { MinimumPixels = 0 };
+
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+            => new Thickness((double)_offset.Convert(values, typeof(double), parameter, culture), 0, 0, 0);
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
             => throw new NotSupportedException();

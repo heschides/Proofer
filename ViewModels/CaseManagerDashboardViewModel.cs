@@ -88,6 +88,11 @@ StatisticsViewModel statisticsViewModel,
                     SelectedPerson = NoteEntry.SelectedPerson;
             };
 
+            // New Note (button or Escape) resets the panel; the notes grid drops
+            // its highlight to match. SelectedPerson deliberately survives — it
+            // scopes this whole page, and ReturnToNewNote leaves the client alone.
+            noteEntryViewModel.EditorCleared += (s, e) => SelectedNote = null;
+
             // Form side effects, awaited by the module BEFORE NoteSaved fires.
             // Preserves the old split: new form notes → FormStatusRequested;
             // edited form notes → MarkFormCompleteRequested.
@@ -855,14 +860,12 @@ StatisticsViewModel statisticsViewModel,
 
 
         // Double-click handoff: the grid's selection pushes into the module, which
-        // owns edit state now.
-        public void EnterEditMode()
-        {
-            if (SelectedNote is null)
-                return;
-
-            NoteEntry.EnterEditMode(SelectedNote);
-        }
+        // owns edit state now — including whether the draft already in the panel
+        // may be replaced. This host used to skip that guard while the notes log
+        // applied it; routing both through OpenForEdit is what stops them drifting
+        // apart again. Unlike the notes log, single selection here does NOT load a
+        // note, so this is the only path that can overwrite the panel.
+        public void EnterEditMode() => NoteEntry.OpenForEdit(SelectedNote);
 
         private async Task LoadExemptDatesAsync()
         {
