@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-15.*
+sections at the bottom. Last updated: 2026-08-23.*
 
 ---
 
@@ -1356,3 +1356,224 @@ The representative-payee fields change an existing request/response shape withou
 `ApiSurface.Revision` therefore fingerprints named persistence-contract revisions in addition to the
 live route manifest. A new client detects an older server before that server can silently ignore the
 new fields.
+
+## The brochure is HTML source, rendered to PDF (2026-08-22)
+
+The workflow promotional brochure was a ReportLab PDF whose generator had been lost, so every
+change was binary surgery on the shipped artifact. It is now generated from
+`marketing/brochure/brochure.html` by `scripts/build-brochure.ps1`, and the PDF in `output/pdf/`
+is a build artifact like any other.
+
+The recovered source is HTML wrapping one `<svg viewBox="0 0 960 540">` per slide rather than a
+new generator script. SVG positions text by baseline and images by box, which is exactly what a
+PDF content stream does, so the recovery is a coordinate-for-coordinate translation rather than a
+reinterpretation. A number in the source is the number the PDF gets. Chromium supplies font
+subsetting and `ToUnicode` maps, so the output stays selectable and searchable without the project
+owning a font pipeline.
+
+`tools/BrochureDecompile` performed the one-time recovery and is kept for provenance. It
+understands only the subset of the content stream language that ReportLab emitted for this file,
+and recognises two of its idioms deliberately: rounded-rectangle bezier runs become `<rect rx>`,
+and the stacked stripes that faked each background wash become a `<linearGradient>`. Recovering
+those as literal beziers and eighty rectangles would have been faithful and useless.
+
+Slide 1's background was a screenshot of the login screen on its desktop wallpaper, so the bodhi
+leaf and the sign-in dialog were pixels in a JPEG. Both are now removed from the plate
+(`tools/BrochureBackdrop`, a Laplace inpaint that is only sound because the wallpaper is a smooth
+gradient), and the leaf is placed by the slide. Its position is two numbers in the markup.
+
+Marketing artwork is not clinical data and carries none of the platform's tenancy or audit
+obligations, so this pipeline deliberately stays outside the application's architecture. It is a
+build script and a checked-in source file, nothing more.
+
+## Shutdown flushes send only unsaved work (2026-08-23)
+
+The desktop keeps a last-confirmed-content baseline for each visible agenda draft and for the
+selected Person's journal. Ten-minute autosave, account switching, selection changes, and shutdown
+compare against that baseline before calling persistence. Loading or merely viewing text therefore
+cannot create a cloud write or turn an expired access token into a save failure during exit.
+
+An agenda write rejected with `401` is classified separately from connectivity and concurrency
+failures. The API rejected it before the endpoint ran, so no ambiguous retry is needed. The client
+stops the timer after the first rejection, leaves both drafts visible, and announces one accessible
+session-expiry warning. Reinitialization after a new sign-in establishes new baselines and resumes
+autosave. This preserves the 30-minute short-lived-token boundary rather than disguising the defect
+by lengthening access-token lifetime.
+
+An active desktop session renews its access token through the ordinarily protected API group five
+minutes before expiry. Renewal is not a second anonymous credential: JWT validation and
+`ValidatedActorFilter` run first, the server reloads the user, and the new token preserves the
+original `sati_auth_time`. Renewal ends after twelve hours from credential entry even if the app
+remains busy. This gives a normal workday continuity without converting a stolen 30-minute token
+into an indefinitely renewable session.
+
+A refused renewal ends the session; it is not a failed request. Renewal authenticates with the
+token it is replacing, so once the server rejects it no later attempt can succeed — the token is
+already too old, or the twelve-hour cap has passed. `CloudApiClient` therefore latches on the first
+rejection, raises `SessionEnded` once, and answers every later authenticated call locally with
+`CloudSessionEndedException`. Setting a new token clears the latch, so signing in again reopens the
+same client. Previously each screen retried the renewal and received its own 401, which read as many
+unrelated failures instead of one ended session and left the desktop hammering the API.
+
+An active session is renewed on the token's schedule, not on the chance that a request lands in the
+window. Renewal is only possible inside the five minutes before expiry, and an idle desktop issues
+no requests at all — the ten-minute agenda timer returns without calling when nothing is dirty — so
+a session could die with the user still at their desk. `SessionKeepAlive` wakes at
+`expiry - RenewalMargin` instead. A fixed poll is not a substitute and is worse than none: a
+twenty-minute interval waits at minute twenty and next wakes at minute forty, holding a token that
+died at thirty.
+
+Renewal is gated on user input rather than on the process being alive. An ungated keep-alive would
+hold an unattended workstation signed in for the twelve hours the server permits, which is a real
+change in posture and not one this defect justified. Gated, the rule is the one the product already
+implied: an actively used session continues to the twelve-hour cap, an untouched one lapses after a
+token lifetime and asks for credentials. The idle allowance is measured over the gap between
+renewals, not the token lifetime; measured over the lifetime, only `lifetime - margin` can have
+elapsed at the first renewal, so the gate could never close and the effective timeout would silently
+double.
+
+An ended session must be stated, never implied by absence. The switch-user directory is the case
+that proved it: the load failed, the dialog cleared its list, and the account picker came up empty
+with no explanation — an empty list is a claim that there are no accounts, which is a different and
+false statement. Cloud services translate the transport failure into `Sati.Data.SessionExpiredException`
+so a view model can name the condition without referencing the transport. `ISessionLifetime` carries
+the same fact to the shell, which asks for credentials in place; local Production is served by a
+never-raising implementation, because an EF session against a database the client already reaches is
+bounded by the process rather than by a credential. Signing back in as the same person deliberately
+reinitializes nothing: the loaded screens are still that person's, and replacing the visible agenda
+drafts with what the server last stored would discard the unsaved text the pause existed to protect.
+
+## A note is shown in one panel, and viewing is a locked mode of editing (2026-08-23)
+
+The notes log showed a selected note twice: read-only in a Note Detail panel and, after a
+double-click, editable in the shared entry module. That is two independent renderings of the same
+clinical record, and nothing kept them agreeing. The detail panel is gone. The entry panel is the
+only place a note is read or written, with viewing expressed as a locked mode of the same fields
+rather than a separate screen.
+
+**Rejected:** keeping the detail panel and merely narrowing it. It duplicated client, type, date,
+status, units, return reason, and narrative; every future note field would have had to be added in
+two places, and a mismatch between them would be invisible until someone noticed the two panels
+disagreeing about a record that has one true value.
+
+**Rejected:** disabling the whole form when locked. A disabled `TextBox` in WPF greys its text,
+refuses focus, and cannot be scrolled or copied — the reader's job would be harder than before the
+change. Text fields go read-only instead; only the controls that would change the record are
+disabled.
+
+**Rejected:** treating the lock as a permission. It is a mistake-guard on a clinical record, not an
+authorization control, and it is not described as one anywhere. The API decides who may change a
+note.
+
+The padlock is deliberately not the only cue: the heading reads New Note, View Note, or Edit Note
+and is a live region, so the mode is announced rather than only drawn.
+
+### Selection may not silently discard a case manager's unsaved work
+
+Making grid selection drive the panel means a single click can now replace what is in it. A
+half-written visit note is real work, so every path that would replace panel contents — selecting a
+row, double-clicking one, and re-locking an open edit — first asks through `TryReleaseDraft()`.
+Declining snaps the grid selection back rather than leaving the highlighted row and the panel
+describing different notes.
+
+**Rejected:** deciding "unsaved" by diffing the panel against the saved note. Loading writes every
+field and the visit attendees load asynchronously, so the diff would report changes the case
+manager never made and would prompt on ordinary clicking-around. An explicit flag set by the field
+callbacks and cleared by the loader says what actually happened.
+
+The prompt is an injected `DiscardChangesPrompt` delegate rather than a window constructed in the
+view model, so the confirmation is a decision the tests can supply an answer for instead of a
+dialog they would hang on.
+
+### The double-click decision lives in the module, not in each host
+
+Both the notes log and the dashboard turn a double-click into "open this note for editing", and
+both must first decide whether the panel's current contents may be replaced. Written twice, that
+decision drifted immediately: the notes log asked before discarding a draft and the dashboard did
+not. `NoteEntryViewModel.OpenForEdit` now owns it and both hosts are one line.
+
+**Rejected:** fixing the dashboard by adding the same three branches there. It would have been
+correct on the day it was written and silently wrong the next time only one of the two was
+touched. A guard that has to be remembered in two places is a guard that will be missing from one.
+
+### One WPF Application per test process, owned by the harness
+
+Verifying that a locked note is genuinely read-only means loading the view for real: reading XAML
+as XML proves a `Setter` is declared, not that `{StaticResource {x:Type TextBox}}` resolves or that
+a `RelativeSource` binding reaches the property it names. Both of those were load-bearing here —
+the attendee checkboxes sit inside an `ItemsControl` whose items are attendee view models, so the
+obvious `{Binding IsLocked}` would have found nothing and left them editable.
+
+WPF allows one `Application` per AppDomain and the flag enforcing it is never cleared, not even by
+`Shutdown()`. A test assembly with two creators therefore fails in whichever one happens to run
+second, which reads as a flaky unrelated test rather than as a duplicated singleton.
+`WpfUiHarness` is the single owner; the pre-existing feature-view smoke test was moved onto it.
+
+**Rejected:** letting the new view tests build their own `Application` beside the smoke test's.
+It passed in isolation and failed in the full run, which is the worst possible failure mode — the
+kind that gets diagnosed as "the test suite is flaky" instead of as a real constraint being
+violated.
+
+### Returning to a new note keeps the client
+
+`ReturnToNewNote()` drops the loaded note and clears the fields but leaves `SelectedPerson` alone.
+`Clear()` — which also nulls the client — stays as the full reset and is bound to nothing.
+
+The distinction is not cosmetic. On the dashboard the note module's `SelectedPerson` is mirrored
+onto the page and scopes the notes grid, the compliance checkboxes, and the form rows. A New Note
+button that nulled it would blank the entire page around the panel, which is not what anyone means
+by "start a new note". On both hosts the next thing a case manager usually does is write another
+note for the same person; saving has always left the client in place for that reason, and now
+takes the same path.
+
+**Rejected:** giving the two hosts different behavior — clear the client on the notes log, keep it
+on the dashboard. The module would have needed to know which page it was on, and the case manager
+would have had to learn that the same button means two things.
+
+### One way back, always visible, in the module rather than the pages
+
+The New Note button lives in `NoteEntryView`'s header, so both hosts get it from the module instead
+of each page declaring its own. Escape runs the same command, bound on the module so it works from
+anywhere in the form and repeated on each host page so it also works from that page's grid. Hosts
+drop their own grid highlight off the `EditorCleared` event; the module does not know grids exist.
+
+**Rejected:** hiding the button until it would do something. An affordance that comes and goes has
+to be rediscovered every time, and one that appears mid-form reorders keyboard focus underneath
+someone tabbing through it. It is always visible and simply disabled on a panel that is already
+blank.
+
+**Rejected:** keeping the notes log's Deselect Note button beside it. It existed to stop the old
+detail panel showing one note while the editor held another. With a single panel, "un-highlight the
+row but keep showing its note" describes nothing a case manager wants, and two buttons that both
+appear to clear the selection but differ in whether they reset the panel is exactly the redundancy
+this page was being cleaned up to remove.
+
+### A displayed note is checked for staleness at unlock, not on a timer
+
+The note panel copies a record's fields in when it loads, so a note changed by a supervisor or
+another session goes on being displayed as it was. The check for that runs at one moment: when the
+padlock opens.
+
+That is where the cost changes. Reading a slightly old version is a nuisance. *Editing* one means
+either overwriting someone else's change or writing a full narrative and losing it to a conflict at
+the moment of saving — which is exactly what `ReconcileNoteConflictAsync` was left to clean up
+after. Checking at unlock moves that discovery to before the work instead of after it.
+
+**Rejected:** polling while a note is displayed. It would put a repeating read on the server for
+every open panel, in both hosts, to catch an uncommon event — and on the Demo path each of those is
+an authenticated round trip that the database-wait feedback subsystem then has to explain to the
+user. The save-time check already backstops anything the unlock check misses.
+
+**Rejected:** blocking the unlock on the read. A Demo round trip can take seconds; a padlock that
+freezes the panel when clicked would be worse than the problem. It is fire-and-forget behind an
+instant unlock, guarded by a `LatestRequestTracker` so a slow reply for a note the panel has since
+moved off cannot publish over the one now on screen.
+
+**Rejected:** replacing what is on screen unconditionally when the server copy differs. If the case
+manager has already typed, their work is theirs; the banner warns and leaves it alone. Only an
+untouched panel is reloaded to the current version, where doing so costs nothing and starts the
+edit from the record as it actually stands.
+
+A check that cannot reach the server says so and leaves the note editable. Its message carries no
+exception text: nothing about a note, a host, or a failure belongs in something a user reads, and
+the save path still refuses a stale write.

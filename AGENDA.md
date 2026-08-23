@@ -2,6 +2,30 @@
 
 # Sati — Refactor Agenda
 
+## Ended Demo session — 2026-08-23
+
+- [x] Treat a refused `POST /api/v1/auth/renew` as terminal: latch the client shut, raise
+      `CloudApiClient.SessionEnded` once, and fail every later authenticated call locally with
+      `CloudSessionEndedException` instead of repeating the rejected renewal per screen.
+- [x] Clear the latch when a new token is set, so signing in again reopens the same client.
+- [x] Surface an ended session in the Switch User dialog as a stated expiry rather than an empty
+      account list, and repair the error line, which was collapsed by a `Visibility` binding that
+      outranked its own style and ran a string through `BoolToVisibilityConverter`.
+- [x] Renew on the token's own schedule (`SessionKeepAlive`), waking at `expiry - RenewalMargin`
+      rather than waiting for a request to land inside a five-minute window that an idle app never
+      enters. A fixed poll cannot substitute: a twenty-minute interval steps over the window and
+      wakes holding an expired token.
+- [x] Gate renewal on real user input, so an active desktop keeps working to the server's
+      twelve-hour cap while an unattended workstation lapses after one token lifetime. The idle
+      allowance is the renewal gap, not the token lifetime — measuring against the lifetime can
+      never close the gate on the first cycle and silently doubles the timeout.
+- [x] Offer re-authentication in place: the shell prompts on `ISessionLifetime.SessionEnded`. The
+      same person signing back in is not an account switch, so nothing reinitializes and unsaved
+      agenda text survives to be saved; a different account takes the existing switch path.
+- [ ] Translate `CloudSessionEndedException` into `SessionExpiredException` across the remaining
+      cloud services. Only `CloudUserService.GetAllAsync` does so today, so other screens still
+      report an ended session through their generic failure path.
+
 ## Representative-payee profile — 2026-08-22
 
 - [x] Add `CaseManagerIsRepPayee`, monthly income, and regular check-request needs to the
@@ -1584,3 +1608,109 @@ in it".
 - **The reveal is not rate limited.** Nothing stops a bulk read of every consumer's
   number one profile at a time. Each read is audited, so it is visible after the
   fact, but nothing makes it slow or noisy while it happens.
+
+## Brochure source pipeline — outstanding after the 2026-08-22 recovery
+
+The brochure now builds from `marketing/brochure/brochure.html`; see `DECISIONS.md`. What the
+recovery did not settle:
+
+- The build is verified by eye. There is no check that a slide's copy still fits its panel, and
+  SVG text does not wrap, so a lengthened line silently overruns. A width assertion per text run
+  would catch it.
+- `scripts/build-brochure.ps1` depends on a Chromium browser being installed and on Segoe UI and
+  Georgia being present. Both hold on the current build machine and neither is asserted.
+- The remaining ten slides still use the original screenshot crops, several of which are stale
+  relative to release 1.2.20. Reshooting them is separate work.
+- The recovered source reproduces the original slide 1 layout apart from the leaf. Nothing has
+  been reviewed for message, ordering, or claim accuracy, and `REGULATORY_CONCERNS.md` has not
+  been applied to the brochure copy.
+
+The pre-recovery ReportLab PDF is deliberately not retained. The HTML source is the baseline;
+there is no earlier version to fall back to, and none is wanted.
+
+## Brochure restructure — outstanding after the 2026-08-22 rewrite
+
+The deck is 14 slides. The intended five movements were interrogative intro (1-3), case-manager workflow
+(4-6), billing gates (7-9), admin, security and platform (10-12), and Carika plus direction
+(13-14). Every headline is a question; slide 14 answers them. Outstanding:
+
+- Slides 11, 12 and 13 carry dashed placeholders, not artwork. Slide 11 wants the environment
+  chooser or the Demo-indicated sign-in, slide 12 wants an architecture diagram, slide 13 wants
+  Carika showing a profile beside a transcript awaiting review. Each label says what to supply.
+- Slide 14 now carries the roadmap and the close on one page. If the closer needs room to
+  breathe, split it into a fifteenth slide.
+- The layout guard in `brochure.html` (`checkLayout()`, auto-run into the browser console) is
+  not enforced by `scripts/build-brochure.ps1`. A silent overrun would still ship.
+- Slide 13's claims are scoped to the current Carika slice: profile display and note drafting,
+  imported audio rather than live capture, separately provisioned models. Re-check that slide
+  against `Carika/README.md` whenever the slice moves.
+- The interrogative pass rewrote every headline. Copy has not been reviewed against
+  `REGULATORY_CONCERNS.md`, and slide 9's "lost units were lost visits" asserts a relationship
+  between billing data and client contact that nothing in the deck substantiates.
+
+## Brochure slide order — parked 2026-08-23
+
+Guided forms was moved from position 5 to position 10 and everything between shifted up one. The
+current order is: cover, day in view, consumer record, note capture, review tracking, supervisor
+workflow, billing gates, productivity, audit and administration, guided forms, security, platform,
+Carika, close.
+
+This crosses two of the movements the deck was structured around. Guided forms is case-manager
+work sitting inside the admin, security and platform run, and the "do the work without the detour"
+construction introduced on slide 4 no longer has its two intended partners adjacent to it. The
+move was made deliberately and marked as temporary; either the movements or the frame needs
+revisiting before the deck is final.
+
+`checkLayout()` in `brochure.html` now also verifies that each slide's position, `data-slide`
+attribute and footer number agree, and that element ids are unique across slides.
+
+## Notes page consolidation — outstanding after the 2026-08-23 change
+
+The notes log's Note Detail panel is gone; the shared entry panel now shows a selected note in a
+locked View Note mode with a padlock toggle into Edit Note, and filters moved to a band above the
+grid. Left open:
+
+- **A note is only checked for staleness when it is unlocked.** `VerifyLoadedNoteIsCurrentAsync`
+  covers the case that matters — finding out before editing rather than after — but a note left
+  open in View Note for an hour still shows the copy it was loaded with, and nothing announces a
+  supervisor's return while it sits there. Deliberate: polling every open panel to catch an
+  uncommon event was rejected (see `DECISIONS.md`). If notes start being changed underneath
+  case managers often enough to matter, the next step is a push or a refresh-on-window-activation,
+  not a timer.
+
+- **The panel has never been opened in a running client since the change.** `NotePanelRenderTests`
+  now loads the real views against the real resource dictionary and asserts the resulting element
+  state, which covers the parts a human would otherwise have had to check — but not how any of it
+  looks. The filter band's `WrapPanel` reflow points and the note panel's column width in
+  particular are guesses that only a person at the screen can judge.
+
+Closed since that entry was written:
+
+- ~~Nothing warns when the note being viewed has since changed on the server.~~ Unlocking now
+  re-reads the note and compares `Revision`, behind the unlock so the panel never freezes on it.
+  An untouched panel reloads to the current version; a panel with unsaved typing is warned and left
+  alone; a removed note and a failed read each say so. The save-time concurrency check is unchanged
+  and still authoritative.
+- ~~No entry point back to a blank New Note from the dashboard.~~ `StartNewNoteCommand` on the
+  module is offered as an always-visible New Note button in the panel header and as Escape, bound
+  both on the module and on each host page. It keeps the selected client, which matters most on the
+  dashboard, where that property scopes the whole page. The notes log's Deselect Note button was
+  removed as a leftover of the two-panel design.
+- ~~The dashboard host does not ask before replacing a draft.~~ Both hosts now route their
+  double-click through `NoteEntryViewModel.OpenForEdit`, which owns the unlock-or-load-or-ask
+  decision. Neither host repeats it, so they cannot drift apart again.
+- ~~Layout is verified structurally, not visually.~~ `NotePanelRenderTests` loads `NotesLogView`
+  and `NoteEntryView` on a real STA thread with the application's resources and asserts runtime
+  grid placement, that a locked narrative is `IsReadOnly` while staying enabled and focusable,
+  that pickers and radio buttons are disabled, that the save button is collapsed, and that the
+  attendee checkboxes inside the `ItemsControl` lock too. Each assertion was confirmed to fail
+  against a deliberately broken view.
+
+### One WPF Application per test process
+
+`WpfUiHarness` now owns the assembly's only `Application` and the STA thread it runs on. WPF's
+one-per-AppDomain flag is never cleared — not even by `Application.Shutdown()` — so a second
+creator does not merely conflict, it fails permanently, and *which* test fails depends on run
+order. `StabilizationTests.ParameterlessFeatureViewsCanOpenRenderAndCloseOnAnStaThread` used to
+build its own; it now borrows the harness and installs its host through `RunWithHost`. Any future
+test that needs a real view must go through the harness rather than constructing an `Application`.

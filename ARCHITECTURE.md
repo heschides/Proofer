@@ -664,10 +664,18 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 - The API returns `409 stale_scratchpad` for stale or legacy autosaves. Content-identical autosaves
   return the current revision without a database write or audit event; accepted changes and their
   PHI-minimized `scratchpad.updated` event share one save transaction.
+- The desktop retains a confirmed-content baseline for Today and Tomorrow and does not send a
+  timer, account-switch, or shutdown request for an unchanged draft. A `401` save rejection stops
+  the agenda timer, preserves both visible drafts, and produces one accessible session-expiry
+  warning instead of retrying each tab and opening recurring error dialogs.
 
 ### `AuthService`
 - **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI
   (`UserService` does it correctly). Hasher non-swappable for auth without editing `AuthService`.
+- Cloud sign-in issues a 30-minute access token carrying the original authentication time. The
+  desktop renews through the protected `/auth/renew` route five minutes before expiry; the API
+  revalidates the current user/role/agency on every renewal and preserves that original time so a
+  session cannot slide past the configured 12-hour maximum without credential entry.
 
 ### `SessionService`
 - Singleton; holds logged-in `User`. `AllowComplianceOverride` flag lives here.
@@ -701,6 +709,9 @@ correctness is a named, testable thing rather than an ad-hoc flag in each ViewMo
 ### `JournalSaveCoordinator` (`Services`)
 - Serializes journal autosaves and account-switch flushes so overlapping cloud updates cannot
   compete for the same record.
+- `JournalDraftTracker` scopes the confirmed text baseline to the displayed Person. Selection and
+  shutdown flushes skip unchanged journals, and completion of an outgoing Person's late save cannot
+  replace the incoming Person's baseline.
 
 ### `AccountSwitchPolicy` / `SettingsAccessPolicy` (`Services`)
 - Named decision owners for whether an account switch may proceed and who may reach agency
@@ -948,6 +959,11 @@ DI registration → confirm clean build → then run the `ExcludedDatesJson` mig
 ### `NotesWindowViewModel`
 `MarkNoteLogged` calls `EvaluateComplianceGate` before transition. `SendToSupervisor` stores
 `CaseManagerJustification`; supervisor queue must read it to distinguish from clean notes.
+**Owns the grid selection only.** Selecting a row calls `NoteEntry.EnterViewMode`; deselecting
+returns a locked panel to New Note and leaves an open draft alone; a double-click routes through
+`OpenSelectedNoteForEdit`. Every path that would replace panel contents first calls
+`NoteEntry.TryReleaseDraft()`. It no longer owns a read-only copy of a note's fields — see
+**Notes page: one panel per note** below.
 
 ### `SettingsViewModel`
 Clean. `SetHealthcareSystems` snapshots before clearing; `SaveSettingsAsync` reassigns
@@ -1126,3 +1142,109 @@ Connectivity failures cross the Scratchpad data boundary as `ScratchpadSaveExcep
 recovery text; the exception and operational log contain no note narrative. Expected cancellation of
 the eight-second presentation delay is observed as task state rather than raised as a first-chance
 `TaskCanceledException`.
+
+---
+
+## Notes page: one panel per note (2026-08-23)
+
+`NotesLogView` had two places that showed a note: the shared entry module on the left, and a
+read-only `NotesDetailPanel` on the right that re-declared client, type, date, status, units,
+return reason, and narrative as a second set of bindings. Two renderings of the same record can
+drift, and neither was authoritative. The detail panel is removed. `NoteEntryView` is now the only
+place a note is read or written, in three modes carried by one pair of flags on
+`NoteEntryViewModel`:
+
+| Mode | `IsEditing` | `IsLocked` | Heading |
+|---|---|---|---|
+| New Note | false | false | `New Note` |
+| View Note | true | true | `View Note` |
+| Edit Note | true | false | `Edit Note` |
+
+- `EnterViewMode` / `EnterEditMode` are thin wrappers over one private `LoadNote(note, locked)`.
+  `ToggleLockCommand` moves between the last two; locking re-runs `LoadNote` so the panel shows the
+  saved record rather than an abandoned draft.
+- `AreNoteFieldsEnabled` is the single owner of "these fields may not be changed". It folds both
+  reasons together — Reminder type, and lock — so a control never has to know which is in force.
+- Read-only presentation uses `IsReadOnly` for text and `IsEnabled=False` for pickers, scoped by
+  implicit styles in the form `Border`'s resources. A locked narrative stays legible, selectable,
+  scrollable, and copyable; a disabled `TextBox` is none of those. The lock is a mistake-guard, not
+  a permission: the API remains the authority on who may change a note.
+- The lock is never signalled by the padlock glyph alone. The heading beside it reads View Note or
+  Edit Note and is a polite live region, and the toggle carries an automation name and help text
+  describing what clicking it will do.
+
+**Unsaved work is never discarded silently.** `HasUnsavedChanges` is an explicit flag set by the
+field callbacks and cleared by `LoadNote` / `ClearNoteFields`, not a diff against the saved note —
+loading writes every field and visit attendees arrive asynchronously, so a diff would report
+changes the case manager never made. `TryReleaseDraft()` asks through the injected
+`DiscardChangesPrompt` (`ConfirmationDialog`; a test supplies a fixed answer). Every path that
+would replace panel contents goes through it: grid selection, double-click, and re-locking. A
+refused prompt snaps the grid selection back to where it was.
+
+`OpenForEdit(Note?)` on the module owns the whole double-click decision — unlock in place if the
+panel already shows that note, otherwise ask and load. Both hosts call it and neither repeats it;
+`NotesWindowViewModel.OpenSelectedNoteForEdit` and `CaseManagerDashboardViewModel.EnterEditMode`
+are each one line. They had already drifted apart once, with the dashboard skipping the guard.
+
+**The way back is `StartNewNoteCommand`, and it is the only one.** A New Note button sits in the
+module header beside the padlock, so both hosts have it without either page declaring it, and
+Escape runs the same command — bound on the module (works from anywhere in the form) and repeated
+on each host page (works from its grid). The button is always visible and merely disabled when the
+panel is already blank: an affordance that appears and disappears has to be rediscovered each time,
+and one that materializes mid-form also reorders keyboard focus. Hosts drop their grid highlight
+off the `EditorCleared` event; the module knows nothing about grids.
+
+`ReturnToNewNote()` keeps `SelectedPerson` — `Clear()` is the full reset and is what nulls the
+client. The distinction is load-bearing: on the dashboard the module's `SelectedPerson` is mirrored
+onto the page and scopes the notes grid, the compliance checkboxes, and the forms, so clearing a
+note there must not blank the page around it. Saving already left the client in place for the same
+reason, and now takes the same path.
+
+The notes log's old **Deselect Note** button is gone. It existed to stop the detail panel showing
+one note while the editor held another; with a single panel, "un-highlight the row but keep showing
+its note" describes nothing anyone wants. Nulling `SelectedNote` directly — Ctrl-clicking the row —
+still returns a *locked* panel to New Note and still leaves an open edit alone.
+
+A status changed from the notes-log grid is pushed back into the panel by
+`RefreshPanelForSelectedNote`, and only while the panel is locked and showing that same note. The
+panel copies a note's fields in when it loads rather than binding through to the instance, so
+without this a note just marked Logged would still read Pending on screen.
+
+**A note changed by someone else is caught at unlock.** `VerifyLoadedNoteIsCurrentAsync` re-reads
+the note and compares `Revision`. It runs when the padlock opens — not on a timer — because that
+is when a stale copy starts to cost something: reading an old version is a nuisance, but editing
+one means overwriting another person's change or losing a finished narrative to a conflict at the
+end. It is fire-and-forget behind the unlock, guarded by a `LatestRequestTracker`, so a Demo round
+trip never freezes the panel and a slow reply for a note the panel has moved off cannot publish
+over it. Outcomes:
+
+| Server state | What happens |
+|---|---|
+| Same revision | Nothing. |
+| Changed, nothing typed yet | Panel reloads from the current version; banner names the differing fields. |
+| Changed, unsaved typing present | Banner only. The case manager's work is never replaced. |
+| Note gone | Banner saying so. |
+| Read failed | Banner saying the check could not run; the note stays editable. |
+
+This does not replace `NoteConcurrencyException` / `ReconcileNoteConflictAsync` on save, which
+remains the authoritative check and still catches a change made in the seconds afterwards. Both
+paths now share `FindLatestAsync`. The banner is an assertive live region — the case manager is
+about to type into a record that is not the one they think it is, so it does not wait for a pause.
+
+**Verification.** `NotePanelRenderTests` loads the real views on the shared `WpfUiHarness` STA
+thread with the application's resource dictionary, and asserts runtime grid placement, read-only
+state, disabled pickers, save-button visibility, and the attendee checkboxes inside the
+`ItemsControl`. Structural XAML-as-XML assertions cannot reach any of that. The harness is the
+assembly's single `Application` owner: WPF's one-per-AppDomain flag survives `Shutdown()`, so a
+second creator makes whichever test runs later fail.
+
+Filters moved from a full-height right-hand column to a `WrapPanel` band directly above the grid
+they scope, so the grid and the note panel each get a full-height column.
+
+**Bug fixed in passing.** `LoadNote` attaches `_editingNote` *after* setting `SelectedPerson`.
+A genuine client switch clears the panel and nulls `_editingNote`, so the previous order left
+`IsEditing` true with no note behind it and the next save wrote a new note instead of updating the
+one on screen — a silent duplicate in the clinical record, reachable from the notes log because its
+grid lists every client's notes. Covered by
+`NotePanelModeTests.LoadingANoteForADifferentClientStillUpdatesThatNote`, confirmed failing against
+the old ordering.

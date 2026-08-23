@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-19, covering all 95 protected routes. Every route added,
+*Route inventory current as of 2026-08-23, covering all 96 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -24,6 +24,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 
 | Feature | Protected route | Authoritative tenant owner | Access rule |
 |---|---|---|---|
+| Profile | `POST /auth/renew` | User's `AgencyId` | Own validated user only; preserves the original authentication time and refuses renewal after the configured maximum session window. |
 | Profile | `GET /me` | User's `AgencyId` | Own user only. |
 | Profile | `GET /users/switchable` | User's `AgencyId` | Authenticated actor; response is restricted to the actor's agency. |
 | Audit | `GET /audit-events` | Audit event's `AgencyId` | Admin only; response is restricted to actor agency, a bounded date window, and at most 500 rows. |
