@@ -10,6 +10,8 @@
       fields; selecting No clears financial details that no longer apply.
 - [x] Add the additive People migration and test validation, tenant isolation, audit/version history,
       contract mapping, migration shape, API compatibility, and accessible XAML controls.
+- [x] Apply the guarded migration to identity-validated Local `SatiProduction` and Azure `SatiDemo`,
+      deploy the matching API, and package both 1.2.21 installers (2026-08-23).
 - [ ] Design the later billing-department check-release notification as its own audited workflow with
       request state, amount, purpose, due date, requester, approval/release evidence, and idempotency.
       A representative-payee profile edit must never itself authorize or initiate payment.

@@ -561,10 +561,17 @@ public sealed class StabilizationTests
             "Test-DemoInstaller.ps1"));
 
         Assert.Contains("SATI_DEMO_INSTALLER_TEST", script);
+        Assert.Contains("Get-Process -Name 'wextract'", script);
         Assert.Contains("appsettings.Public.json", script);
         Assert.Contains("The private appsettings.json file was installed", script);
         Assert.Contains("FileVersion", script);
         Assert.Contains("Installed app exited during startup", script);
+        Assert.Contains(
+            "Start-Process -FilePath $appPath -WorkingDirectory $runRoot -PassThru",
+            script);
+        Assert.DoesNotContain(
+            "Start-Process -FilePath $appPath -WorkingDirectory $runRoot -WindowStyle Hidden",
+            script);
         Assert.Contains("CloseMainWindow()", script);
         Assert.Contains("WaitForExit($CloseTimeoutSeconds * 1000)", script);
         Assert.Contains("APP_WINDOW_LIFECYCLE_PASSED", script);

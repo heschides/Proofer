@@ -50,6 +50,7 @@ try {
     [System.IO.Directory]::CreateDirectory($runRoot) | Out-Null
     $env:SATI_DEMO_INSTALLER_TEST = '1'
     $env:SATI_DEMO_INSTALL_ROOT = $runRoot
+    $installStartedAt = (Get-Date).AddSeconds(-5)
     $install = Start-Process `
         -FilePath $installer `
         -ArgumentList '/Q' `
@@ -58,6 +59,24 @@ try {
         -PassThru
     if ($install.ExitCode -ne 0) {
         throw "Installer exited with code $($install.ExitCode)."
+    }
+
+    # IExpress can return from its outer process while a wextract child is still
+    # handing off to the PowerShell installer. The executable can exist before that
+    # child releases the completed payload, so wait for both conditions.
+    $payloadDeadline = (Get-Date).AddMinutes(2)
+    do {
+        $payloadPresent = Test-Path -LiteralPath (Join-Path $runRoot 'Sati.Demo.exe') -PathType Leaf
+        $installationHelpers = @(Get-Process -Name 'wextract' -ErrorAction SilentlyContinue | Where-Object {
+            $_.StartTime -ge $installStartedAt
+        })
+        if ($payloadPresent -and $installationHelpers.Count -eq 0) {
+            break
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $payloadDeadline)
+    if (-not $payloadPresent -or $installationHelpers.Count -ne 0) {
+        throw 'The Demo installer did not finish settling its isolated payload before acceptance.'
     }
 
     $requiredFiles = @('Sati.Demo.exe', 'appsettings.Public.json', 'Uninstall-SatiDemo.ps1')
@@ -86,7 +105,11 @@ try {
     }
 
     for ($iteration = 1; $iteration -le $LaunchIterations; $iteration++) {
-        $app = Start-Process -FilePath $appPath -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
+        # Do not hide the application window. WPF can close a modal startup window when
+        # the process-level hidden-window flag is imposed, producing exit code zero before
+        # the sign-in gate can observe it. The acceptance requirement is the real visible
+        # sign-in window, so launch normally and close that exact process below.
+        $app = Start-Process -FilePath $appPath -WorkingDirectory $runRoot -PassThru
         $deadline = (Get-Date).AddSeconds($LaunchSeconds)
         do {
             Start-Sleep -Milliseconds 500

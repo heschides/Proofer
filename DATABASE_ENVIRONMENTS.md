@@ -242,6 +242,21 @@ cycles; no 1.2.17 startup error was written to the local error log. SHA-256 is
 version 1.2.8, so deploy and verify API 1.2.17 before collecting final version-matched company-demo
 evidence.
 
+Release 1.2.21 added payload-free database-wait feedback, bounded DNS-only retries, safer Scratchpad
+save recovery, and the representative-payee Person profile. Guarded migration
+`20260822210734_AddRepresentativePayeeProfile` was applied and verified against identity-marked
+Local `SatiProduction` and Azure `SatiDemo`; both report all three columns and migration history row
+70. Azure retained point-in-time recovery before the change, and the temporary exact-IP migration
+firewall rule was removed and verified absent immediately afterward. API package SHA-256 is
+`ead7ea151edc36ecdc116a9a7b631d5a72f8eadd1a391e40fb2e9352ad6894b2`; OneDeploy deployment
+`c399adc1b0a14808971a4320998a70a5` succeeded, and live, schema-readiness, and exact-version checks
+returned Healthy/Healthy/1.2.21. The Demo installer completed five responsive sign-in launches and
+normal closes (SHA-256 `b7d4637e6e47215dde61305e04255f0dfb99e460fda8d5751f5461836104826e`),
+and the Local installer passed isolated version, integrated-security, payload, and cleanup acceptance
+(SHA-256 `cc8649f32aa40277e340d3d9dc451f9a3b9e43530e587750dd3db2b1fd2c5c9c`).
+Authenticated hosted smoke evidence remains outstanding because this operator profile has neither the
+synthetic agency Admin environment credential nor the encrypted Global Admin credential file.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.
