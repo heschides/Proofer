@@ -102,6 +102,7 @@ public static class ApiSurface
         "POST /api/v1/at-requests/{id:int}/publish",
         "POST /api/v1/at-requests/{id:int}/reopen",
         "POST /api/v1/auth/login",
+        "POST /api/v1/auth/renew",
         "POST /api/v1/billing/claim-lines",
         "POST /api/v1/billing/periods/{periodId:int}/edi",
         "POST /api/v1/billing/periods/{periodId:int}/submit",

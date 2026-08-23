@@ -7,6 +7,10 @@ public sealed record LoginResponse(
     DateTimeOffset ExpiresAtUtc,
     UserProfileDto User);
 
+public sealed record SessionRenewalResponse(
+    string AccessToken,
+    DateTimeOffset ExpiresAtUtc);
+
 public sealed record UserProfileDto(
     int Id,
     string Username,

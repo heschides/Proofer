@@ -580,6 +580,36 @@ internal static class ApiEndpoints
 
     private static void MapProfile(RouteGroupBuilder api)
     {
+        api.MapPost("/auth/renew", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            TokenIssuer tokenIssuer,
+            IOptions<ApiAuthenticationOptions> authenticationOptions,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var authenticatedAtValue = principal.FindFirst(TokenIssuer.AuthenticatedAtClaim)?.Value;
+            if (!long.TryParse(authenticatedAtValue, out var authenticatedAtSeconds))
+                return TypedResults.Unauthorized();
+
+            var authenticatedAt = DateTimeOffset.FromUnixTimeSeconds(authenticatedAtSeconds);
+            var now = DateTimeOffset.UtcNow;
+            if (authenticatedAt > now.AddSeconds(30) ||
+                now - authenticatedAt > TimeSpan.FromMinutes(authenticationOptions.Value.MaxSessionMinutes))
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(
+                x => x.Id == actor.UserId && x.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (user is null)
+                return TypedResults.Unauthorized();
+
+            var issued = tokenIssuer.Issue(user, authenticatedAt);
+            return TypedResults.Ok(new SessionRenewalResponse(issued.Token, issued.ExpiresAtUtc));
+        });
+
         api.MapGet("/me", async Task<Results<Ok<UserProfileDto>, NotFound>> (
             ClaimsPrincipal principal,
             ApiDbContext db,

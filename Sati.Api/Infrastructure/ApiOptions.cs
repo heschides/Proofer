@@ -9,6 +9,7 @@ internal sealed class ApiAuthenticationOptions
     public string Audience { get; init; } = string.Empty;
     public string SigningKey { get; init; } = string.Empty;
     public int TokenMinutes { get; init; } = 30;
+    public int MaxSessionMinutes { get; init; } = 720;
 }
 
 /// <summary>

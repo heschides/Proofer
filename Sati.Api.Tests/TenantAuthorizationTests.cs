@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.IdentityModel.Tokens.Jwt;
 using Sati.Contracts.V1;
 using Xunit;
 
@@ -20,6 +21,29 @@ public sealed class TenantAuthorizationTests
         var response = await client.GetAsync("/api/v1/providers");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActiveSessionCanRenewItsShortLivedAccessToken()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var original = client.DefaultRequestHeaders.Authorization?.Parameter;
+
+        var response = await client.PostAsync("/api/v1/auth/renew", content: null);
+
+        response.EnsureSuccessStatusCode();
+        var renewal = await response.Content.ReadFromJsonAsync<SessionRenewalResponse>();
+        Assert.NotNull(renewal);
+        Assert.NotEqual(original, renewal.AccessToken);
+        Assert.True(renewal.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(10));
+        var reader = new JwtSecurityTokenHandler();
+        Assert.Equal(
+            reader.ReadJwtToken(original).Claims.Single(x => x.Type == "sati_auth_time").Value,
+            reader.ReadJwtToken(renewal.AccessToken).Claims.Single(x => x.Type == "sati_auth_time").Value);
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", renewal.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/providers")).StatusCode);
     }
 
     [Fact]

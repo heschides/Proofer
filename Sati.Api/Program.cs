@@ -36,6 +36,8 @@ if (authentication.SigningKey.Length < 32)
     throw new InvalidOperationException("Authentication:SigningKey must contain at least 32 characters.");
 if (authentication.TokenMinutes is < 5 or > 60)
     throw new InvalidOperationException("Authentication:TokenMinutes must be between 5 and 60.");
+if (authentication.MaxSessionMinutes < authentication.TokenMinutes || authentication.MaxSessionMinutes > 1_440)
+    throw new InvalidOperationException("Authentication:MaxSessionMinutes must be between TokenMinutes and 1440.");
 
 var satiOptions = builder.Configuration.GetSection(SatiApiOptions.SectionName).Get<SatiApiOptions>()
     ?? throw new InvalidOperationException("Sati configuration is required.");

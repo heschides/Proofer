@@ -9,11 +9,15 @@ namespace Sati.Api.Security;
 
 internal sealed class TokenIssuer(IOptions<Api.Infrastructure.ApiAuthenticationOptions> options)
 {
+    internal const string AuthenticatedAtClaim = "sati_auth_time";
     private readonly Api.Infrastructure.ApiAuthenticationOptions _options = options.Value;
 
-    public (string Token, DateTimeOffset ExpiresAtUtc) Issue(ServerUser user)
+    public (string Token, DateTimeOffset ExpiresAtUtc) Issue(
+        ServerUser user,
+        DateTimeOffset? authenticatedAtUtc = null)
     {
         var issuedAt = DateTimeOffset.UtcNow;
+        var authenticatedAt = authenticatedAtUtc ?? issuedAt;
         var expiresAt = issuedAt.AddMinutes(_options.TokenMinutes);
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey)),
@@ -24,6 +28,7 @@ internal sealed class TokenIssuer(IOptions<Api.Infrastructure.ApiAuthenticationO
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new Claim(JwtRegisteredClaimNames.Iat, issuedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new Claim(AuthenticatedAtClaim, authenticatedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.DisplayName),
             new Claim(ClaimTypes.Role, user.Role),
