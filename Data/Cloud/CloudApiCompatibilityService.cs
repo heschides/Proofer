@@ -3,8 +3,8 @@ using Sati.Contracts.V1;
 namespace Sati.Data.Cloud;
 
 /// <summary>
-/// Asks the hosted API which route surface it serves and compares it with the one
-/// this build expects.
+/// Asks the hosted API which route and persistence-contract manifest it serves and compares it
+/// with the one this build expects.
 ///
 /// Both sides derive their fingerprint from <see cref="ApiSurface"/>, which is
 /// generated from the API's own endpoint table and held to it by a test. So a
@@ -48,8 +48,8 @@ public sealed class CloudApiCompatibilityService(CloudApiClient client) : IApiCo
         return new ApiCompatibility(
             true,
             server.ReleaseVersion,
-            $"This client expects a different set of API routes than release {server.ReleaseVersion} " +
-            "serves. Features that use a route the server does not have will report the record as " +
-            "missing rather than naming the real cause. Publish the API to clear this.");
+            $"This client expects different API routes or data contracts than release {server.ReleaseVersion} " +
+            "serves. A newer profile field could otherwise be ignored or a missing route could be " +
+            "misreported as a missing record. Publish the API to clear this.");
     }
 }

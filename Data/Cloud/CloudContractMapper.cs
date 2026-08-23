@@ -50,6 +50,9 @@ internal static class CloudContractMapper
         person.BillingZip = dto.BillingZip;
         person.PrimaryCareProvider = dto.PrimaryCareProvider;
         person.HealthcareSystemName = dto.HealthcareSystemName;
+        person.CaseManagerIsRepPayee = dto.CaseManagerIsRepPayee;
+        person.RepPayeeMonthlyIncome = dto.RepPayeeMonthlyIncome;
+        person.RepPayeeRegularCheckRequestNeeds = dto.RepPayeeRegularCheckRequestNeeds;
         person.HasHomeSupport = dto.HasHomeSupport;
         person.HasSelfDirectedHomeSupport = dto.HasSelfDirectedHomeSupport;
         person.HasSharedLiving = dto.HasSharedLiving;
@@ -286,7 +289,10 @@ internal static class CloudContractMapper
             form.CompletedDate,
             form.OpenedDate)).ToList(),
         person.Revision,
-        true);
+        true,
+        person.CaseManagerIsRepPayee,
+        person.RepPayeeMonthlyIncome,
+        person.RepPayeeRegularCheckRequestNeeds);
 
     public static PersonContact ToPersonContact(PersonContactDto dto)
     {

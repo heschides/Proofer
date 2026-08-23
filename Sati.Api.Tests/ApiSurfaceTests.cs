@@ -14,7 +14,9 @@ namespace Sati.Api.Tests;
 /// mechanism necessary, reproduced one level up.
 ///
 /// So this fails the build rather than the deployment. If it goes red after you add
-/// an endpoint, that is working: regenerate the list from the names it prints.
+/// an endpoint, that is working: regenerate the list from the names it prints. Named contract
+/// shapes cover persistence changes that reuse an existing route and therefore cannot appear in
+/// the live endpoint table.
 /// </summary>
 [Collection(SatiApiCollection.Name)]
 public sealed class ApiSurfaceTests
@@ -40,11 +42,11 @@ public sealed class ApiSurfaceTests
     }
 
     /// <summary>
-    /// The fingerprint has to be a function of the surface and nothing else, or two
-    /// builds serving the same routes could disagree and cry wolf on every startup.
+    /// The fingerprint has to be stable across route ordering, or identical builds could
+    /// disagree and cry wolf on every startup.
     /// </summary>
     [Fact]
-    public void TheFingerprintDependsOnlyOnTheRouteSet()
+    public void TheFingerprintIsStableAcrossRouteOrdering()
     {
         var shuffled = ApiSurface.Routes.Reverse().ToList();
 
@@ -62,6 +64,14 @@ public sealed class ApiSurfaceTests
         var withoutOne = ApiSurface.Routes.Skip(1).ToList();
 
         Assert.NotEqual(ApiSurface.Revision, ApiSurface.Fingerprint(withoutOne));
+    }
+
+    [Fact]
+    public void RemovingAContractShapeChangesTheFingerprint()
+    {
+        Assert.NotEqual(
+            ApiSurface.Revision,
+            ApiSurface.Fingerprint(ApiSurface.Routes, []));
     }
 
     /// <summary>

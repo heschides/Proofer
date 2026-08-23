@@ -14,8 +14,8 @@ namespace Sati.Tests;
 /// had begun calling and every one of them surfaced to a case manager as "the record
 /// was not found or is outside your caseload". The release number could not have
 /// caught it — both sides read 1.2.17, because a release is numbered when it is cut
-/// and not when a route is added. So the comparison is over the route surface, and
-/// these tests pin the two properties that matter: it fires when the surfaces differ,
+/// and not when a route is added. So the comparison is over routes plus persistence-relevant
+/// contract shapes, and these tests pin the two properties that matter: it fires when the manifests differ,
 /// and it stays quiet otherwise, including when there is no server at all.
 /// </summary>
 public sealed class ApiCompatibilityTests

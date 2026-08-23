@@ -21,6 +21,7 @@ namespace Sati.ViewModels
         private readonly FormBulkCompletion? _bulkCompletion;
         private readonly ThemeService _themeService;
         private readonly ISessionService _sessionService;
+        private readonly DatabaseActivityPreview _databaseActivityPreview;
         private Settings? _settings;
 
         public SettingsViewModel(
@@ -28,6 +29,8 @@ namespace Sati.ViewModels
             IProviderService providerService,
             ThemeService themeService,
             ISessionService sessionService,
+            DatabaseActivityViewModel databaseActivity,
+            DatabaseActivityPreview databaseActivityPreview,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -37,10 +40,13 @@ namespace Sati.ViewModels
             _bulkCompletion = bulkCompletion;
             _themeService = themeService;
             _sessionService = sessionService;
+            DatabaseActivity = databaseActivity;
+            _databaseActivityPreview = databaseActivityPreview;
             selectedTheme = _themeService.CurrentTheme;
             _ = LoadAsync();
         }
 
+        public DatabaseActivityViewModel DatabaseActivity { get; }
         public IReadOnlyList<ThemeOption> ThemeOptions => _themeService.Themes;
         public bool CanManageAgencySettings =>
             SettingsAccessPolicy.CanManageAgencySettings(_sessionService.CurrentUser?.Role);
@@ -54,6 +60,29 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string saveStatus = string.Empty;
+
+        [ObservableProperty]
+        private string loadingIndicatorPreviewStatus =
+            "Ready. The preview uses no database or client information.";
+
+        [RelayCommand]
+        private async Task PreviewLoadingIndicatorAsync()
+        {
+            LoadingIndicatorPreviewStatus =
+                "Preview running for 12 seconds. The patience window will appear after eight seconds.";
+
+            try
+            {
+                var completed = await _databaseActivityPreview.TryRunAsync();
+                LoadingIndicatorPreviewStatus = completed
+                    ? "Preview complete. No database or client information was accessed."
+                    : "A loading-indicator preview is already running.";
+            }
+            catch (Exception ex)
+            {
+                LoadingIndicatorPreviewStatus = $"The preview could not finish. {ex.Message}";
+            }
+        }
 
         partial void OnSelectedThemeChanged(ThemeOption? value)
         {

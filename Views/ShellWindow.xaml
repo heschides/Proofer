@@ -12,7 +12,10 @@
 
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <!-- The busy leaf occupies 38 px before the navigation border's padding.
+                 Reserve the full height so toggling it never moves the workspace. -->
+            <RowDefinition Height="Auto"
+                           MinHeight="60" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -139,6 +142,50 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
+
+                    <!-- Global data-call feedback. The leaf is a non-color signal as well as
+                         an animated brand cue; its automation name tells assistive technology
+                         that the current request is still active. -->
+                    <Border Margin="0,0,10,0"
+                            Padding="5"
+                            CornerRadius="18"
+                            Background="#1F3E8F83"
+                            Visibility="{Binding DatabaseActivity.IsBusy,
+                                Converter={StaticResource BoolToVisibilityConverter}}"
+                            ToolTip="Retrieving information">
+                        <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
+                               Width="28"
+                               Height="28"
+                               Stretch="Uniform"
+                               RenderTransformOrigin="0.5,0.5"
+                               AutomationProperties.Name="Retrieving information from Sati">
+                            <Image.RenderTransform>
+                                <RotateTransform />
+                            </Image.RenderTransform>
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DatabaseActivity.IsBusy}"
+                                                     Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="DatabaseLeafSpin">
+                                                    <Storyboard RepeatBehavior="Forever">
+                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                         From="0"
+                                                                         To="360"
+                                                                         Duration="0:0:0.42" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="DatabaseLeafSpin" />
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                    </Border>
 
                     <!-- Settings -->
                 <Button Grid.Column="0"

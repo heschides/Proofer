@@ -138,6 +138,11 @@ namespace Sati
                         services.AddTransient<IPasswordHasher, PasswordHasher>();
                         services.AddSingleton<ISessionService, SessionService>();
                         services.AddSingleton<ApplicationRunState>();
+                        services.AddSingleton<IDatabaseActivityTracker, DatabaseActivityTracker>();
+                        services.AddSingleton<DatabaseActivityViewModel>();
+                        services.AddSingleton<DatabaseActivityPreview>();
+                        services.AddSingleton<DatabaseActivityCommandInterceptor>();
+                        services.AddTransient<DatabaseActivityHandler>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
@@ -191,6 +196,7 @@ namespace Sati
                         services.AddTransient<SwitchUserWindow>();
                         services.AddTransient<MyAccountViewModel>();
                         services.AddTransient<MyAccountWindow>();
+                        services.AddTransient<DatabasePatienceWindow>();
                         services.AddTransient<SchedulerViewModel>();
                         services.AddTransient<SsnPanelViewModel>();
                         services.AddTransient<NewClientViewModel>();
@@ -219,6 +225,8 @@ namespace Sati
                         services.AddTransient<Func<LoginWindow>>(sp => () => sp.GetRequiredService<LoginWindow>());
                         services.AddTransient<Func<MyAccountWindow>>(sp => () => sp.GetRequiredService<MyAccountWindow>());
                         services.AddTransient<Func<MyAccountViewModel>>(sp => () => sp.GetRequiredService<MyAccountViewModel>());
+                        services.AddTransient<Func<DatabasePatienceWindow>>(sp =>
+                            () => sp.GetRequiredService<DatabasePatienceWindow>());
                     })
                     .Build();
 
@@ -382,8 +390,10 @@ namespace Sati
             services.AddTransient<IAgencyReleaseService, AgencyReleaseService>();
             services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
-            services.AddDbContextFactory<SatiContext>(options =>
-                options.UseSqlServer(environment.ConnectionString!),
+            services.AddDbContextFactory<SatiContext>((serviceProvider, options) =>
+                options
+                    .UseSqlServer(environment.ConnectionString!)
+                    .AddInterceptors(serviceProvider.GetRequiredService<DatabaseActivityCommandInterceptor>()),
                 ServiceLifetime.Singleton);
         }
 
@@ -393,7 +403,7 @@ namespace Sati
             {
                 client.BaseAddress = environment.ApiBaseAddress;
                 client.Timeout = TimeSpan.FromSeconds(90);
-            });
+            }).AddHttpMessageHandler<DatabaseActivityHandler>();
             services.AddSingleton(sp => new CloudApiClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("SatiDemo")));
             services.AddSingleton<IncidentOutbox>();

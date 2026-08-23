@@ -39,6 +39,8 @@ public sealed class TenantAuthorizationTests
         var serialized = await ownResponse.Content.ReadAsStringAsync();
         Assert.DoesNotContain("Agency one note", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("DocumentJson", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("repPayee", serialized, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("monthlyIncome", serialized, StringComparison.OrdinalIgnoreCase);
 
         using var supervisor = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
         Assert.Equal(HttpStatusCode.Forbidden,
@@ -54,7 +56,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.20", release["releaseVersion"]);
+        Assert.Equal("1.2.21", release["releaseVersion"]);
     }
 
     [Fact]
@@ -1216,6 +1218,70 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task RepresentativePayeeProfileIsValidatedTenantScopedAndVersioned()
+    {
+        using var owner = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var caseload = await owner.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload");
+        var source = Assert.Single(caseload!, person => person.Id == 101);
+        var createRequest = PersonRequest(source, "Payee", "Representative payee profile test.") with
+        {
+            LastName = "Profile",
+            EffectiveDate = null,
+            Forms = [],
+            DayProgramCount = 1,
+            ExpectedRevision = 0,
+            CaseManagerIsRepPayee = true,
+            RepPayeeMonthlyIncome = 943.50m,
+            RepPayeeRegularCheckRequestNeeds = "Rent on the first and weekly personal-needs checks."
+        };
+
+        var createResponse = await owner.PostAsJsonAsync("/api/v1/people", createRequest);
+        var created = await createResponse.Content.ReadFromJsonAsync<PersonDto>();
+
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+        Assert.NotNull(created);
+        Assert.True(created.CaseManagerIsRepPayee);
+        Assert.Equal(943.50m, created.RepPayeeMonthlyIncome);
+        Assert.Equal(
+            "Rent on the first and weekly personal-needs checks.",
+            created.RepPayeeRegularCheckRequestNeeds);
+
+        var invalidResponse = await owner.PutAsJsonAsync(
+            $"/api/v1/people/{created.Id}",
+            PersonRequest(created, created.FirstName!, created.Bio!) with
+            {
+                CaseManagerIsRepPayee = true,
+                RepPayeeMonthlyIncome = null,
+                RepPayeeRegularCheckRequestNeeds = string.Empty
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidResponse.StatusCode);
+
+        using var foreign = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
+        var foreignResponse = await foreign.PutAsJsonAsync(
+            $"/api/v1/people/{created.Id}",
+            PersonRequest(created, "Foreign", created.Bio!));
+        Assert.Equal(HttpStatusCode.NotFound, foreignResponse.StatusCode);
+
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var history = await admin.GetFromJsonAsync<List<PersonVersionDto>>(
+            $"/api/v1/people/{created.Id}/history");
+        var createdVersion = Assert.Single(history!);
+        Assert.Equal("Created", createdVersion.ChangeKind);
+        Assert.Equal(
+            "Yes",
+            Assert.Single(createdVersion.Changes, change =>
+                change.Field == "caseManagerIsRepPayee").NewValue);
+        Assert.Equal(
+            "943.50",
+            Assert.Single(createdVersion.Changes, change =>
+                change.Field == "repPayeeMonthlyIncome").NewValue);
+        Assert.Equal(
+            createRequest.RepPayeeRegularCheckRequestNeeds,
+            Assert.Single(createdVersion.Changes, change =>
+                change.Field == "repPayeeRegularCheckRequestNeeds").NewValue);
+    }
+
+    [Fact]
     public async Task TomorrowAgendaIsTheCurrentUsersNextWorkdayScratchpad()
     {
         using var user = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
@@ -1624,5 +1690,8 @@ public sealed class TenantAuthorizationTests
         person.IsEmployed,
         [],
         person.Revision,
-        true);
+        true,
+        person.CaseManagerIsRepPayee,
+        person.RepPayeeMonthlyIncome,
+        person.RepPayeeRegularCheckRequestNeeds);
 }

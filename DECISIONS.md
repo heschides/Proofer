@@ -1296,3 +1296,63 @@ until the previous model unload succeeds. These controls reduce the model to a f
 organizer with fail-closed output gates; they do not make generated language intrinsically truthful
 or remove the need for human review, device evaluation, privacy review, and accepted-draft audit and
 retention decisions before production.
+
+## Database waits have one payload-free activity owner (2026-08-22)
+
+Database wait feedback is driven by a singleton reference counter at the data boundary, not by
+independent `IsBusy` flags added to every screen. Demo requests enter the counter in an HTTP message
+handler; Local Production commands enter it in an EF Core command interceptor, with query readers
+remaining active until disposal. This covers existing and future data services using those paths,
+keeps overlapping calls correct, and retains no SQL, route bodies, narratives, or other PHI.
+
+The colorful Bodhi leaf spins immediately. The patience window is requested only after eight
+continuous seconds and is modeless and non-activating, so it communicates progress without stealing
+focus or blocking work. The final active lease cancels the delay and closes the window. The tracker
+does not alter permissions, transactions, timeouts, retries, or error propagation.
+
+The Settings preview is a synthetic tracker lease, not a deliberately slow database request. It
+runs for 12 seconds to exercise both visual stages, is available to every signed-in role, prevents
+re-entry, and has no data-service dependency. This preserves the value of a realistic UI test
+without manufacturing database load or creating a route that could expose client information.
+
+## DNS failure retries are safe only before a connection exists (2026-08-22)
+
+A failed Scratchpad save identified by support reference `9114DA9D0544` was a DNS lookup failure for
+the Demo API host. The request never reached the server, but the prior client surfaced a generic
+`TaskCanceledException` after the debugger pause allowed the HTTP timeout to elapse.
+
+`CloudApiClient` now classifies connectivity failures centrally. A request is retried at most twice,
+after 250 milliseconds and one second, only when the recursive exception chain proves a name-
+resolution failure. No TCP connection exists in that case, so repeating either a read or mutation
+cannot duplicate a server-side result. Timeouts, connection resets, and other failures after a
+connection may have delivered a mutation and therefore are not retried automatically.
+
+Exhausted connectivity failures retain their infrastructure exception for payload-free diagnostics
+but expose a safe explanation through the data-service boundary. Scratchpad save handling keeps the
+draft visible, states whether the request was definitely not sent, and never includes the narrative
+in the exception or operational log. Expected cancellation of the spinner's patience delay is
+handled by observing task completion state, keeping normal short requests out of first-chance
+exception output while preserving real delay faults.
+
+## Representative-payee profile state is not payment authorization (2026-08-22)
+
+`Person` stores whether the case manager is the consumer's representative payee, the monthly income
+managed in that role, and a bounded description of regular check-request needs. The explicit No state
+has no subordinate financial values; switching to No clears them. Yes requires a positive amount with
+no fractional cents beyond two decimal places and an explicit needs description, where `None` is the
+honest value when there is no recurring request. `RepresentativePayeeRules` in the shared contracts
+assembly owns those rules for WPF, transitional Local Production, and the API.
+
+All three values participate in Person optimistic concurrency and immutable lifecycle history. Demo
+reads and writes remain own-caseload and tenant checked, and the additive migration defaults existing
+rows to No without inferring money or needs. Because these are sensitive financial profile data, they
+must not be logged in operational telemetry or added to local-AI context.
+
+A future notification to billing is a different aggregate. It needs its own request identity, amount,
+purpose, due date, requester, status, approval/release evidence, audit events, concurrency, and
+idempotency. A profile save is never evidence that a check was requested or authorized.
+
+The representative-payee fields change an existing request/response shape without adding a route.
+`ApiSurface.Revision` therefore fingerprints named persistence-contract revisions in addition to the
+live route manifest. A new client detects an older server before that server can silently ignore the
+new fields.

@@ -41,7 +41,8 @@ namespace Sati.ViewModels
             AdminDashboardViewModel adminDashboardViewModel,
             PlatformHealthViewModel platformHealthViewModel,
             DataEnvironmentInfo dataEnvironment,
-            IApiCompatibilityService apiCompatibility)
+            IApiCompatibilityService apiCompatibility,
+            DatabaseActivityViewModel databaseActivity)
         {
             _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
@@ -52,6 +53,7 @@ namespace Sati.ViewModels
             _adminDashboardViewModel = adminDashboardViewModel;
             _platformHealthViewModel = platformHealthViewModel;
             _dataEnvironment = dataEnvironment;
+            DatabaseActivity = databaseActivity;
         }
 
         // -------------------------------------------------------------------------
@@ -77,6 +79,7 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ScratchpadViewModel Scratchpad { get; }
+        public DatabaseActivityViewModel DatabaseActivity { get; }
 
         // Forwarded so window-close journal flushing still reaches the dashboard now
         // that Case Management owns it.

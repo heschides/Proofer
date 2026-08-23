@@ -20,7 +20,10 @@ namespace Sati.Views
         private readonly ISessionService _sessionService;
         private readonly IIncidentReporter _incidentReporter;
         private readonly ApplicationRunState _applicationRunState;
+        private readonly DatabaseActivityViewModel _databaseActivity;
+        private readonly Func<DatabasePatienceWindow> _databasePatienceWindowFactory;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
+        private DatabasePatienceWindow? _databasePatienceWindow;
         private bool _isSavingOnClose;
         private bool _closeAfterSuccessfulSave;
 
@@ -39,7 +42,8 @@ namespace Sati.Views
             Func<SwitchUserWindow> switchUserWindowFactory,
             Func<LoginWindow> loginWindowFactory,
             Func<MyAccountWindow> myAccountWindowFactory,
-            Func<MyAccountViewModel> myAccountViewModelFactory)
+            Func<MyAccountViewModel> myAccountViewModelFactory,
+            Func<DatabasePatienceWindow> databasePatienceWindowFactory)
         {
             InitializeComponent();
             _shellViewModel = shellViewModel;
@@ -51,7 +55,11 @@ namespace Sati.Views
             _loginWindowFactory = loginWindowFactory;
             _myAccountWindowFactory = myAccountWindowFactory;
             _myAccountViewModelFactory = myAccountViewModelFactory;
+            _databaseActivity = shellViewModel.DatabaseActivity;
+            _databasePatienceWindowFactory = databasePatienceWindowFactory;
             DataContext = shellViewModel;
+
+            _databaseActivity.PropertyChanged += OnDatabaseActivityPropertyChanged;
 
             // A workstation may remain open overnight. Returning to the window
             // advances the two dated agenda views immediately; the autosave timer
@@ -203,7 +211,69 @@ namespace Sati.Views
                 }
             };
 
-            Closed += (s, e) => Application.Current.Shutdown();
+            Closed += (s, e) =>
+            {
+                _databaseActivity.PropertyChanged -= OnDatabaseActivityPropertyChanged;
+                CloseDatabasePatienceWindow();
+                Application.Current.Shutdown();
+            };
+        }
+
+        private void OnDatabaseActivityPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(DatabaseActivityViewModel.IsPatienceVisible))
+                return;
+
+            if (!Dispatcher.CheckAccess())
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(UpdateDatabasePatienceWindow),
+                    DispatcherPriority.Normal);
+                return;
+            }
+
+            UpdateDatabasePatienceWindow();
+        }
+
+        private void UpdateDatabasePatienceWindow()
+        {
+            if (!IsVisible)
+            {
+                CloseDatabasePatienceWindow();
+                return;
+            }
+
+            if (!_databaseActivity.IsPatienceVisible)
+            {
+                CloseDatabasePatienceWindow();
+                return;
+            }
+
+            if (_databasePatienceWindow is { IsVisible: true })
+                return;
+
+            var window = _databasePatienceWindowFactory();
+            // Keep the message above a modal child such as Settings. Otherwise the shell owns
+            // both sibling windows and the preview can open behind the dialog being tested.
+            var activeOwnedWindow = OwnedWindows
+                .OfType<Window>()
+                .LastOrDefault(candidate => candidate.IsVisible && candidate.IsActive);
+            window.Owner = activeOwnedWindow ?? this;
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_databasePatienceWindow, window))
+                    _databasePatienceWindow = null;
+            };
+            _databasePatienceWindow = window;
+            window.Show();
+        }
+
+        private void CloseDatabasePatienceWindow()
+        {
+            var window = _databasePatienceWindow;
+            _databasePatienceWindow = null;
+            if (window is { IsVisible: true })
+                window.Close();
         }
 
         // The switch-to-another-user flow, formerly inline in the greeting handler,

@@ -81,7 +81,10 @@ public sealed record PersonDto(
     bool IsEmployed,
     int Revision,
     IReadOnlyList<FormDto> Forms,
-    IReadOnlyList<NoteSummaryDto> Notes);
+    IReadOnlyList<NoteSummaryDto> Notes,
+    bool CaseManagerIsRepPayee = false,
+    decimal? RepPayeeMonthlyIncome = null,
+    string? RepPayeeRegularCheckRequestNeeds = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -125,7 +128,10 @@ public sealed record SavePersonRequest(
     bool IsEmployed,
     IReadOnlyList<SavePersonFormRequest> Forms,
     int ExpectedRevision = 0,
-    bool UpdateBillingAddress = false);
+    bool UpdateBillingAddress = false,
+    bool CaseManagerIsRepPayee = false,
+    decimal? RepPayeeMonthlyIncome = null,
+    string? RepPayeeRegularCheckRequestNeeds = null);
 
 public sealed record PersonContactDto(
     int Id,
@@ -544,7 +550,8 @@ public sealed record DeleteFormsRequest(IReadOnlyList<int> FormIds);
 public sealed record ApiErrorDto(string Code, string Message, string CorrelationId);
 
 /// <summary>
-/// What <c>GET /health/version</c> reports. <c>ContractRevision</c> is the field that
+/// What <c>GET /health/version</c> reports. <c>ContractRevision</c> fingerprints both routes and
+/// persistence-relevant contract shapes and is the field that
 /// decides compatibility; <c>ReleaseVersion</c> is for humans reading a log, because
 /// a release number is bumped when a release is cut rather than when a route changes
 /// and so cannot answer "does this server serve what my client calls".

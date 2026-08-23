@@ -975,6 +975,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1082,6 +1083,48 @@
                                            MaxHeight="42" />
                             </StackPanel>
 
+                            <Border Grid.Row="5" Grid.ColumnSpan="4"
+                                    Margin="0,14,0,0"
+                                    Padding="12"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    AutomationProperties.Name="Representative payee profile summary">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.1*" />
+                                        <ColumnDefinition Width="0.8*" />
+                                        <ColumnDefinition Width="2.1*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                        <TextBlock Text="CASE MANAGER IS REPRESENTATIVE PAYEE"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <TextBlock Text="Yes"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Visibility="{Binding SelectedPerson.CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <TextBlock Text="No"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Visibility="{Binding SelectedPerson.CaseManagerIsRepPayee, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,16,0"
+                                                Visibility="{Binding SelectedPerson.CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="MONTHLY INCOME" Style="{StaticResource LabelStyle}" />
+                                        <TextBlock Text="{Binding SelectedPerson.RepPayeeMonthlyIncome, StringFormat={}{0:C2}, TargetNullValue=—}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2"
+                                                Visibility="{Binding SelectedPerson.CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="REGULAR CHECK-REQUEST NEEDS" Style="{StaticResource LabelStyle}" />
+                                        <TextBlock Text="{Binding SelectedPerson.RepPayeeRegularCheckRequestNeeds, TargetNullValue=—}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   MaxHeight="52" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
                             <!-- Social Security number.
                                  Deliberately NOT part of the demographic editor above.
                                  It saves through its own audited route, and folding it
@@ -1093,7 +1136,7 @@
                                  while the case manager explicitly shows it, for reading to
                                  the Social Security Administration, and hiding clears it
                                  from the view model rather than merely from view. -->
-                            <Border Grid.Row="5" Grid.ColumnSpan="4"
+                            <Border Grid.Row="6" Grid.ColumnSpan="4"
                                     Margin="0,14,0,0"
                                     Padding="16"
                                     CornerRadius="12"
@@ -1204,6 +1247,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="390">
                             <Grid>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -1370,6 +1414,75 @@
                                                  AutomationProperties.Name="Subscriber claim ZIP code" />
                                     </StackPanel>
                                 </Grid>
+
+                                <Border Grid.Row="5" Grid.ColumnSpan="4"
+                                        Margin="0,16,0,0"
+                                        Padding="14"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        AutomationProperties.Name="Representative payee profile editor">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.05*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                            <ColumnDefinition Width="2.1*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,0">
+                                            <TextBlock Text="REPRESENTATIVE PAYEE" Style="{StaticResource LabelStyle}" />
+                                            <TextBlock Text="Is the case manager the consumer's representative payee?"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <RadioButton Content="Yes"
+                                                             GroupName="RepresentativePayeeChoice"
+                                                             IsChecked="{Binding CaseManagerIsRepPayee, Mode=TwoWay}"
+                                                             Margin="0,0,18,0"
+                                                             AutomationProperties.Name="Case manager is representative payee, yes" />
+                                                <RadioButton Content="No"
+                                                             GroupName="RepresentativePayeeChoice"
+                                                             IsChecked="{Binding CaseManagerIsRepPayee, Mode=TwoWay, Converter={StaticResource InverseBoolConverter}}"
+                                                             AutomationProperties.Name="Case manager is representative payee, no" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,18,0"
+                                                    Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="MONTHLY INCOME" Style="{StaticResource LabelStyle}" />
+                                            <TextBox Text="{Binding RepPayeeMonthlyIncomeText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                                     MaxLength="30"
+                                                     AutomationProperties.Name="Consumer monthly income managed by representative payee"
+                                                     AutomationProperties.HelpText="Enter dollars and cents, for example 943.50." />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="2"
+                                                    Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="REGULAR CHECK-REQUEST NEEDS" Style="{StaticResource LabelStyle}" />
+                                            <TextBox Text="{Binding RepPayeeRegularCheckRequestNeeds, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="Wrap"
+                                                     MinHeight="58"
+                                                     MaxLength="2000"
+                                                     SpellCheck.IsEnabled="True"
+                                                     AutomationProperties.Name="Regular representative-payee check-request needs"
+                                                     AutomationProperties.HelpText="Describe recurring needs, or enter None when there are no recurring requests." />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="3"
+                                                   Margin="0,10,0,0"
+                                                   Text="This profile records recurring needs only. It does not request or authorize a check."
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    </Grid>
+                                </Border>
                             </Grid>
                         </ScrollViewer>
                     </Border>

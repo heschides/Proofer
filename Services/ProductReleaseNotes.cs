@@ -6,99 +6,44 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Grounded local AI and Carika";
-    public const string ReleaseDate = "August 22, 2026";
+    public const string ReleaseName = "Responsive database waits and payee profiles";
+    public const string ReleaseDate = "August 23, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Grounded local AI",
+            "Representative-payee profiles",
             [
-                "Local AI drafting now receives only the selected client's identity and the current unsaved note inputs; prior notes and other clients' narratives are never included.",
-                "Every selected visit option, attendee, detail, checkbox, and current sentence fragment is compiled into a required fact that the draft must represent.",
-                "Drafts are rejected when they omit required facts, reverse attribution, introduce unsupported names, numbers, quotations, negation, chronology, or clinical conclusions, or lose quoted wording.",
-                "Changing the client or any source control cancels and invalidates an in-flight draft so a stale response cannot appear or be accepted.",
-                "A deterministic closed-world fallback keeps drafting available if the local model is unavailable or cannot pass validation, while leaving final review and acceptance with the user.",
-                "Added synthetic competence, tenant-isolation, stale-response, fact-coverage, and hallucination-resistance tests, including an opt-in gate against the actual local model."
+                "A consumer's Profile now records an explicit Yes or No for whether the case manager serves as representative payee.",
+                "When Yes is selected, the Profile records validated monthly income and a description of regular check-request needs; selecting No clears those subordinate details.",
+                "Representative-payee changes participate in tenant authorization, optimistic concurrency, immutable Person history, and the same validation in Local Production and Demo.",
+                "This information is profile context only. It does not request, approve, authorize, or release a check; the later billing notification remains a separate audited workflow.",
+                "Representative-payee financial details are not sent to local AI and are not written to operational logs."
             ]),
         new(
-            "Carika note entry",
+            "Responsive database waits",
             [
-                "Refreshed Carika with a clearer client rail, client summary, structured note card, stronger typography, and accessible status messaging.",
-                "Note type, workflow status, and form type are now explicit selections backed by the same safe contract choices used by Sati.",
-                "Carika now prevents stale client drafts or local transcriptions from being inserted after the selected client or narrative changes.",
-                "Added Carika tests for allowed choices, safe defaults, form behavior, and API round trips for Visit, Contact, Form, and Other notes."
+                "The colorful Bodhi leaf now spins while Sati is waiting for Demo API or Local Production database activity.",
+                "After eight seconds of uninterrupted activity, a modern patience window thanks the user and closes automatically when the final overlapping request finishes.",
+                "The shell reserves enough height for the animation, preventing the surrounding row from resizing when the spinner starts.",
+                "Settings includes a 12-second visual preview that exercises both loading stages without querying a database or accessing client information.",
+                "The shared activity tracker is payload-free and records no SQL, routes, request bodies, notes, or other client information."
             ]),
         new(
-            "Admin and audit",
+            "Connectivity and recovery",
             [
-                "User profiles now identify the assigned supervisor by name in both the administrative Users view and My Account.",
-                "Added an Admin operations view with database status, retained audit and EDI counts, and explicit retention-policy visibility.",
-                "Added a reason-gated, agency-scoped audit activity CSV export and records each export in the audit trail.",
-                "Added a Person lifecycle timeline and auditor-friendly PDF showing who changed each field and when."
-            ]),
-        new(
-            "Safety and reliability",
-            [
-                "The Local Production installer now carries Microsoft's signed LocalDB prerequisite and a clean workstation can safely create its own empty, environment-marked database on first launch.",
-                "Failed shutdown saves now show a technical code and support reference, keep unsaved text visible, and let the user explicitly remain open or close without saving.",
-                "Application shutdown now flushes both work agendas and the selected client's journal before closing.",
-                "Corrected Demo startup resource addresses so the renamed Sati.Demo executable can always load its icon and watercolor branding without looking for a nonexistent Sati assembly.",
-                "Completed a focused concurrency audit and added deterministic overlap tests for scratchpad saves, calendar navigation, billing loads, and stale client-note responses.",
-                "Serialized scratchpad, billing, and account-switch operations so repeated clicks, timers, window closing, and session transitions cannot compete for the same state.",
-                "Calendar and client-note screens now publish only the newest applicable network response when requests finish out of order.",
-                "Settings startup and abandoned-note background maintenance now observe their own failures instead of surfacing surprise application-level errors.",
-                "Separated personal Settings from Admin-only agency configuration, and converted rejected Settings saves into clear inline guidance instead of crash dialogs.",
-                "Agency settings now change only through the explicit Save Settings action; closing the window no longer launches an unexpected cloud save.",
-                "Prevented overlapping sign-in completions from closing the login dialog twice or leaving an orphaned error message behind the application.",
-                "Fixed repeated close requests so the main and Settings windows cannot crash while completing their save-on-close work.",
-                "Corrected the final save-on-close handoff so Windows fully finishes the original close request before Sati closes the saved window.",
-                "Journal autosaves and account-switch flushes now run one at a time, preventing overlapping cloud updates from crashing Switch User.",
-                "Incident reports are now saved to a durable local outbox and retried after sign-in when a connection or process interruption prevented delivery.",
-                "An unclean prior shutdown is reported on the next matching sign-in, including terminations that an in-process exception handler cannot observe.",
-                "An empty incident feed now says No telemetry instead of incorrectly reporting a perfect health score.",
-                "Expanded agency, assignment, author, and reviewer authorization checks across cloud and local-development workflows.",
-                "Added conflict protection for assessments, People, notes, AT requests, agency settings, and scratchpads.",
-                "Made billing submission and EDI generation safe to retry without creating duplicate successful results.",
-                "Fixed calendar-day selection so note details render without repeated error dialogs."
-            ]),
-        new(
-            "Billing pipeline",
-            [
-                "Note entry now labels Pending as Save as Draft and Logged as Submit for Supervisor Review, with clearly spaced guidance explaining each status's review and billing consequences.",
-                "Non-compliant supervisor cards and client profiles now show the exact forms or reviews blocking billing, and affected clients are visibly marked in the roster.",
-                "Added an end-to-end verification covering draft, supervisory submission, approval, billing-period submission, and test 837P generation.",
-                "Billing administrators can configure the procedure, modifier, unit rate, submitter, payer, and contact values for their agency.",
-                "The billing queue now rechecks approval, current compliance, historical billing gaps, member/provider identifiers, structured claim addresses, and EDI configuration before promotion.",
-                "Section 13 service time now retains partial units after the one-unit minimum, and claim charges are calculated separately from units.",
-                "837P files require a submitted billing period and use immutable claim snapshots, structural envelope checks, subscriber addresses, and retry-safe generation."
-            ]),
-        new(
-            "Demo and support",
-            [
-                "The login and splash screens now use the same bright watercolor Bodhi leaf as the application icon, with a newly composed high-resolution splash layout.",
-                "Placed the installed release number in a dedicated, higher-contrast login footer so it remains visible at Windows display scaling.",
-                "A bright geometric watercolor Bodhi-leaf application icon with a softly rounded ivory container improves recognition in Windows, title bars, and installer shortcuts.",
-                "The login window now shows the installed release number, and installer upgrades refresh recognized Sati taskbar pins with a version-specific icon.",
-                "Accessibility safeguards now label icon controls and checkboxes and give overdue matrix cells a visible text status.",
-                "Runtime smoke coverage renders the feature views, and installer acceptance repeatedly proves responsive, zero-code normal window shutdown.",
-                "Theme resources now resolve relative to Sati itself so hosted views do not depend on the entry executable.",
-                "Added repeatable Demo packaging, health preflight, canonical local-data reset, and company-demo operating guidance.",
-                "Unexpected errors now show a short support reference instead of a developer stack trace.",
-                "Global Admin desktop failures are accepted as platform-scoped incidents without exposing agency business routes or blaming an individual tenant.",
-                "Global Admin can change its own password while remaining blocked from agency user-management and business-data endpoints.",
-                "Switching away from Global Admin now uses neutral username and password entry instead of attempting to enumerate an agency directory.",
-                "Agency Admins can review a PHI-minimized incident table and explainable 30-day Incident Health score; a separately controlled platform operator sees audited cross-agency health.",
-                "Incident reports now aggregate safely during simultaneous failures, and Admins can search, filter, investigate, resolve, and see explicit alert thresholds.",
-                "Expanded automated coverage across authorization, integration, migration, reporting, and domain behavior."
+                "Demo requests retry only proven DNS failures that could not have reached the API; timeouts and ambiguous write failures are never automatically repeated.",
+                "A failed Today's Work save keeps the note text visible and now gives safer, more specific recovery guidance without placing note text in diagnostics.",
+                "Expected cancellation of short spinner delays no longer appears as a debugger exception.",
+                "Client/server compatibility now fingerprints important persistence-contract shapes as well as routes, so an older API cannot silently discard newly added Profile fields."
             ]),
         new(
             "Still planned before commercial production",
             [
-                "Automated retention and legal-hold enforcement; the current dashboard correctly reports PolicyOnly.",
-                "Production identity and MFA, external alert routing, backup/restore drills, payer certification, and controlled production deployment.",
-                "Clearinghouse test-file acceptance, payer enrollment/rate verification, acknowledgments, rejections, remittances, and reconciliation.",
-                "Broader immutable clinical-document versions, amendments, signatures, and mobile/web clients."
+                "The representative-payee billing-department check-release notification, with its own request, approval, release evidence, audit history, concurrency, and idempotency.",
+                "Automated retention and legal-hold enforcement; the current operations panel correctly reports PolicyOnly.",
+                "Production identity and MFA, external alert routing, backup/restore drills, payer certification, and a controlled cloud Production deployment.",
+                "Clearinghouse acceptance, payer enrollment and rate verification, acknowledgments, rejections, remittances, and reconciliation."
             ])
     ];
 }

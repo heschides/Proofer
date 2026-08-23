@@ -25,6 +25,7 @@ namespace Sati.Data
 
         public async Task<Person> AddPersonAsync(Person person)
         {
+            ValidateRepresentativePayee(person);
             var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
             person.AgencyId ??= actor.AgencyId;
@@ -38,6 +39,7 @@ namespace Sati.Data
 
         public async Task<Person> EditPersonAsync(Person person)
         {
+            ValidateRepresentativePayee(person);
             var actor = CurrentActor();
             await using var context = _contextFactory.CreateDbContext();
             var stored = await context.People.AsNoTracking()
@@ -132,6 +134,20 @@ namespace Sati.Data
 
         private User CurrentActor() => _sessionService.CurrentUser
             ?? throw new InvalidOperationException("A signed-in user is required for this operation.");
+
+        private static void ValidateRepresentativePayee(Person person)
+        {
+            var errors = RepresentativePayeeRules.Validate(
+                person.CaseManagerIsRepPayee,
+                person.RepPayeeMonthlyIncome,
+                person.RepPayeeRegularCheckRequestNeeds);
+            if (errors.Count == 0)
+                return;
+
+            throw new InvalidOperationException(string.Join(
+                " ",
+                errors.Values.SelectMany(messages => messages)));
+        }
 
         public async Task<List<Person>> GetAllPeopleAsync(int userId)
         {

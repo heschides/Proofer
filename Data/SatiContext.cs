@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 using Sati.Models.Billing;
 using Sati.Models.Assessments;
@@ -204,6 +205,9 @@ namespace Sati.Data
                 entity.Property(p => p.BillingZip).HasMaxLength(15);
                 entity.Property(p => p.PrimaryCareProvider).HasMaxLength(100);
                 entity.Property(p => p.HealthcareSystemName).HasMaxLength(100);
+                entity.Property(p => p.RepPayeeMonthlyIncome).HasColumnType("decimal(18,2)");
+                entity.Property(p => p.RepPayeeRegularCheckRequestNeeds)
+                      .HasMaxLength(RepresentativePayeeRules.MaxRegularCheckRequestNeedsLength);
 
                 // Encrypted SSN, declared as shadow properties on purpose.
                 //

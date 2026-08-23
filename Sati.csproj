@@ -11,9 +11,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.2.20</Version>
-    <AssemblyVersion>1.2.20.0</AssemblyVersion>
-    <FileVersion>1.2.20.0</FileVersion>
+    <Version>1.2.21</Version>
+    <AssemblyVersion>1.2.21.0</AssemblyVersion>
+    <FileVersion>1.2.21.0</FileVersion>
     <Company>SatiLogica</Company>
   </PropertyGroup>
 
@@ -50,6 +50,7 @@
     <Compile Remove="Carika\**\*.cs" />
     <Compile Remove="Carika.Tests\**\*.cs" />
     <Compile Remove="installer\Sati.LocalBootstrap\**\*.cs" />
+    <Compile Remove="tools\**\*.cs" />
     <Compile Remove="tmp\**\*.cs" />
     <EmbeddedResource Remove="Sati.Api\**\*" />
     <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
@@ -59,6 +60,7 @@
     <EmbeddedResource Remove="Carika\**\*" />
     <EmbeddedResource Remove="Carika.Tests\**\*" />
     <EmbeddedResource Remove="installer\Sati.LocalBootstrap\**\*" />
+    <EmbeddedResource Remove="tools\**\*" />
     <EmbeddedResource Remove="tmp\**\*" />
     <None Remove="Sati.Api\**\*" />
     <None Remove="Sati.Api.Tests\**\*" />
@@ -68,6 +70,7 @@
     <None Remove="Carika\**\*" />
     <None Remove="Carika.Tests\**\*" />
     <None Remove="installer\Sati.LocalBootstrap\**\*" />
+    <None Remove="tools\**\*" />
     <None Remove="tmp\**\*" />
   </ItemGroup>
 
@@ -107,9 +110,6 @@
     <PackageReference Include="Microsoft.AI.Foundry.Local.WinML" Version="1.2.3" />
     <PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
-    <!-- DPAPI, for wrapping local SSN data keys with the Windows user account key.
-         Windows-only by nature; the desktop already targets net10.0-windows. -->
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
 

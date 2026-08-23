@@ -233,6 +233,91 @@
                            TextWrapping="Wrap"
                            Margin="0,0,0,20" />
 
+                <TextBlock Text="LOADING INDICATOR TEST"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,10,0,0" />
+                <Separator />
+
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="18"
+                        MaxWidth="620"
+                        HorizontalAlignment="Left">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="82" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="66"
+                                Height="66"
+                                CornerRadius="33"
+                                Background="#1F3E8F83"
+                                VerticalAlignment="Top">
+                            <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
+                                   Width="52"
+                                   Height="52"
+                                   Stretch="Uniform"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   AutomationProperties.Name="Loading indicator preview">
+                                <Image.RenderTransform>
+                                    <RotateTransform />
+                                </Image.RenderTransform>
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseActivity.IsBusy}"
+                                                         Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="SettingsPreviewLeafSpin">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:0.42" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="SettingsPreviewLeafSpin" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                        </Border>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Preview the database-waiting experience"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="Runs for 12 seconds: the leaf spins immediately and the patience window appears after eight seconds. This is a visual test only and does not query the database or access client records."
+                                       Margin="0,6,0,14"
+                                       TextWrapping="Wrap"
+                                       FontSize="11"
+                                       LineHeight="17"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Button Content="Test loading indicator"
+                                    AutomationProperties.Name="Test loading indicator"
+                                    AutomationProperties.HelpText="Starts a 12-second visual preview without accessing the database or client records"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding PreviewLoadingIndicatorCommand}"
+                                    Width="190"
+                                    HorizontalAlignment="Left" />
+                            <TextBlock Text="{Binding LoadingIndicatorPreviewStatus}"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Margin="0,10,0,0"
+                                       TextWrapping="Wrap"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

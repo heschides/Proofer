@@ -231,6 +231,11 @@ namespace Sati.ViewModels.Children
                 ShowConflict(ex, "Today's Work");
                 return false;
             }
+            catch (ScratchpadSaveException ex)
+            {
+                ShowSaveError(ex, "Today's Work", ex.Message);
+                return false;
+            }
             catch (Exception ex)
             {
                 ShowSaveError(ex, "Today's Work");
@@ -259,6 +264,11 @@ namespace Sati.ViewModels.Children
                 ShowConflict(ex, "Tomorrow's Agenda");
                 return false;
             }
+            catch (ScratchpadSaveException ex)
+            {
+                ShowSaveError(ex, "Tomorrow's Agenda", ex.Message);
+                return false;
+            }
             catch (Exception ex)
             {
                 ShowSaveError(ex, "Tomorrow's Agenda");
@@ -276,7 +286,10 @@ namespace Sati.ViewModels.Children
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
-        private static void ShowSaveError(Exception ex, string agendaName)
+        private static void ShowSaveError(
+            Exception ex,
+            string agendaName,
+            string? safeRecoveryDetail = null)
         {
             Debug.WriteLine($"{agendaName} save failed: {ex.Message}");
             var reference = AppErrorLog.Record(
@@ -285,10 +298,12 @@ namespace Sati.ViewModels.Children
                     ? "scratchpad.save.today"
                     : "scratchpad.save.tomorrow");
             MessageBox.Show(
-                $"Sati could not save {agendaName}. Your text is still visible, but it has not reached the cloud.\n\n" +
+                $"Sati could not save {agendaName}. Your text is still visible, but Sati could not confirm the save.\n\n" +
                 $"Technical code: {ex.GetType().Name} (0x{ex.HResult:X8})\n" +
                 $"Support reference: {reference}\n\n" +
-                "Check the internet connection and try closing again. If it still fails, give the support reference to Sati support.",
+                (string.IsNullOrWhiteSpace(safeRecoveryDetail)
+                    ? "Check the internet connection and try closing again. If it still fails, give the support reference to Sati support."
+                    : $"{safeRecoveryDetail}\n\nTry closing again. If it still fails, give the support reference to Sati support."),
                 "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 

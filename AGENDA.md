@@ -2,6 +2,34 @@
 
 # Sati — Refactor Agenda
 
+## Representative-payee profile — 2026-08-22
+
+- [x] Add `CaseManagerIsRepPayee`, monthly income, and regular check-request needs to the
+      authoritative Person profile, API contracts, lifecycle history, and Local/Demo persistence.
+- [x] Add accessible Yes/No Profile controls with conditional, validated amount and recurring-needs
+      fields; selecting No clears financial details that no longer apply.
+- [x] Add the additive People migration and test validation, tenant isolation, audit/version history,
+      contract mapping, migration shape, API compatibility, and accessible XAML controls.
+- [ ] Design the later billing-department check-release notification as its own audited workflow with
+      request state, amount, purpose, due date, requester, approval/release evidence, and idempotency.
+      A representative-payee profile edit must never itself authorize or initiate payment.
+
+## Database wait feedback — 2026-08-22
+
+- [x] Add one payload-free, reference-counted activity tracker for Demo HTTP and Local Production EF
+      calls, including success, failure, cancellation, and reader-disposal cleanup.
+- [x] Spin the accessible watercolor Bodhi leaf immediately while data calls are active.
+- [x] After eight uninterrupted seconds, show a modeless patience window that closes automatically
+      when the final overlapping request completes and never appears late after a short request.
+- [x] Add deterministic timing, overlap, HTTP failure, EF reader-lifecycle, and XAML accessibility
+      coverage.
+- [x] Add an all-role Settings preview that holds the same activity tracker for 12 seconds without
+      querying a database, so the immediate leaf and eight-second patience window can be tested.
+- [x] Classify Demo connectivity failures, retry only proven DNS failures where no request was
+      sent, and keep ambiguous writes from being repeated after timeouts or connection loss.
+- [x] Present safe, specific Scratchpad recovery guidance without logging or displaying note text,
+      and remove expected spinner-timer cancellation exceptions from debugger output.
+
 ## Carika limited client — 2026-08-21
 
 - [x] Add an Avalonia client using safe contracts and the API, without EF/SQL/LocalDB.
@@ -1382,15 +1410,17 @@ be added retroactively. Everything below waits for Karuna.
 - [ ] **Remove the whole-journal fallback once nothing predates the route.** Delete the 404 `catch`
   in `CloudPersonService.AddJournalReminderAsync`, `JournalReminderResult.UsedLegacyJournalWrite`
   and the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs`. See `DECISIONS.md`.
-- [x] **Detect a behind-server generally.** Built 2026-08-19. **Comparing the release number would
+- [x] **Detect a behind-server generally.** Built 2026-08-19 and extended 2026-08-22. **Comparing the release number would
   not have worked** — on the day this was written the hosted API and the client both reported
   1.2.17 while the server was missing five routes, because a release is numbered when it is cut and
-  not when a route is added. The comparison is therefore over the route surface:
-  `ApiSurface` in `Sati.Contracts.V1` holds the generated route list and a fingerprint of it,
+  not when a route is added. The comparison is therefore over the route and persistence-contract
+  manifest: `ApiSurface` in `Sati.Contracts.V1` holds the generated route list, named contract-shape
+  revisions, and a fingerprint of both,
   `/health/version` reports the fingerprint (never the list — that is a map of the attack surface),
   and `IApiCompatibilityService` compares once at sign-in and raises a "SERVER OUT OF DATE" banner
-  with the cause. `ApiSurfaceTests` fails the build if the manifest drifts from the API's real
-  endpoint table, so the fingerprint cannot go stale. The check never throws and never blocks
+  with the cause. `ApiSurfaceTests` fails the build if the route manifest drifts from the API's real
+  endpoint table and proves that a contract-shape change alters the fingerprint. This prevents a
+  newer client from silently sending profile fields an older server would ignore. The check never throws and never blocks
   sign-in: an unreachable server is a network problem other screens report better.
 - [ ] **Audit other `GetAsync<T>` calls for legitimately empty bodies.** `GetJournalAsync` threw on
   any client whose journal was never written, because `GetAsync<string?>` treats a null result as an

@@ -4,8 +4,8 @@ using System.Text;
 namespace Sati.Contracts.V1;
 
 /// <summary>
-/// The exact set of routes this build of the API serves, and a short revision
-/// fingerprint over that set.
+/// The exact set of routes and persistence-relevant contract shapes this build of the API
+/// serves, and a short revision fingerprint over that manifest.
 ///
 /// This exists because a release number could not do the job. On 2026-08-19 the
 /// hosted Demo API and the desktop client both reported release 1.2.17 while the
@@ -15,9 +15,9 @@ namespace Sati.Contracts.V1;
 /// the UI as "the record was not found or is outside your caseload", pointing case
 /// managers at caseload problems that did not exist.
 ///
-/// The fingerprint is derived from the route set itself, so it changes the moment
-/// the API's surface changes and cannot drift out of step with a human remembering
-/// to increment something. `ApiSurfaceTests` compares this list against the API's
+/// The fingerprint is derived from the route set plus named contract-shape revisions, so it
+/// changes when either the API surface or a persistence contract changes. `ApiSurfaceTests`
+/// compares the route list against the API's
 /// live endpoint table and fails if they differ, which is what keeps the list honest:
 /// adding a route without updating this file breaks the build rather than shipping a
 /// client that quietly disagrees with its server.
@@ -28,6 +28,16 @@ namespace Sati.Contracts.V1;
 /// </summary>
 public static class ApiSurface
 {
+    /// <summary>
+    /// Persistence-relevant request/response shapes that can change behavior without adding a
+    /// route. A named entry prevents a newer client from silently sending fields an older server
+    /// would ignore. Add an entry only for a real compatibility boundary, not every DTO refactor.
+    /// </summary>
+    public static IReadOnlyList<string> ContractShapes { get; } =
+    [
+        "person-representative-payee-v1"
+    ];
+
     /// <summary>
     /// Every route, as "METHOD /pattern", ordinal-sorted. Generated from the API's
     /// own endpoint table; keep it that way rather than editing by hand.
@@ -148,10 +158,19 @@ public static class ApiSurface
     /// The fingerprint of an arbitrary route set, so a caller can compute what a
     /// given surface would report.
     /// </summary>
-    public static string Fingerprint(IEnumerable<string> routes)
+    public static string Fingerprint(IEnumerable<string> routes) =>
+        Fingerprint(routes, ContractShapes);
+
+    /// <summary>Computes a manifest fingerprint for tests and compatibility tooling.</summary>
+    public static string Fingerprint(
+        IEnumerable<string> routes,
+        IEnumerable<string> contractShapes)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        var canonical = string.Join("\n", routes.OrderBy(route => route, StringComparer.Ordinal));
+        ArgumentNullException.ThrowIfNull(contractShapes);
+        var manifest = routes.Select(route => $"ROUTE {route}")
+            .Concat(contractShapes.Select(shape => $"CONTRACT {shape}"));
+        var canonical = string.Join("\n", manifest.OrderBy(value => value, StringComparer.Ordinal));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))[..12];
     }
 }

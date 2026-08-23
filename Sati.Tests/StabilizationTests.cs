@@ -377,22 +377,22 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.20", version);
+        Assert.Equal("1.2.21", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Grounded local AI and Carika", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Responsive database waits and payee profiles", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Grounded local AI" &&
-            section.Items.Any(item => item.Contains("selected client's identity", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Representative-payee profiles" &&
+            section.Items.Any(item => item.Contains("monthly income", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Carika note entry" &&
-            section.Items.Any(item => item.Contains("workflow status", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Responsive database waits" &&
+            section.Items.Any(item => item.Contains("eight seconds", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Safety and reliability" &&
-            section.Items.Any(item => item.Contains("calendar-day selection", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Connectivity and recovery" &&
+            section.Items.Any(item => item.Contains("note text", StringComparison.OrdinalIgnoreCase)));
 
         var loginView = File.ReadAllText(Path.Combine(
             directory!.FullName,

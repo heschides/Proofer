@@ -3224,6 +3224,13 @@ internal static class ApiEndpoints
         ValidateLength(errors, "billingZip", request.BillingZip, 15);
         ValidateLength(errors, "primaryCareProvider", request.PrimaryCareProvider, 100);
         ValidateLength(errors, "healthcareSystemName", request.HealthcareSystemName, 100);
+        foreach (var error in RepresentativePayeeRules.Validate(
+                     request.CaseManagerIsRepPayee,
+                     request.RepPayeeMonthlyIncome,
+                     request.RepPayeeRegularCheckRequestNeeds))
+        {
+            errors[error.Key] = error.Value;
+        }
 
         var newForms = request.Forms.Where(form => form.Id == 0).ToList();
         if (requireNewForms)
@@ -3275,6 +3282,13 @@ internal static class ApiEndpoints
         }
         person.PrimaryCareProvider = Normalize(request.PrimaryCareProvider);
         person.HealthcareSystemName = Normalize(request.HealthcareSystemName);
+        person.CaseManagerIsRepPayee = request.CaseManagerIsRepPayee;
+        person.RepPayeeMonthlyIncome = request.CaseManagerIsRepPayee
+            ? request.RepPayeeMonthlyIncome
+            : null;
+        person.RepPayeeRegularCheckRequestNeeds = request.CaseManagerIsRepPayee
+            ? Normalize(request.RepPayeeRegularCheckRequestNeeds)
+            : null;
         person.HasHomeSupport = request.HasHomeSupport;
         person.HasSelfDirectedHomeSupport = request.HasSelfDirectedHomeSupport;
         person.HasSharedLiving = request.HasSharedLiving;

@@ -176,6 +176,14 @@ public sealed class CloudScratchpadService(CloudApiClient api) : IScratchpadServ
         {
             throw new ScratchpadConcurrencyException(ex);
         }
+        catch (CloudConnectivityException ex)
+        {
+            throw new ScratchpadSaveException(ex.Message, ex);
+        }
+        catch (CloudApiException ex)
+        {
+            throw new ScratchpadSaveException(ex.Message, ex);
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
@@ -158,6 +159,19 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string? healthcareSystemName;
+
+        [ObservableProperty]
+        private bool caseManagerIsRepPayee;
+
+        [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [CustomValidation(typeof(NewClientViewModel), nameof(ValidateRepPayeeMonthlyIncome))]
+        private string repPayeeMonthlyIncomeText = string.Empty;
+
+        [ObservableProperty]
+        [NotifyDataErrorInfo]
+        [CustomValidation(typeof(NewClientViewModel), nameof(ValidateRepPayeeRegularCheckRequestNeeds))]
+        private string? repPayeeRegularCheckRequestNeeds;
 
         // Support-network editor. The list is persisted separately from Person so
         // client edits cannot accidentally replace or delete the contact graph.
@@ -322,6 +336,20 @@ namespace Sati.ViewModels
         {
             if (value < 1)
                 DayProgramCount = 1;
+        }
+
+        partial void OnCaseManagerIsRepPayeeChanged(bool value)
+        {
+            if (!value)
+            {
+                RepPayeeMonthlyIncomeText = string.Empty;
+                RepPayeeRegularCheckRequestNeeds = string.Empty;
+            }
+
+            ValidateProperty(RepPayeeMonthlyIncomeText, nameof(RepPayeeMonthlyIncomeText));
+            ValidateProperty(
+                RepPayeeRegularCheckRequestNeeds,
+                nameof(RepPayeeRegularCheckRequestNeeds));
         }
 
         partial void OnWaiverChanged(WaiverType value)
@@ -759,6 +787,11 @@ namespace Sati.ViewModels
                 existing.BillingZip = BillingZip;
                 existing.PrimaryCareProvider = PrimaryCareProvider;
                 existing.HealthcareSystemName = HealthcareSystemName;
+                existing.CaseManagerIsRepPayee = CaseManagerIsRepPayee;
+                existing.RepPayeeMonthlyIncome = ParseRepPayeeMonthlyIncome();
+                existing.RepPayeeRegularCheckRequestNeeds = CaseManagerIsRepPayee
+                    ? RepPayeeRegularCheckRequestNeeds?.Trim()
+                    : null;
                 existing.IsEmployed = IsEmployed;
                 existing.HasHomeSupport = HasHomeSupport;
                 existing.HasSelfDirectedHomeSupport = HasSelfDirectedHomeSupport;
@@ -812,6 +845,11 @@ namespace Sati.ViewModels
                 person.BillingZip = BillingZip;
                 person.PrimaryCareProvider = PrimaryCareProvider;
                 person.HealthcareSystemName = HealthcareSystemName;
+                person.CaseManagerIsRepPayee = CaseManagerIsRepPayee;
+                person.RepPayeeMonthlyIncome = ParseRepPayeeMonthlyIncome();
+                person.RepPayeeRegularCheckRequestNeeds = CaseManagerIsRepPayee
+                    ? RepPayeeRegularCheckRequestNeeds?.Trim()
+                    : null;
                 person.IsEmployed = IsEmployed;
                 person.HasHomeSupport = HasHomeSupport;
                 person.HasSelfDirectedHomeSupport = HasSelfDirectedHomeSupport;
@@ -900,6 +938,11 @@ namespace Sati.ViewModels
             BillingState = person.BillingState;
             BillingZip = person.BillingZip;
             HealthcareSystemName = person.HealthcareSystemName;
+            CaseManagerIsRepPayee = person.CaseManagerIsRepPayee;
+            RepPayeeMonthlyIncomeText = person.RepPayeeMonthlyIncome?.ToString(
+                "0.00",
+                CultureInfo.CurrentCulture) ?? string.Empty;
+            RepPayeeRegularCheckRequestNeeds = person.RepPayeeRegularCheckRequestNeeds;
             IsEmployed = person.IsEmployed;
             HasHomeSupport = person.HasHomeSupport;
             HasSelfDirectedHomeSupport = person.HasSelfDirectedHomeSupport;
@@ -1215,6 +1258,9 @@ namespace Sati.ViewModels
             BillingZip = string.Empty;
             PrimaryCareProvider = string.Empty;
             HealthcareSystemName = null;
+            CaseManagerIsRepPayee = false;
+            RepPayeeMonthlyIncomeText = string.Empty;
+            RepPayeeRegularCheckRequestNeeds = string.Empty;
             IsEmployed = false;
             HasHomeSupport = false;
             HasSelfDirectedHomeSupport = false;
@@ -1245,6 +1291,57 @@ namespace Sati.ViewModels
 
             return ValidationResult.Success;
         }
+
+        public static ValidationResult? ValidateRepPayeeMonthlyIncome(
+            string value,
+            ValidationContext context)
+        {
+            var viewModel = (NewClientViewModel)context.ObjectInstance;
+            if (!viewModel.CaseManagerIsRepPayee)
+                return ValidationResult.Success;
+
+            if (!TryParseRepPayeeMonthlyIncome(value, out var amount))
+                return new ValidationResult("Enter a valid monthly dollar amount.");
+
+            var errors = RepresentativePayeeRules.Validate(
+                true,
+                amount,
+                viewModel.RepPayeeRegularCheckRequestNeeds);
+            return errors.TryGetValue("repPayeeMonthlyIncome", out var messages)
+                ? new ValidationResult(messages[0])
+                : ValidationResult.Success;
+        }
+
+        public static ValidationResult? ValidateRepPayeeRegularCheckRequestNeeds(
+            string? value,
+            ValidationContext context)
+        {
+            var viewModel = (NewClientViewModel)context.ObjectInstance;
+            if (!viewModel.CaseManagerIsRepPayee)
+                return ValidationResult.Success;
+
+            _ = TryParseRepPayeeMonthlyIncome(
+                viewModel.RepPayeeMonthlyIncomeText,
+                out var amount);
+            var errors = RepresentativePayeeRules.Validate(true, amount, value);
+            return errors.TryGetValue("repPayeeRegularCheckRequestNeeds", out var messages)
+                ? new ValidationResult(messages[0])
+                : ValidationResult.Success;
+        }
+
+        private decimal? ParseRepPayeeMonthlyIncome() =>
+            CaseManagerIsRepPayee && TryParseRepPayeeMonthlyIncome(
+                RepPayeeMonthlyIncomeText,
+                out var amount)
+                ? amount
+                : null;
+
+        private static bool TryParseRepPayeeMonthlyIncome(string? value, out decimal amount) =>
+            decimal.TryParse(
+                value,
+                NumberStyles.Currency,
+                CultureInfo.CurrentCulture,
+                out amount);
 
         // Returns null if empty or unparseable — caller decides what to do with a
         // missing effective date rather than receiving a sentinel like DateTime.MinValue.

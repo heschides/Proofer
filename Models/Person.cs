@@ -102,6 +102,14 @@ namespace Sati
         // lives as JSON on Settings so its shape can grow without breaking rows.
         public string? HealthcareSystemName { get; set; }
 
+        // Representative-payee profile information. This is current consumer financial
+        // context, not a payment instruction. A future billing notification workflow must
+        // reference these fields through its own audited request/approval record rather
+        // than treating a profile edit as authorization to release funds.
+        public bool CaseManagerIsRepPayee { get; set; }
+        public decimal? RepPayeeMonthlyIncome { get; set; }
+        public string? RepPayeeRegularCheckRequestNeeds { get; set; }
+
         // -------------------------------------------------------------------------
         // Waiver services & employment
         // -------------------------------------------------------------------------

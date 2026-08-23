@@ -70,7 +70,10 @@ internal static class ContractMapper
         person.IsEmployed,
         person.Revision,
         forms.Select(ToForm).ToList(),
-        notes.Select(ToNoteSummary).ToList());
+        notes.Select(ToNoteSummary).ToList(),
+        person.CaseManagerIsRepPayee,
+        person.RepPayeeMonthlyIncome,
+        person.RepPayeeRegularCheckRequestNeeds);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,

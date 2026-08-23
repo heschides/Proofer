@@ -2,15 +2,37 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Text.Json;
 using Sati.Contracts.V1;
 
 namespace Sati.Data.Cloud;
 
-public sealed class CloudApiClient(HttpClient httpClient)
+public sealed class CloudApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan[] NameResolutionRetryDelays =
+    [
+        TimeSpan.FromMilliseconds(250),
+        TimeSpan.FromSeconds(1)
+    ];
+
+    private readonly HttpClient _httpClient;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private string? _accessToken;
+
+    public CloudApiClient(HttpClient httpClient)
+        : this(httpClient, Task.Delay)
+    {
+    }
+
+    internal CloudApiClient(
+        HttpClient httpClient,
+        Func<TimeSpan, CancellationToken, Task> delay)
+    {
+        _httpClient = httpClient;
+        _delay = delay;
+    }
 
     public void SetAccessToken(string accessToken) =>
         _accessToken = string.IsNullOrWhiteSpace(accessToken)
@@ -22,7 +44,12 @@ public sealed class CloudApiClient(HttpClient httpClient)
         TRequest request,
         CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.PostAsJsonAsync(path, request, JsonOptions, cancellationToken);
+        using var response = await SendHttpAsync(
+            HttpMethod.Post,
+            path,
+            request,
+            authenticated: false,
+            cancellationToken);
         return await ReadAsync<TResponse>(response, cancellationToken);
     }
 
@@ -41,8 +68,8 @@ public sealed class CloudApiClient(HttpClient httpClient)
         string path,
         CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Get, path, null);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            HttpMethod.Get, path, null, authenticated: true, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -65,8 +92,8 @@ public sealed class CloudApiClient(HttpClient httpClient)
 
     public async Task<byte[]> GetBytesAsync(string path, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Get, path, null);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            HttpMethod.Get, path, null, authenticated: true, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -76,8 +103,8 @@ public sealed class CloudApiClient(HttpClient httpClient)
         TRequest body,
         CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Post, path, body);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            HttpMethod.Post, path, body, authenticated: true, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -96,8 +123,8 @@ public sealed class CloudApiClient(HttpClient httpClient)
         string headerName,
         CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Post, path, body);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            HttpMethod.Post, path, body, authenticated: true, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         var values = response.Headers.TryGetValues(headerName, out var found)
             ? found.ToList()
@@ -111,8 +138,8 @@ public sealed class CloudApiClient(HttpClient httpClient)
         object? body,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(method, path, body);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            method, path, body, authenticated: true, cancellationToken);
         return await ReadAsync<TResponse>(response, cancellationToken);
     }
 
@@ -122,18 +149,80 @@ public sealed class CloudApiClient(HttpClient httpClient)
         object? body,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(method, path, body);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendHttpAsync(
+            method, path, body, authenticated: true, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string path, object? body)
+    private async Task<HttpResponseMessage> SendHttpAsync(
+        HttpMethod method,
+        string path,
+        object? body,
+        bool authenticated,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_accessToken))
+        for (var attempt = 0; ; attempt++)
+        {
+            using var request = CreateRequest(method, path, body, authenticated);
+            try
+            {
+                return await _httpClient.SendAsync(request, cancellationToken);
+            }
+            catch (Exception ex) when (
+                !cancellationToken.IsCancellationRequested &&
+                IsNameResolutionFailure(ex) &&
+                attempt < NameResolutionRetryDelays.Length)
+            {
+                // DNS failure proves that no connection was made, so even a write is safe to
+                // retry. Do not broaden this to timeouts or connection resets: those are
+                // ambiguous and could repeat a request the server already committed.
+                await _delay(NameResolutionRetryDelays[attempt], cancellationToken);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw CloudConnectivityException.From(ex, IsNameResolutionFailure(ex));
+            }
+            catch (HttpRequestException ex)
+            {
+                throw CloudConnectivityException.From(ex, IsNameResolutionFailure(ex));
+            }
+        }
+    }
+
+    private static bool IsNameResolutionFailure(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is HttpRequestException
+                {
+                    HttpRequestError: HttpRequestError.NameResolutionError
+                })
+            {
+                return true;
+            }
+
+            if (current is SocketException socket &&
+                socket.SocketErrorCode is SocketError.HostNotFound or SocketError.TryAgain or SocketError.NoData)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        string path,
+        object? body,
+        bool authenticated = true)
+    {
+        if (authenticated && string.IsNullOrWhiteSpace(_accessToken))
             throw new InvalidOperationException("The Demo API session is not authenticated.");
 
         var request = new HttpRequestMessage(method, path);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+        if (authenticated)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
         if (body is not null)
             request.Content = JsonContent.Create(body, options: JsonOptions);
         return request;
@@ -203,4 +292,51 @@ public sealed class CloudApiException(
     public string? CorrelationId { get; } = correlationId;
     public TimeSpan? RetryAfter { get; } = retryAfter;
     public string? Code { get; } = code;
+}
+
+public sealed class CloudConnectivityException : Exception
+{
+    private CloudConnectivityException(
+        string message,
+        Exception innerException,
+        bool requestWasDefinitelyNotSent)
+        : base(message, innerException)
+    {
+        RequestWasDefinitelyNotSent = requestWasDefinitelyNotSent;
+    }
+
+    /// <summary>
+    /// True only when DNS resolution failed, which proves that no connection to the API was made.
+    /// False means delivery is ambiguous and callers must not automatically repeat a write.
+    /// </summary>
+    public bool RequestWasDefinitelyNotSent { get; }
+
+    internal static CloudConnectivityException From(
+        Exception exception,
+        bool nameResolutionFailure)
+    {
+        if (nameResolutionFailure)
+        {
+            return new CloudConnectivityException(
+                "Sati could not find the Demo server on the network after three attempts. " +
+                "The request was not sent. Check the internet or DNS connection and try again.",
+                exception,
+                requestWasDefinitelyNotSent: true);
+        }
+
+        if (exception is OperationCanceledException)
+        {
+            return new CloudConnectivityException(
+                "The Demo server did not respond before the connection timeout. Sati did not " +
+                "repeat the request because it cannot safely tell whether the server received it.",
+                exception,
+                requestWasDefinitelyNotSent: false);
+        }
+
+        return new CloudConnectivityException(
+            "Sati lost its connection to the Demo server. Sati did not repeat the request because " +
+            "it cannot safely tell whether the server received it.",
+            exception,
+            requestWasDefinitelyNotSent: false);
+    }
 }

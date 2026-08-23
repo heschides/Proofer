@@ -34,6 +34,25 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 
 ---
 
+## Session Changelog — 2026-08-22
+
+Representative-payee profile:
+
+- `Person` owns `CaseManagerIsRepPayee`, nullable monthly income, and bounded regular check-request
+  needs. `RepresentativePayeeRules` in `Sati.Contracts.V1` is the shared integrity owner for the
+  WPF editor, Local Production persistence, and the API.
+- The Overview Profile presents an explicit accessible Yes/No choice. Yes requires a positive
+  two-decimal monthly amount and a recurring-needs description; No clears the subordinate fields.
+- The existing Person revision and lifecycle transaction includes all three fields. Demo writes stay
+  own-caseload/tenant checked and Local Production repeats the validation at its service boundary.
+  Migration `20260822210734_AddRepresentativePayeeProfile` is additive and defaults existing people
+  to No without inventing financial details.
+- These fields describe current recurring needs only. They do not authorize, request, approve, or
+  release a check. A later billing notification requires a separate audited workflow.
+- `ApiSurface.Revision` now fingerprints named persistence-contract shapes as well as routes. This
+  makes a client/server mismatch visible when an older server would otherwise ignore new Person
+  fields on an existing route.
+
 ## Session Changelog — 2026-08-19
 
 DHHS form desktop workflow:
@@ -265,6 +284,13 @@ the Person over time. Person writes and their version row share one database sav
 and its assigned user's agency and record the access in the general audit envelope. Legacy rows
 receive a labeled current-state baseline when tracking first touches them; the system does not claim
 to reconstruct changes made before the ledger existed.
+
+Representative-payee status, monthly income, and regular check-request needs are ordinary live
+Person profile fields inside that same tenant-scoped revision boundary. They are intentionally not
+claim data or a payment instruction. `RepresentativePayeeRules` is the shared validation owner, and
+the Profile clears subordinate financial fields when the status is No. Future check-release work
+must create a separately authorized, auditable record rather than infer an instruction from profile
+state.
 
 This is a workable transition structure, not a reason for a whole-repository move. The next
 structural changes should reduce real coupling: split the API endpoint monolith by feature and
@@ -1069,3 +1095,34 @@ it needs an approved agency note standard and de-identified evaluation corpus, p
 versions, measured rejection and factual-fidelity thresholds on actual target devices, a deliberate
 accepted-draft audit/retention design, and review of model acquisition, cache, logs, telemetry, swap,
 crash dumps, device encryption, and runtime lifecycle.
+
+---
+
+## Database Activity Feedback (2026-08-22)
+
+`IDatabaseActivityTracker` is the single reference-counted owner of desktop database-wait state. In
+Demo, `DatabaseActivityHandler` wraps the complete authenticated HTTP exchange. In Local Production,
+`DatabaseActivityCommandInterceptor` wraps EF Core scalar and non-query execution and retains reader
+leases through materialization. Neither path records routes, SQL, parameters, response bodies, or
+other business data.
+
+`DatabaseActivityViewModel` converts the shared count into presentation state. The shell shows the
+animated watercolor Bodhi leaf immediately while one or more calls are active. One uninterrupted
+call lasting eight seconds opens a non-modal, non-activating patience window; completing the final
+overlapping call cancels the timer and closes the window. A completed short call can never leave a
+delayed popup behind. This is feedback only: it does not change request cancellation, timeout,
+authorization, error handling, or transaction behavior.
+
+Settings exposes a 12-second visual preview through `DatabaseActivityPreview`. It acquires the same
+payload-free tracker lease but deliberately performs no HTTP or EF work, so it cannot access client
+records. The Settings card mirrors the global leaf while the modal dialog is open, and the patience
+window is owned by the active Sati dialog so it cannot appear behind Settings.
+
+`CloudApiClient` retries a failed request only when the exception proves DNS name resolution failed,
+which means no connection was established and the request could not have reached the API. It makes
+two bounded retries after 250 milliseconds and one second. Timeouts, connection resets, and other
+ambiguous failures are never repeated automatically because a mutation may already have committed.
+Connectivity failures cross the Scratchpad data boundary as `ScratchpadSaveException` with safe
+recovery text; the exception and operational log contain no note narrative. Expected cancellation of
+the eight-second presentation delay is observed as task state rather than raised as a first-chance
+`TaskCanceledException`.

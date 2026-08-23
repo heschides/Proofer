@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.IO;
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
@@ -38,6 +39,10 @@ internal static class PersonLifecycleLedger
         new("billingZip", "Claim ZIP", person => person.BillingZip),
         new("primaryCareProvider", "Primary care provider", person => person.PrimaryCareProvider),
         new("healthcareSystemName", "Healthcare system", person => person.HealthcareSystemName),
+        new("caseManagerIsRepPayee", "Case manager is representative payee", person => YesNo(person.CaseManagerIsRepPayee)),
+        new("repPayeeMonthlyIncome", "Representative-payee monthly income", person =>
+            person.RepPayeeMonthlyIncome?.ToString("0.00", CultureInfo.InvariantCulture)),
+        new("repPayeeRegularCheckRequestNeeds", "Regular check-request needs", person => person.RepPayeeRegularCheckRequestNeeds),
         new("hasHomeSupport", "Home support", person => YesNo(person.HasHomeSupport)),
         new("hasSelfDirectedHomeSupport", "Self-directed home support", person => YesNo(person.HasSelfDirectedHomeSupport)),
         new("hasSharedLiving", "Shared living", person => YesNo(person.HasSharedLiving)),
