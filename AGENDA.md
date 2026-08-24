@@ -1420,7 +1420,11 @@ be added retroactively. Everything below waits for Karuna.
 
 ## Journal reminders — outstanding after the 2026-08-18 change
 
-- [ ] **Deploy the API so the reminder route exists.** The hosted Demo API was release 1.2.17 on
+- [x] **Deploy the API so the reminder route exists.** Done by the 1.2.21 deployment and confirmed
+  2026-08-23 by unauthenticated probe: `people/{id}/journal/entries`, `people/{id}/ssn`,
+  `people/{id}/forms.pdf`, and `people/{id}/agency-release.pdf` now all answer 401, where the last
+  three answered 404 on 2026-08-19. The original note follows for the record.
+  The hosted Demo API was release 1.2.17 on
   2026-08-18, which predates `POST /people/{personId}/journal/entries`. Until it is published from
   `Sati.Api/Properties/PublishProfiles/sati-demo-api-satilogica - Zip Deploy.pubxml`, every Demo
   reminder takes the transitional whole-journal fallback and the client page says so. Verify with an
@@ -1433,9 +1437,11 @@ be added retroactively. Everything below waits for Karuna.
   manager at a caseload problem that does not exist. This is the third time a behind-server has been
   diagnosed as something else; see the startup version-comparison item below, which would replace
   per-route handling with one check.
-- [ ] **Remove the whole-journal fallback once nothing predates the route.** Delete the 404 `catch`
-  in `CloudPersonService.AddJournalReminderAsync`, `JournalReminderResult.UsedLegacyJournalWrite`
-  and the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs`. See `DECISIONS.md`.
+- [x] **Remove the whole-journal fallback once nothing predates the route.** Done 2026-08-23 once
+  the probe above showed the route live everywhere it needed to be. The 404 `catch`,
+  `JournalReminderResult.UsedLegacyJournalWrite`, the client-page warning band text it drove, and
+  `Sati.Tests/JournalReminderFallbackTests.cs` are removed; `ApplyExternalJournal` now clears a
+  stale warning instead of setting one. See `DECISIONS.md`.
 - [x] **Detect a behind-server generally.** Built 2026-08-19 and extended 2026-08-22. **Comparing the release number would
   not have worked** — on the day this was written the hosted API and the client both reported
   1.2.17 while the server was missing five routes, because a release is numbered when it is cut and

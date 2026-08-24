@@ -143,7 +143,7 @@ StatisticsViewModel statisticsViewModel,
         {
             entry.JournalWriteStartingAsync = clients.FlushJournalIfCurrentAsync;
             entry.ReminderAdded += (s, e) =>
-                clients.ApplyExternalJournal(e.PersonId, e.Journal, e.UsedLegacyJournalWrite);
+                clients.ApplyExternalJournal(e.PersonId, e.Journal);
         }
 
         // -------------------------------------------------------------------------

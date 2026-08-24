@@ -5,17 +5,10 @@ using System.Text;
 namespace Sati.Data
 {
     /// <summary>
-    /// The journal as it stands after a reminder was added, and how it got there.
+    /// The journal as it stands after a reminder was added.
     /// </summary>
     /// <param name="Journal">The journal's new full text, as the writer stored it.</param>
-    /// <param name="UsedLegacyJournalWrite">
-    /// True when the entry could not be written through the API's journal-entries
-    /// route because the server does not have it, and the client fell back to
-    /// reading the journal and writing it back whole. Transitional: it exists only
-    /// so a client newer than its server still works, and the caller is expected
-    /// to say so rather than hide it. See <c>DECISIONS.md</c>.
-    /// </param>
-    public readonly record struct JournalReminderResult(string? Journal, bool UsedLegacyJournalWrite);
+    public readonly record struct JournalReminderResult(string? Journal);
 
     public interface IPersonService
     {

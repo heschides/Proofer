@@ -34,44 +34,16 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
     // revision token and stamps from the agency clock, and hands back the
     // journal it actually wrote.
     //
-    // The fallback below exists because the desktop can ship ahead of the API it
-    // talks to: a Demo server that predates the journal-entries route answers 404,
-    // and without this a working client reports a caseload error for a client it
-    // demonstrably owns. It is transitional and announces itself — see
-    // JournalReminderResult.UsedLegacyJournalWrite — and should be deleted once no
-    // reachable deployment predates the route.
+    // A read-prepend-write fallback used to sit here for servers predating the
+    // journal-entries route. Removed 2026-08-23: every Demo route it covered now
+    // answers 401 rather than 404, so the fallback could no longer fire, and a
+    // non-atomic write path kept only for a deployment that no longer exists is a
+    // second way to write a clinical record with nothing exercising it.
     public async Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text)
     {
-        try
-        {
-            var journal = await api.PostAsync<AddJournalReminderRequest, string?>(
-                $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
-            return new JournalReminderResult(journal, false);
-        }
-        catch (CloudApiException notFound) when (notFound.StatusCode == HttpStatusCode.NotFound)
-        {
-            // A missing ROUTE and a missing PERSON both answer 404, so ask a
-            // question only one of them can answer: read the journal through the
-            // older route. If the person reads back, they are on this caseload and
-            // the 404 was the route — this client is newer than its server. If the
-            // read fails too, it was a real not-found and the original error stands.
-            string? existing;
-            try
-            {
-                existing = await api.GetStringOrNullAsync($"/api/v1/people/{personId}/journal");
-            }
-            catch (CloudApiException)
-            {
-                throw notFound;
-            }
-
-            // Read-prepend-write, which the journal text box already does on every
-            // debounced save, so this is no weaker than the column's normal path —
-            // it is simply not atomic the way the route is.
-            var journal = JournalEntry.PrependReminder(existing, DateTime.Now, text);
-            await api.PutAsync($"/api/v1/people/{personId}/journal", new SaveJournalRequest(journal));
-            return new JournalReminderResult(journal, true);
-        }
+        var journal = await api.PostAsync<AddJournalReminderRequest, string?>(
+            $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
+        return new JournalReminderResult(journal);
     }
 }
 

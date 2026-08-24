@@ -99,8 +99,6 @@ public sealed class JournalReminderTests
 
         var stored = await people.GetJournalAsync(fixture.PersonOneId);
         Assert.Equal(stored, result.Journal);
-        // The local path is the writer itself, so nothing fell back.
-        Assert.False(result.UsedLegacyJournalWrite);
         Assert.Contains(JournalEntry.ReminderLabel, stored);
         Assert.Contains("Send the release form.", stored);
         Assert.EndsWith("Handwritten line.", stored);
@@ -327,30 +325,6 @@ public sealed class JournalReminderTests
         Assert.True(string.IsNullOrEmpty(journal));
     }
 
-    /// <summary>
-    /// When the write had to fall back because the server is older than this
-    /// client, that fact reaches the host, which is what puts it in front of the
-    /// user instead of leaving a silent downgrade.
-    /// </summary>
-    [Fact]
-    public async Task AFallbackWriteIsReportedToTheHost()
-    {
-        await using var fixture = await NoteEntryFixture.CreateAsync();
-        var viewModel = fixture.NoteEntry(people: new LegacyWritePersonService());
-        viewModel.SelectedPerson = await fixture.PersonOneAsync();
-        viewModel.SelectedNoteType = NoteType.Reminder;
-        viewModel.Narrative = "Reminder text";
-
-        JournalReminderAddedEventArgs? announced = null;
-        viewModel.ReminderAdded += (s, e) => announced = e;
-
-        await viewModel.SubmitNoteCommand.ExecuteAsync(null);
-
-        Assert.NotNull(announced);
-        Assert.True(announced!.UsedLegacyJournalWrite);
-        Assert.Equal("written the older way", announced.Journal);
-    }
-
     [Fact]
     public async Task TheLocalAiDraftingCommandIsUnavailableForAReminder()
     {
@@ -393,19 +367,6 @@ public sealed class JournalReminderTests
     }
 
     /// <summary>Stands in for a Demo server that predates the journal-entries route.</summary>
-    private sealed class LegacyWritePersonService : IPersonService
-    {
-        public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
-            Task.FromResult(new JournalReminderResult("written the older way", true));
-
-        public Task<string?> GetJournalAsync(int personId) => Task.FromResult<string?>(null);
-        public Task SaveJournalAsync(int personId, string? journal) => Task.CompletedTask;
-        public Task<Person> AddPersonAsync(Person person) => throw new NotSupportedException();
-        public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
-        public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
-        public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) => throw new NotSupportedException();
-    }
-
     private sealed class BlockingCaseNoteFormatter : ICaseNoteFormatter
     {
         public bool IsEnabled => true;

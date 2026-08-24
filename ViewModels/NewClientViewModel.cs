@@ -1180,7 +1180,7 @@ namespace Sati.ViewModels
         // the incoming text is not saved straight back as though it were typed
         // here. Silently ignored when a different client is on screen: the entry is
         // already stored and appears the next time that client is selected.
-        public void ApplyExternalJournal(int personId, string? journal, bool usedLegacyWrite = false)
+        public void ApplyExternalJournal(int personId, string? journal)
         {
             if (_journalPersonId != personId)
                 return;
@@ -1191,12 +1191,8 @@ namespace Sati.ViewModels
             _journalDraftTracker.Load(personId, Journal);
             _suppressJournalSave = false;
 
-            // The entry saved either way; the warning band reports HOW, because a
-            // client running ahead of its server is worth knowing about and this is
-            // the surface already dedicated to journal-write news.
-            JournalSaveWarning = usedLegacyWrite
-                ? "Reminder saved. This copy of Sati is newer than the Demo server, so the entry was written through the older journal path; update the Demo API to restore the server-side write."
-                : null;
+            // The write succeeded, so any earlier warning on this band is stale.
+            JournalSaveWarning = null;
         }
 
         private async Task<bool> TrySaveJournalAsync(int personId, string? content)

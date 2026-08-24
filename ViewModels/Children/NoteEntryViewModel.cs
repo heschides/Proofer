@@ -1394,7 +1394,7 @@ namespace Sati.ViewModels.Children
                 // can be added in a row, matching how notes behave here.
                 ClearNoteFields();
                 ReminderAdded?.Invoke(this, new JournalReminderAddedEventArgs(
-                    personId, result.Journal, result.UsedLegacyJournalWrite));
+                    personId, result.Journal));
             }
             catch (Exception ex)
             {
@@ -1738,18 +1738,9 @@ namespace Sati.ViewModels.Children
     /// </summary>
     public sealed class JournalReminderAddedEventArgs(
         int personId,
-        string? journal,
-        bool usedLegacyJournalWrite = false) : EventArgs
+        string? journal) : EventArgs
     {
         public int PersonId { get; } = personId;
         public string? Journal { get; } = journal;
-
-        /// <summary>
-        /// The entry was written through the older whole-journal route because the
-        /// server does not have the journal-entries route. Surfaced to the user
-        /// rather than swallowed: a client running ahead of its server is a
-        /// deployment fact worth stating, not a detail to hide.
-        /// </summary>
-        public bool UsedLegacyJournalWrite { get; } = usedLegacyJournalWrite;
     }
 }

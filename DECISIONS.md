@@ -1010,11 +1010,18 @@ primary design: the journal text box already writes this column by whole-string
 the column's ordinary path. It is not atomic the way the route is, which is exactly
 why it is the fallback and not the design.
 
-**Removal condition.** This is transitional. When no reachable deployment predates
-the journal-entries route, delete the `catch` in
-`CloudPersonService.AddJournalReminderAsync`, the `UsedLegacyJournalWrite` flag and
-the warning it drives, and `Sati.Tests/JournalReminderFallbackTests.cs` — they were
-written to go together. Tracked in `AGENDA.md`.
+**Removal condition — met, and removed 2026-08-23.** The condition was that no
+reachable deployment predates the journal-entries route. Confirmed by unauthenticated
+probe on 2026-08-23: `journal/entries`, `ssn`, `forms.pdf`, and `agency-release.pdf`
+all answer 401 where three of them answered 404 on 2026-08-19, so the 1.2.21
+deployment closed the gap and the `catch` could no longer fire. The `catch`, the
+`UsedLegacyJournalWrite` flag, the warning it drove, and
+`Sati.Tests/JournalReminderFallbackTests.cs` are gone — they were written to go
+together and they went together.
+
+Keeping it would have left a second, non-atomic way to write a clinical record with
+nothing exercising it and no deployment able to reach it. An unreachable write path
+is not a safety net; it is an untested one.
 
 **Found on the way:** `CloudApiClient.GetAsync<string?>` rejects a null result as
 "an empty response", and a journal that has never been written returns an empty

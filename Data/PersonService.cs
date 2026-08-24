@@ -128,8 +128,7 @@ namespace Sati.Data
                     personId);
             await context.SaveChangesAsync();
 
-            // This path IS the writer, so there is no older route to fall back to.
-            return new JournalReminderResult(person.Journal, false);
+            return new JournalReminderResult(person.Journal);
         }
 
         private User CurrentActor() => _sessionService.CurrentUser
