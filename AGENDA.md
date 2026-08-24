@@ -19,8 +19,22 @@
       `releaseVersion 1.2.21` until it is redeployed, which makes the number a poor way to tell what
       is running. Deploy from
       `Sati.Api/Properties/PublishProfiles/sati-demo-api-satilogica - Zip Deploy.pubxml`.
-- [ ] Build the Local Production installer when a Microsoft-signed `SqlLocalDB.msi` is to hand;
-      only the Demo installer was cut for this release.
+- [x] Package `SatiLocalSetup-1.2.22.exe`
+      (sha256 `aef3463029ad16bf589f5af00e8c86a758f1c46a2a94333b916e718aac3c8242`) and pass payload
+      validation: version 1.2.22.0, integrated security confirmed, acceptance copy removed. The
+      embedded LocalDB prerequisite is Microsoft-signed `SqlLocalDB.msi`, sha256
+      `0891BF47652D88F06D76A339A5DB37DDC9C801D1E973E14B3B551609F1CFA4CB`.
+- [ ] **Keep a durable copy of `SqlLocalDB.msi`.** The 1.2.22 build sourced it from a
+      `%TEMP%\SatiInstallerInspect-*` folder left by an earlier installer inspection. The signature
+      check makes that safe — a modified MSI cannot carry a valid Microsoft Authenticode signature,
+      and it was verified before use — but a release input that lives in a directory Windows may
+      clear at any time is not a reproducible one. Archive it somewhere permanent and record the
+      hash above.
+- [ ] **Decide whether machine-local commentary belongs in a shipped installer.** The Local build
+      packages the gitignored `appsettings.json` verbatim, including its `//production` note
+      describing this laptop's database history. It carries no credential and no client data, and
+      the builder already rejects SQL credentials, but it is internal commentary that reaches an
+      end user's disk.
 
 ## Ended Demo session — 2026-08-23
 
