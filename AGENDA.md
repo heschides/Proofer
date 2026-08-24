@@ -2,6 +2,26 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.22 — 2026-08-23
+
+- [x] Bump the client, API, and Carika to 1.2.22 and rewrite the Settings release notes around the
+      single note panel, session continuity, and the journal-reminder route.
+- [x] Confirm the Demo API needs no publish: its `/health/version` reports
+      `contractRevision 9F387A68FF69` and `releaseVersion 1.2.21`, and the committed
+      `ApiSurface.Revision` is byte-for-byte the same fingerprint over 102 routes, including
+      `POST /api/v1/auth/renew`. The deployed surface already matches this source.
+- [x] Package `SatiDemoSetup-1.2.22.exe`
+      (sha256 `605ff0634d485cdc3610d71608b3665992c1418d3d7e04f454251c71762be484`) and pass
+      installer acceptance: five launches, each responding, closing gracefully, exit code 0,
+      installed version 1.2.22.0, acceptance copy removed.
+- [ ] **Publish the API at 1.2.22.** Not required for function — the route surface is identical, so
+      the compatibility check stays quiet — but `/health/version` will keep reporting
+      `releaseVersion 1.2.21` until it is redeployed, which makes the number a poor way to tell what
+      is running. Deploy from
+      `Sati.Api/Properties/PublishProfiles/sati-demo-api-satilogica - Zip Deploy.pubxml`.
+- [ ] Build the Local Production installer when a Microsoft-signed `SqlLocalDB.msi` is to hand;
+      only the Demo installer was cut for this release.
+
 ## Ended Demo session — 2026-08-23
 
 - [x] Treat a refused `POST /api/v1/auth/renew` as terminal: latch the client shut, raise

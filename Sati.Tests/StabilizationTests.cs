@@ -515,16 +515,19 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.21", version);
+        Assert.Equal("1.2.22", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Responsive database waits and payee profiles", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("One note panel and uninterrupted sessions", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Representative-payee profiles" &&
-            section.Items.Any(item => item.Contains("monthly income", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "One panel for reading and writing a note" &&
+            section.Items.Any(item => item.Contains("read-only instead of disabled", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Responsive database waits" &&
-            section.Items.Any(item => item.Contains("eight seconds", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Sessions that last as long as you are working" &&
+            section.Items.Any(item => item.Contains("unattended workstation", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Journal reminders" &&
+            section.Items.Any(item => item.Contains("journal-entries route", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
