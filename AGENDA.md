@@ -8,10 +8,19 @@
       future-dated non-billable reminders, with shared persistence rules and regression coverage.
 - [x] Advance the client, API, installer builders, release notes, and release tests together to
       1.2.25 so the earlier 1.2.24 Local artifact is never replaced by different bytes.
-- [ ] Apply and verify migration `20260825163103_AddConsumerEmail` against identity-validated
-      Azure `SatiDemo`, publish API 1.2.25, and confirm live, ready, version, and contract parity.
-- [ ] Generate and validate `SatiDemoSetup-1.2.25.exe` and `SatiLocalSetup-1.2.25.exe`; record their
-      SHA-256 hashes before distributing either installer.
+- [x] Apply and verify migration `20260825163103_AddConsumerEmail` against identity-validated
+      Azure `SatiDemo`. The email column already existed, so the guarded operation wrote only its
+      missing history row, verified 177 synthetic consumers / 73 migrations, and removed the
+      temporary exact-IP rule. Publish API 1.2.25 with OneDeploy deployment
+      `29def577984e466db587a9b9632958aa`; live and ready are healthy, release version is 1.2.25, and
+      deployed contract revision `15D50B6C6B29` exactly matches the client. API ZIP SHA-256 is
+      `956FF72E1874236F7E6FB0E8D8A2A0E1C264740916359CA8A2ADB5B96B382642`.
+- [x] Generate and validate `SatiDemoSetup-1.2.25.exe` (SHA-256
+      `1fae587e7e3fc8c2780df15795c4c9085efbc46a683aa9a3d69ff89203e78212`) and
+      `SatiLocalSetup-1.2.25.exe` (SHA-256
+      `be5fa5b0f9dce6f5179513e198c558f2335aedd5c418d505dbe7c346bb1bc623`). Demo acceptance passed
+      five responsive launches, normal closes, version 1.2.25.0, and cleanup; Local acceptance
+      passed version, Microsoft-signed LocalDB, integrated-security, and cleanup checks.
 
 ## Future-dated calendar reminders — 2026-08-26
 
