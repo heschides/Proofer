@@ -6,6 +6,11 @@
 
 - [x] Add consumer email, the focused calendar-day note view, calendar failure containment, and
       future-dated non-billable reminders, with shared persistence rules and regression coverage.
+- [x] Correct the Local login failure discovered after installing 1.2.24: Today's Work and
+      Tomorrow's Agenda now load sequentially and publish independently, notes-log reads no longer
+      fan out across every consumer, and both areas contain failures behind accessible Retry
+      actions. The Settings release log describes the recovery behavior. Release verification
+      passed 502 desktop and 177 API tests; hotfix source commit `b957506`.
 - [x] Advance the client, API, installer builders, release notes, and release tests together to
       1.2.25 so the earlier 1.2.24 Local artifact is never replaced by different bytes.
 - [x] Apply and verify migration `20260825163103_AddConsumerEmail` against identity-validated
@@ -15,12 +20,15 @@
       `29def577984e466db587a9b9632958aa`; live and ready are healthy, release version is 1.2.25, and
       deployed contract revision `15D50B6C6B29` exactly matches the client. API ZIP SHA-256 is
       `956FF72E1874236F7E6FB0E8D8A2A0E1C264740916359CA8A2ADB5B96B382642`.
-- [x] Generate and validate `SatiDemoSetup-1.2.25.exe` (SHA-256
-      `1fae587e7e3fc8c2780df15795c4c9085efbc46a683aa9a3d69ff89203e78212`) and
+- [x] Generate and validate the final post-hotfix `SatiDemoSetup-1.2.25.exe` (SHA-256
+      `57a4edc651b1b9ade1cc5db53c61ab918303e93125e81552c861b3b586f6010e`) and
       `SatiLocalSetup-1.2.25.exe` (SHA-256
-      `be5fa5b0f9dce6f5179513e198c558f2335aedd5c418d505dbe7c346bb1bc623`). Demo acceptance passed
-      five responsive launches, normal closes, version 1.2.25.0, and cleanup; Local acceptance
-      passed version, Microsoft-signed LocalDB, integrated-security, and cleanup checks.
+      `34ec15eced890a60c176111ef11cfdd3e4a0cfd58b8dd6e93670c604aebd7fab`). The earlier 1.2.25
+      candidate hashes recorded in commit `cd09fd0` are superseded and those candidate artifacts
+      must not be distributed. Demo acceptance passed five responsive launches, normal closes,
+      version 1.2.25.0, and cleanup; Local acceptance passed version, Microsoft-signed LocalDB,
+      integrated-security, and cleanup checks. The unchanged deployed API remains live and ready at
+      release 1.2.25 with contract revision `15D50B6C6B29`.
 
 ## Future-dated calendar reminders — 2026-08-26
 
