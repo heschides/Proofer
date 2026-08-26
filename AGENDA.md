@@ -2,6 +2,56 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.25 — 2026-08-26
+
+- [x] Add consumer email, the focused calendar-day note view, calendar failure containment, and
+      future-dated non-billable reminders, with shared persistence rules and regression coverage.
+- [x] Advance the client, API, installer builders, release notes, and release tests together to
+      1.2.25 so the earlier 1.2.24 Local artifact is never replaced by different bytes.
+- [ ] Apply and verify migration `20260825163103_AddConsumerEmail` against identity-validated
+      Azure `SatiDemo`, publish API 1.2.25, and confirm live, ready, version, and contract parity.
+- [ ] Generate and validate `SatiDemoSetup-1.2.25.exe` and `SatiLocalSetup-1.2.25.exe`; record their
+      SHA-256 hashes before distributing either installer.
+
+## Future-dated calendar reminders — 2026-08-26
+
+- [x] Convert any future note date to a Scheduled Reminder in one shared contracts rule, repeated
+      by the desktop-local and API persistence boundaries.
+- [x] Preserve the selected date and narrative while removing service time, minutes, form/visit
+      facts, and justification so a reminder cannot drift into review, productivity, or billing.
+- [x] Refresh the calendar after note saves and show the reminder on its dated calendar entry with
+      explicit non-billable wording; keep undated Reminders on the existing journal-only path.
+- [x] Cover UI conversion, rendered date access, local persistence, calendar retrieval, API
+      normalization, tenant-scoped reads, and the undated-row guard with automated tests.
+
+## Calendar stability and focused day — 2026-08-26
+
+- [x] Contain calendar load, exemption-update, and downstream refresh failures so they produce an
+      inline retryable message instead of escaping through WPF's dispatcher and crashing Sati.
+- [x] Protect year navigation from stale async responses, invalid bounds, and missing sessions;
+      preserve the selected date when refreshed calendar objects replace the prior year model.
+- [x] Add an accessible focused-day view showing the service-date notes, client, narrative,
+      service time, duration, status, and daily totals, with keyboard-operable day buttons.
+- [x] Correct local monthly and yearly note boundaries to include the entire final day, and enforce
+      the signed-in user's scope in the local exemption service as the API already does.
+- [x] Cover the ViewModel, rendered WPF view, local data services, and API calendar boundaries with
+      regression, concurrency, failure-containment, accessibility, and tenant-isolation tests.
+
+## Release 1.2.23 — 2026-08-25
+
+- [x] Add consumer-profile flags for case-manager DHHS representation and Modivcare,
+      plus caseload filters for those responsibilities, representative payee, VR, and
+      the existing waiver/employment service flags.
+- [x] Add and validate the additive People migration. The guarded, exact-IP Demo
+      operation verified `SatiDemo`/`Demo`, added both columns for 177 consumers,
+      wrote migration `20260825144021_AddConsumerNavigationFlags`, and removed the
+      temporary SQL firewall rule immediately afterward.
+- [x] Deploy API 1.2.23 with OneDeploy deployment
+      `14bfdc40a2ec44b9be517c1c7884cdd9`. `/health/live` and `/health/ready` returned
+      HTTP 200; `/health/version` reports 1.2.23 and contract revision `9F387A68FF69`.
+- [x] Package `SatiDemoSetup-1.2.23.exe` and `SatiLocalSetup-1.2.23.exe`. Record final
+      installer acceptance evidence before distributing outside this workstation.
+
 ## Release 1.2.22 — 2026-08-23
 
 - [x] Bump the client, API, and Carika to 1.2.22 and rewrite the Settings release notes around the
@@ -1312,10 +1362,10 @@ for a rewrite.
 
 ### Deferred from the service-day work (2026-08-14)
 
-- [ ] **Surface service start times in the note lists and calendar.** `Note.StartTime` is now
-      written by the note-entry panel, but `NotesLogView`, `ClientsView`'s note grid, and the
-      calendar still show only date and minutes. A time column would let a case manager spot a
-      gap or a clash without opening the entry panel.
+- [ ] **Surface service start times in the remaining note lists.** The focused calendar day now
+      shows the service-time range through the shared `ServiceTimeline` rule. `NotesLogView` and
+      `ClientsView`'s note grid still show only date and minutes; a time column there would let a
+      case manager spot a gap or a clash without opening the entry panel.
 - [ ] **Extend the overlap rule to the other note-creating paths.** `NewClientViewModel` and any
       other flow that calls `INoteService.AddNoteAsync` directly writes a note with no start time.
       Those notes claim no time and conflict with nothing, which is correct but means the day bar
@@ -1492,9 +1542,9 @@ be added retroactively. Everything below waits for Karuna.
   any client whose journal was never written, because `GetAsync<string?>` treats a null result as an
   empty response. Fixed there with `GetStringOrNullAsync`; other nullable-scalar routes may carry
   the same latent fault.
-- [ ] **Reconsider whether a reminder should be visible outside the journal.** Reminders are journal
-  entries by decision, so they do not appear in the notes log or note history and are not versioned
-  individually. Revisit if reminders start carrying anything a reviewer needs to find.
+- [x] **Distinguish journal reminders from dated calendar reminders.** An undated Reminder remains a
+  stamped journal entry and is not duplicated. A future-dated Reminder is stored once as a
+  non-billable Scheduled note so the calendar, note history, and upcoming-event views can find it.
 
 ## DHHS form fill — remaining verification and profile work
 

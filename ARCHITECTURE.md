@@ -740,6 +740,7 @@ rather than in either client.
 | `BillingComplianceGate` | Whether a client's paperwork permits billing, with reasons. |
 | `BillingRules` | Payer-neutral unit arithmetic, charge rounding, NPI and procedure-code format. |
 | `NoteWorkflow` | Which note status may become which, for the case manager, the supervisor, and the overdue sweep — and therefore which notes can reach approval and billing at all. |
+| `NoteSchedulingPolicy` | Future dates become non-billable Scheduled Reminders, with service, form, visit, and justification fields removed before persistence. |
 | `ServiceTimeline` | The 7:00 AM – 7:00 PM service day and the no-double-claimed-minute rule. |
 | `AuditCsv` | The audit export's header, column order, escaping, and spreadsheet neutralization. |
 | `AtRequestPublication` | Whether an AT request is complete enough to publish, what the case manager attests to, and whether a published request may still be edited. |
@@ -983,8 +984,14 @@ throw); `Debug.WriteLine`-only failures; `PendingNoteViewModel.IsComplianceExcep
 and confirmation; the API owns hashing and salting. Summary/overview VMs clean.
 
 ### Children ViewModels
-`CalendarViewModel`: `ToggleExempt` fires `ExemptDateChanged` (correct cross-VM coordination);
-`BuildMonths` rebuilds wholesale (correct). `ScratchpadViewModel`: loads separate Today and next-
+`CalendarViewModel`: year loads take a `LatestRequestTracker` identity before publishing shared UI
+state; `BuildMonths` rebuilds wholesale while preserving the selected service date. Calendar
+failures remain inline and retryable. `ToggleExempt` awaits each `ExemptDateChanged` subscriber and
+isolates a downstream dashboard-refresh failure rather than allowing an `async void` exception to
+reach WPF's dispatcher. `CalendarNoteItem` is display-only and delegates service-time labels to the
+shared `ServiceTimeline` rule. The focused-day view groups notes by `Note.EventDate` (date of
+service), because the current note model has no separate logged/created timestamp.
+`ScratchpadViewModel`: loads separate Today and next-
 workday drafts, rolls them forward after midnight on window activation or the 10-min timer, and
 explicitly saves both on shutdown/user-switch; diagnostics omit scratchpad content. A conflict is
 tracked and reloadable per tab, stops
@@ -1165,6 +1172,11 @@ place a note is read or written, in three modes carried by one pair of flags on
   saved record rather than an abandoned draft.
 - `AreNoteFieldsEnabled` is the single owner of "these fields may not be changed". It folds both
   reasons together — Reminder type, and lock — so a control never has to know which is in force.
+- `IsDateEnabled` is deliberately separate: an unlocked Reminder keeps its date picker available.
+  Choosing a future date invokes the shared `NoteSchedulingPolicy`, changes the type/status to
+  Reminder/Scheduled, retains the date, and removes service, form, visit, and justification fields.
+  An undated Reminder continues to use the journal-entry route; the two modes never write the same
+  text to both the journal and `Notes`.
 - Read-only presentation uses `IsReadOnly` for text and `IsEnabled=False` for pickers, scoped by
   implicit styles in the form `Border`'s resources. A locked narrative stays legible, selectable,
   scrollable, and copyable; a disabled `TextBox` is none of those. The lock is a mistake-guard, not

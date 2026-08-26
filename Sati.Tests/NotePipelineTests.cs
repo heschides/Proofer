@@ -366,6 +366,100 @@ public sealed class NotePipelineTests
     }
 
     [Fact]
+    public async Task CalendarYearReadIncludesTheWholeLastDayAndLoadsClientNames()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var notes = fixture.NotesAs(fixture.CaseManagerOne);
+        var year = DateTime.Today.Year;
+        var before = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            new DateTime(year - 1, 12, 31, 23, 59, 0));
+        var first = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            new DateTime(year, 1, 1, 0, 0, 0));
+        var last = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            new DateTime(year, 12, 31, 23, 59, 59));
+        var after = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            new DateTime(year + 1, 1, 1, 0, 0, 0));
+
+        var result = await notes.GetByYearAsync(fixture.CaseManagerOne.Id, year);
+
+        Assert.Contains(result, note => note.Id == first);
+        Assert.Contains(result, note => note.Id == last);
+        Assert.DoesNotContain(result, note => note.Id == before);
+        Assert.DoesNotContain(result, note => note.Id == after);
+        Assert.All(result, note => Assert.False(string.IsNullOrWhiteSpace(note.Person.FullName)));
+    }
+
+    [Fact]
+    public async Task MonthlyReadIncludesTheWholeLastDay()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var notes = fixture.NotesAs(fixture.CaseManagerOne);
+        var firstDay = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var nextMonth = firstDay.AddMonths(1);
+        var before = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            firstDay.AddTicks(-1));
+        var first = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            firstDay);
+        var last = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            nextMonth.AddTicks(-1));
+        var after = await fixture.SeedNoteAsync(
+            fixture.PersonOneId,
+            NoteStatus.Logged,
+            nextMonth);
+
+        var result = await notes.GetMonthlyNotesAsync(fixture.CaseManagerOne.Id);
+
+        Assert.Contains(result, note => note.Id == first);
+        Assert.Contains(result, note => note.Id == last);
+        Assert.DoesNotContain(result, note => note.Id == before);
+        Assert.DoesNotContain(result, note => note.Id == after);
+    }
+
+    [Fact]
+    public async Task LocalPersistenceNormalizesFutureWorkToANonBillableReminder()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var service = fixture.NotesAs(fixture.CaseManagerOne);
+        var reminderDate = DateTime.Today.AddDays(10);
+        var note = Note.Create(
+            "Check whether transportation was arranged.",
+            reminderDate,
+            NoteStatus.Logged,
+            60,
+            fixture.PersonOneId,
+            FormType.PCP,
+            NoteType.Form);
+        note.StartTime = 120;
+        note.CaseManagerJustification = "Future input cannot carry this.";
+
+        await service.AddNoteAsync(note);
+
+        var stored = await fixture.DetachedNoteAsync(note.Id);
+        Assert.Equal(reminderDate.Date, stored.EventDate);
+        Assert.Equal(NoteStatus.Scheduled, stored.Status);
+        Assert.Equal(NoteType.Reminder, stored.NoteType);
+        Assert.Null(stored.Minutes);
+        Assert.Null(stored.StartTime);
+        Assert.Null(stored.FormType);
+        Assert.Null(stored.CaseManagerJustification);
+        Assert.Null(stored.VisitDocumentationJson);
+    }
+
+    [Fact]
     public async Task TheAbandonmentSweepTouchesOnlyTheCallersOwnOverdueDrafts()
     {
         await using var fixture = await PipelineFixture.CreateAsync();

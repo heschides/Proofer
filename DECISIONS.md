@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-23.*
+sections at the bottom. Last updated: 2026-08-26.*
 
 ---
 
@@ -981,6 +981,30 @@ the desktop-local path and the API cannot order or format entries two ways.
 debounce and writes the same column. Its pending edit is flushed *before* the entry
 is written (`JournalWriteStartingAsync`), and the journal the writer returns is then
 adopted by that page (`ReminderAdded`). Reversed, one of the two texts is lost.
+
+## A future-dated Reminder is a scheduled note row (2026-08-26)
+
+The 2026-08-18 journal-only decision now applies specifically to an **undated**
+Reminder. Choosing a future note date has a different purpose: it creates a dated
+item the calendar must be able to retrieve. That entry is stored once as a
+`Notes` row with `NoteType.Reminder` and `NoteStatus.Scheduled`; it is not copied
+into the journal.
+
+`Sati.Contracts.V1.NoteSchedulingPolicy` owns the conversion. A future date wins
+over caller-selected type and status, preserves only the date and narrative, and
+removes minutes, start time, form type, visit documentation, and case-manager
+justification. The desktop applies the rule immediately for understandable UI;
+the local `NoteService` and API apply it again before persistence. The API uses
+the agency date from `ApiClock`, so a forged or older distributed client cannot
+turn future work into submitted or billable documentation.
+
+The reminder remains Scheduled after its date arrives; no background job silently
+turns planned text into a clinical note. A case manager may later delete it or
+deliberately edit it into ordinary documentation through the normal note workflow.
+While it remains a Reminder it has no service time, productivity units,
+supervisory-review status, or path into billing. Because it is a real dated row,
+it participates in ordinary note tenancy, optimistic concurrency, note-list,
+calendar, and upcoming-event reads.
 
 ## A client newer than its server writes the reminder anyway, and says so (2026-08-18)
 

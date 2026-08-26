@@ -11,6 +11,7 @@ public class NoteService(
     public async Task<Note> AddNoteAsync(Note note)
     {
         ArgumentNullException.ThrowIfNull(note);
+        NormalizeScheduling(note);
         ValidateCaseManagerInput(note);
         var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
@@ -47,6 +48,7 @@ public class NoteService(
     public async Task UpdateNoteAsync(Note note)
     {
         ArgumentNullException.ThrowIfNull(note);
+        NormalizeScheduling(note);
         ValidateCaseManagerInput(note);
         var actor = CurrentActor();
         await using var context = contextFactory.CreateDbContext();
@@ -116,8 +118,8 @@ public class NoteService(
         await using var context = contextFactory.CreateDbContext();
         await EnsureUserInScopeAsync(context, actor, userId);
         var firstDay = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-        var lastDay = firstDay.AddMonths(1).AddDays(-1);
-        return await context.Notes.Where(n => n.EventDate >= firstDay && n.EventDate <= lastDay &&
+        var nextMonth = firstDay.AddMonths(1);
+        return await context.Notes.Where(n => n.EventDate >= firstDay && n.EventDate < nextMonth &&
             n.Person.UserId == userId).ToListAsync();
     }
 
@@ -137,9 +139,9 @@ public class NoteService(
         await using var context = contextFactory.CreateDbContext();
         await EnsureUserInScopeAsync(context, actor, userId);
         var firstDay = new DateTime(year, 1, 1);
-        var lastDay = new DateTime(year, 12, 31);
+        var end = firstDay.AddYears(1);
         return await context.Notes.Include(n => n.Person).Where(n => n.Person.UserId == userId &&
-            n.EventDate.HasValue && n.EventDate.Value >= firstDay && n.EventDate.Value <= lastDay).ToListAsync();
+            n.EventDate.HasValue && n.EventDate.Value >= firstDay && n.EventDate.Value < end).ToListAsync();
     }
 
     private static void CopyCaseManagerValues(Note source, Note target)
@@ -182,6 +184,8 @@ public class NoteService(
         if (note.Narrative is null || note.Narrative.Length > 1_000_000)
             throw new ArgumentException("Narrative is required and must not exceed 1,000,000 characters.", nameof(note));
         if (note.PersonId <= 0) throw new ArgumentException("A valid person is required.", nameof(note));
+        if (note.NoteType == NoteType.Reminder && note.EventDate is null)
+            throw new ArgumentException("A calendar reminder requires a date.", nameof(note));
         if (note.Minutes is < 0 or > 1_440)
             throw new ArgumentException("Minutes must be between 0 and 1,440.", nameof(note));
         if (note.StartTime is int start && (start < 0 || start > ServiceTimeline.WindowLengthMinutes))
@@ -189,6 +193,32 @@ public class NoteService(
         if (!NoteWorkflow.IsCaseManagerWritableStatus((int?)note.Status))
             throw new InvalidOperationException("That note status is controlled by a supervisor workflow.");
     }
+
+    private static void NormalizeScheduling(Note note)
+    {
+        var values = NoteSchedulingPolicy.Normalize(
+            note.EventDate,
+            DateTime.Today,
+            note.Status?.ToString(),
+            note.Minutes,
+            note.StartTime,
+            note.FormType?.ToString(),
+            note.NoteType?.ToString(),
+            note.CaseManagerJustification,
+            note.VisitDocumentationJson);
+
+        note.EventDate = values.EventDate;
+        note.Status = ParseNullable<NoteStatus>(values.Status);
+        note.Minutes = values.Minutes;
+        note.StartTime = values.StartTime;
+        note.FormType = ParseNullable<FormType>(values.FormType);
+        note.NoteType = ParseNullable<NoteType>(values.NoteType);
+        note.CaseManagerJustification = values.CaseManagerJustification;
+        note.VisitDocumentationJson = values.VisitDocumentationJson;
+    }
+
+    private static T? ParseNullable<T>(string? value) where T : struct, Enum =>
+        value is null ? null : Enum.Parse<T>(value, ignoreCase: false);
 
     private static async Task EnsureServiceTimeAvailableAsync(
         SatiContext context, int userId, Note note, int? editingNoteId)

@@ -32,6 +32,7 @@ internal static class PersonLifecycleLedger
         new("hasGuardian", "Has guardian", person => YesNo(person.HasGuardian)),
         new("guardianName", "Guardian name", person => person.GuardianName),
         new("phoneNumber", "Phone number", person => person.PhoneNumber),
+        new("email", "Email", person => person.Email),
         new("address", "Address", person => person.Address),
         new("billingStreet", "Claim street", person => person.BillingStreet),
         new("billingCity", "Claim city", person => person.BillingCity),
@@ -40,6 +41,8 @@ internal static class PersonLifecycleLedger
         new("primaryCareProvider", "Primary care provider", person => person.PrimaryCareProvider),
         new("healthcareSystemName", "Healthcare system", person => person.HealthcareSystemName),
         new("caseManagerIsRepPayee", "Case manager is representative payee", person => YesNo(person.CaseManagerIsRepPayee)),
+        new("caseManagerIsDhhsRepresentative", "Case manager is DHHS representative", person => YesNo(person.CaseManagerIsDhhsRepresentative)),
+        new("usesModivcare", "Uses Modivcare", person => YesNo(person.UsesModivcare)),
         new("repPayeeMonthlyIncome", "Representative-payee monthly income", person =>
             person.RepPayeeMonthlyIncome?.ToString("0.00", CultureInfo.InvariantCulture)),
         new("repPayeeRegularCheckRequestNeeds", "Regular check-request needs", person => person.RepPayeeRegularCheckRequestNeeds),

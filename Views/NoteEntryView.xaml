@@ -395,9 +395,8 @@
                 <TextBlock Text="STATUS"
                            Grid.Row="3"
                            Style="{StaticResource LabelStyle}" />
-                <!-- Disabled for a Reminder, which has no place in the note
-                     workflow. The guidance block below says so, and is a polite
-                     live region, so the reason is announced and not just shown. -->
+                <!-- Disabled for a Reminder. Future dates assign Scheduled
+                     automatically; undated reminders take the journal path. -->
                 <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}"
@@ -419,9 +418,9 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <!-- Reminder sits on its own row, below the four service
-                             note types, because it is a different kind of thing:
-                             a journal entry rather than documentation of service. -->
+                        <!-- Reminder sits on its own row because it is not service
+                             documentation. With no date it is a journal entry;
+                             with a future date it is a calendar reminder. -->
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -480,7 +479,7 @@
                                  Margin="0,0,12,4"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
-                                 ToolTip="Adds a timestamped entry to the top of this client's journal. Not a service note."
+                                 ToolTip="Without a date, adds a journal reminder. Choosing a future date saves it on that calendar day. Never billable."
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
                                      ConverterParameter=Reminder}" />
@@ -528,8 +527,9 @@
                                Grid.Row="2"
                                Style="{StaticResource LabelStyle}" />
                     <DatePicker AutomationProperties.Name="Event date" Grid.Row="3"
-                                IsEnabled="{Binding AreNoteFieldsEnabled}"
-                                SelectedDate="{Binding EventDate}" />
+                                IsEnabled="{Binding IsDateEnabled}"
+                                SelectedDate="{Binding EventDate}"
+                                ToolTip="Choosing a future date automatically changes this entry to a non-billable calendar Reminder." />
 
                     <!-- ═══ SERVICE DAY ═══
                          A case manager cannot bill the same minute twice, so the

@@ -2,8 +2,9 @@ namespace Sati.Contracts.V1;
 
 /// <summary>
 /// One API-safe choice shown by a distributed case-note client. Value is the exact contract token;
-/// label and guidance are presentation text. Workflow-owned statuses and the journal-only Reminder
-/// type are deliberately absent.
+/// label and guidance are presentation text. Workflow-owned statuses and the Reminder type are
+/// deliberately absent; future-date normalization creates calendar reminders without trusting a
+/// distributed client to set their non-billable shape.
 /// </summary>
 public sealed record CaseNoteEntryOption(string Value, string Label, string Guidance);
 

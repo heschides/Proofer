@@ -51,6 +51,9 @@ internal static class CloudContractMapper
         person.PrimaryCareProvider = dto.PrimaryCareProvider;
         person.HealthcareSystemName = dto.HealthcareSystemName;
         person.CaseManagerIsRepPayee = dto.CaseManagerIsRepPayee;
+        person.CaseManagerIsDhhsRepresentative = dto.CaseManagerIsDhhsRepresentative;
+        person.UsesModivcare = dto.UsesModivcare;
+        person.Email = dto.Email;
         person.RepPayeeMonthlyIncome = dto.RepPayeeMonthlyIncome;
         person.RepPayeeRegularCheckRequestNeeds = dto.RepPayeeRegularCheckRequestNeeds;
         person.HasHomeSupport = dto.HasHomeSupport;
@@ -292,7 +295,10 @@ internal static class CloudContractMapper
         true,
         person.CaseManagerIsRepPayee,
         person.RepPayeeMonthlyIncome,
-        person.RepPayeeRegularCheckRequestNeeds);
+        person.RepPayeeRegularCheckRequestNeeds,
+        person.CaseManagerIsDhhsRepresentative,
+        person.UsesModivcare,
+        person.Email);
 
     public static PersonContact ToPersonContact(PersonContactDto dto)
     {

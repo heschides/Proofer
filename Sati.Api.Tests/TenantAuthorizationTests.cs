@@ -80,7 +80,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.22", release["releaseVersion"]);
+        Assert.Equal("1.2.25", release["releaseVersion"]);
     }
 
     [Fact]
@@ -1255,6 +1255,8 @@ public sealed class TenantAuthorizationTests
             DayProgramCount = 1,
             ExpectedRevision = 0,
             CaseManagerIsRepPayee = true,
+            CaseManagerIsDhhsRepresentative = true,
+            UsesModivcare = true,
             RepPayeeMonthlyIncome = 943.50m,
             RepPayeeRegularCheckRequestNeeds = "Rent on the first and weekly personal-needs checks."
         };
@@ -1265,6 +1267,8 @@ public sealed class TenantAuthorizationTests
         Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
         Assert.NotNull(created);
         Assert.True(created.CaseManagerIsRepPayee);
+        Assert.True(created.CaseManagerIsDhhsRepresentative);
+        Assert.True(created.UsesModivcare);
         Assert.Equal(943.50m, created.RepPayeeMonthlyIncome);
         Assert.Equal(
             "Rent on the first and weekly personal-needs checks.",
@@ -1303,6 +1307,14 @@ public sealed class TenantAuthorizationTests
             createRequest.RepPayeeRegularCheckRequestNeeds,
             Assert.Single(createdVersion.Changes, change =>
                 change.Field == "repPayeeRegularCheckRequestNeeds").NewValue);
+        Assert.Equal(
+            "Yes",
+            Assert.Single(createdVersion.Changes, change =>
+                change.Field == "caseManagerIsDhhsRepresentative").NewValue);
+        Assert.Equal(
+            "Yes",
+            Assert.Single(createdVersion.Changes, change =>
+                change.Field == "usesModivcare").NewValue);
     }
 
     [Fact]
@@ -1553,7 +1565,7 @@ public sealed class TenantAuthorizationTests
     public async Task OverlappingServiceTimeIsRefusedAcrossTheWholeCaseload()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
-        var date = new DateTime(2026, 9, 22);
+        var date = DateTime.Today.AddDays(-100);
 
         // 9:00 AM for 15 minutes: 120 minutes after the 7:00 AM window start.
         var firstResponse = await client.PostAsJsonAsync(
@@ -1574,7 +1586,7 @@ public sealed class TenantAuthorizationTests
     public async Task BackToBackServiceTimeIsAccepted()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
-        var date = new DateTime(2026, 9, 23);
+        var date = DateTime.Today.AddDays(-101);
 
         var firstResponse = await client.PostAsJsonAsync(
             "/api/v1/notes", TimedNote(date, startTime: 120, minutes: 15, personId: 101, "First contact"));
@@ -1590,7 +1602,7 @@ public sealed class TenantAuthorizationTests
     public async Task CancelledNoteReleasesItsServiceTime()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
-        var date = new DateTime(2026, 9, 24);
+        var date = DateTime.Today.AddDays(-102);
 
         var cancelled = await client.PostAsJsonAsync(
             "/api/v1/notes",
@@ -1607,7 +1619,7 @@ public sealed class TenantAuthorizationTests
     public async Task EditingANoteDoesNotConflictWithItself()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
-        var date = new DateTime(2026, 9, 25);
+        var date = DateTime.Today.AddDays(-103);
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/v1/notes", TimedNote(date, startTime: 240, minutes: 30, personId: 101, "Original"));
@@ -1628,7 +1640,7 @@ public sealed class TenantAuthorizationTests
         // 6:30 PM start with 60 minutes runs past the 7:00 PM window end.
         var response = await client.PostAsJsonAsync(
             "/api/v1/notes",
-            TimedNote(new DateTime(2026, 9, 26), startTime: 690, minutes: 60, personId: 101, "Runs past the day"));
+            TimedNote(DateTime.Today.AddDays(-104), startTime: 690, minutes: 60, personId: 101, "Runs past the day"));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();

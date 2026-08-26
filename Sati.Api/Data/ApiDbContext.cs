@@ -48,6 +48,9 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             // truncation of a key identifier.
             entity.Property(x => x.SsnKeyId).HasMaxLength(400);
             entity.Property(x => x.SsnLastFour).HasMaxLength(4);
+            entity.Property(x => x.Email).HasMaxLength(254);
+            entity.Property(x => x.CaseManagerIsDhhsRepresentative);
+            entity.Property(x => x.UsesModivcare);
             entity.Property(x => x.RepPayeeMonthlyIncome).HasColumnType("decimal(18,2)");
             entity.Property(x => x.RepPayeeRegularCheckRequestNeeds)
                 .HasMaxLength(Sati.Contracts.V1.RepresentativePayeeRules.MaxRegularCheckRequestNeedsLength);
@@ -340,6 +343,7 @@ internal sealed class ServerPerson
     public bool HasGuardian { get; set; }
     public string? GuardianName { get; set; }
     public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
     public string? Address { get; set; }
     public string? BillingStreet { get; set; }
     public string? BillingCity { get; set; }
@@ -348,6 +352,8 @@ internal sealed class ServerPerson
     public string? PrimaryCareProvider { get; set; }
     public string? HealthcareSystemName { get; set; }
     public bool CaseManagerIsRepPayee { get; set; }
+    public bool CaseManagerIsDhhsRepresentative { get; set; }
+    public bool UsesModivcare { get; set; }
     public decimal? RepPayeeMonthlyIncome { get; set; }
     public string? RepPayeeRegularCheckRequestNeeds { get; set; }
     public bool HasHomeSupport { get; set; }

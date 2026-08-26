@@ -85,6 +85,7 @@ namespace Sati
         public string? GuardianName { get; set; }
 
         public string? PhoneNumber { get; set; }
+        public string? Email { get; set; }
         public string? Address { get; set; }
         // Structured claim address. The ordinary Address remains the human-facing mailing/display
         // value; X12 must not try to parse city/state/ZIP back out of free text.
@@ -107,6 +108,8 @@ namespace Sati
         // reference these fields through its own audited request/approval record rather
         // than treating a profile edit as authorization to release funds.
         public bool CaseManagerIsRepPayee { get; set; }
+        public bool CaseManagerIsDhhsRepresentative { get; set; }
+        public bool UsesModivcare { get; set; }
         public decimal? RepPayeeMonthlyIncome { get; set; }
         public string? RepPayeeRegularCheckRequestNeeds { get; set; }
 
