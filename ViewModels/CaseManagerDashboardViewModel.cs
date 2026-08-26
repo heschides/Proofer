@@ -127,9 +127,10 @@ StatisticsViewModel statisticsViewModel,
             notesWindowViewModel.NoteStatusChanged += async (s, e) =>
             {
                 await LoadMonthlyNotesAsync();
+                await Calendar.RefreshCommand.ExecuteAsync(null);
             };
 
-            calendarViewModel.ExemptDateChanged += async (s, e) =>
+            calendarViewModel.ExemptDateChanged += async () =>
             {
                 await LoadExemptDatesAsync();
                 await LoadMonthlyNotesAsync();
@@ -433,7 +434,8 @@ StatisticsViewModel statisticsViewModel,
             UpcomingEvents
                 .Where(e => e.Kind is UpcomingEventKind.ScheduledVisit
                                   or UpcomingEventKind.ScheduledContact
-                                  or UpcomingEventKind.ScheduledForm)
+                                  or UpcomingEventKind.ScheduledForm
+                                  or UpcomingEventKind.ScheduledReminder)
                 .OrderBy(e => e.Date);
 
         private IEnumerable<object> AllBoardItems()
@@ -706,6 +708,7 @@ StatisticsViewModel statisticsViewModel,
             await LoadUpcomingEventsAsync();
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
+            await Calendar.RefreshCommand.ExecuteAsync(null);
         }
 
         private async Task LoadNotesForPersonAsync(Person? person)

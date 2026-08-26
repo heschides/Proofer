@@ -9,10 +9,12 @@ using Sati.Services;
 using Sati.ViewModels.Children;
 using Sati.ViewModels.ClientDocuments;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Windows.Data;
 using System.Net;
 using System.Windows.Threading;
 
@@ -138,6 +140,9 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string? phoneNumber;
         [ObservableProperty]
+        [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+        private string? email;
+        [ObservableProperty]
         private string? address;
 
         [ObservableProperty]
@@ -163,6 +168,12 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private bool caseManagerIsRepPayee;
+
+        [ObservableProperty]
+        private bool caseManagerIsDhhsRepresentative;
+
+        [ObservableProperty]
+        private bool usesModivcare;
 
         [ObservableProperty]
         [NotifyDataErrorInfo]
@@ -355,6 +366,11 @@ namespace Sati.ViewModels
                 nameof(RepPayeeRegularCheckRequestNeeds));
         }
 
+        partial void OnSelectedConsumerFilterChanged(string value)
+        {
+            PeopleView.Refresh();
+        }
+
         partial void OnWaiverChanged(WaiverType value)
         {
             OnPropertyChanged(nameof(HasWaiver));
@@ -417,6 +433,26 @@ namespace Sati.ViewModels
 
         public ObservableCollection<Note> SelectedPersonNotes { get; } = [];
         public ObservableCollection<Person> People { get; } = [];
+        public ICollectionView PeopleView { get; }
+        public IReadOnlyList<string> ConsumerFilters { get; } =
+        [
+            "All consumers",
+            "Case manager is representative payee",
+            "Case manager is DHHS representative",
+            "Uses Modivcare",
+            "Open with VR",
+            "Home support",
+            "Self-directed home support",
+            "Community support 1:1",
+            "Community support self-directed",
+            "Day program",
+            "Shared living",
+            "Employment specialist",
+            "Work supports"
+        ];
+
+        [ObservableProperty]
+        private string selectedConsumerFilter = "All consumers";
         public ObservableCollection<HealthcareSystemOption> HealthcareSystems { get; } = [];
         public ObservableCollection<PersonContact> Contacts { get; } = [];
         public ObservableCollection<UpcomingEvent> SelectedPersonUpcomingItems { get; } = [];
@@ -507,6 +543,8 @@ namespace Sati.ViewModels
             DhhsForms = dhhsForms;
             SsnPanel = ssnPanel;
             AgencyRelease = agencyRelease;
+            PeopleView = CollectionViewSource.GetDefaultView(People);
+            PeopleView.Filter = MatchesConsumerFilter;
             _ = LoadHealthcareOptionsAsync();
         }
 
@@ -612,6 +650,7 @@ namespace Sati.ViewModels
                     {
                         NoteType.Contact => "Scheduled Contact",
                         NoteType.Form => "Scheduled Form",
+                        NoteType.Reminder => "Reminder",
                         _ => "Scheduled Visit"
                     },
                     Date = note.EventDate!.Value,
@@ -619,6 +658,7 @@ namespace Sati.ViewModels
                     {
                         NoteType.Contact => UpcomingEventKind.ScheduledContact,
                         NoteType.Form => UpcomingEventKind.ScheduledForm,
+                        NoteType.Reminder => UpcomingEventKind.ScheduledReminder,
                         _ => UpcomingEventKind.ScheduledVisit
                     }
                 });
@@ -781,6 +821,7 @@ namespace Sati.ViewModels
                 existing.GuardianName = GuardianName;
                 existing.EvergreenId = EvergreenId;
                 existing.PhoneNumber = PhoneNumber; existing.Address = Address;
+                existing.Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim();
                 existing.MaineCareId = MaineCareId;
                 existing.DiagnosisCode = DiagnosisCode?.Trim().ToUpperInvariant();
                 existing.PlaceOfService = PlaceOfService;
@@ -791,6 +832,8 @@ namespace Sati.ViewModels
                 existing.PrimaryCareProvider = PrimaryCareProvider;
                 existing.HealthcareSystemName = HealthcareSystemName;
                 existing.CaseManagerIsRepPayee = CaseManagerIsRepPayee;
+                existing.CaseManagerIsDhhsRepresentative = CaseManagerIsDhhsRepresentative;
+                existing.UsesModivcare = UsesModivcare;
                 existing.RepPayeeMonthlyIncome = ParseRepPayeeMonthlyIncome();
                 existing.RepPayeeRegularCheckRequestNeeds = CaseManagerIsRepPayee
                     ? RepPayeeRegularCheckRequestNeeds?.Trim()
@@ -838,6 +881,7 @@ namespace Sati.ViewModels
                 person.GuardianName = GuardianName;
                 person.EvergreenId = EvergreenId;
                 person.PhoneNumber = PhoneNumber;
+                person.Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim();
                 person.Address = Address;
                 person.MaineCareId = MaineCareId;
                 person.DiagnosisCode = DiagnosisCode?.Trim().ToUpperInvariant();
@@ -849,6 +893,8 @@ namespace Sati.ViewModels
                 person.PrimaryCareProvider = PrimaryCareProvider;
                 person.HealthcareSystemName = HealthcareSystemName;
                 person.CaseManagerIsRepPayee = CaseManagerIsRepPayee;
+                person.CaseManagerIsDhhsRepresentative = CaseManagerIsDhhsRepresentative;
+                person.UsesModivcare = UsesModivcare;
                 person.RepPayeeMonthlyIncome = ParseRepPayeeMonthlyIncome();
                 person.RepPayeeRegularCheckRequestNeeds = CaseManagerIsRepPayee
                     ? RepPayeeRegularCheckRequestNeeds?.Trim()
@@ -871,6 +917,7 @@ namespace Sati.ViewModels
                 SelectedPerson = person;
             }
 
+            PeopleView.Refresh();
             IsClientEditorOpen = false;
             IsEditMode = false;
         }
@@ -932,6 +979,7 @@ namespace Sati.ViewModels
             GuardianName = person.GuardianName;
             EvergreenId = person.EvergreenId;
             PhoneNumber = person.PhoneNumber;
+            Email = person.Email;
             Address = person.Address; PrimaryCareProvider = person.PrimaryCareProvider;
             MaineCareId = person.MaineCareId;
             DiagnosisCode = person.DiagnosisCode;
@@ -942,6 +990,8 @@ namespace Sati.ViewModels
             BillingZip = person.BillingZip;
             HealthcareSystemName = person.HealthcareSystemName;
             CaseManagerIsRepPayee = person.CaseManagerIsRepPayee;
+            CaseManagerIsDhhsRepresentative = person.CaseManagerIsDhhsRepresentative;
+            UsesModivcare = person.UsesModivcare;
             RepPayeeMonthlyIncomeText = person.RepPayeeMonthlyIncome?.ToString(
                 "0.00",
                 CultureInfo.CurrentCulture) ?? string.Empty;
@@ -1244,6 +1294,24 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(People));
         }
 
+        private bool MatchesConsumerFilter(object item) => item is Person person && SelectedConsumerFilter switch
+        {
+            "All consumers" => true,
+            "Case manager is representative payee" => person.CaseManagerIsRepPayee,
+            "Case manager is DHHS representative" => person.CaseManagerIsDhhsRepresentative,
+            "Uses Modivcare" => person.UsesModivcare,
+            "Open with VR" => person.OpenWithVR,
+            "Home support" => person.HasHomeSupport,
+            "Self-directed home support" => person.HasSelfDirectedHomeSupport,
+            "Community support 1:1" => person.HasCommunitySupport1To1,
+            "Community support self-directed" => person.HasCommunitySupportSelfDirected,
+            "Day program" => person.HasCommunitySupportDayProgram,
+            "Shared living" => person.HasSharedLiving,
+            "Employment specialist" => person.HasEmploymentSpecialist,
+            "Work supports" => person.HasWorkSupports,
+            _ => true
+        };
+
         private void ClearFields()
         {
             FirstName = string.Empty;
@@ -1258,6 +1326,7 @@ namespace Sati.ViewModels
             GuardianName = string.Empty;
             EvergreenId = string.Empty;
             PhoneNumber = string.Empty;
+            Email = string.Empty;
             Address = string.Empty;
             MaineCareId = string.Empty;
             DiagnosisCode = string.Empty;
@@ -1269,6 +1338,8 @@ namespace Sati.ViewModels
             PrimaryCareProvider = string.Empty;
             HealthcareSystemName = null;
             CaseManagerIsRepPayee = false;
+            CaseManagerIsDhhsRepresentative = false;
+            UsesModivcare = false;
             RepPayeeMonthlyIncomeText = string.Empty;
             RepPayeeRegularCheckRequestNeeds = string.Empty;
             IsEmployed = false;

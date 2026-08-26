@@ -2084,9 +2084,11 @@ internal static class ApiEndpoints
             SaveNoteRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            ApiClock clock,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
+            request = NoteSchedulingPolicy.Normalize(request, clock.Today);
             var validation = ValidateNote(request);
             if (validation is not null)
                 return Results.ValidationProblem(validation);
@@ -2124,9 +2126,11 @@ internal static class ApiEndpoints
             SaveNoteRequest request,
             ClaimsPrincipal principal,
             ApiDbContext db,
+            ApiClock clock,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
+            request = NoteSchedulingPolicy.Normalize(request, clock.Today);
             var validation = ValidateNote(request);
             if (validation is not null)
                 return Results.ValidationProblem(validation);
@@ -3247,6 +3251,10 @@ internal static class ApiEndpoints
 
         ValidateLength(errors, "guardianName", request.GuardianName, 100);
         ValidateLength(errors, "phoneNumber", request.PhoneNumber, 20);
+        ValidateLength(errors, "email", request.Email, 254);
+        if (!string.IsNullOrWhiteSpace(request.Email) &&
+            !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.Email))
+            errors["email"] = ["Email must be a valid email address."];
         ValidateLength(errors, "address", request.Address, 250);
         ValidateLength(errors, "billingStreet", request.BillingStreet, 55);
         ValidateLength(errors, "billingCity", request.BillingCity, 30);
@@ -3302,6 +3310,7 @@ internal static class ApiEndpoints
         person.HasGuardian = request.HasGuardian;
         person.GuardianName = Normalize(request.GuardianName);
         person.PhoneNumber = Normalize(request.PhoneNumber);
+        person.Email = Normalize(request.Email);
         person.Address = Normalize(request.Address);
         if (request.UpdateBillingAddress)
         {
@@ -3313,6 +3322,8 @@ internal static class ApiEndpoints
         person.PrimaryCareProvider = Normalize(request.PrimaryCareProvider);
         person.HealthcareSystemName = Normalize(request.HealthcareSystemName);
         person.CaseManagerIsRepPayee = request.CaseManagerIsRepPayee;
+        person.CaseManagerIsDhhsRepresentative = request.CaseManagerIsDhhsRepresentative;
+        person.UsesModivcare = request.UsesModivcare;
         person.RepPayeeMonthlyIncome = request.CaseManagerIsRepPayee
             ? request.RepPayeeMonthlyIncome
             : null;
@@ -3903,6 +3914,9 @@ internal static class ApiEndpoints
             errors["narrative"] = ["Narrative is required and must not exceed 1,000,000 characters."];
         if (request.PersonId <= 0)
             errors["personId"] = ["A valid person is required."];
+        if (string.Equals(request.NoteType, NoteSchedulingPolicy.ReminderType, StringComparison.Ordinal) &&
+            request.EventDate is null)
+            errors["eventDate"] = ["A calendar reminder requires a date."];
         if (request.Minutes is < 0 or > 1_440)
             errors["minutes"] = ["Minutes must be between 0 and 1,440."];
         if (request.StartTime is int start && (start < 0 || start > ServiceTimeline.WindowLengthMinutes))

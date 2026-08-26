@@ -128,6 +128,32 @@ public sealed class NotePanelRenderTests
     }
 
     [Fact]
+    public async Task FutureReminderKeepsItsDateEditableAndExplainsTheCalendarOutcome()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var panel = fixture.NoteEntry();
+        panel.SelectedPerson = await fixture.PersonOneAsync();
+        panel.SelectedNoteType = NoteType.Contact;
+        panel.EventDate = DateTime.Today.AddDays(5);
+
+        WpfUiHarness.Run(() =>
+        {
+            var view = new NoteEntryView { DataContext = panel };
+            WpfUiHarness.Realize(view);
+
+            Assert.Equal(NoteType.Reminder, panel.SelectedNoteType);
+            Assert.Equal(NoteStatus.Scheduled, panel.Status);
+            Assert.True(WpfUiHarness.FindByAutomationName<DatePicker>(view, "Event date").IsEnabled);
+            Assert.False(WpfUiHarness.FindByAutomationName<ComboBox>(view, "Status").IsEnabled);
+            Assert.Contains("calendar", panel.StatusGuidance, StringComparison.OrdinalIgnoreCase);
+            var save = WpfUiHarness.Descendants(view)
+                .OfType<Button>()
+                .Single(button => button.Command == panel.SubmitNoteCommand);
+            Assert.Equal("Add to Calendar", save.Content);
+        });
+    }
+
+    [Fact]
     public async Task TheSaveButtonIsHiddenWhileLockedAndBackWhenUnlocked()
     {
         await using var fixture = await NoteEntryFixture.CreateAsync();

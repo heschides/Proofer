@@ -72,7 +72,8 @@ namespace Sati
         LateReview,
         ScheduledVisit,
         ScheduledContact,
-        ScheduledForm
+        ScheduledForm,
+        ScheduledReminder
     }
 
     public enum Gender
@@ -111,9 +112,9 @@ namespace Sati
         Form,
         Other,
         // Appended last on purpose: the column is a nullable int, so every stored
-        // value keeps its meaning and no migration is required. Reminder is the
-        // one member that never reaches the Notes table — it selects the journal
-        // entry path in NoteEntryViewModel and is not persisted as a note.
+        // value keeps its meaning and no migration is required. An undated
+        // Reminder takes the journal-entry path; NoteSchedulingPolicy persists a
+        // future-dated Reminder as Scheduled so the calendar can retrieve it.
         Reminder
     }
 

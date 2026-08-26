@@ -35,7 +35,8 @@ public static class ApiSurface
     /// </summary>
     public static IReadOnlyList<string> ContractShapes { get; } =
     [
-        "person-representative-payee-v1"
+        "person-representative-payee-v1",
+        "future-note-reminder-v1"
     ];
 
     /// <summary>

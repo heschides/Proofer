@@ -25,7 +25,7 @@ Validate the LocalDB install payload without touching the normal installation:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
     .\scripts\Test-LocalInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.22.exe
+    -InstallerPath .\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.25.exe
 ```
 
 On a clean workstation, the combined installer requests elevation only when LocalDB is absent. Sati
@@ -60,7 +60,7 @@ Run the isolated installation and launch acceptance test from the repository roo
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
     .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.22.exe `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.25.exe `
     -LaunchIterations 5
 ```
 

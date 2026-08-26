@@ -12,10 +12,10 @@ using Xunit;
 namespace Sati.Tests;
 
 /// <summary>
-/// The Reminder note type. A reminder is a stamped entry at the top of a client's
-/// journal, NOT service documentation: it creates no note, carries no status,
-/// minutes, or service date, and so cannot reach supervisory review or billing.
-/// The API mirrors the write itself; see JournalReminderApiTests.
+/// The two Reminder modes. An undated reminder is a stamped journal entry and
+/// creates no note. Choosing a future date creates a Scheduled Reminder row so
+/// the calendar can retrieve it. Neither mode carries billable time or enters
+/// supervisory review. The API mirrors both boundaries.
 /// </summary>
 public sealed class JournalReminderTests
 {
@@ -138,6 +138,79 @@ public sealed class JournalReminderTests
     // -------------------------------------------------------------------------
     // What the note screen does with the type selected
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ChoosingAFutureDateConvertsTheDraftToAScheduledReminder()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var viewModel = fixture.NoteEntry();
+        viewModel.SelectedPerson = await fixture.PersonOneAsync();
+        viewModel.SelectedNoteType = NoteType.Contact;
+        viewModel.Status = NoteStatus.Logged;
+        viewModel.Minutes = 45;
+        var reminderDate = DateTime.Today.AddDays(7);
+
+        viewModel.EventDate = reminderDate;
+
+        Assert.Equal(NoteType.Reminder, viewModel.SelectedNoteType);
+        Assert.Equal(NoteStatus.Scheduled, viewModel.Status);
+        Assert.Equal(reminderDate.Date, viewModel.EventDate);
+        Assert.Null(viewModel.Minutes);
+        Assert.Null(viewModel.SelectedStartTime);
+
+        // The future-date rule is authoritative; changing the type afterward
+        // cannot turn a future service date back into billable documentation.
+        viewModel.SelectedNoteType = NoteType.Visit;
+        Assert.Equal(NoteType.Reminder, viewModel.SelectedNoteType);
+    }
+
+    [Fact]
+    public async Task SavingAFutureDateCreatesTheReminderOnThatCalendarDay()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var viewModel = fixture.NoteEntry();
+        viewModel.SelectedPerson = await fixture.PersonOneAsync();
+        viewModel.SelectedNoteType = NoteType.Contact;
+        viewModel.Status = NoteStatus.Pending;
+        viewModel.Minutes = 30;
+        viewModel.Narrative = "Call the guardian about transportation.";
+        var reminderDate = DateTime.Today.AddDays(7);
+        viewModel.EventDate = reminderDate;
+
+        await viewModel.SubmitNoteCommand.ExecuteAsync(null);
+
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var stored = Assert.Single(await db.Notes.AsNoTracking().ToListAsync());
+            Assert.Equal(NoteType.Reminder, stored.NoteType);
+            Assert.Equal(NoteStatus.Scheduled, stored.Status);
+            Assert.Equal(reminderDate.Date, stored.EventDate);
+            Assert.Null(stored.Minutes);
+            Assert.Null(stored.StartTime);
+        }
+
+        var session = new SessionService();
+        session.SetUser(fixture.CaseManagerOne);
+        var calendar = new CalendarViewModel(
+            new ExemptDateService(fixture.Factory, session),
+            new NoteService(fixture.Factory, session),
+            session)
+        {
+            CurrentYear = reminderDate.Year
+        };
+        await calendar.RefreshCommand.ExecuteAsync(null);
+
+        var day = calendar.Months
+            .SelectMany(month => month.Cells)
+            .Single(candidate => candidate?.Date == reminderDate.Date)!;
+        var reminder = Assert.Single(day.Notes);
+        Assert.Equal("Reminder", reminder.NoteTypeLabel);
+        Assert.Equal("Call the guardian about transportation.", reminder.Narrative);
+
+        var journal = await fixture.PeopleAs(fixture.CaseManagerOne)
+            .GetJournalAsync(fixture.PersonOneId);
+        Assert.True(string.IsNullOrEmpty(journal));
+    }
 
     [Fact]
     public async Task SelectingReminderDisablesTheServiceFieldsAndClearsWhatWasInThem()

@@ -12,7 +12,10 @@ internal static class ContractMapper
         "Scheduled", "Pending", "Logged", "HeldForCompliance", "Cancelled", "Delayed",
         "Approved", "Returned", "Abandoned", "ComplianceBlocked"
     ];
-    private static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other"];
+    // Ordinals mirror the append-only desktop enum. Reminder is last so existing
+    // persisted values keep their meaning; NoteSchedulingPolicy normalizes its
+    // non-billable shape before this value reaches persistence.
+    private static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other", "Reminder"];
     private static readonly string[] FormTypeNames =
     [
         "Q1R", "Q2R", "Q3R", "Q4R", "PCP", "ComprehensiveAssessment", "Reclassification",
@@ -73,7 +76,10 @@ internal static class ContractMapper
         notes.Select(ToNoteSummary).ToList(),
         person.CaseManagerIsRepPayee,
         person.RepPayeeMonthlyIncome,
-        person.RepPayeeRegularCheckRequestNeeds);
+        person.RepPayeeRegularCheckRequestNeeds,
+        person.CaseManagerIsDhhsRepresentative,
+        person.UsesModivcare,
+        person.Email);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,

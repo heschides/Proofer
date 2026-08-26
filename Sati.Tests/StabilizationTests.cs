@@ -515,25 +515,25 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.22", version);
+        Assert.Equal("1.2.25", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("One note panel and uninterrupted sessions", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Calendar reminders and consumer filters", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "One panel for reading and writing a note" &&
-            section.Items.Any(item => item.Contains("read-only instead of disabled", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Consumer responsibilities" &&
+            section.Items.Any(item => item.Contains("DHHS representative", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Sessions that last as long as you are working" &&
-            section.Items.Any(item => item.Contains("unattended workstation", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Caseload filtering" &&
+            section.Items.Any(item => item.Contains("Modivcare", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Journal reminders" &&
-            section.Items.Any(item => item.Contains("journal-entries route", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A steadier, more useful calendar" &&
+            section.Items.Any(item => item.Contains("focused day", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Future reminders" &&
+            section.Items.Any(item => item.Contains("Scheduled Reminder", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Connectivity and recovery" &&
-            section.Items.Any(item => item.Contains("note text", StringComparison.OrdinalIgnoreCase)));
 
         var loginView = File.ReadAllText(Path.Combine(
             directory!.FullName,
@@ -842,7 +842,7 @@ public sealed class StabilizationTests
         Assert.Empty(violations);
         Assert.False(typeof(Note).GetProperty(nameof(Note.Units))!.CanWrite);
         var calendar = File.ReadAllText(Path.Combine(viewRoot, "CalendarView.xaml"));
-        Assert.Contains("{Binding Units, Mode=OneWay}", calendar);
+        Assert.Contains("{Binding DurationLabel, Mode=OneWay}", calendar);
     }
 
     [Fact]

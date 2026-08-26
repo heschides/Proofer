@@ -86,6 +86,7 @@ namespace Sati.Data
                 {
                     NoteType.Contact => UpcomingEventKind.ScheduledContact,
                     NoteType.Form => UpcomingEventKind.ScheduledForm,
+                    NoteType.Reminder => UpcomingEventKind.ScheduledReminder,
                     _ => UpcomingEventKind.ScheduledVisit
                 };
 
@@ -93,6 +94,7 @@ namespace Sati.Data
                 {
                     NoteType.Contact => $"Contact — {person.FullName}",
                     NoteType.Form => $"Form — {person.FullName}",
+                    NoteType.Reminder => $"Reminder — {person.FullName}",
                     _ => $"Visit — {person.FullName}"
                 };
 

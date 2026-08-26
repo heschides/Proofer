@@ -55,6 +55,7 @@ namespace Sati.ViewModels.Children
         private int _attendeeLoadVersion;
         private bool _suppressVisitChangeNotifications;
         private bool _suppressDirtyTracking;
+        private bool _applyingSchedulingPolicy;
         private readonly LatestRequestTracker _aiDraftRequests = new();
         private CancellationTokenSource? _aiDraftCancellation;
 
@@ -205,7 +206,9 @@ namespace Sati.ViewModels.Children
             NoteStatus.Cancelled,
             NoteStatus.Delayed
         ];
-        public string SaveActionLabel => IsReminderNote
+        public string SaveActionLabel => IsCalendarReminder
+            ? "Add to Calendar"
+            : IsReminderNote
             ? "Add Reminder"
             : Status switch
             {
@@ -243,15 +246,25 @@ namespace Sati.ViewModels.Children
         public bool HasReturnReason => !string.IsNullOrWhiteSpace(ReturnReason);
 
         public bool HasStaleNoteMessage => !string.IsNullOrWhiteSpace(StaleNoteMessage);
-        public string StatusGuidance => IsReminderNote ? ReminderGuidance : DescribeStatus(Status);
+        public string StatusGuidance => IsCalendarReminder
+            ? CalendarReminderGuidance
+            : IsReminderNote
+                ? ReminderGuidance
+                : DescribeStatus(Status);
 
         // Says why the workflow fields are unavailable, so the disabled state is
         // explained rather than merely observed. The status guidance block is a
         // polite live region, so a screen reader announces this on selection.
         internal const string ReminderGuidance =
             "Reminder — adds a timestamped entry to the top of this client's journal. " +
-            "It is not a service note: it has no status, minutes, or service date, and it " +
+            "To put it on the calendar instead, choose a future date. It is not service " +
+            "documentation: it has no status, minutes, or service date, and it " +
             "does not go to your supervisor or into billing.";
+
+        internal const string CalendarReminderGuidance =
+            "Calendar reminder — the future date changed this entry to a scheduled Reminder. " +
+            "It will appear on that calendar day. It carries no service time and cannot enter " +
+            "supervisor review, productivity totals, or billing.";
 
         internal static string DescribeStatus(NoteStatus? status) => status switch
         {
@@ -272,10 +285,13 @@ namespace Sati.ViewModels.Children
         // its shape and the case manager can see what a reminder does not carry.
         // Client and narrative are the only inputs.
         public bool IsReminderNote => SelectedNoteType == NoteType.Reminder;
+        public bool IsCalendarReminder => IsReminderNote && EventDate.HasValue;
+        public bool IsJournalReminder => IsReminderNote && EventDate is null;
         // Reminder disables the service-note fields; a lock disables everything
         // that would change the record. Both funnel through this one property so
         // a control never has to know which of the two is currently in force.
         public bool AreNoteFieldsEnabled => !IsReminderNote && !IsLocked;
+        public bool IsDateEnabled => !IsLocked;
         public string NarrativeLabel => IsReminderNote ? "REMINDER" : "NARRATIVE";
 
         partial void OnStatusChanged(NoteStatus? value)
@@ -310,6 +326,7 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(LockGlyph));
             OnPropertyChanged(nameof(LockToggleLabel));
             OnPropertyChanged(nameof(LockToggleTooltip));
+            OnPropertyChanged(nameof(IsDateEnabled));
             SubmitNoteCommand.NotifyCanExecuteChanged();
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
         }
@@ -322,7 +339,14 @@ namespace Sati.ViewModels.Children
 
         partial void OnEventDateChanged(DateTime? value)
         {
+            if (!_applyingSchedulingPolicy &&
+                NoteSchedulingPolicy.IsFutureDate(value, DateTime.Today))
+            {
+                ApplyFutureReminderPolicy();
+            }
+
             OnPropertyChanged(nameof(ServiceDayHeading));
+            NotifyReminderModeChanged();
             MarkDirty();
             _ = RefreshServiceDayAsync();
         }
@@ -429,21 +453,39 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsFormNote));
             OnPropertyChanged(nameof(IsVisitNote));
             OnPropertyChanged(nameof(IsReminderNote));
+            OnPropertyChanged(nameof(IsCalendarReminder));
+            OnPropertyChanged(nameof(IsJournalReminder));
             OnPropertyChanged(nameof(AreNoteFieldsEnabled));
             OnPropertyChanged(nameof(NarrativeLabel));
             OnPropertyChanged(nameof(SaveActionLabel));
             OnPropertyChanged(nameof(StatusGuidance));
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
 
+            // A caller can change fields programmatically and a user can click a
+            // type after choosing the date. Either way, a future date remains a
+            // Reminder; the API and local service repeat the same policy on save.
+            if (!_applyingSchedulingPolicy &&
+                value != NoteType.Reminder &&
+                NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today))
+            {
+                ApplyFutureReminderPolicy();
+                return;
+            }
+
             if (value == NoteType.Reminder)
             {
-                // Cleared, not merely disabled. A status or a set of minutes left
-                // behind by a half-finished note must not travel with the journal
-                // entry, and must not reappear if the case manager switches back to
-                // a service note and saves without revisiting these fields.
-                Status = null;
+                // Cleared, not merely disabled. Service details left behind by a
+                // half-finished note must not travel with either kind of reminder.
+                // A future date stays attached and receives the only workflow
+                // status a calendar reminder may carry; an undated Reminder keeps
+                // the established journal-entry behavior.
+                var isCalendarReminder =
+                    NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today) ||
+                    (_suppressDirtyTracking && EventDate.HasValue);
+                Status = isCalendarReminder ? NoteStatus.Scheduled : null;
                 Minutes = null;
-                EventDate = null;
+                if (!isCalendarReminder)
+                    EventDate = null;
                 SelectedStartTime = null;
                 ClearAiReview();
                 AiStatusMessage = string.Empty;
@@ -466,6 +508,38 @@ namespace Sati.ViewModels.Children
                 NoteType.Contact => _settings?.ContactTemplate ?? string.Empty,
                 _ => string.Empty
             };
+        }
+
+        private void ApplyFutureReminderPolicy()
+        {
+            if (!NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today))
+                return;
+
+            _applyingSchedulingPolicy = true;
+            try
+            {
+                SelectedNoteType = NoteType.Reminder;
+                Status = NoteStatus.Scheduled;
+                Minutes = null;
+                SelectedStartTime = null;
+                SelectedFormType = null;
+                _pendingVisitDocumentation = null;
+                ResetVisitDocumentation(clearAttendees: false);
+            }
+            finally
+            {
+                _applyingSchedulingPolicy = false;
+            }
+
+            NotifyReminderModeChanged();
+        }
+
+        private void NotifyReminderModeChanged()
+        {
+            OnPropertyChanged(nameof(IsCalendarReminder));
+            OnPropertyChanged(nameof(IsJournalReminder));
+            OnPropertyChanged(nameof(StatusGuidance));
+            OnPropertyChanged(nameof(SaveActionLabel));
         }
 
         partial void OnNarrativeChanged(string? value)
@@ -1292,10 +1366,10 @@ namespace Sati.ViewModels.Children
         [RelayCommand(CanExecute = nameof(CanSubmitNote))]
         private async Task SubmitNote()
         {
-            // A reminder leaves the note pipeline entirely — no status, no
-            // compliance gate, no billing window, and no Notes row. It is a journal
-            // entry, so it goes down its own path before any of that runs.
-            if (IsReminderNote)
+            // An undated Reminder keeps the established journal-entry path. A
+            // future-dated Reminder is deliberately a scheduled Notes row so the
+            // calendar can retrieve it; it continues through the normal save path.
+            if (IsJournalReminder)
             {
                 await SubmitReminderAsync();
                 return;

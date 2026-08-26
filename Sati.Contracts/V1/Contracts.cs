@@ -88,7 +88,10 @@ public sealed record PersonDto(
     IReadOnlyList<NoteSummaryDto> Notes,
     bool CaseManagerIsRepPayee = false,
     decimal? RepPayeeMonthlyIncome = null,
-    string? RepPayeeRegularCheckRequestNeeds = null);
+    string? RepPayeeRegularCheckRequestNeeds = null,
+    bool CaseManagerIsDhhsRepresentative = false,
+    bool UsesModivcare = false,
+    string? Email = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -135,7 +138,10 @@ public sealed record SavePersonRequest(
     bool UpdateBillingAddress = false,
     bool CaseManagerIsRepPayee = false,
     decimal? RepPayeeMonthlyIncome = null,
-    string? RepPayeeRegularCheckRequestNeeds = null);
+    string? RepPayeeRegularCheckRequestNeeds = null,
+    bool CaseManagerIsDhhsRepresentative = false,
+    bool UsesModivcare = false,
+    string? Email = null);
 
 public sealed record PersonContactDto(
     int Id,
