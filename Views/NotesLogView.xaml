@@ -61,7 +61,31 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Margin="0,0,0,10"
+                        Padding="8"
+                        Background="{DynamicResource WarningFillBrush}"
+                        BorderBrush="{DynamicResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        AutomationProperties.LiveSetting="Assertive"
+                        Visibility="{Binding HasLoadError,
+                                             Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding LoadErrorMessage}"
+                                   Foreground="{DynamicResource WarningBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button Margin="0,8,0,0"
+                                Padding="8,4"
+                                HorizontalAlignment="Left"
+                                Content="Retry"
+                                Command="{Binding ReloadCommand}"
+                                AutomationProperties.Name="Retry loading the notes log" />
+                    </StackPanel>
+                </Border>
 
                 <!-- No Deselect Note button here any more. It existed to stop the
                      old detail panel showing a note while the editor beside it held
@@ -69,11 +93,11 @@
                      showing its note" describes nothing a case manager wants. The
                      New Note button in the note panel clears the row and the panel
                      together, and Escape does the same. -->
-                <TextBlock Grid.Row="0"
+                <TextBlock Grid.Row="1"
                            Text="FILTERS"
                            Style="{StaticResource SectionHeader}" />
 
-                <WrapPanel Grid.Row="1">
+                <WrapPanel Grid.Row="2">
 
                     <StackPanel Width="180"
                                 Margin="0,0,14,6">

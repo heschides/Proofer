@@ -26,6 +26,7 @@ namespace Sati.ViewModels.Children
         private string _lastSavedScratchpadContent = string.Empty;
         private string _lastSavedTomorrowAgendaContent = string.Empty;
         private bool _sessionExpiredDuringSave;
+        private int? _loadedUserId;
 
         // -------------------------------------------------------------------------
         // Constructor
@@ -55,6 +56,10 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string scratchpadConflictMessage = string.Empty;
         [ObservableProperty] private bool hasTomorrowAgendaConflict;
         [ObservableProperty] private string tomorrowAgendaConflictMessage = string.Empty;
+        [ObservableProperty] private bool hasScratchpadLoadError;
+        [ObservableProperty] private string scratchpadLoadErrorMessage = string.Empty;
+        [ObservableProperty] private bool hasTomorrowAgendaLoadError;
+        [ObservableProperty] private string tomorrowAgendaLoadErrorMessage = string.Empty;
         [ObservableProperty] private bool hasScratchpadSessionExpired;
         [ObservableProperty] private string scratchpadSessionExpiredMessage = string.Empty;
 
@@ -66,26 +71,21 @@ namespace Sati.ViewModels.Children
         [RelayCommand]
         private async Task ReloadLatestScratchpadAsync()
         {
-            var userId = _sessionService.CurrentUser!.Id;
-            _scratchpad = await _scratchpadService.LoadTodayAsync(userId);
-            _lastSavedScratchpadContent = _scratchpad.Content;
-            ScratchpadContent = _scratchpad.Content;
-            HasScratchpadConflict = false;
-            ScratchpadConflictMessage = string.Empty;
-            StartScratchpadTimer();
+            if (_sessionService.CurrentUser is not { } user)
+                return;
+
+            if (await TryLoadTodayAsync(user.Id))
+                StartScratchpadTimer();
         }
 
         [RelayCommand]
         private async Task ReloadLatestTomorrowAgendaAsync()
         {
-            var userId = _sessionService.CurrentUser!.Id;
-            _tomorrowAgenda = await _scratchpadService.LoadTomorrowAsync(userId);
-            _lastSavedTomorrowAgendaContent = _tomorrowAgenda.Content;
-            TomorrowAgendaContent = _tomorrowAgenda.Content;
-            TomorrowAgendaDateLabel = FormatAgendaDate(_tomorrowAgenda.Date);
-            HasTomorrowAgendaConflict = false;
-            TomorrowAgendaConflictMessage = string.Empty;
-            StartScratchpadTimer();
+            if (_sessionService.CurrentUser is not { } user)
+                return;
+
+            if (await TryLoadTomorrowAsync(user.Id))
+                StartScratchpadTimer();
         }
 
         [RelayCommand] private void DecreaseScratchpadFont() => ScratchpadFontSize = Math.Max(ScratchpadFontSize - 2, 10);
@@ -97,29 +97,25 @@ namespace Sati.ViewModels.Children
 
         public async Task InitializeAsync()
         {
-            try
-            {
-                var userId = _sessionService.CurrentUser!.Id;
-                var todayTask = _scratchpadService.LoadTodayAsync(userId);
-                var tomorrowTask = _scratchpadService.LoadTomorrowAsync(userId);
-                await Task.WhenAll(todayTask, tomorrowTask);
-                _scratchpad = await todayTask;
-                _tomorrowAgenda = await tomorrowTask;
-                _lastSavedScratchpadContent = _scratchpad.Content;
-                _lastSavedTomorrowAgendaContent = _tomorrowAgenda.Content;
-                ScratchpadContent = _scratchpad.Content;
-                TomorrowAgendaContent = _tomorrowAgenda.Content;
-                TomorrowAgendaDateLabel = FormatAgendaDate(_tomorrowAgenda.Date);
-                ClearExpiredSessionWarning();
+            if (_sessionService.CurrentUser is not { } user)
+                return;
+
+            // This ViewModel lives with the shell across account switches. Clear the
+            // previous person's drafts before any request for the new person starts;
+            // a failed load must never leave another user's scratchpad visible.
+            if (_loadedUserId != user.Id)
+                ResetForUser(user.Id);
+
+            // Deliberately sequential and independently published. The previous
+            // Task.WhenAll implementation made either request all-or-nothing: a
+            // failure loading Tomorrow's Agenda discarded a successfully loaded
+            // Today's Work result and made saved text look deleted. It also opened
+            // two LocalDB readers during the cold-start path.
+            var todayLoaded = await TryLoadTodayAsync(user.Id);
+            var tomorrowLoaded = await TryLoadTomorrowAsync(user.Id);
+            ClearExpiredSessionWarning();
+            if (todayLoaded || tomorrowLoaded)
                 StartScratchpadTimer();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"ScratchpadViewModel.InitializeAsync failed: {ex.Message}");
-                MessageBox.Show(
-                    "Sati encountered an error loading your scratchpad.",
-                    "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
         }
 
         // -------------------------------------------------------------------------
@@ -230,6 +226,80 @@ namespace Sati.ViewModels.Children
                 await SaveAllScratchpadsAsync();
             };
             _scratchpadTimer.Start();
+        }
+
+        private async Task<bool> TryLoadTodayAsync(int userId)
+        {
+            try
+            {
+                var loaded = await _scratchpadService.LoadTodayAsync(userId);
+                _scratchpad = loaded;
+                _lastSavedScratchpadContent = loaded.Content;
+                ScratchpadContent = loaded.Content;
+                HasScratchpadConflict = false;
+                ScratchpadConflictMessage = string.Empty;
+                HasScratchpadLoadError = false;
+                ScratchpadLoadErrorMessage = string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Today's Work load failed: {ex.Message}");
+                var reference = AppErrorLog.Record(ex, "scratchpad.load.today");
+                HasScratchpadLoadError = true;
+                ScratchpadLoadErrorMessage =
+                    "Today's Work could not be loaded. Nothing was replaced or saved. " +
+                    $"Choose Retry. Support reference: {reference}.";
+                return false;
+            }
+        }
+
+        private async Task<bool> TryLoadTomorrowAsync(int userId)
+        {
+            try
+            {
+                var loaded = await _scratchpadService.LoadTomorrowAsync(userId);
+                _tomorrowAgenda = loaded;
+                _lastSavedTomorrowAgendaContent = loaded.Content;
+                TomorrowAgendaContent = loaded.Content;
+                TomorrowAgendaDateLabel = FormatAgendaDate(loaded.Date);
+                HasTomorrowAgendaConflict = false;
+                TomorrowAgendaConflictMessage = string.Empty;
+                HasTomorrowAgendaLoadError = false;
+                TomorrowAgendaLoadErrorMessage = string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Tomorrow's Agenda load failed: {ex.Message}");
+                var reference = AppErrorLog.Record(ex, "scratchpad.load.tomorrow");
+                HasTomorrowAgendaLoadError = true;
+                TomorrowAgendaLoadErrorMessage =
+                    "Tomorrow's Agenda could not be loaded. Nothing was replaced or saved. " +
+                    $"Choose Retry. Support reference: {reference}.";
+                return false;
+            }
+        }
+
+        private void ResetForUser(int userId)
+        {
+            _scratchpadTimer?.Stop();
+            _loadedUserId = userId;
+            _scratchpad = null;
+            _tomorrowAgenda = null;
+            _lastSavedScratchpadContent = string.Empty;
+            _lastSavedTomorrowAgendaContent = string.Empty;
+            ScratchpadContent = string.Empty;
+            TomorrowAgendaContent = string.Empty;
+            TomorrowAgendaDateLabel = "Next workday";
+            HasScratchpadConflict = false;
+            ScratchpadConflictMessage = string.Empty;
+            HasTomorrowAgendaConflict = false;
+            TomorrowAgendaConflictMessage = string.Empty;
+            HasScratchpadLoadError = false;
+            ScratchpadLoadErrorMessage = string.Empty;
+            HasTomorrowAgendaLoadError = false;
+            TomorrowAgendaLoadErrorMessage = string.Empty;
         }
 
         private async Task<bool> SaveTodayCoreAsync()

@@ -162,26 +162,49 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <Border Margin="0,0,0,8"
-                                Padding="8"
-                                Background="{DynamicResource WarningFillBrush}"
-                                BorderBrush="{DynamicResource WarningBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Visibility="{Binding HasScratchpadConflict,
-                                                     Converter={StaticResource BoolToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding ScratchpadConflictMessage}"
-                                           Foreground="{DynamicResource WarningBrush}"
-                                           TextWrapping="Wrap" />
-                                <Button Margin="0,8,0,0"
-                                        Padding="8,4"
-                                        HorizontalAlignment="Left"
-                                        Content="Reload Latest"
-                                        Command="{Binding ReloadLatestScratchpadCommand}"
-                                        AutomationProperties.Name="Reload latest Today's Work" />
-                            </StackPanel>
-                        </Border>
+                        <StackPanel>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource WarningFillBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    AutomationProperties.LiveSetting="Assertive"
+                                    Visibility="{Binding HasScratchpadLoadError,
+                                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ScratchpadLoadErrorMessage}"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap" />
+                                    <Button Margin="0,8,0,0"
+                                            Padding="8,4"
+                                            HorizontalAlignment="Left"
+                                            Content="Retry"
+                                            Command="{Binding ReloadLatestScratchpadCommand}"
+                                            AutomationProperties.Name="Retry loading Today's Work" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource WarningFillBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Visibility="{Binding HasScratchpadConflict,
+                                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ScratchpadConflictMessage}"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap" />
+                                    <Button Margin="0,8,0,0"
+                                            Padding="8,4"
+                                            HorizontalAlignment="Left"
+                                            Content="Reload Latest"
+                                            Command="{Binding ReloadLatestScratchpadCommand}"
+                                            AutomationProperties.Name="Reload latest Today's Work" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         <TextBox x:Name="TodaysWorkBox"
                                  Grid.Row="1"
                                  AutomationProperties.Name="Today's Work"
@@ -204,27 +227,49 @@
                                    Margin="2,0,0,8"
                                    FontSize="11"
                                    Foreground="{DynamicResource TextMutedBrush}" />
-                        <Border Grid.Row="1"
-                                Margin="0,0,0,8"
-                                Padding="8"
-                                Background="{DynamicResource WarningFillBrush}"
-                                BorderBrush="{DynamicResource WarningBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Visibility="{Binding HasTomorrowAgendaConflict,
-                                                     Converter={StaticResource BoolToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding TomorrowAgendaConflictMessage}"
-                                           Foreground="{DynamicResource WarningBrush}"
-                                           TextWrapping="Wrap" />
-                                <Button Margin="0,8,0,0"
-                                        Padding="8,4"
-                                        HorizontalAlignment="Left"
-                                        Content="Reload Latest"
-                                        Command="{Binding ReloadLatestTomorrowAgendaCommand}"
-                                        AutomationProperties.Name="Reload latest Tomorrow's Agenda" />
-                            </StackPanel>
-                        </Border>
+                        <StackPanel Grid.Row="1">
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource WarningFillBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    AutomationProperties.LiveSetting="Assertive"
+                                    Visibility="{Binding HasTomorrowAgendaLoadError,
+                                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding TomorrowAgendaLoadErrorMessage}"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap" />
+                                    <Button Margin="0,8,0,0"
+                                            Padding="8,4"
+                                            HorizontalAlignment="Left"
+                                            Content="Retry"
+                                            Command="{Binding ReloadLatestTomorrowAgendaCommand}"
+                                            AutomationProperties.Name="Retry loading Tomorrow's Agenda" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource WarningFillBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Visibility="{Binding HasTomorrowAgendaConflict,
+                                                         Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding TomorrowAgendaConflictMessage}"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap" />
+                                    <Button Margin="0,8,0,0"
+                                            Padding="8,4"
+                                            HorizontalAlignment="Left"
+                                            Content="Reload Latest"
+                                            Command="{Binding ReloadLatestTomorrowAgendaCommand}"
+                                            AutomationProperties.Name="Reload latest Tomorrow's Agenda" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         <TextBox x:Name="TomorrowAgendaBox"
                                  Grid.Row="2"
                                  AutomationProperties.Name="Tomorrow's Agenda for the next workday"

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services;
 using Sati.ViewModels.Children;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -55,6 +56,8 @@ namespace Sati.ViewModels
         [ObservableProperty] private bool _isComplianceDialogVisible;
         [ObservableProperty] private string _pendingJustification = string.Empty;
         [ObservableProperty] private IReadOnlyList<string> _complianceFailureReasons = [];
+        [ObservableProperty] private bool _hasLoadError;
+        [ObservableProperty] private string _loadErrorMessage = string.Empty;
 
         public event EventHandler? NoteStatusChanged;
 
@@ -263,57 +266,65 @@ namespace Sati.ViewModels
         }
 
         // METHODS
-        private async Task LoadAsync()
-        {
-            var userId = _sessionService.CurrentUser!.Id;
-            var people = await LoadPeopleWithFullNotesAsync(userId);
-
-            foreach (var person in people)
-            {
-                FilterPeople.Add(person);
-                foreach (var note in person.Notes)
-                    _allNotes.Add(note);
-            }
-        }
-
+        [RelayCommand]
         public async Task ReloadAsync()
         {
-            _allNotes.Clear();
-            FilterPeople.Clear();
-            FilterPeople.Add(AllPersonsSentinel);
-
-            var userId = _sessionService.CurrentUser!.Id;
-            var people = await LoadPeopleWithFullNotesAsync(userId);
-
-            foreach (var person in people)
+            try
             {
-                FilterPeople.Add(person);
-                foreach (var note in person.Notes)
-                    _allNotes.Add(note);
+                var userId = _sessionService.CurrentUser?.Id
+                    ?? throw new InvalidOperationException("A signed-in user is required to load notes.");
+                var people = await LoadPeopleWithFullNotesAsync(userId);
+
+                // Publish only after the full replacement is available. A failed
+                // refresh leaves the previously loaded notes visible rather than
+                // clearing the screen and then throwing through shell startup.
+                _allNotes.Clear();
+                FilterPeople.Clear();
+                FilterPeople.Add(AllPersonsSentinel);
+                foreach (var person in people)
+                {
+                    FilterPeople.Add(person);
+                    foreach (var note in person.Notes)
+                        _allNotes.Add(note);
+                }
+
+                // Real people only — the sentinel would render as a bogus "All Persons"
+                // client in the module's combobox.
+                NoteEntry.SetPeople(people);
+
+                NotesView.Refresh();
+                OnPropertyChanged(nameof(ReturnedCount));
+                OnPropertyChanged(nameof(HeldCount));
+                OnPropertyChanged(nameof(HasReturned));
+                OnPropertyChanged(nameof(HasHeld));
+                OnPropertyChanged(nameof(HasAttentionItems));
+                HasLoadError = false;
+                LoadErrorMessage = string.Empty;
             }
-
-            // Real people only — the sentinel would render as a bogus "All Persons"
-            // client in the module's combobox.
-            NoteEntry.SetPeople(people);
-
-            NotesView.Refresh();
-            OnPropertyChanged(nameof(ReturnedCount));
-            OnPropertyChanged(nameof(HeldCount));
-            OnPropertyChanged(nameof(HasReturned));
-            OnPropertyChanged(nameof(HasHeld));
-            OnPropertyChanged(nameof(HasAttentionItems));
+            catch (Exception ex)
+            {
+                var reference = AppErrorLog.Record(ex, "notes-log.load");
+                HasLoadError = true;
+                LoadErrorMessage =
+                    "The notes log could not be loaded. Your other workspaces are still available. " +
+                    $"Choose Retry. Support reference: {reference}.";
+            }
         }
 
         private async Task<List<Person>> LoadPeopleWithFullNotesAsync(int userId)
         {
             var people = await _personService.GetAllPeopleAsync(userId);
-            await Task.WhenAll(people.Select(async person =>
+            // A case manager with dozens of consumers previously opened one
+            // DbContext/query per consumer at once. On cold LocalDB starts that
+            // exhausted the database grant and escaped through shell initialization.
+            // Reliability matters more than shaving milliseconds off login.
+            foreach (var person in people)
             {
                 var notes = await _noteService.GetAllByPersonAsync(person.Id);
                 foreach (var note in notes)
                     note.Person = person;
                 person.Notes = notes;
-            }));
+            }
             return people;
         }
 

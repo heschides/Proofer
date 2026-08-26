@@ -6,7 +6,7 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Calendar reminders and consumer filters";
+    public const string ReleaseName = "Calendar reminders, consumer filters, and reliability";
     public const string ReleaseDate = "August 26, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
@@ -31,6 +31,13 @@ public static class ProductReleaseNotes
                 "Selecting a calendar date now opens a focused day view with the notes logged for that date, their client, narrative, service time, duration, status, and daily totals.",
                 "Calendar loading and exemption changes now show a retryable message when something goes wrong instead of allowing one failed action to cascade into an application crash.",
                 "Fast year changes cannot let an older response replace the year you most recently selected, and refreshed calendar data keeps the selected date in focus."
+            ]),
+        new(
+            "Reliable login and scratchpad recovery",
+            [
+                "Today's Work and Tomorrow's Agenda now load independently, so a problem loading one cannot hide successfully loaded content from the other.",
+                "Scratchpad and notes-log reads are sequenced during login to avoid overwhelming the local database when it first starts.",
+                "A failed scratchpad or notes-log read stays contained and displays a Retry action; it does not replace or save the scratchpad with blank text."
             ]),
         new(
             "Future reminders",

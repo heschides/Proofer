@@ -49,6 +49,75 @@ public sealed class ConcurrencySafetyTests
     }
 
     [Fact]
+    public async Task ScratchpadInitializationDoesNotOverlapDatabaseReads()
+    {
+        var service = new LoadTrackingScratchpadService();
+        var viewModel = new ScratchpadViewModel(
+            service,
+            CreateSession(UserRole.CaseManager));
+
+        await viewModel.InitializeAsync();
+
+        Assert.Equal(1, service.MaximumConcurrentLoads);
+        Assert.Equal(["today", "tomorrow"], service.LoadOrder);
+    }
+
+    [Fact]
+    public async Task TomorrowLoadFailureDoesNotHideSuccessfullyLoadedToday()
+    {
+        var service = new PartiallyFailingScratchpadService();
+        var viewModel = new ScratchpadViewModel(
+            service,
+            CreateSession(UserRole.CaseManager));
+
+        await viewModel.InitializeAsync();
+
+        Assert.Equal("saved work for today", viewModel.ScratchpadContent);
+        Assert.False(viewModel.HasScratchpadLoadError);
+        Assert.True(viewModel.HasTomorrowAgendaLoadError);
+        Assert.Contains("Nothing was replaced or saved", viewModel.TomorrowAgendaLoadErrorMessage);
+    }
+
+    [Fact]
+    public async Task NotesLogDoesNotFanOutOneDatabaseReadPerConsumer()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var notes = new LoadTrackingNoteService();
+        var session = new SessionService();
+        session.SetUser(fixture.CaseManagerOne);
+        var viewModel = new NotesWindowViewModel(
+            fixture.PeopleAs(fixture.CaseManagerOne),
+            session,
+            notes,
+            fixture.NoteEntry(notes: notes));
+
+        await viewModel.ReloadAsync();
+
+        Assert.Equal(1, notes.MaximumConcurrentLoads);
+        Assert.Equal(2, notes.LoadCalls);
+    }
+
+    [Fact]
+    public async Task NotesLogLoadFailureIsContainedForShellStartup()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var notes = new FailingNoteService();
+        var session = new SessionService();
+        session.SetUser(fixture.CaseManagerOne);
+        var viewModel = new NotesWindowViewModel(
+            fixture.PeopleAs(fixture.CaseManagerOne),
+            session,
+            notes,
+            fixture.NoteEntry(notes: notes));
+
+        var failure = await Record.ExceptionAsync(viewModel.ReloadAsync);
+
+        Assert.Null(failure);
+        Assert.True(viewModel.HasLoadError);
+        Assert.Contains("other workspaces are still available", viewModel.LoadErrorMessage);
+    }
+
+    [Fact]
     public async Task ScratchpadFlushSavesTodayAndTomorrow()
     {
         var service = new BlockingScratchpadService();
@@ -239,6 +308,105 @@ public sealed class ConcurrencySafetyTests
                 Interlocked.Decrement(ref _concurrent);
             }
         }
+    }
+
+    private sealed class LoadTrackingScratchpadService : IScratchpadService
+    {
+        private int _concurrentLoads;
+        public int MaximumConcurrentLoads { get; private set; }
+        public List<string> LoadOrder { get; } = [];
+
+        public Task<Scratchpad> LoadTodayAsync(int userId) => LoadAsync(userId, "today", 1, DateTime.Today);
+
+        public Task<Scratchpad> LoadTomorrowAsync(int userId) =>
+            LoadAsync(userId, "tomorrow", 2, DateTime.Today.AddDays(1));
+
+        private async Task<Scratchpad> LoadAsync(int userId, string name, int id, DateTime date)
+        {
+            var concurrent = Interlocked.Increment(ref _concurrentLoads);
+            MaximumConcurrentLoads = Math.Max(MaximumConcurrentLoads, concurrent);
+            LoadOrder.Add(name);
+            try
+            {
+                await Task.Delay(50);
+                return new Scratchpad { Id = id, UserId = userId, Date = date, Revision = 1 };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _concurrentLoads);
+            }
+        }
+
+        public Task<List<Scratchpad>> GetHistoryAsync(int userId) => Task.FromResult(new List<Scratchpad>());
+        public Task<ScratchpadComment> AddCommentAsync(
+            int scratchpadId, int userId, string authorDisplayName, string content) =>
+            throw new NotSupportedException();
+        public Task SaveAsync(Scratchpad scratchpad) => Task.CompletedTask;
+    }
+
+    private sealed class LoadTrackingNoteService : INoteService
+    {
+        private int _concurrentLoads;
+        public int MaximumConcurrentLoads { get; private set; }
+        public int LoadCalls { get; private set; }
+
+        public async Task<List<Note>> GetAllByPersonAsync(int personId)
+        {
+            LoadCalls++;
+            var concurrent = Interlocked.Increment(ref _concurrentLoads);
+            MaximumConcurrentLoads = Math.Max(MaximumConcurrentLoads, concurrent);
+            try
+            {
+                await Task.Delay(50);
+                return [];
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _concurrentLoads);
+            }
+        }
+
+        public Task<Note> AddNoteAsync(Note note) => throw new NotSupportedException();
+        public Task DeleteNoteAsync(Note note) => throw new NotSupportedException();
+        public Task UpdateNoteAsync(Note note) => throw new NotSupportedException();
+        public Task UpdateAbandonedNotesAsync(int abandonedAfterDays) => throw new NotSupportedException();
+        public Task<List<Note>> GetMonthlyNotesAsync(int userId) => throw new NotSupportedException();
+        public Task<List<Note>> GetByYearAsync(int userId, int year) => throw new NotSupportedException();
+        public Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date) => throw new NotSupportedException();
+    }
+
+    private sealed class PartiallyFailingScratchpadService : IScratchpadService
+    {
+        public Task<Scratchpad> LoadTodayAsync(int userId) => Task.FromResult(new Scratchpad
+        {
+            Id = 1,
+            UserId = userId,
+            Date = DateTime.Today,
+            Content = "saved work for today",
+            Revision = 1
+        });
+
+        public Task<Scratchpad> LoadTomorrowAsync(int userId) =>
+            Task.FromException<Scratchpad>(new InvalidOperationException("Simulated database startup failure."));
+
+        public Task<List<Scratchpad>> GetHistoryAsync(int userId) => Task.FromResult(new List<Scratchpad>());
+        public Task<ScratchpadComment> AddCommentAsync(
+            int scratchpadId, int userId, string authorDisplayName, string content) =>
+            throw new NotSupportedException();
+        public Task SaveAsync(Scratchpad scratchpad) => Task.CompletedTask;
+    }
+
+    private sealed class FailingNoteService : INoteService
+    {
+        public Task<List<Note>> GetAllByPersonAsync(int personId) =>
+            Task.FromException<List<Note>>(new InvalidOperationException("Simulated database startup failure."));
+        public Task<Note> AddNoteAsync(Note note) => throw new NotSupportedException();
+        public Task DeleteNoteAsync(Note note) => throw new NotSupportedException();
+        public Task UpdateNoteAsync(Note note) => throw new NotSupportedException();
+        public Task UpdateAbandonedNotesAsync(int abandonedAfterDays) => throw new NotSupportedException();
+        public Task<List<Note>> GetMonthlyNotesAsync(int userId) => throw new NotSupportedException();
+        public Task<List<Note>> GetByYearAsync(int userId, int year) => throw new NotSupportedException();
+        public Task<List<Note>> GetDayScheduleAsync(int userId, DateTime date) => throw new NotSupportedException();
     }
 
     private sealed class ExpiredScratchpadService : IScratchpadService

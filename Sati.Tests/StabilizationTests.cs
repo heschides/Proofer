@@ -517,7 +517,7 @@ public sealed class StabilizationTests
 
         Assert.Equal("1.2.25", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Calendar reminders and consumer filters", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Calendar reminders, consumer filters, and reliability", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Consumer responsibilities" &&
@@ -528,6 +528,10 @@ public sealed class StabilizationTests
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "A steadier, more useful calendar" &&
             section.Items.Any(item => item.Contains("focused day", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Reliable login and scratchpad recovery" &&
+            section.Items.Any(item => item.Contains("cannot hide", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Retry", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Future reminders" &&
             section.Items.Any(item => item.Contains("Scheduled Reminder", StringComparison.OrdinalIgnoreCase)));
