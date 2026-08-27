@@ -11,9 +11,16 @@
       note narrative and Scratchpad and kept separate by Windows profile, user, and environment.
 - [x] Advance the desktop, API, installer builders, readiness gate, and Settings release tracker to
       1.2.26 together.
-- [ ] Publish API 1.2.26 and verify liveness, readiness, release version, and contract parity.
-- [ ] Generate and acceptance-test `SatiDemoSetup-1.2.26.exe` and
-      `SatiLocalSetup-1.2.26.exe`, then record their final SHA-256 values.
+- [x] Publish API 1.2.26 with OneDeploy deployment `a479609851bd47f1934a9f75a4770433`.
+      Liveness and readiness are healthy, `/health/version` reports 1.2.26, and deployed contract
+      revision `15D50B6C6B29` matches the client. API ZIP SHA-256 is
+      `AFEBAC10D7BA0496743F147FE18591E66C35B235A5C66D5A429D859A02C1CE3C`.
+- [x] Generate and acceptance-test `SatiDemoSetup-1.2.26.exe` (SHA-256
+      `2b62e9c8434d70ccbb822d733ce4dc3fb52b530c63385909aae341f2835e5d24`) and
+      `SatiLocalSetup-1.2.26.exe` (SHA-256
+      `3e09b4be02946a63356511c0c9a0477db8568bc56d25e051e62de61989757341`). Demo acceptance passed
+      five responsive launches, normal closes, version 1.2.26.0, and cleanup; Local acceptance
+      passed version, Microsoft-signed LocalDB, integrated-security, and cleanup checks.
 
 ## Release 1.2.25 — 2026-08-26
 
