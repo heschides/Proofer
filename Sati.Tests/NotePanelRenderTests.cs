@@ -1,4 +1,5 @@
 using Sati.Models;
+using Sati.Services;
 using Sati.ViewModels;
 using Sati.ViewModels.Children;
 using Sati.Views;
@@ -82,6 +83,7 @@ public sealed class NotePanelRenderTests
 
             var narrative = WpfUiHarness.FindByAutomationName<TextBox>(view, "Note narrative");
             Assert.True(narrative.IsReadOnly);
+            Assert.True(TextShortcutTarget.GetIsEnabled(narrative));
 
             // The whole point of choosing IsReadOnly over IsEnabled=False: the
             // record stays legible, focusable, selectable and copyable while locked.
@@ -212,6 +214,35 @@ public sealed class NotePanelRenderTests
             panel.ToggleLockCommand.Execute(null);
             WpfUiHarness.Realize(view);
             Assert.True(attendee.IsEnabled);
+        });
+    }
+
+    [Fact]
+    public async Task VisitSettingAllowsSeveralCheckedChoices()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var panel = fixture.NoteEntry();
+        panel.SelectedNoteType = NoteType.Visit;
+
+        WpfUiHarness.Run(() =>
+        {
+            var view = new NoteEntryView { DataContext = panel };
+            WpfUiHarness.Realize(view);
+
+            var home = WpfUiHarness.FindByAutomationName<CheckBox>(
+                view, "Meeting setting: Consumer's home");
+            var community = WpfUiHarness.FindByAutomationName<CheckBox>(
+                view, "Meeting setting: Community setting");
+
+            home.IsChecked = true;
+            community.IsChecked = true;
+
+            Assert.True(home.IsChecked);
+            Assert.True(community.IsChecked);
+            Assert.True(panel.VisitSettingOptions.Single(option =>
+                option.Value == VisitSetting.ConsumerHome).IsSelected);
+            Assert.True(panel.VisitSettingOptions.Single(option =>
+                option.Value == VisitSetting.Community).IsSelected);
         });
     }
 

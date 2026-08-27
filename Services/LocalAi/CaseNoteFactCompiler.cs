@@ -115,44 +115,38 @@ internal static partial class CaseNoteFactCompiler
                 RequiredTerms: visit.ConsumerPresent.Value ? ["consumer", "present"] : ["consumer", "not present"]));
         }
 
-        var setting = visit.Setting switch
-        {
-            VisitSetting.ConsumerHome => "The meeting occurred in the consumer's home.",
-            VisitSetting.Community => "The meeting occurred in a community setting.",
-            VisitSetting.AgencyOffice => "The meeting occurred at the agency office.",
-            VisitSetting.ProviderLocation => "The meeting occurred at a provider location.",
-            VisitSetting.Other => "The meeting occurred in another setting described by the case manager.",
-            _ => null
-        };
-        AddOptional(facts, "VISIT-SETTING", setting, "Meeting selection", SettingTerms(visit.Setting));
+        AppendSelections(
+            facts,
+            "VISIT-SETTING",
+            visit.EffectiveSettings(),
+            SettingText,
+            SettingTerms,
+            "Meeting selection");
         AddOptional(facts, "VISIT-SETTING-DETAIL", visit.SettingDetails, "Meeting detail");
 
-        var appearance = visit.Appearance switch
-        {
-            VisitAppearance.NeatAndAppropriatelyDressed => "The consumer was observed to be neat and appropriately dressed.",
-            VisitAppearance.ConcernObserved => "An appearance concern was observed.",
-            VisitAppearance.NotObserved => "The consumer's appearance was not observed.",
-            _ => null
-        };
-        AddOptional(facts, "VISIT-APPEARANCE", appearance, "Observation selection", AppearanceTerms(visit.Appearance));
+        AppendSelections(
+            facts,
+            "VISIT-APPEARANCE",
+            visit.EffectiveAppearances(),
+            AppearanceText,
+            AppearanceTerms,
+            "Observation selection");
 
-        var participation = visit.Participation switch
-        {
-            VisitParticipation.ParticipatedThroughout => "The consumer participated throughout the meeting.",
-            VisitParticipation.ParticipatedWithSupport => "The consumer participated with support.",
-            VisitParticipation.LimitedParticipation => "The consumer's participation was limited.",
-            VisitParticipation.Declined => "The consumer declined to participate.",
-            _ => null
-        };
-        AddOptional(facts, "VISIT-PARTICIPATION", participation, "Participation selection", ParticipationTerms(visit.Participation));
+        AppendSelections(
+            facts,
+            "VISIT-PARTICIPATION",
+            visit.EffectiveParticipations(),
+            ParticipationText,
+            ParticipationTerms,
+            "Participation selection");
 
-        var safety = visit.SafetyObservation switch
-        {
-            VisitSafetyObservation.NoConcernsObserved => "No health or safety concerns were observed.",
-            VisitSafetyObservation.ConcernObserved => "A health or safety concern was observed.",
-            _ => null
-        };
-        AddOptional(facts, "VISIT-SAFETY", safety, "Observation selection", SafetyTerms(visit.SafetyObservation));
+        AppendSelections(
+            facts,
+            "VISIT-SAFETY",
+            visit.EffectiveSafetyObservations(),
+            SafetyText,
+            SafetyTerms,
+            "Observation selection");
 
         for (var index = 0; index < visit.Attendees.Count; index++)
         {
@@ -195,6 +189,31 @@ internal static partial class CaseNoteFactCompiler
             facts.Add(new(id, text, "Meeting selection", CaseNoteFactUsage.Narrative, RequiredTerms: requiredTerms));
     }
 
+    private static void AppendSelections<T>(
+        ICollection<CaseNoteDraftFact> facts,
+        string baseId,
+        IReadOnlyList<T> selections,
+        Func<T, string?> describe,
+        Func<T, IReadOnlyList<string>?> requiredTerms,
+        string category)
+    {
+        var documented = selections
+            .Select(selection => new
+            {
+                Text = describe(selection),
+                RequiredTerms = requiredTerms(selection)
+            })
+            .Where(selection => !string.IsNullOrWhiteSpace(selection.Text))
+            .ToList();
+
+        for (var index = 0; index < documented.Count; index++)
+        {
+            var selection = documented[index];
+            var id = index == 0 ? baseId : $"{baseId}-{index + 1:000}";
+            AddOptional(facts, id, selection.Text, category, selection.RequiredTerms);
+        }
+    }
+
     private static void AddOptional(
         ICollection<CaseNoteDraftFact> facts,
         string id,
@@ -216,11 +235,29 @@ internal static partial class CaseNoteFactCompiler
         _ => null
     };
 
+    private static string? SettingText(VisitSetting value) => value switch
+    {
+        VisitSetting.ConsumerHome => "The meeting occurred in the consumer's home.",
+        VisitSetting.Community => "The meeting occurred in a community setting.",
+        VisitSetting.AgencyOffice => "The meeting occurred at the agency office.",
+        VisitSetting.ProviderLocation => "The meeting occurred at a provider location.",
+        VisitSetting.Other => "The meeting occurred in another setting described by the case manager.",
+        _ => null
+    };
+
     private static IReadOnlyList<string>? AppearanceTerms(VisitAppearance value) => value switch
     {
         VisitAppearance.NeatAndAppropriatelyDressed => ["neat", "appropriately dressed"],
         VisitAppearance.ConcernObserved => ["appearance concern", "observed"],
         VisitAppearance.NotObserved => ["appearance", "not observed"],
+        _ => null
+    };
+
+    private static string? AppearanceText(VisitAppearance value) => value switch
+    {
+        VisitAppearance.NeatAndAppropriatelyDressed => "The consumer was observed to be neat and appropriately dressed.",
+        VisitAppearance.ConcernObserved => "An appearance concern was observed.",
+        VisitAppearance.NotObserved => "The consumer's appearance was not observed.",
         _ => null
     };
 
@@ -233,10 +270,26 @@ internal static partial class CaseNoteFactCompiler
         _ => null
     };
 
+    private static string? ParticipationText(VisitParticipation value) => value switch
+    {
+        VisitParticipation.ParticipatedThroughout => "The consumer participated throughout the meeting.",
+        VisitParticipation.ParticipatedWithSupport => "The consumer participated with support.",
+        VisitParticipation.LimitedParticipation => "The consumer's participation was limited.",
+        VisitParticipation.Declined => "The consumer declined to participate.",
+        _ => null
+    };
+
     private static IReadOnlyList<string>? SafetyTerms(VisitSafetyObservation value) => value switch
     {
         VisitSafetyObservation.NoConcernsObserved => ["no health or safety concerns", "observed"],
         VisitSafetyObservation.ConcernObserved => ["health or safety concern", "observed"],
+        _ => null
+    };
+
+    private static string? SafetyText(VisitSafetyObservation value) => value switch
+    {
+        VisitSafetyObservation.NoConcernsObserved => "No health or safety concerns were observed.",
+        VisitSafetyObservation.ConcernObserved => "A health or safety concern was observed.",
         _ => null
     };
 

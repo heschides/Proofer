@@ -324,7 +324,7 @@ preflight procedures are reproducible through `scripts/Publish-Demo.ps1`,
 | `Note` | `Sati.Models` | Service note — visit, contact, form completion, or other. |
 | `User` | `Sati.Models` | Staff member. Has role, supervisor chain, and agency affiliation. |
 | `Agency` | `Sati.Models` | Billing/provider entity. Referenced by both `Person` and `User`. |
-| `Settings` | `Sati.Models` | Agency-scoped configuration. User overrides are not currently modeled. |
+| `Settings` | `Sati.Models` | Agency-scoped business configuration. Personal UI preferences remain outside this model. |
 | `Incentive` | `Sati.Models` | Monthly productivity snapshot. Per-user, per-month. |
 | `Scratchpad` | `Sati.Models` | Daily freeform notes. Per-user, per-date. |
 | `ExemptDate` | `Sati.Models` | Manual workday exclusions. Per-user. Canonical store for day exclusions. |
@@ -651,7 +651,17 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   none exists. `SaveAsync` refuses to update a row outside the current agency and rejects an older
   `Revision` rather than silently replacing a newer administrator's changes. The API mirrors this
   with `409 stale_settings`, and successful revision advancement shares the same save transaction as
-  the audit event. User-specific overrides are deliberately absent until a concrete requirement exists.
+  the audit event. Agency/business-setting overrides remain deliberately absent; personal text-entry
+  shortcuts are a separate client-local preference and never travel through this service.
+
+### `TextShortcutService` / `TextShortcutHook`
+- Owns ten personal, client-local snippets keyed by Sati environment and signed-in user inside the
+  current Windows profile. Each value is limited to 200 characters. This is typing assistance, not
+  an agency configuration or clinical record, so it does not use the Settings API or weaken its
+  Admin authorization boundary.
+- The keyboard hook handles Win+Shift+number only while the Sati shell is active, a non-empty mapping
+  exists, and an explicitly marked editable note narrative or Scratchpad `TextBox` has focus. Every
+  other key event is passed through to Windows unchanged. Snippet text is never diagnostic-log data.
 
 ### `ScratchpadService`
 - Owns one dated Scratchpad per user plus append-only retrospective comments. Today's Work loads
@@ -773,7 +783,9 @@ rather than in either client.
 
 ### Deferred Design Decisions
 
-- **`Settings` is per-agency, not per-user.** Add user overrides only for a concrete requirement.
+- **`Settings` is per-agency, not per-user.** Personal text-entry shortcuts are the concrete
+  user-specific requirement, but remain client-local UI preferences rather than overrides to the
+  agency business-settings model.
 - **`HealthcareSystemName` on `Person` is denormalized by design.** Three seams pre-cut. Read the
   comments before "fixing."
 - **`Incentive.ExcludedDatesJson` superseded** by `ExemptDate`; rollback pending `SchedulerViewModel`

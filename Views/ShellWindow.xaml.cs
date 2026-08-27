@@ -25,6 +25,8 @@ namespace Sati.Views
         private readonly ApplicationRunState _applicationRunState;
         private readonly DatabaseActivityViewModel _databaseActivity;
         private readonly Func<DatabasePatienceWindow> _databasePatienceWindowFactory;
+        private readonly TextShortcutService _textShortcutService;
+        private readonly TextShortcutHook _textShortcutHook;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
         private DatabasePatienceWindow? _databasePatienceWindow;
         private bool _isSavingOnClose;
@@ -48,6 +50,8 @@ namespace Sati.Views
             Func<MyAccountWindow> myAccountWindowFactory,
             Func<MyAccountViewModel> myAccountViewModelFactory,
             Func<DatabasePatienceWindow> databasePatienceWindowFactory,
+            TextShortcutService textShortcutService,
+            TextShortcutHook textShortcutHook,
             SessionKeepAlive? sessionKeepAlive = null)
         {
             InitializeComponent();
@@ -64,7 +68,16 @@ namespace Sati.Views
             _myAccountViewModelFactory = myAccountViewModelFactory;
             _databaseActivity = shellViewModel.DatabaseActivity;
             _databasePatienceWindowFactory = databasePatienceWindowFactory;
+            _textShortcutService = textShortcutService;
+            _textShortcutHook = textShortcutHook;
             DataContext = shellViewModel;
+
+            Loaded += async (_, _) =>
+            {
+                if (_sessionService.CurrentUser is { } currentUser)
+                    await _textShortcutService.LoadForUserAsync(currentUser.Id);
+                _textShortcutHook.Start(this);
+            };
 
             _databaseActivity.PropertyChanged += OnDatabaseActivityPropertyChanged;
             _sessionLifetime.SessionEnded += OnSessionEnded;
@@ -231,6 +244,7 @@ namespace Sati.Views
             Closed += (s, e) =>
             {
                 _databaseActivity.PropertyChanged -= OnDatabaseActivityPropertyChanged;
+                _textShortcutHook.Dispose();
                 CloseDatabasePatienceWindow();
                 Application.Current.Shutdown();
             };
@@ -339,6 +353,7 @@ namespace Sati.Views
                 }
 
                 _sessionService.SetUser(user);
+                await _textShortcutService.LoadForUserAsync(user.Id);
                 await _applicationRunState.StartSessionAsync(user, _incidentReporter);
                 await _incidentReporter.FlushAsync();
                 await _shellViewModel.ReinitializeAsync();
@@ -397,6 +412,7 @@ namespace Sati.Views
                 if (result == true && newUser is not null)
                 {
                     _sessionService.SetUser(newUser);
+                    await _textShortcutService.LoadForUserAsync(newUser.Id);
                     await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
                     await _incidentReporter.FlushAsync();
                     await _shellViewModel.ReinitializeAsync();

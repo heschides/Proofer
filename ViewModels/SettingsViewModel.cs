@@ -22,6 +22,7 @@ namespace Sati.ViewModels
         private readonly ThemeService _themeService;
         private readonly ISessionService _sessionService;
         private readonly DatabaseActivityPreview _databaseActivityPreview;
+        private readonly TextShortcutService _textShortcutService;
         private Settings? _settings;
 
         public SettingsViewModel(
@@ -31,6 +32,7 @@ namespace Sati.ViewModels
             ISessionService sessionService,
             DatabaseActivityViewModel databaseActivity,
             DatabaseActivityPreview databaseActivityPreview,
+            TextShortcutService textShortcutService,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -42,8 +44,15 @@ namespace Sati.ViewModels
             _sessionService = sessionService;
             DatabaseActivity = databaseActivity;
             _databaseActivityPreview = databaseActivityPreview;
+            _textShortcutService = textShortcutService;
             selectedTheme = _themeService.CurrentTheme;
-            _ = LoadAsync();
+            TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
+                Enumerable.Range(1, 9)
+                    .Append(0)
+                    .Select(digit => new TextShortcutEditorViewModel(digit)));
+            _ = LoadTextShortcutsAsync();
+            if (CanManageAgencySettings)
+                _ = LoadAsync();
         }
 
         public DatabaseActivityViewModel DatabaseActivity { get; }
@@ -54,12 +63,16 @@ namespace Sati.ViewModels
         public string ReleaseName => ProductReleaseNotes.ReleaseName;
         public string ReleaseDate => ProductReleaseNotes.ReleaseDate;
         public IReadOnlyList<ReleaseNoteSection> ReleaseNoteSections => ProductReleaseNotes.Sections;
+        public ObservableCollection<TextShortcutEditorViewModel> TextShortcuts { get; }
 
         [ObservableProperty]
         private ThemeOption? selectedTheme;
 
         [ObservableProperty]
         private string saveStatus = string.Empty;
+
+        [ObservableProperty]
+        private string textShortcutStatus = string.Empty;
 
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
@@ -88,6 +101,48 @@ namespace Sati.ViewModels
         {
             if (value is not null)
                 _themeService.ApplyTheme(value.ResourceName);
+        }
+
+        private async Task LoadTextShortcutsAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                TextShortcutStatus = "Sign in to load personal text shortcuts.";
+                return;
+            }
+
+            await _textShortcutService.LoadForUserAsync(userId.Value);
+            var texts = _textShortcutService.GetActiveTexts();
+            for (var index = 0; index < TextShortcuts.Count; index++)
+                TextShortcuts[index].Text = texts[index];
+
+            TextShortcutStatus = _textShortcutService.LastLoadWarning ??
+                "Shortcuts are ready for this Sati account.";
+        }
+
+        [RelayCommand]
+        private async Task SaveTextShortcutsAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                TextShortcutStatus = "Sign in before saving personal text shortcuts.";
+                return;
+            }
+
+            TextShortcutStatus = "Saving personal shortcuts...";
+            try
+            {
+                await _textShortcutService.SaveForUserAsync(
+                    userId.Value,
+                    TextShortcuts.Select(shortcut => shortcut.Text).ToList());
+                TextShortcutStatus = "Personal text shortcuts saved.";
+            }
+            catch (Exception exception) when (exception is TextShortcutSaveException or ArgumentException)
+            {
+                TextShortcutStatus = $"Shortcuts were not saved. {exception.Message}";
+            }
         }
 
         // Sales tax as a rate (0.055 = 5.5%), adjustable. Frozen onto AT requests
@@ -413,14 +468,14 @@ namespace Sati.ViewModels
 
         public async Task<bool> TrySaveSettingsAsync()
         {
-            if (_settings is null)
-                return true;
-
             if (!CanManageAgencySettings)
             {
                 SaveStatus = "Only an agency administrator can change operational settings.";
                 return false;
             }
+
+            if (_settings is null)
+                return true;
 
             SaveStatus = "Saving settings...";
 

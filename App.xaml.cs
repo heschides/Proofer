@@ -145,6 +145,8 @@ namespace Sati
                         services.AddTransient<DatabaseActivityHandler>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddSingleton<ThemeService>();
+                        services.AddSingleton<TextShortcutService>();
+                        services.AddSingleton<TextShortcutHook>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 
                         // Shared, not local-only: this is a pure renderer with no injected

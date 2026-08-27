@@ -322,6 +322,93 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Text shortcuts"
+                     Style="{StaticResource SettingsTabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30">
+                        <TextBlock Text="PERSONAL TEXT SHORTCUTS"
+                                   Style="{StaticResource SectionHeader}" />
+                        <Separator />
+
+                        <TextBlock Text="Assign up to 200 characters to each shortcut. While the cursor is in a note narrative or either Scratchpad tab, press Win+Shift and the number to insert that text at the cursor."
+                                   MaxWidth="680"
+                                   HorizontalAlignment="Left"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   LineHeight="18"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8" />
+                        <TextBlock Text="Keep shortcuts general. Do not save names or other client-specific information here. Outside those Sati text boxes, Windows keeps its usual Win+Shift+number behavior."
+                                   MaxWidth="680"
+                                   HorizontalAlignment="Left"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="17"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Margin="0,0,0,18" />
+
+                        <ItemsControl ItemsSource="{Binding TextShortcuts}"
+                                      MaxWidth="720"
+                                      HorizontalAlignment="Left">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="7"
+                                            Padding="12"
+                                            Margin="0,0,12,12">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding CharacterCount}"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding GestureLabel}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AccentBrush}" />
+                                            </DockPanel>
+                                            <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.Name="{Binding GestureLabel, StringFormat=Text inserted by {0}}"
+                                                     MaxLength="200"
+                                                     Width="320"
+                                                     MinHeight="58"
+                                                     Margin="0"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="Wrap"
+                                                     VerticalScrollBarVisibility="Auto" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="Save Personal Shortcuts"
+                                    Command="{Binding SaveTextShortcutsCommand}"
+                                    AutomationProperties.Name="Save personal text shortcuts"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Width="210" />
+                            <TextBlock Text="{Binding TextShortcutStatus}"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Margin="14,0,0,0"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="430"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem Header="Billing &amp; Requests"
                      Visibility="{Binding CanManageAgencySettings, Converter={StaticResource BoolToVisibilityConverter}}"
                      Style="{StaticResource SettingsTabItemStyle}">
@@ -887,7 +974,7 @@
                 BorderThickness="0,1,0,0"
                 Padding="18,12">
             <Grid>
-                <TextBlock Text="Appearance changes are remembered immediately. Agency settings change only when an Admin chooses Save Settings."
+                <TextBlock Text="Appearance changes are remembered immediately. Personal text shortcuts are saved from their own tab. Agency settings remain Admin-only."
                            Visibility="{Binding CanManageAgencySettings, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource TextMutedBrush}"

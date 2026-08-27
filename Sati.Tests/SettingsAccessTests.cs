@@ -37,6 +37,21 @@ public sealed class SettingsAccessTests
         Assert.IsType<CloudApiException>(error.InnerException);
     }
 
+    [Fact]
+    public void PersonalTextShortcutTabIsNotRestrictedToAgencyAdmins()
+    {
+        var view = File.ReadAllText(Path.Combine(RepositoryRoot(), "Views", "SettingsWindow.xaml"));
+        var shortcutTabStart = view.IndexOf("Header=\"Text shortcuts\"", StringComparison.Ordinal);
+        var nextTab = view.IndexOf("<TabItem", shortcutTabStart + 1, StringComparison.Ordinal);
+        var shortcutTab = view[shortcutTabStart..nextTab];
+
+        Assert.DoesNotContain("CanManageAgencySettings", shortcutTab, StringComparison.Ordinal);
+        Assert.Contains("SaveTextShortcutsCommand", shortcutTab, StringComparison.Ordinal);
+    }
+
+    private static string RepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string callerPath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(callerPath)!, ".."));
+
     private sealed class ForbiddenSettingsHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(

@@ -6,45 +6,30 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Calendar reminders, consumer filters, and reliability";
+    public const string ReleaseName = "Faster note entry and clearer Visit details";
     public const string ReleaseDate = "August 26, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Consumer responsibilities",
+            "Personal typing shortcuts",
             [
-                "A consumer profile can now record whether the assigned case manager is the consumer's DHHS representative and whether the consumer uses Modivcare.",
-                "Consumer email is now available alongside phone and address, with email-format validation before it is saved.",
-                "Representative-payee support remains available with its separate monthly-income and recurring-needs profile; these new flags do not authorize a payment or release of funds.",
-                "All profile changes travel through the same tenant checks, revision handling, and consumer lifecycle history as the rest of the consumer record."
+                "Every user can now map Win+Shift+1 through Win+Shift+0 to ten personal text snippets in Settings.",
+                "A shortcut inserts up to 200 characters only into the note narrative or Today's Work and Tomorrow's Agenda Scratchpad editors.",
+                "Mappings stay on this Windows profile and are kept separate for each Sati user and for Demo versus Local Production."
             ]),
         new(
-            "Caseload filtering",
+            "More complete Visit notes",
             [
-                "The Consumers list can now filter to representative-payee or DHHS-representative responsibilities, Modivcare, VR, home supports, community supports, shared living, day programs, and employment supports.",
-                "Filtering changes only what is displayed in the caseload list; it does not expand who may view or edit a consumer."
+                "Visit Setting, Appearance, Participation, and Health/Safety now use checkboxes so more than one observation can be recorded in each group.",
+                "Existing Visit notes remain readable, and newly saved notes retain compatibility with their earlier single-choice format.",
+                "Local drafting assistance now includes every checked Visit observation while keeping the case manager in control of the final narrative."
             ]),
         new(
-            "A steadier, more useful calendar",
+            "Clearer date selection",
             [
-                "Selecting a calendar date now opens a focused day view with the notes logged for that date, their client, narrative, service time, duration, status, and daily totals.",
-                "Calendar loading and exemption changes now show a retryable message when something goes wrong instead of allowing one failed action to cascade into an application crash.",
-                "Fast year changes cannot let an older response replace the year you most recently selected, and refreshed calendar data keeps the selected date in focus."
-            ]),
-        new(
-            "Reliable login and scratchpad recovery",
-            [
-                "Today's Work and Tomorrow's Agenda now load independently, so a problem loading one cannot hide successfully loaded content from the other.",
-                "Scratchpad and notes-log reads are sequenced during login to avoid overwhelming the local database when it first starts.",
-                "A failed scratchpad or notes-log read stays contained and displays a Retry action; it does not replace or save the scratchpad with blank text."
-            ]),
-        new(
-            "Future reminders",
-            [
-                "Choosing a future date while writing a note converts it to a Scheduled Reminder and places it on that calendar date.",
-                "A scheduled reminder keeps the date and narrative but cannot carry service time, minutes, visit facts, review status, productivity, or billing.",
-                "Undated reminders continue to use the client's journal, while dated reminders remain searchable in note history and upcoming work."
+                "Date fields once again show a themed calendar button inside the picker, aligned vertically with the date text.",
+                "The restored button keeps the normal Windows date-picker popup, keyboard operation, and accessible name."
             ]),
         new(
             "Still planned before commercial production",

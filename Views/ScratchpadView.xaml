@@ -1,6 +1,7 @@
 <UserControl x:Class="Sati.Views.ScratchpadView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:services="clr-namespace:Sati.Services">
     <UserControl.Resources>
         <Style x:Key="AgendaTabItemStyle" TargetType="TabItem">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
@@ -206,6 +207,7 @@
                             </Border>
                         </StackPanel>
                         <TextBox x:Name="TodaysWorkBox"
+                                 services:TextShortcutTarget.IsEnabled="True"
                                  Grid.Row="1"
                                  AutomationProperties.Name="Today's Work"
                                  Style="{StaticResource AgendaTextBoxStyle}"
@@ -271,6 +273,7 @@
                             </Border>
                         </StackPanel>
                         <TextBox x:Name="TomorrowAgendaBox"
+                                 services:TextShortcutTarget.IsEnabled="True"
                                  Grid.Row="2"
                                  AutomationProperties.Name="Tomorrow's Agenda for the next workday"
                                  Style="{StaticResource AgendaTextBoxStyle}"

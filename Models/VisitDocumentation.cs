@@ -65,10 +65,18 @@ namespace Sati.Models
     /// </summary>
     public sealed class VisitDocumentation
     {
+        // The singular values are retained for notes written before multi-select
+        // Visit controls existed. New notes also write the collections below; a
+        // current client prefers those collections and falls back to the singular
+        // value when it opens older JSON.
         public VisitSetting Setting { get; set; }
         public VisitAppearance Appearance { get; set; }
         public VisitParticipation Participation { get; set; }
         public VisitSafetyObservation SafetyObservation { get; set; }
+        public List<VisitSetting> Settings { get; set; } = [];
+        public List<VisitAppearance> Appearances { get; set; } = [];
+        public List<VisitParticipation> Participations { get; set; } = [];
+        public List<VisitSafetyObservation> SafetyObservations { get; set; } = [];
 
         // Nullable preserves existing JSON booleans while making new documentation explicit:
         // null means the case manager did not document presence either way.
@@ -85,5 +93,37 @@ namespace Sati.Models
         public string? ObservationDetails { get; set; }
         public string? AdditionalAttendees { get; set; }
         public List<VisitAttendeeSnapshot> Attendees { get; set; } = [];
+
+        public IReadOnlyList<VisitSetting> EffectiveSettings() =>
+            EffectiveSelections(Settings, Setting, VisitSetting.NotDocumented);
+
+        public IReadOnlyList<VisitAppearance> EffectiveAppearances() =>
+            EffectiveSelections(Appearances, Appearance, VisitAppearance.NotDocumented);
+
+        public IReadOnlyList<VisitParticipation> EffectiveParticipations() =>
+            EffectiveSelections(Participations, Participation, VisitParticipation.NotDocumented);
+
+        public IReadOnlyList<VisitSafetyObservation> EffectiveSafetyObservations() =>
+            EffectiveSelections(SafetyObservations, SafetyObservation, VisitSafetyObservation.NotDocumented);
+
+        private static IReadOnlyList<T> EffectiveSelections<T>(
+            IEnumerable<T>? selections,
+            T legacySelection,
+            T notDocumented)
+            where T : struct, Enum
+        {
+            var documented = (selections ?? [])
+                .Where(value => Enum.IsDefined(value) && !EqualityComparer<T>.Default.Equals(value, notDocumented))
+                .Distinct()
+                .ToList();
+
+            if (documented.Count > 0)
+                return documented;
+
+            return Enum.IsDefined(legacySelection) &&
+                   !EqualityComparer<T>.Default.Equals(legacySelection, notDocumented)
+                ? [legacySelection]
+                : [];
+        }
     }
 }

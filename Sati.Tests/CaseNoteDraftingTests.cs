@@ -112,6 +112,73 @@ public sealed class CaseNoteDraftingTests
         Assert.Contains(requiredValue, fact.RequiredTerms!);
     }
 
+    [Fact]
+    public void CompilerPreservesEveryCheckedVisitChoice()
+    {
+        var facts = CompileVisit(new VisitDocumentation
+        {
+            Settings = [VisitSetting.ConsumerHome, VisitSetting.Community],
+            Appearances =
+            [
+                VisitAppearance.NeatAndAppropriatelyDressed,
+                VisitAppearance.ConcernObserved
+            ],
+            Participations =
+            [
+                VisitParticipation.ParticipatedWithSupport,
+                VisitParticipation.LimitedParticipation
+            ]
+        });
+
+        Assert.Contains(facts, fact => fact.Id == "VISIT-SETTING" &&
+            fact.Text.Contains("consumer's home", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(facts, fact => fact.Id == "VISIT-SETTING-002" &&
+            fact.Text.Contains("community", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(2, facts.Count(fact => fact.Id.StartsWith("VISIT-APPEARANCE", StringComparison.Ordinal)));
+        Assert.Equal(2, facts.Count(fact => fact.Id.StartsWith("VISIT-PARTICIPATION", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void MultiSelectVisitJsonStillReadsLegacySingleChoices()
+    {
+        var note = Note.Create("Legacy visit.", DateTime.Today, NoteStatus.Pending, 15, 7, null, NoteType.Visit);
+        note.VisitDocumentationJson = "{\"Setting\":2,\"Appearance\":1,\"Participation\":2,\"SafetyObservation\":1}";
+
+        var visit = Assert.IsType<VisitDocumentation>(note.VisitDocumentation);
+
+        Assert.Equal([VisitSetting.Community], visit.EffectiveSettings());
+        Assert.Equal([VisitAppearance.NeatAndAppropriatelyDressed], visit.EffectiveAppearances());
+        Assert.Equal([VisitParticipation.ParticipatedWithSupport], visit.EffectiveParticipations());
+        Assert.Equal([VisitSafetyObservation.NoConcernsObserved], visit.EffectiveSafetyObservations());
+    }
+
+    [Fact]
+    public void MultiSelectVisitChoicesRoundTripThroughTheStoredNoteJson()
+    {
+        var note = Note.Create("Current visit.", DateTime.Today, NoteStatus.Pending, 15, 7, null, NoteType.Visit);
+        note.VisitDocumentation = new VisitDocumentation
+        {
+            Setting = VisitSetting.ConsumerHome,
+            Settings = [VisitSetting.ConsumerHome, VisitSetting.Community],
+            Appearance = VisitAppearance.NeatAndAppropriatelyDressed,
+            Appearances =
+            [
+                VisitAppearance.NeatAndAppropriatelyDressed,
+                VisitAppearance.ConcernObserved
+            ]
+        };
+
+        var storedJson = Assert.IsType<string>(note.VisitDocumentationJson);
+        var reloaded = Note.Create("Reloaded visit.", DateTime.Today, NoteStatus.Pending, 15, 7, null, NoteType.Visit);
+        reloaded.VisitDocumentationJson = storedJson;
+        var visit = Assert.IsType<VisitDocumentation>(reloaded.VisitDocumentation);
+
+        Assert.Equal([VisitSetting.ConsumerHome, VisitSetting.Community], visit.EffectiveSettings());
+        Assert.Equal(
+            [VisitAppearance.NeatAndAppropriatelyDressed, VisitAppearance.ConcernObserved],
+            visit.EffectiveAppearances());
+    }
+
     [Theory]
     [InlineData(VisitAppearance.NeatAndAppropriatelyDressed, "neat")]
     [InlineData(VisitAppearance.ConcernObserved, "appearance concern")]

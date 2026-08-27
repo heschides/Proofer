@@ -515,26 +515,21 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.25", version);
+        Assert.Equal("1.2.26", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Calendar reminders, consumer filters, and reliability", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Faster note entry and clearer Visit details", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Consumer responsibilities" &&
-            section.Items.Any(item => item.Contains("DHHS representative", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Personal typing shortcuts" &&
+            section.Items.Any(item => item.Contains("Win+Shift+1", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("200 characters", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Caseload filtering" &&
-            section.Items.Any(item => item.Contains("Modivcare", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "More complete Visit notes" &&
+            section.Items.Any(item => item.Contains("checkboxes", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Existing Visit notes", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A steadier, more useful calendar" &&
-            section.Items.Any(item => item.Contains("focused day", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Reliable login and scratchpad recovery" &&
-            section.Items.Any(item => item.Contains("cannot hide", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Retry", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Future reminders" &&
-            section.Items.Any(item => item.Contains("Scheduled Reminder", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Clearer date selection" &&
+            section.Items.Any(item => item.Contains("calendar button", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));

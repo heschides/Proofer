@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sati="clr-namespace:Sati"
+             xmlns:services="clr-namespace:Sati.Services"
              TextElement.FontFamily="{StaticResource AppFont}">
 
     <!-- Escape returns the panel to a blank New Note, the same command the New
@@ -708,7 +709,7 @@
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <StackPanel>
-                                <TextBlock Text="Select only facts you personally observed or verified. Sati saves these selections with the note and can incorporate them into the AI draft."
+                                <TextBlock Text="Check every fact you personally observed or verified. Sati saves these selections with the note and can incorporate them into the AI draft."
                                            Margin="0,0,0,10"
                                            FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -728,54 +729,70 @@
                                     <StackPanel Grid.Row="0" Grid.Column="0">
                                         <TextBlock Text="MEETING SETTING"
                                                    Style="{StaticResource LabelStyle}" />
-                                        <ComboBox ItemsSource="{Binding VisitSettings}"
-                                                  SelectedItem="{Binding VisitSetting}"
-                                                  AutomationProperties.Name="Meeting setting">
-                                            <ComboBox.ItemTemplate>
+                                        <ItemsControl ItemsSource="{Binding VisitSettingOptions}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                    <CheckBox Content="{Binding DisplayLabel}"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              Margin="0,0,14,6"
+                                                              AutomationProperties.Name="{Binding DisplayLabel, StringFormat=Meeting setting: {0}}" />
                                                 </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="2">
                                         <TextBlock Text="APPEARANCE"
                                                    Style="{StaticResource LabelStyle}" />
-                                        <ComboBox ItemsSource="{Binding VisitAppearances}"
-                                                  SelectedItem="{Binding VisitAppearance}"
-                                                  AutomationProperties.Name="Observed appearance">
-                                            <ComboBox.ItemTemplate>
+                                        <ItemsControl ItemsSource="{Binding VisitAppearanceOptions}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                    <CheckBox Content="{Binding DisplayLabel}"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              Margin="0,0,14,6"
+                                                              AutomationProperties.Name="{Binding DisplayLabel, StringFormat=Observed appearance: {0}}" />
                                                 </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,0,0">
                                         <TextBlock Text="PARTICIPATION"
                                                    Style="{StaticResource LabelStyle}" />
-                                        <ComboBox ItemsSource="{Binding VisitParticipations}"
-                                                  SelectedItem="{Binding VisitParticipation}"
-                                                  AutomationProperties.Name="Consumer participation">
-                                            <ComboBox.ItemTemplate>
+                                        <ItemsControl ItemsSource="{Binding VisitParticipationOptions}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                    <CheckBox Content="{Binding DisplayLabel}"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              Margin="0,0,14,6"
+                                                              AutomationProperties.Name="{Binding DisplayLabel, StringFormat=Consumer participation: {0}}" />
                                                 </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,8,0,0">
                                         <TextBlock Text="HEALTH / SAFETY"
                                                    Style="{StaticResource LabelStyle}" />
-                                        <ComboBox ItemsSource="{Binding VisitSafetyObservations}"
-                                                  SelectedItem="{Binding VisitSafetyObservation}"
-                                                  AutomationProperties.Name="Health and safety observation">
-                                            <ComboBox.ItemTemplate>
+                                        <ItemsControl ItemsSource="{Binding VisitSafetyObservationOptions}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}" />
+                                                    <CheckBox Content="{Binding DisplayLabel}"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              Margin="0,0,14,6"
+                                                              AutomationProperties.Name="{Binding DisplayLabel, StringFormat=Health and safety observation: {0}}" />
                                                 </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </Grid>
 
@@ -915,6 +932,7 @@
                     </Grid>
 
                             <TextBox AutomationProperties.Name="Note narrative" Grid.Row="7"
+                                     services:TextShortcutTarget.IsEnabled="True"
                                      MinHeight="160"
                                      TextWrapping="Wrap"
                                      AcceptsReturn="True"

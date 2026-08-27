@@ -10,6 +10,7 @@ using Sati.Views;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 
@@ -54,6 +55,7 @@ namespace Sati.ViewModels.Children
         private VisitDocumentation? _pendingVisitDocumentation;
         private int _attendeeLoadVersion;
         private bool _suppressVisitChangeNotifications;
+        private bool _synchronizingVisitChoices;
         private bool _suppressDirtyTracking;
         private bool _applyingSchedulingPolicy;
         private readonly LatestRequestTracker _aiDraftRequests = new();
@@ -99,6 +101,16 @@ namespace Sati.ViewModels.Children
             _caseNoteFormatter = caseNoteFormatter;
             _validationDialog = validationDialog;
             _confirmDiscard = confirmDiscard;
+
+            VisitSettingOptions = CreateVisitOptions<VisitSetting>(VisitSetting.NotDocumented);
+            VisitAppearanceOptions = CreateVisitOptions<VisitAppearance>(VisitAppearance.NotDocumented);
+            VisitParticipationOptions = CreateVisitOptions<VisitParticipation>(VisitParticipation.NotDocumented);
+            VisitSafetyObservationOptions = CreateVisitOptions<VisitSafetyObservation>(VisitSafetyObservation.NotDocumented);
+
+            SubscribeToVisitOptions(VisitSettingOptions);
+            SubscribeToVisitOptions(VisitAppearanceOptions);
+            SubscribeToVisitOptions(VisitParticipationOptions);
+            SubscribeToVisitOptions(VisitSafetyObservationOptions);
         }
 
         // -------------------------------------------------------------------------
@@ -180,8 +192,8 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private IReadOnlyList<ClientAiContextSource> aiContextSources = [];
         [ObservableProperty] private string aiContextSummary = "Verified inputs";
 
-        // Structured visit facts. Exclusive observations use enum pickers; the
-        // independent facts are checkboxes and may be combined.
+        // Structured Visit facts. The legacy singular enum values remain so old
+        // note JSON still opens; the option collections are the current UI state.
         [ObservableProperty] private VisitSetting visitSetting;
         [ObservableProperty] private VisitAppearance visitAppearance;
         [ObservableProperty] private VisitParticipation visitParticipation;
@@ -197,6 +209,11 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string? visitSettingDetails;
         [ObservableProperty] private string? visitObservationDetails;
         [ObservableProperty] private string? visitAdditionalAttendees;
+
+        public ObservableCollection<VisitChoiceOptionViewModel<VisitSetting>> VisitSettingOptions { get; }
+        public ObservableCollection<VisitChoiceOptionViewModel<VisitAppearance>> VisitAppearanceOptions { get; }
+        public ObservableCollection<VisitChoiceOptionViewModel<VisitParticipation>> VisitParticipationOptions { get; }
+        public ObservableCollection<VisitChoiceOptionViewModel<VisitSafetyObservation>> VisitSafetyObservationOptions { get; }
 
         public static IReadOnlyList<NoteStatus> NoteStatusOptions { get; } =
         [
@@ -375,10 +392,6 @@ namespace Sati.ViewModels.Children
         }
 
         public bool IsLocalAiEnabled => _caseNoteFormatter.IsEnabled;
-        public Array VisitSettings => Enum.GetValues(typeof(VisitSetting));
-        public Array VisitAppearances => Enum.GetValues(typeof(VisitAppearance));
-        public Array VisitParticipations => Enum.GetValues(typeof(VisitParticipation));
-        public Array VisitSafetyObservations => Enum.GetValues(typeof(VisitSafetyObservation));
         public Array VisitPresences => Enum.GetValues(typeof(VisitPresence));
         public ObservableCollection<VisitAttendeeOptionViewModel> VisitAttendees { get; } = [];
 
@@ -561,10 +574,33 @@ namespace Sati.ViewModels.Children
         partial void OnIsAiBusyChanged(bool value) =>
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
 
-        partial void OnVisitSettingChanged(VisitSetting value) => VisitFactsChanged();
-        partial void OnVisitAppearanceChanged(VisitAppearance value) => VisitFactsChanged();
-        partial void OnVisitParticipationChanged(VisitParticipation value) => VisitFactsChanged();
-        partial void OnVisitSafetyObservationChanged(VisitSafetyObservation value) => VisitFactsChanged();
+        partial void OnVisitSettingChanged(VisitSetting value)
+        {
+            if (!_synchronizingVisitChoices)
+                SelectOnly(VisitSettingOptions, value, VisitSetting.NotDocumented);
+            VisitFactsChanged();
+        }
+
+        partial void OnVisitAppearanceChanged(VisitAppearance value)
+        {
+            if (!_synchronizingVisitChoices)
+                SelectOnly(VisitAppearanceOptions, value, VisitAppearance.NotDocumented);
+            VisitFactsChanged();
+        }
+
+        partial void OnVisitParticipationChanged(VisitParticipation value)
+        {
+            if (!_synchronizingVisitChoices)
+                SelectOnly(VisitParticipationOptions, value, VisitParticipation.NotDocumented);
+            VisitFactsChanged();
+        }
+
+        partial void OnVisitSafetyObservationChanged(VisitSafetyObservation value)
+        {
+            if (!_synchronizingVisitChoices)
+                SelectOnly(VisitSafetyObservationOptions, value, VisitSafetyObservation.NotDocumented);
+            VisitFactsChanged();
+        }
         partial void OnVisitPresenceChanged(VisitPresence value) => VisitFactsChanged();
         partial void OnVisitExpressedPreferencesChanged(bool value) => VisitFactsChanged();
         partial void OnVisitAskedQuestionsChanged(bool value) => VisitFactsChanged();
@@ -672,6 +708,129 @@ namespace Sati.ViewModels.Children
                 VisitFactsChanged();
         }
 
+        private static ObservableCollection<VisitChoiceOptionViewModel<T>> CreateVisitOptions<T>(T notDocumented)
+            where T : struct, Enum =>
+            new(Enum.GetValues<T>()
+                .Where(value => !EqualityComparer<T>.Default.Equals(value, notDocumented))
+                .Select(value => new VisitChoiceOptionViewModel<T>(value, DescribeEnum(value))));
+
+        private static string DescribeEnum<T>(T value) where T : struct, Enum
+        {
+            var field = typeof(T).GetField(value.ToString());
+            return field?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? value.ToString();
+        }
+
+        private void SubscribeToVisitOptions<T>(IEnumerable<VisitChoiceOptionViewModel<T>> options)
+            where T : struct, Enum
+        {
+            foreach (var option in options)
+                option.PropertyChanged += OnVisitChoicePropertyChanged;
+        }
+
+        private void OnVisitChoicePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(VisitChoiceOptionViewModel<VisitSetting>.IsSelected) ||
+                _synchronizingVisitChoices)
+            {
+                return;
+            }
+
+            _synchronizingVisitChoices = true;
+            try
+            {
+                switch (sender)
+                {
+                    case VisitChoiceOptionViewModel<VisitSetting>:
+                        VisitSetting = FirstSelected(VisitSettingOptions, VisitSetting.NotDocumented);
+                        break;
+
+                    case VisitChoiceOptionViewModel<VisitAppearance> changed:
+                        EnforceExclusiveChoice(
+                            VisitAppearanceOptions,
+                            changed,
+                            [VisitAppearance.NotObserved]);
+                        VisitAppearance = FirstSelected(VisitAppearanceOptions, VisitAppearance.NotDocumented);
+                        break;
+
+                    case VisitChoiceOptionViewModel<VisitParticipation> changed:
+                        EnforceExclusiveChoice(
+                            VisitParticipationOptions,
+                            changed,
+                            [VisitParticipation.NotAssessed]);
+                        VisitParticipation = FirstSelected(VisitParticipationOptions, VisitParticipation.NotDocumented);
+                        break;
+
+                    case VisitChoiceOptionViewModel<VisitSafetyObservation> changed:
+                        // Every safety choice describes an alternative state. The
+                        // checkbox presentation is consistent with the rest of the
+                        // Visit panel, while this guard prevents contradictory facts.
+                        if (changed.IsSelected)
+                        {
+                            foreach (var option in VisitSafetyObservationOptions.Where(option => !ReferenceEquals(option, changed)))
+                                option.IsSelected = false;
+                        }
+                        VisitSafetyObservation = FirstSelected(
+                            VisitSafetyObservationOptions,
+                            VisitSafetyObservation.NotDocumented);
+                        break;
+                }
+            }
+            finally
+            {
+                _synchronizingVisitChoices = false;
+            }
+
+            VisitFactsChanged();
+        }
+
+        private static void EnforceExclusiveChoice<T>(
+            IEnumerable<VisitChoiceOptionViewModel<T>> options,
+            VisitChoiceOptionViewModel<T> changed,
+            IReadOnlyCollection<T> exclusiveValues)
+            where T : struct, Enum
+        {
+            if (!changed.IsSelected)
+                return;
+
+            var changedIsExclusive = exclusiveValues.Contains(changed.Value);
+            foreach (var option in options.Where(option => !ReferenceEquals(option, changed)))
+            {
+                if (changedIsExclusive || exclusiveValues.Contains(option.Value))
+                    option.IsSelected = false;
+            }
+        }
+
+        private static void SelectOnly<T>(
+            IEnumerable<VisitChoiceOptionViewModel<T>> options,
+            T selected,
+            T notDocumented)
+            where T : struct, Enum
+        {
+            foreach (var option in options)
+                option.IsSelected = !EqualityComparer<T>.Default.Equals(selected, notDocumented) &&
+                                    EqualityComparer<T>.Default.Equals(option.Value, selected);
+        }
+
+        private static void SelectMany<T>(
+            IEnumerable<VisitChoiceOptionViewModel<T>> options,
+            IEnumerable<T> selected)
+            where T : struct, Enum
+        {
+            var values = selected.ToHashSet();
+            foreach (var option in options)
+                option.IsSelected = values.Contains(option.Value);
+        }
+
+        private static T FirstSelected<T>(
+            IEnumerable<VisitChoiceOptionViewModel<T>> options,
+            T notDocumented)
+            where T : struct, Enum =>
+            options.FirstOrDefault(option => option.IsSelected)?.Value ?? notDocumented;
+
+        private static List<T> SelectedValues<T>(IEnumerable<VisitChoiceOptionViewModel<T>> options)
+            where T : struct, Enum =>
+            options.Where(option => option.IsSelected).Select(option => option.Value).ToList();
+
         private void VisitFactsChanged()
         {
             if (_suppressVisitChangeNotifications)
@@ -700,6 +859,10 @@ namespace Sati.ViewModels.Children
                 VisitAppearance = VisitAppearance.NotDocumented;
                 VisitParticipation = VisitParticipation.NotDocumented;
                 VisitSafetyObservation = VisitSafetyObservation.NotDocumented;
+                SelectMany(VisitSettingOptions, []);
+                SelectMany(VisitAppearanceOptions, []);
+                SelectMany(VisitParticipationOptions, []);
+                SelectMany(VisitSafetyObservationOptions, []);
                 VisitPresence = VisitPresence.NotDocumented;
                 VisitExpressedPreferences = false;
                 VisitAskedQuestions = false;
@@ -738,6 +901,10 @@ namespace Sati.ViewModels.Children
                 VisitAppearance = documentation.Appearance;
                 VisitParticipation = documentation.Participation;
                 VisitSafetyObservation = documentation.SafetyObservation;
+                SelectMany(VisitSettingOptions, documentation.EffectiveSettings());
+                SelectMany(VisitAppearanceOptions, documentation.EffectiveAppearances());
+                SelectMany(VisitParticipationOptions, documentation.EffectiveParticipations());
+                SelectMany(VisitSafetyObservationOptions, documentation.EffectiveSafetyObservations());
                 VisitPresence = documentation.ConsumerPresent switch
                 {
                     true => VisitPresence.Present,
@@ -795,12 +962,21 @@ namespace Sati.ViewModels.Children
                     !currentContactIds.Contains(attendee.SourceContactId.Value)));
             }
 
+            var settings = SelectedValues(VisitSettingOptions);
+            var appearances = SelectedValues(VisitAppearanceOptions);
+            var participations = SelectedValues(VisitParticipationOptions);
+            var safetyObservations = SelectedValues(VisitSafetyObservationOptions);
+
             return new VisitDocumentation
             {
-                Setting = VisitSetting,
-                Appearance = VisitAppearance,
-                Participation = VisitParticipation,
-                SafetyObservation = VisitSafetyObservation,
+                Setting = settings.FirstOrDefault(VisitSetting.NotDocumented),
+                Appearance = appearances.FirstOrDefault(VisitAppearance.NotDocumented),
+                Participation = participations.FirstOrDefault(VisitParticipation.NotDocumented),
+                SafetyObservation = safetyObservations.FirstOrDefault(VisitSafetyObservation.NotDocumented),
+                Settings = settings,
+                Appearances = appearances,
+                Participations = participations,
+                SafetyObservations = safetyObservations,
                 ConsumerPresent = VisitPresence switch
                 {
                     VisitPresence.Present => true,
@@ -1383,8 +1559,10 @@ namespace Sati.ViewModels.Children
             if (string.IsNullOrWhiteSpace(Narrative)) errors.Add("• Please enter a narrative.");
             if (SelectedNoteType is null) errors.Add("• Please select a note type.");
             if (SelectedNoteType == NoteType.Visit &&
-                (VisitAppearance == VisitAppearance.ConcernObserved ||
-                 VisitSafetyObservation == VisitSafetyObservation.ConcernObserved) &&
+                (VisitAppearanceOptions.Any(option =>
+                     option.IsSelected && option.Value == VisitAppearance.ConcernObserved) ||
+                 VisitSafetyObservationOptions.Any(option =>
+                     option.IsSelected && option.Value == VisitSafetyObservation.ConcernObserved)) &&
                 string.IsNullOrWhiteSpace(VisitObservationDetails))
             {
                 errors.Add("• Describe the appearance, health, or safety concern selected for this visit.");

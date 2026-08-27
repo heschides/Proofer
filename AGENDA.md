@@ -2,6 +2,19 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.26 — 2026-08-26
+
+- [x] Restore an accessible, vertically centered calendar button inside every DatePicker.
+- [x] Allow multiple Visit Setting, Appearance, Participation, and Health/Safety observations while
+      keeping historical single-choice Visit JSON readable.
+- [x] Add personal Win+Shift+1 through Win+Shift+0 typing shortcuts for every role, scoped to the
+      note narrative and Scratchpad and kept separate by Windows profile, user, and environment.
+- [x] Advance the desktop, API, installer builders, readiness gate, and Settings release tracker to
+      1.2.26 together.
+- [ ] Publish API 1.2.26 and verify liveness, readiness, release version, and contract parity.
+- [ ] Generate and acceptance-test `SatiDemoSetup-1.2.26.exe` and
+      `SatiLocalSetup-1.2.26.exe`, then record their final SHA-256 values.
+
 ## Release 1.2.25 — 2026-08-26
 
 - [x] Add consumer email, the focused calendar-day note view, calendar failure containment, and
@@ -29,6 +42,19 @@
       version 1.2.25.0, and cleanup; Local acceptance passed version, Microsoft-signed LocalDB,
       integrated-security, and cleanup checks. The unchanged deployed API remains live and ready at
       release 1.2.25 with contract revision `15D50B6C6B29`.
+
+## Calendar entry, Visit selections, and personal typing shortcuts — 2026-08-26
+
+- [x] Restore a themed, vertically centered calendar button to the global DatePicker template,
+      preserving the real WPF popup part, keyboard behavior, and an accessible name.
+- [x] Replace the four Visit observation dropdowns with checkboxes; store multiple selections in
+      additive note-owned JSON while retaining the legacy singular values so older notes still load.
+- [x] Teach the local AI fact compiler and concern validation to consume every effective checked
+      Visit selection, with regression coverage for old and new JSON.
+- [x] Add personal Win+Shift+1 through Win+Shift+0 text snippets under Settings for every role,
+      limited to 200 characters and inserted only in an editable note narrative or Scratchpad box.
+- [x] Keep shortcut preferences client-local and separate by Windows profile, Sati user, and
+      Demo/Production environment; preserve normal Windows behavior outside the marked text boxes.
 
 ## Future-dated calendar reminders — 2026-08-26
 

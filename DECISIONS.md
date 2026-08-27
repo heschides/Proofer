@@ -1608,3 +1608,33 @@ edit from the record as it actually stands.
 A check that cannot reach the server says so and leaves the note editable. Its message carries no
 exception text: nothing about a note, a host, or a failure belongs in something a user reads, and
 the save path still refuses a stale write.
+
+### Personal typing shortcuts are local UI preferences, not agency Settings
+
+Win+Shift+1 through Win+Shift+0 insert personal snippets only into the note narrative and the two
+Scratchpad editors. The mappings live in the current Windows profile, separated again by Sati user
+and Demo/Production environment. They are capped at 200 characters and are available to every role.
+That makes them presentation/input assistance; they do not decide permission, workflow, billability,
+or official record status, so an API round trip and Admin-only agency Settings authorization would
+be the wrong ownership boundary.
+
+Windows reserves Win+number combinations for taskbar actions. The low-level keyboard hook therefore
+consumes the chosen Win+Shift+number gesture only when the Sati shell is active, an explicitly marked
+editable target has focus, and that number has non-empty text. Everywhere else the event is passed
+to Windows unchanged. Snippet contents are never written to diagnostic logs.
+
+**Rejected:** a global `RegisterHotKey`. Windows-key combinations are reserved, and a global hotkey
+would also steal the gesture when the user was working outside Sati. A normal WPF `KeyBinding` is too
+late for a shell-reserved gesture and would behave differently across Windows configurations.
+
+### Multi-select Visit documentation extends the note JSON instead of reinterpreting enums
+
+Visit Setting, Appearance, Participation, and Health/Safety now render as checkboxes and may retain
+several applicable selections. `VisitDocumentation` adds collection properties but retains the four
+legacy singular enum properties. Current clients prefer a populated collection and fall back to the
+singular value when opening older JSON; new saves populate both, with the first checked choice in the
+legacy field. This avoids a database migration and keeps old notes readable without changing the
+numeric meaning of already stored enum values.
+
+**Rejected:** turning the existing sequential enums into `[Flags]`. Existing JSON stores their numeric
+values; reassigning those numbers as bit flags would silently reinterpret historical clinical notes.
