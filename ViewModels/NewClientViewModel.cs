@@ -89,26 +89,34 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         [NotifyDataErrorInfo]
+        [NotifyPropertyChangedFor(nameof(IsFirstNameReady))]
         [Required(ErrorMessage = "First name is required.")]
         private string? firstName;
+        public bool IsFirstNameReady => !string.IsNullOrWhiteSpace(FirstName);
 
         [ObservableProperty]
         [NotifyDataErrorInfo]
+        [NotifyPropertyChangedFor(nameof(IsLastNameReady))]
         [Required(ErrorMessage = "Last name is required.")]
         private string? lastName;
+        public bool IsLastNameReady => !string.IsNullOrWhiteSpace(LastName);
 
         [ObservableProperty]
         [NotifyDataErrorInfo]
+        [NotifyPropertyChangedFor(nameof(IsBirthDateReady))]
         [Required(ErrorMessage = "Birthdate is required.")]
         private DateTime? birthDate;
+        public bool IsBirthDateReady => BirthDate.HasValue;
 
         [ObservableProperty]
         private Gender gender = Gender.Unknown;
 
         [ObservableProperty]
         [NotifyDataErrorInfo]
+        [NotifyPropertyChangedFor(nameof(IsBioReady))]
         [Required(ErrorMessage = "A short biographical description is required.")]
         private string? bio;
+        public bool IsBioReady => !string.IsNullOrWhiteSpace(Bio);
 
         [ObservableProperty]
         private WaiverType waiver;
@@ -150,7 +158,8 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string? phoneNumber;
         [ObservableProperty]
-        [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+        [NotifyDataErrorInfo]
+        [CustomValidation(typeof(NewClientViewModel), nameof(ValidateOptionalEmail))]
         private string? email;
         [ObservableProperty]
         private string? address;
@@ -1488,7 +1497,7 @@ namespace Sati.ViewModels
             GuardianName = string.Empty;
             EvergreenId = string.Empty;
             PhoneNumber = string.Empty;
-            Email = string.Empty;
+            Email = null;
             Address = string.Empty;
             MaineCareId = string.Empty;
             DiagnosisCode = string.Empty;
@@ -1533,6 +1542,21 @@ namespace Sati.ViewModels
                 return new ValidationResult("Date must be in MM/DD format.");
 
             return ValidationResult.Success;
+        }
+
+        // Email is optional. EmailAddressAttribute deliberately rejects an empty
+        // string, so using it directly on the editor made a cleared optional field
+        // behave as required. Only validate the format when the user entered one.
+        public static ValidationResult? ValidateOptionalEmail(
+            string? value,
+            ValidationContext context)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return ValidationResult.Success;
+
+            return new EmailAddressAttribute().IsValid(value.Trim())
+                ? ValidationResult.Success
+                : new ValidationResult("Enter a valid email address, or leave it blank.");
         }
 
         public static ValidationResult? ValidateRepPayeeMonthlyIncome(

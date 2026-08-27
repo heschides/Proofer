@@ -91,6 +91,28 @@ public sealed class ReleaseUiStructureTests
     }
 
     [Fact]
+    public void ClientEditorIdentifiesRequiredFieldsAndShowsLiveCompletionState()
+    {
+        var clients = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+
+        Assert.Contains("REQUIRED TO SAVE", clients);
+        Assert.Contains("Client email, optional", clients);
+        Assert.Contains("Leave blank when no email address is available", clients);
+        Assert.Contains("First name, required", clients);
+        Assert.Contains("Last name, required", clients);
+        Assert.Contains("Date of birth, required", clients);
+        Assert.Contains("Biography, required", clients);
+        Assert.Contains("IsFirstNameReady", clients);
+        Assert.Contains("IsLastNameReady", clients);
+        Assert.Contains("IsBirthDateReady", clients);
+        Assert.Contains("IsBioReady", clients);
+        Assert.Contains("WarningBrush", clients);
+        Assert.Contains("SuccessStrongBrush", clients);
+        Assert.Contains("All other details are optional", clients);
+        Assert.Contains("Representative-payee income and needs become required only when Yes is selected", clients);
+    }
+
+    [Fact]
     public void ComplianceMigrationRunnerValidatesIdentityBacksUpLocalDataAndVerifiesSchema()
     {
         var script = File.ReadAllText(Path.Combine(

@@ -16,6 +16,20 @@ public sealed class PersonSaveRulesTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EmailIsOptionalWhenNoAddressWasProvided(string? email)
+    {
+        var errors = PersonSaveRules.Validate(
+            ValidRequest() with { Email = email },
+            Today,
+            requireNewForms: false);
+
+        Assert.DoesNotContain("email", errors.Keys, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData("first-empty", "firstName")]
     [InlineData("first-long", "firstName")]
     [InlineData("last-empty", "lastName")]

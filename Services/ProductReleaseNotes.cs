@@ -6,31 +6,24 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Accurate compliance and safer client setup";
+    public const string ReleaseName = "Clearer Add Person requirements";
     public const string ReleaseDate = "August 27, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Accurate, configurable billing compliance",
+            "Clear requirements at a glance",
             [
-                "Only required documents that are both incomplete and past due now block billing; unfinished future-year documents no longer make a client noncompliant early.",
-                "Agency Admins can choose whether reviews, PCPs, Comprehensive Assessments, Reclassification, Safety Plans, Privacy Practices, and each release type participate in billing compliance.",
-                "Current queues, historical service dates, billing validation, and billing-loss reports now use the same date-based rule."
+                "First name, last name, date of birth, and biography now carry visible required-field asterisks.",
+                "A compact completion guide changes each required item from orange to green as meaningful information is entered, while retaining text labels so status is not conveyed by color alone.",
+                "All other details are identified as optional; representative-payee income and regular check-request needs become required only when Yes is selected."
             ]),
         new(
-            "Safer Add Client workflow",
+            "Email is genuinely optional",
             [
-                "Add Client errors stay inside the Clients page instead of terminating Sati.",
-                "A failed save now explains what was saved, what went wrong, and the safest fix, including when a connection must be checked before retrying.",
-                "Client details, initial forms, lifecycle history, and the audit entry are validated and saved together so a database rejection cannot leave a partial client."
-            ]),
-        new(
-            "Consistent workspaces and more appearance choices",
-            [
-                "AT Requests, Authorized Rep, and Releases are available together on the main case-manager navigation and remain available under Clients.",
-                "Notes filters now align consistently above the notes grid.",
-                "Pine Coast, Blueberry Mist, and Harbor Night add three new complete color themes."
+                "The active Add Person editor now includes the email field and clearly labels it optional.",
+                "Leaving email blank no longer blocks a save; Sati checks email format only when an address is entered.",
+                "Validation and accessibility coverage protect the optional-email behavior and the live requirement guide."
             ]),
         new(
             "Still planned before commercial production",

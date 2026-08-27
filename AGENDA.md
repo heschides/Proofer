@@ -2,6 +2,32 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.28 — 2026-08-27
+
+- [x] Correct Add Person email handling so a blank value is genuinely optional while a supplied
+      malformed address still receives a specific validation message.
+- [x] Expose the email field in the active inline client editor and label it optional.
+- [x] Mark first name, last name, date of birth, and biography with accessible required-field
+      asterisks; mark the representative-payee fields only where their conditional requirement is
+      active.
+- [x] Add a compact, non-color-only completion guide that changes required items from orange to
+      green as meaningful values are entered and explicitly states that other details are optional.
+- [x] Add desktop editor, notification, and shared validation regression coverage for blank,
+      whitespace, malformed, and completed-field cases.
+- [x] Run the complete Release build; 623 desktop/domain tests passed with one documented opt-in
+      local-AI test skipped, all 196 API integration tests and all 4 authorized shared-solution
+      Carika tests passed, all 54 focused Add Person checks passed, and 74 migrations replayed with
+      zero problems.
+- [x] Advance the desktop, API, installer builders, readiness checks, examples, and Settings release
+      tracker to 1.2.28 together.
+- [ ] Commit and push the verified 1.2.28 source release without rewriting history.
+- [ ] Publish the matching 1.2.28 API ZIP to the existing Demo API only; record its deployment,
+      health, version, contract revision, size, and SHA-256 evidence.
+- [ ] Generate and accept new non-overwritten 1.2.28 Demo and Local installers, then hash-verify
+      their installers and checksum files in the two approved distribution folders.
+- [ ] Record branch-retention decisions and final evidence, push it, and confirm a clean `master`
+      exactly matching `origin/master`.
+
 ## Release 1.2.27 — 2026-08-27
 
 - [x] Correct billing compliance so only enabled, incomplete documents whose due date has passed

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
@@ -10,6 +11,73 @@ namespace Sati.Tests;
 
 public sealed class NewClientCreationTests
 {
+    [Fact]
+    public void OptionalEmailAllowsBlankValuesAndRejectsOnlyMalformedEntries()
+    {
+        var viewModel = CreateViewModel(new CountingPersonService(), new FixedSettingsService());
+        viewModel.FirstName = "Jamie";
+        viewModel.LastName = "River";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "Optional email validation regression test.";
+        viewModel.Email = string.Empty;
+
+        var blankResults = new List<ValidationResult>();
+        var blankIsValid = Validator.TryValidateObject(
+            viewModel,
+            new ValidationContext(viewModel),
+            blankResults,
+            validateAllProperties: true);
+
+        Assert.True(blankIsValid);
+        Assert.DoesNotContain(blankResults, result =>
+            result.ErrorMessage?.Contains("email", StringComparison.OrdinalIgnoreCase) == true);
+
+        viewModel.Email = "not-an-email";
+        var malformedResults = new List<ValidationResult>();
+        var malformedIsValid = Validator.TryValidateObject(
+            viewModel,
+            new ValidationContext(viewModel),
+            malformedResults,
+            validateAllProperties: true);
+
+        Assert.False(malformedIsValid);
+        Assert.Contains(malformedResults, result =>
+            result.ErrorMessage == "Enter a valid email address, or leave it blank.");
+    }
+
+    [Fact]
+    public void RequiredFieldCompletionStateTracksMeaningfulInput()
+    {
+        var viewModel = CreateViewModel(new CountingPersonService(), new FixedSettingsService());
+        var notifications = new HashSet<string>(StringComparer.Ordinal);
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null)
+                notifications.Add(args.PropertyName);
+        };
+
+        Assert.False(viewModel.IsFirstNameReady);
+        Assert.False(viewModel.IsLastNameReady);
+        Assert.False(viewModel.IsBirthDateReady);
+        Assert.False(viewModel.IsBioReady);
+
+        viewModel.FirstName = " ";
+        Assert.False(viewModel.IsFirstNameReady);
+        viewModel.FirstName = "Jamie";
+        viewModel.LastName = "River";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "A short biography.";
+
+        Assert.True(viewModel.IsFirstNameReady);
+        Assert.True(viewModel.IsLastNameReady);
+        Assert.True(viewModel.IsBirthDateReady);
+        Assert.True(viewModel.IsBioReady);
+        Assert.Contains(nameof(NewClientViewModel.IsFirstNameReady), notifications);
+        Assert.Contains(nameof(NewClientViewModel.IsLastNameReady), notifications);
+        Assert.Contains(nameof(NewClientViewModel.IsBirthDateReady), notifications);
+        Assert.Contains(nameof(NewClientViewModel.IsBioReady), notifications);
+    }
+
     [Fact]
     public async Task PersonSaveFailureIsContainedAndExplainsThatSaveStatusMustBeChecked()
     {

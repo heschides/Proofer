@@ -305,17 +305,20 @@
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,16" />
 
-                <TextBlock Text="FIRST NAME"
-                           Style="{StaticResource LabelStyle}" />
-                <TextBox AutomationProperties.Name="First Name" Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Style="{StaticResource LabelStyle}">
+                    <Run Text="FIRST NAME" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                </TextBlock>
+                <TextBox AutomationProperties.Name="First Name, required" Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Text="LAST NAME"
-                           Style="{StaticResource LabelStyle}" />
-                <TextBox AutomationProperties.Name="Last Name" Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Style="{StaticResource LabelStyle}">
+                    <Run Text="LAST NAME" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                </TextBlock>
+                <TextBox AutomationProperties.Name="Last Name, required" Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Text="BIRTHDAY"
-                           Style="{StaticResource LabelStyle}" />
-                <DatePicker AutomationProperties.Name="Date of birth" SelectedDate="{Binding BirthDate, Mode=TwoWay}" />
+                <TextBlock Style="{StaticResource LabelStyle}">
+                    <Run Text="BIRTHDAY" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                </TextBlock>
+                <DatePicker AutomationProperties.Name="Date of birth, required" SelectedDate="{Binding BirthDate, Mode=TwoWay}" />
 
                 <TextBlock Text="GENDER / PRONOUNS"
                            Style="{StaticResource LabelStyle}" />
@@ -353,9 +356,10 @@
                     </TextBlock>
                     </Grid>
 
-                    <TextBlock Text="BIO"
-                               Style="{StaticResource LabelStyle}" />
-                    <TextBox AutomationProperties.Name="Bio" Text="{Binding Bio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBlock Style="{StaticResource LabelStyle}">
+                        <Run Text="BIO" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                    </TextBlock>
+                    <TextBox AutomationProperties.Name="Biography, required" Text="{Binding Bio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              AcceptsReturn="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"
@@ -368,10 +372,11 @@
                     <TextBlock Text="PHONE"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Phone Number" Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="EMAIL"
+                    <TextBlock Text="EMAIL (OPTIONAL)"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Consumer Email"
                              Text="{Binding Email, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                             AutomationProperties.HelpText="Optional. Leave blank when no email address is available."
                              MaxLength="254" />
                     <TextBlock Text="ADDRESS"
                            Style="{StaticResource LabelStyle}" />
@@ -1325,6 +1330,83 @@
                                                    VerticalAlignment="Center"
                                                    AutomationProperties.HeadingLevel="Level2" />
                                     </StackPanel>
+                                    <Border Margin="0,9,12,0"
+                                            Padding="10,7"
+                                            HorizontalAlignment="Left"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            AutomationProperties.Name="Required field completion guide"
+                                            AutomationProperties.HelpText="Orange items still need information. Green items are complete. Representative-payee income and needs are required only when Yes is selected.">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="*"
+                                                           Foreground="{DynamicResource WarningBrush}"
+                                                           FontWeight="Bold"
+                                                           Margin="0,0,5,0" />
+                                                <TextBlock Text="REQUIRED TO SAVE"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <WrapPanel Margin="0,5,0,0">
+                                                <TextBlock Text="● First name" Margin="0,0,14,0" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsFirstNameReady}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessStrongBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="● Last name" Margin="0,0,14,0" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLastNameReady}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessStrongBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="● Date of birth" Margin="0,0,14,0" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBirthDateReady}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessStrongBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="● Biography" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBioReady}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessStrongBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </WrapPanel>
+                                            <TextBlock Text="All other details are optional. Representative-payee income and needs become required only when Yes is selected."
+                                                       Margin="0,5,0,0"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
                                     <Border Background="{DynamicResource WarningFillBrush}"
                                             BorderBrush="{DynamicResource WarningBrush}"
                                             BorderThickness="1"
@@ -1357,16 +1439,22 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,14,0">
-                                    <TextBlock Text="FIRST NAME" Style="{StaticResource LabelStyle}" />
-                                    <TextBox Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First name" />
+                                    <TextBlock Style="{StaticResource LabelStyle}">
+                                        <Run Text="FIRST NAME" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First name, required" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,12,14,0">
-                                    <TextBlock Text="LAST NAME" Style="{StaticResource LabelStyle}" />
-                                    <TextBox Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last name" />
+                                    <TextBlock Style="{StaticResource LabelStyle}">
+                                        <Run Text="LAST NAME" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding LastName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last name, required" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,14,0">
-                                    <TextBlock Text="DATE OF BIRTH" Style="{StaticResource LabelStyle}" />
-                                    <DatePicker SelectedDate="{Binding BirthDate}" AutomationProperties.Name="Date of birth" />
+                                    <TextBlock Style="{StaticResource LabelStyle}">
+                                        <Run Text="DATE OF BIRTH" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                    </TextBlock>
+                                    <DatePicker SelectedDate="{Binding BirthDate}" AutomationProperties.Name="Date of birth, required" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="3" Margin="0,12,0,0">
                                     <TextBlock Text="WAIVER" Style="{StaticResource LabelStyle}" />
@@ -1397,15 +1485,22 @@
                                 <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,10,14,0">
                                     <TextBlock Text="ADDRESS" Style="{StaticResource LabelStyle}" />
                                     <TextBox Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Address" />
-                                    <TextBlock Text="BIO" Style="{StaticResource LabelStyle}" Margin="0,10,0,5" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Margin="0,10,0,5">
+                                        <Run Text="BIO" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                    </TextBlock>
                                     <TextBox Text="{Binding Bio, UpdateSourceTrigger=PropertyChanged}"
                                              AcceptsReturn="True" TextWrapping="Wrap" MinHeight="62"
-                                             SpellCheck.IsEnabled="True" AutomationProperties.Name="Biography" />
+                                             SpellCheck.IsEnabled="True" AutomationProperties.Name="Biography, required" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,10,14,0">
                                     <TextBlock Text="PHONE" Style="{StaticResource LabelStyle}" />
                                     <TextBox Text="{Binding PhoneNumber, UpdateSourceTrigger=PropertyChanged}"
                                              AutomationProperties.Name="Phone number" />
+                                    <TextBlock Text="EMAIL (OPTIONAL)" Style="{StaticResource LabelStyle}" />
+                                    <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                             MaxLength="254"
+                                             AutomationProperties.Name="Client email, optional"
+                                             AutomationProperties.HelpText="Leave blank when no email address is available." />
                                     <TextBlock Text="PRIMARY CARE PROVIDER" Style="{StaticResource LabelStyle}" />
                                     <TextBox Text="{Binding PrimaryCareProvider, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Primary care provider" />
                                     <CheckBox Content="Has guardian" IsChecked="{Binding HasGuardian}" Margin="0,10,0,4" />
@@ -1517,7 +1612,9 @@
 
                                         <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,18,0"
                                                     Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="MONTHLY INCOME" Style="{StaticResource LabelStyle}" />
+                                            <TextBlock Style="{StaticResource LabelStyle}">
+                                                <Run Text="MONTHLY INCOME" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                            </TextBlock>
                                             <TextBox Text="{Binding RepPayeeMonthlyIncomeText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
                                                      MaxLength="30"
                                                      AutomationProperties.Name="Consumer monthly income managed by representative payee"
@@ -1526,7 +1623,9 @@
 
                                         <StackPanel Grid.Row="0" Grid.Column="2"
                                                     Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="REGULAR CHECK-REQUEST NEEDS" Style="{StaticResource LabelStyle}" />
+                                            <TextBlock Style="{StaticResource LabelStyle}">
+                                                <Run Text="REGULAR CHECK-REQUEST NEEDS" /><Run Text=" *" Foreground="{DynamicResource WarningBrush}" />
+                                            </TextBlock>
                                             <TextBox Text="{Binding RepPayeeRegularCheckRequestNeeds, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
                                                      AcceptsReturn="True"
                                                      TextWrapping="Wrap"
