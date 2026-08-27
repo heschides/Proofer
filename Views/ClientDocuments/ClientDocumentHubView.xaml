@@ -1,0 +1,68 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.ClientDocumentHubView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:documents="clr-namespace:Sati.Views.ClientDocuments"
+             Background="{DynamicResource WindowBackgroundBrush}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Margin="16,16,16,0"
+                Padding="16"
+                CornerRadius="8"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               AutomationProperties.HeadingLevel="Level1" />
+                    <TextBlock Text="{Binding Description}"
+                               Margin="0,5,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="CONSUMER" Style="{StaticResource LabelStyle}" />
+                    <ComboBox ItemsSource="{Binding Clients.People}"
+                              SelectedItem="{Binding Clients.SelectedPerson, Mode=TwoWay}"
+                              DisplayMemberPath="FullName"
+                              AutomationProperties.Name="Consumer for document"
+                              HorizontalAlignment="Stretch" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <documents:DhhsFormsWorkspace
+                DataContext="{Binding Clients.DhhsForms}"
+                Visibility="{Binding IsAuthorizedRepresentative, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+            <TabControl Margin="12"
+                        Visibility="{Binding IsReleases, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        AutomationProperties.Name="Release form choices">
+                <TabItem Header="DHHS Release">
+                    <documents:DhhsFormsWorkspace DataContext="{Binding Clients.DhhsForms}" />
+                </TabItem>
+                <TabItem Header="Agency Release">
+                    <documents:AgencyReleaseWorkspace DataContext="{Binding Clients.AgencyRelease}" />
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

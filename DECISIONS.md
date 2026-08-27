@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-26.*
+sections at the bottom. Last updated: 2026-08-27.*
 
 ---
 
@@ -1638,3 +1638,70 @@ numeric meaning of already stored enum values.
 
 **Rejected:** turning the existing sequential enums into `[Flags]`. Existing JSON stores their numeric
 values; reassigning those numbers as bit flags would silently reinterpret historical clinical notes.
+
+### Billing compliance is derived from dates and configured once per agency
+
+A document affects billing only when its due date has passed and it was not completed as of the
+date being evaluated. The due date itself remains billable, the gap begins the next day, and the
+completion date is billable. This is owned by `BillingComplianceGate` in `Sati.Contracts.V1` and is
+used for both today's compliance decision and historical service-date windows.
+
+The participating types are an agency `Settings` flags value editable only by an Admin. The default
+preserves the prior intended scope: 90-day reviews, PCP, Comprehensive Assessment,
+Reclassification, and Safety Plan. Privacy Practices and the three release types are available but
+start disabled. Settings updates retain the existing concurrency and audit behavior, and the API
+validates that no unknown bits are persisted.
+
+`Form.IsCompliant` remains useful workflow/presentation state, but it is not billing truth. A future
+generated form may correctly be unfinished without being overdue, and legacy data can carry a stale
+flag that disagrees with `CompletedDate`. Due and completion dates therefore win. A missing effective
+date is tracked as a profile/data-quality concern rather than mislabeled as overdue paperwork.
+
+**Rejected:** checking every current-cycle annual before its due date. That was the direct cause of
+2027 documents blocking clients during 2026.
+
+**Rejected:** separate hardcoded lists for today's gate, historical billing, the API, and reports.
+They had already drifted: Safety Plan participated in one path but not the historical window.
+
+This is Sati's configurable product policy, not a claim that MaineCare or OADS has approved every
+default or boundary. External billing requirements still require agency, payer, and legal review.
+
+### Dashboard document tabs are doorways into one implementation
+
+AT Requests now lives on the case-manager dashboard navigation beside Clients and Notes. Authorized
+Rep and Releases sit beside it. The latter two host the same `DhhsFormsViewModel` and
+`AgencyReleaseViewModel` instances already used by the selected consumer on the Clients page; the
+Clients-page DHHS Forms, Agency Release, and AT Requests workspaces remain available.
+
+**Rejected:** copying the form functionality into new dashboard-specific view models. Two versions
+of consent selections, PDF generation, consumer selection, or release safeguards would inevitably
+drift and would create a healthcare-record correctness risk for a purely navigational request.
+
+### Client creation is one transaction, and failure messages state save certainty
+
+The Person, initial forms, first lifecycle version, and audit event are one creation graph. Local
+persistence validates the graph before tracking it and commits it with one `SaveChangesAsync`; the
+API follows the same validation rule and one-commit boundary. A relational rejection therefore
+leaves none of the four behind. The API returns the tracked graph after commit instead of making a
+second read that could fail after the record was already durable.
+
+The UI distinguishes three outcomes: definitely not saved, definitely saved with a read-only refresh
+failure, and unknown because a cloud request may have reached the server before the connection was
+lost. Every message says what was saved, what went wrong, and the best next action. The unknown case
+requires refreshing before retrying so recovery does not manufacture a duplicate Person. Technical
+diagnostics use a support reference and do not expose exception text or Person data.
+
+`PersonSaveRules` in `Sati.Contracts.V1` owns persistence validation for both hosts. Desktop
+annotations remain immediate form feedback, but they are not the authority. The shared rule checks
+database length bounds, dates, supported values, representative-payee requirements, and a complete,
+unique, internally consistent initial form set. Local creation also derives agency ownership from the
+signed-in actor and rejects a caller-supplied different owner.
+
+**Rejected:** allowing an async command, constructor background load, or selection-triggered load to
+surface an unobserved exception to WPF. A routine save or refresh problem must not terminate Sati.
+
+**Rejected:** deleting old forms before the user confirms replacement forms and before the Person
+update succeeds. Cancellation or a later failure would turn an edit into unreported data loss.
+
+**Rejected:** reporting every network failure as simply "not saved." Once a request may have been
+sent, that claim is unsafe; refresh-first recovery is required.

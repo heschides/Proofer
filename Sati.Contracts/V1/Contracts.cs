@@ -268,7 +268,9 @@ public sealed record SettingsDto(
     int ReleaseAgencyDaysBeforeAnniversary,
     int ReleaseDhhsDaysBeforeAnniversary,
     int ReleaseMedicalDaysBeforeAnniversary,
-    int Revision = 0);
+    int Revision = 0,
+    BillingComplianceRequirements BillingComplianceRequirements =
+        BillingComplianceGate.DefaultRequirements);
 
 public sealed record ScratchpadDto(
     int Id,

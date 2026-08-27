@@ -5,6 +5,7 @@ using Sati.Data;
 using Sati.Models;
 using Sati.Services;
 using Sati.ViewModels.Children;
+using Sati.ViewModels.ClientDocuments;
 using Sati.Views;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -55,9 +56,10 @@ IFormService formService,
             NewClientViewModel newClientViewModel,
 CalendarViewModel calendarViewModel,
            IExemptDateService exemptDateService,
-StatisticsViewModel statisticsViewModel,
+            StatisticsViewModel statisticsViewModel,
             ReviewsViewModel reviewsViewModel,
-            ProvidersViewModel providersViewModel
+            ProvidersViewModel providersViewModel,
+            ATRequestViewModel atRequestViewModel
             )
         {
             _personService = personService;
@@ -76,6 +78,11 @@ StatisticsViewModel statisticsViewModel,
             Statistics = statisticsViewModel;
             Reviews = reviewsViewModel;
             Providers = providersViewModel;
+            ATRequests = atRequestViewModel;
+            AuthorizedRepresentative = new ClientDocumentHubViewModel(
+                Clients, ClientDocumentHubMode.AuthorizedRepresentative);
+            Releases = new ClientDocumentHubViewModel(
+                Clients, ClientDocumentHubMode.Releases);
 
             // Mirror the module's client selection onto the dashboard. One-way:
             // the CLIENT combobox lives in the module now, but the notes grid and
@@ -171,8 +178,15 @@ StatisticsViewModel statisticsViewModel,
         public bool IsStatisticsSubActive => CurrentSubViewModel is StatisticsViewModel;
         public bool IsReviewsSubActive => CurrentSubViewModel is ReviewsViewModel;
         public bool IsProvidersSubActive => CurrentSubViewModel is ProvidersViewModel;
+        public bool IsATRequestsSubActive => CurrentSubViewModel is ATRequestViewModel;
+        public bool IsAuthorizedRepresentativeSubActive =>
+            ReferenceEquals(CurrentSubViewModel, AuthorizedRepresentative);
+        public bool IsReleasesSubActive => ReferenceEquals(CurrentSubViewModel, Releases);
         public ReviewsViewModel Reviews { get; }
         public ProvidersViewModel Providers { get; }
+        public ATRequestViewModel ATRequests { get; }
+        public ClientDocumentHubViewModel AuthorizedRepresentative { get; }
+        public ClientDocumentHubViewModel Releases { get; }
         public Func<FormType, Task>? FormStatusRequested { get; set; }
         public CalendarViewModel Calendar { get; }
         public StatisticsViewModel Statistics { get; }
@@ -202,6 +216,9 @@ StatisticsViewModel statisticsViewModel,
             OnPropertyChanged(nameof(IsStatisticsSubActive));
             OnPropertyChanged(nameof(IsReviewsSubActive));
             OnPropertyChanged(nameof(IsProvidersSubActive));
+            OnPropertyChanged(nameof(IsATRequestsSubActive));
+            OnPropertyChanged(nameof(IsAuthorizedRepresentativeSubActive));
+            OnPropertyChanged(nameof(IsReleasesSubActive));
             OnPropertyChanged(nameof(IsSubViewActive));
         }
 
@@ -535,6 +552,27 @@ StatisticsViewModel statisticsViewModel,
         {
             await Providers.LoadAsync();
             CurrentSubViewModel = Providers;
+        }
+
+        [RelayCommand]
+        private async Task NavigateToATRequests()
+        {
+            CurrentSubViewModel = ATRequests;
+            await ATRequests.InitializeAsync();
+        }
+
+        [RelayCommand]
+        private void NavigateToAuthorizedRepresentative()
+        {
+            AuthorizedRepresentative.Prepare();
+            CurrentSubViewModel = AuthorizedRepresentative;
+        }
+
+        [RelayCommand]
+        private void NavigateToReleases()
+        {
+            Releases.Prepare();
+            CurrentSubViewModel = Releases;
         }
 
         [RelayCommand]

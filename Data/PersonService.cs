@@ -25,22 +25,42 @@ namespace Sati.Data
 
         public async Task<Person> AddPersonAsync(Person person)
         {
-            ValidateRepresentativePayee(person);
             var actor = CurrentActor();
+            if (person.UserId != actor.Id)
+            {
+                throw new PersonValidationException(new Dictionary<string, string[]>
+                {
+                    ["owner"] = ["The new client must be assigned to the signed-in case manager."]
+                });
+            }
+
+            person.AgencyId = actor.AgencyId;
+            ValidatePerson(person, requireNewForms: person.EffectiveDate.HasValue);
             await using var context = _contextFactory.CreateDbContext();
-            person.AgencyId ??= actor.AgencyId;
             person.Revision = 1;
             context.People.Add(person);
             PersonLifecycleLedger.RecordCreated(context, actor, person);
             LocalAuditTrail.Record(context, actor, LocalAuditActions.PersonCreated, "Person");
-            await context.SaveChangesAsync();
+            try
+            {
+                // One SaveChanges call makes the client, generated forms, lifecycle
+                // version, and audit event one transaction. A rejection rolls back
+                // the whole graph; there is no partially-created client to repair.
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateException exception)
+            {
+                throw new PersonPersistenceException(
+                    "The database rejected the new client transaction.",
+                    exception);
+            }
             return person;
         }
 
         public async Task<Person> EditPersonAsync(Person person)
         {
-            ValidateRepresentativePayee(person);
             var actor = CurrentActor();
+            ValidatePerson(person, requireNewForms: person.Forms.Any(form => form.Id == 0));
             await using var context = _contextFactory.CreateDbContext();
             var stored = await context.People.AsNoTracking()
                 .SingleOrDefaultAsync(candidate => candidate.Id == person.Id &&
@@ -134,18 +154,16 @@ namespace Sati.Data
         private User CurrentActor() => _sessionService.CurrentUser
             ?? throw new InvalidOperationException("A signed-in user is required for this operation.");
 
-        private static void ValidateRepresentativePayee(Person person)
+        private static void ValidatePerson(Person person, bool requireNewForms)
         {
-            var errors = RepresentativePayeeRules.Validate(
-                person.CaseManagerIsRepPayee,
-                person.RepPayeeMonthlyIncome,
-                person.RepPayeeRegularCheckRequestNeeds);
+            var errors = PersonSaveRules.Validate(
+                PersonContractMapper.ToSaveRequest(person),
+                DateTime.Today,
+                requireNewForms);
             if (errors.Count == 0)
                 return;
 
-            throw new InvalidOperationException(string.Join(
-                " ",
-                errors.Values.SelectMany(messages => messages)));
+            throw new PersonValidationException(errors);
         }
 
         public async Task<List<Person>> GetAllPeopleAsync(int userId)

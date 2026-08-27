@@ -14,7 +14,9 @@ public sealed class SupervisorService(
     {
         var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
         var today = DateTime.Today;
-        return notes.Where(note => note.Person.EvaluateComplianceGate(today).Passed);
+        var requirements = await LoadComplianceRequirementsAsync();
+        return notes.Where(note => note.Person.EvaluateComplianceGate(
+            today, requirements: requirements).Passed);
     }
 
     public async Task<IEnumerable<Note>> GetNonCompliantNotesAsync(
@@ -23,10 +25,12 @@ public sealed class SupervisorService(
     {
         var notes = await GetLoggedNotesAsync(supervisorId, allSupervisees);
         var today = DateTime.Today;
+        var requirements = await LoadComplianceRequirementsAsync();
         var nonCompliant = new List<Note>();
         foreach (var note in notes)
         {
-            var result = note.Person.EvaluateComplianceGate(today);
+            var result = note.Person.EvaluateComplianceGate(
+                today, requirements: requirements);
             if (result.Passed)
                 continue;
             note.ComplianceFailureReasons = result.Reasons;
@@ -46,7 +50,12 @@ public sealed class SupervisorService(
         if (!NoteWorkflow.CanSupervisorTransition((int?)note.Status, NoteWorkflow.Approved))
             throw new InvalidOperationException("Only logged notes can be approved.");
 
-        var (passed, reasons) = note.Person.EvaluateComplianceGate(DateTime.Today);
+        var requirements = await context.Settings.AsNoTracking()
+            .Where(settings => settings.AgencyId == actor.AgencyId)
+            .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
+            .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
+        var (passed, reasons) = note.Person.EvaluateComplianceGate(
+            DateTime.Today, requirements: requirements);
         if (!passed)
         {
             throw new InvalidOperationException(
@@ -175,6 +184,17 @@ public sealed class SupervisorService(
             throw new UnauthorizedAccessException("Only the signed-in reviewer may perform this action.");
         }
         return actor;
+    }
+
+    private async Task<BillingComplianceRequirements> LoadComplianceRequirementsAsync()
+    {
+        var actor = sessionService.CurrentUser
+            ?? throw new UnauthorizedAccessException("A signed-in reviewer is required.");
+        await using var context = contextFactory.CreateDbContext();
+        return await context.Settings.AsNoTracking()
+            .Where(settings => settings.AgencyId == actor.AgencyId)
+            .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
+            .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
     }
 
     private static void EnsureCurrentRevision(Note note, int expectedRevision)

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 
 namespace Sati.Data
@@ -33,6 +34,14 @@ namespace Sati.Data
                 throw new ArgumentException("The report window end must not precede its start.");
 
             await using var context = _contextFactory.CreateDbContext();
+            var agencyId = await context.Users.AsNoTracking()
+                .Where(user => user.Id == userId)
+                .Select(user => user.AgencyId)
+                .SingleAsync();
+            var requirements = await context.Settings.AsNoTracking()
+                .Where(settings => settings.AgencyId == agencyId)
+                .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
+                .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
 
             // Keep this reporting read free of Person.Bio/Journal and Note.Narrative.
             // Those unbounded columns are not needed to classify days or total units.
@@ -100,8 +109,9 @@ namespace Sati.Data
                 {
                     for (var date = activeStart; date <= end; date = date.AddDays(1))
                     {
-                        if (personForms.Any(f => Person.IsBillingWindowBlocked(
-                                f.Type, f.DueDate, f.CompletedDate, date)))
+                        if (personForms.Any(f => BillingComplianceGate.IsBillingWindowBlocked(
+                                f.Type.ToString(), f.DueDate, f.CompletedDate, date,
+                                requirements)))
                         {
                             blockedDates.Add(date);
                         }

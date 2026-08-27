@@ -2,6 +2,49 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.27 — 2026-08-27
+
+- [x] Correct billing compliance so only enabled, incomplete documents whose due date has passed
+      can block; use completion dates rather than the mutable compliance flag, and apply one shared
+      rule to current queues, historical service dates, billing, and loss reports in desktop and API.
+- [x] Add Admin-only agency settings for 90-day reviews, PCP, Comprehensive Assessment,
+      Reclassification, Safety Plan, Privacy Practices, and Agency/DHHS/Medical releases. Preserve
+      the former intended set as the migration default and validate unsupported setting bits.
+- [x] Add regression and matrix coverage for future, due-today, overdue, completed, prior-cycle,
+      disabled, unknown, and historical-window cases, including API queue/approval and Settings
+      authorization, tenancy, validation, concurrency, and audit behavior.
+- [x] Move AT Requests from the Case Management section bar to the case-manager dashboard bar;
+      add Authorized Rep and Releases beside it while reusing the Clients-page document workspaces.
+      Keep the existing DHHS Forms, Agency Release, and AT Requests workspaces under Clients.
+- [x] Give Notes filter inputs one rendered height and baseline above the data grid.
+- [x] Add Pine Coast, Blueberry Mist, and Harbor Night themes with the full required resource set.
+- [x] Audit Add Person end to end. Contain command, settings-load, and post-save workspace failures;
+      remove the pre-save form deletion; make the Person/forms/lifecycle/audit graph one local
+      transaction; and avoid a second API read after a successful create commit.
+- [x] Give client-creation failures an accessible three-part explanation of what was saved, what
+      failed, and the safest next action. Preserve field-specific server validation and distinguish
+      definitely-unsent requests from an uncertain network response so duplicate clients are not
+      created during recovery.
+- [x] Centralize Person persistence validation in `Sati.Contracts.V1.PersonSaveRules`, enforce the
+      authenticated owner/agency at the local seam, and cover required fields, every SQL length,
+      enum/date/form invariants, transaction rollback, tenant ownership, API mapping, and crash
+      containment with desktop and API tests.
+- [x] Run the complete desktop and API suites and inspect rendered UI behavior: 617 desktop tests
+      passed with one opt-in local-AI test skipped, and all 196 API tests passed.
+- [x] Apply and verify `20260827141239_AddBillingComplianceRequirements` against the
+      identity-validated Local `SatiProduction` and synthetic Azure `SatiDemo` targets. Both report
+      no pending code migrations, valid default requirement bits, and the new non-null column and
+      history row; Demo retained all 177 synthetic People and its temporary exact-IP rule was
+      removed and verified absent.
+- [x] Advance the desktop, API, installer builders, release checks, examples, and Settings release
+      tracker to 1.2.27 together.
+- [ ] Commit and push the verified 1.2.27 source release.
+- [ ] Publish and verify Demo API 1.2.27; record package hash, deployment identifier, health,
+      release version, and contract revision.
+- [ ] Generate, acceptance-test, and publish the 1.2.27 Demo and Local installers without
+      overwriting an artifact; record sizes, hashes, cleanup, and exact distribution paths.
+- [ ] Commit and push the final release evidence and confirm `master` equals `origin/master`.
+
 ## Release 1.2.26 — 2026-08-26
 
 - [x] Restore an accessible, vertically centered calendar button inside every DatePicker.
@@ -1845,6 +1888,9 @@ Closed since that entry was written:
   that pickers and radio buttons are disabled, that the save button is collapsed, and that the
   attendee checkboxes inside the `ItemsControl` lock too. Each assertion was confirmed to fail
   against a deliberately broken view.
+- ~~Notes filter inputs relied on mismatched implicit heights and margins.~~ ComboBoxes, search,
+  date pickers, the units summary, and attention actions now share an explicit 36-pixel height;
+  the WPF render test measures their actual heights and row baselines at runtime.
 
 ### One WPF Application per test process
 

@@ -6,13 +6,21 @@ namespace Sati.Data.Cloud;
 
 public sealed class CloudPersonService(CloudApiClient api) : IPersonService
 {
-    public async Task<Person> AddPersonAsync(Person person) =>
-        CloudContractMapper.ToPerson(await api.PostAsync<SavePersonRequest, PersonDto>(
-            "/api/v1/people", CloudContractMapper.ToSavePersonRequest(person)));
+    public async Task<Person> AddPersonAsync(Person person)
+    {
+        var request = PersonContractMapper.ToSaveRequest(person);
+        ThrowIfInvalid(request, requireNewForms: request.EffectiveDate.HasValue);
+        return CloudContractMapper.ToPerson(await api.PostAsync<SavePersonRequest, PersonDto>(
+            "/api/v1/people", request));
+    }
 
-    public async Task<Person> EditPersonAsync(Person person) =>
-        CloudContractMapper.ToPerson(await api.PutAsync<SavePersonRequest, PersonDto>(
-            $"/api/v1/people/{person.Id}", CloudContractMapper.ToSavePersonRequest(person)));
+    public async Task<Person> EditPersonAsync(Person person)
+    {
+        var request = PersonContractMapper.ToSaveRequest(person);
+        ThrowIfInvalid(request, requireNewForms: request.Forms.Any(form => form.Id == 0));
+        return CloudContractMapper.ToPerson(await api.PutAsync<SavePersonRequest, PersonDto>(
+            $"/api/v1/people/{person.Id}", request));
+    }
 
     public async Task<List<Person>> GetAllPeopleAsync(int userId) =>
         (await api.GetAsync<List<PersonDto>>($"/api/v1/caseload?userId={userId}")).Select(CloudContractMapper.ToPerson).ToList();
@@ -44,6 +52,13 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
         var journal = await api.PostAsync<AddJournalReminderRequest, string?>(
             $"/api/v1/people/{personId}/journal/entries", new AddJournalReminderRequest(text));
         return new JournalReminderResult(journal);
+    }
+
+    private static void ThrowIfInvalid(SavePersonRequest request, bool requireNewForms)
+    {
+        var errors = PersonSaveRules.Validate(request, DateTime.Today, requireNewForms);
+        if (errors.Count > 0)
+            throw new PersonValidationException(errors);
     }
 }
 

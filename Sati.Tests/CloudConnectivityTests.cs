@@ -242,6 +242,35 @@ public sealed class CloudConnectivityTests
         Assert.Equal(4, scratchpad.Revision);
     }
 
+    [Fact]
+    public async Task ValidationProblemPreservesSpecificFieldGuidanceFromApi()
+    {
+        var handler = new SequenceHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = JsonContent.Create(new
+            {
+                title = "One or more validation errors occurred.",
+                status = 400,
+                errors = new Dictionary<string, string[]>
+                {
+                    ["firstName"] = ["First name must not exceed 50 characters."],
+                    ["email"] = ["Enter a valid email address."]
+                }
+            })
+        });
+        using var http = NewHttpClient(handler);
+        var api = new CloudApiClient(http, (_, _) => Task.CompletedTask);
+        api.SetAccessToken("test-token");
+
+        var error = await Assert.ThrowsAsync<CloudApiException>(
+            () => api.GetAsync<TestResponse>("/probe"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+        Assert.Contains("First name must not exceed 50 characters", error.Message);
+        Assert.Contains("Enter a valid email address", error.Message);
+        Assert.DoesNotContain("returned 400", error.Message);
+    }
+
     private static HttpClient NewHttpClient(HttpMessageHandler handler) => new(handler)
     {
         BaseAddress = new Uri("https://example.invalid/")

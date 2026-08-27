@@ -257,6 +257,15 @@ and the Local installer passed isolated version, integrated-security, payload, a
 Authenticated hosted smoke evidence remains outstanding because this operator profile has neither the
 synthetic agency Admin environment credential nor the encrypted Global Admin credential file.
 
+On August 27, 2026, guarded migration `20260827141239_AddBillingComplianceRequirements` was applied
+and verified against identity-marked Local `SatiProduction` and Azure `SatiDemo`. Local moved from
+72 to 73 recorded migrations; its one existing Settings row received the supported default flags and
+EF reports no pending code migration. Demo moved from 73 to 74 history rows, retained all 177
+synthetic People, and reports the new non-null column with no invalid Settings values. The difference
+in history counts reflects previously reconciled long-lived database history; pending status is
+evaluated against the current compiled migration chain for each target. The temporary exact-IP Azure
+firewall rule was removed and verified absent. No Production-cloud database was accessed.
+
 ## Azure migration checklist
 
 - [x] Confirm every Demo record is synthetic.

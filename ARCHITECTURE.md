@@ -396,9 +396,9 @@ records generated under the old 120-day setting.
   passes without completion. `CompletedDate is null` is the predicate for "not done." A form can be
   compliant (not overdue) and incomplete (`CompletedDate is null`) at the same time — that's the
   normal state of a not-yet-due form.
-- The generation constructor `Form(FormType, DateTime, bool)` is the sole birth exception —
-  it sets initial compliance for in-force forms at admission where the real completion
-  date is unknown.
+- New-client generation does not use the legacy "compliant with no completion date" state. When
+  the admission workflow assumes an in-force annual document exists, it records the effective date
+  as its completion date; the confirmation dialog lets the case manager correct that assumption.
 - EF Core materializes entities via the `protected Form()` parameterless constructor,
   which does not touch `IsCompliant`.
 - **Cascade rule:** Any code path that changes a form's completion state MUST go through
@@ -414,8 +414,10 @@ a raw update with no guard (still a latent risk if a future caller mutates state
 
 - Called by `Person.CreatePerson()` at admission; `Settings` is now threaded in and forwarded to
   `FormDueDateCalculator.Compute`.
-- Default compliance at generation: annual non-review forms → `true` (in-force at
-  admission); review forms → `false` (tasks to complete). Recall `true` here means "not overdue."
+- For an effective date through today, annual non-review forms start completed on that effective
+  date and review forms start incomplete. For a future effective date, every form starts incomplete;
+  Sati never writes a future completion date. The confirmation dialog can correct these assumptions
+  before the Person graph is saved.
 
 **Related: `Person.EnsureCurrentCycleForms(DateTime, Settings)`**
 - Idempotent form generation for rollover — ensures both current and next cycle have form records.
@@ -447,38 +449,46 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
   against real data: every stored form maps to exactly one cycle under this rule (no orphans, no
   double-counts).
 - Membership call sites routed through the helper: `GetCurrentCycleForm`,
-  `AddMissingFormsForCycle` (existence check), `EvaluateComplianceGate` (past-due reviews).
+  `AddMissingFormsForCycle` (existence check).
 - **Deliberately NOT routed through it:** `CaseManagerDashboardViewModel.BuildFormRows`, a
   forward-looking `>= cycleStart` queue with no upper bound (by design). Code comment marks why —
   do not "helpfully" convert it.
 
 ### Compliance Evaluation
 
-**Single source of truth: `Person.EvaluateComplianceGate(DateTime today, FormType? beingCompleted)`**
+**Single source of truth: `Sati.Contracts.V1.BillingComplianceGate`.**
 
 - Returns `(bool Passed, IReadOnlyList<string> Reasons)` — one pass produces both result and
-  human-readable explanation.
-- Required annual forms checked: PCP, ComprehensiveAssessment, Reclassification, SafetyPlan.
-- Also checks all past-due reviews in the current cycle (via `FormBelongsToCycle`).
-- `beingCompleted` exempts a form being marked complete in the same action.
-- `SupervisorService` does NOT duplicate this logic — both queue methods and `ApproveNoteAsync`
-  call `person.EvaluateComplianceGate(today).Passed` directly. One engine, no shadow copies.
-- `ApproveNoteAsync` enforces the gate as a hard service-layer throw even if the UI pre-filters.
+  human-readable explanation. `Person.EvaluateComplianceGate` is the desktop adapter.
+- A form fails the gate only when its due date has passed and it was not completed as of the
+  evaluation date. `Form.IsCompliant` is presentation/workflow state and is not authoritative for
+  billing; this prevents future unfinished forms from blocking early and stale flags from letting
+  overdue unfinished forms pass.
+- The due date remains billable. The block begins the following day and ends on the completion
+  date. An absent effective date is a separate profile/data-quality issue, not an overdue form.
+- `BillingComplianceRequirements` is an agency-scoped flags value stored on `Settings`. Admins may
+  enable or disable 90-day reviews, PCP, Comprehensive Assessment, Reclassification, Safety Plan,
+  Privacy Practices, and each release type. The migration default preserves the former intended
+  set: reviews, PCP, Comprehensive Assessment, Reclassification, and Safety Plan.
+- `beingCompleted` exempts only the newest overdue instance of that form type in the same action;
+  an older overdue instance of the same type still blocks.
+- Desktop supervisor queues, note entry, client presentation, billing validation, and loss reports
+  pass the agency setting to this owner. API supervisor, billing, and reporting endpoints load the
+  tenant's setting and call the same owner. Approval remains enforced below the UI.
 
 ### Billing Window Evaluation
 
-**Single source of truth: `Person.EvaluateBillingWindow(DateTime noteDate)`**
+**Single source of truth: `BillingComplianceGate.EvaluateBillingWindow(...)`.**
 
 - Reasons as of the *note's event date*, not today — necessary for back-entered notes in a
   different cycle. Walks `Forms` directly by each form's own due date (not `GetCurrentCycleForm`).
-- Gated form types: PCP, ComprehensiveAssessment, Reclassification, Q1R–Q4R.
-- Safety Plan, Releases, and Privacy Practices are NOT windowed here (pending configurable-
-  billability-scope work).
+- The exact same agency requirement set and type mapping used by current compliance controls the
+  historical window; the two decisions cannot silently disagree about a form type.
 - Window is exclusive on both ends: a note ON the due date bills; a note ON or after completion
   date bills.
-- `Person.IsBillingWindowBlocked(...)` is the shared date predicate used by both note entry and
-  `ConsumerBillingLossReportService`; the Statistics report therefore cannot drift to a different
-  definition of an overdue billing gap.
+- `Person.EvaluateBillingWindow(...)` and `Person.IsBillingWindowBlocked(...)` are desktop adapters.
+  The API and `ConsumerBillingLossReportService` call the contracts owner, so Statistics cannot
+  drift to a different definition of an overdue billing gap.
 
 ### Provider Directory Identity
 
@@ -581,6 +591,14 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
 
 ### `PersonService`
 - Owns `Person` CRUD.
+- New Person writes are validated by the transport-neutral `PersonSaveRules` in `Sati.Contracts.V1`.
+  It covers required values, database length limits, supported enum values, representative-payee
+  rules, and the complete/unique/date-consistent initial form graph. The API uses the same owner.
+- The local seam requires the new Person's assigned user to be the signed-in actor and overwrites
+  agency ownership from that actor. One `SaveChangesAsync` transaction commits the Person, forms,
+  first lifecycle version, and audit event; a relational rejection rolls the entire graph back.
+- The API likewise commits once and builds the response from the tracked graph. It does not perform
+  a second read after commit that could report a false failure after the Person already exists.
 - `GetAllPeopleAsync` is the primary load path: eager-loads `Notes` and `Forms`, then (when enabled)
   calls `person.EnsureCurrentCycleForms` for every person before returning; one `SaveChangesAsync`
   covers all additions.
@@ -592,6 +610,22 @@ All services follow the `IDbContextFactory<SatiContext>` pattern — per-method 
   the flag and unwrap the `if` when done.
 - **Cascade rule:** Anything needing a fully-populated `Person` must go through `GetAllPeopleAsync`
   or replicate its `Include` calls (and, once re-enabled, the `EnsureCurrentCycleForms` call).
+
+### Add/edit client presentation boundary
+
+`NewClientViewModel` contains every awaited preparation and persistence failure. Its user-facing
+`ClientSaveProblem` states what was saved, what failed, and the safest correction without exposing
+exception details. A cloud transport failure distinguishes a request known not to have been sent
+from a response whose save status is unknown; the latter requires refreshing before retrying.
+
+The optional Settings initialization and the four selection-triggered workspace loads are also
+contained. A failed read-only refresh after a successful save explicitly says the client was saved
+and must not be added again. Every async load is guarded by `LatestRequestTracker` before it may
+publish an error for the currently selected Person. Incident reports carry a short support reference.
+
+Adding a waiver no longer deletes the existing form collection before confirmation or Person save.
+Replacement forms travel with the Person update, so cancellation and validation cannot erase the
+old rows as a side effect.
 
 ### `FormService`
 - Owns `Form` updates, open-date stamping, deletion.
@@ -790,7 +824,8 @@ rather than in either client.
   comments before "fixing."
 - **`Incentive.ExcludedDatesJson` superseded** by `ExemptDate`; rollback pending `SchedulerViewModel`
   deletion. No new callers.
-- **Configurable billability scope** deferred; hardcoded in `EvaluateBillingWindow`.
+- ~~**Configurable billability scope** deferred.~~ Implemented through agency `Settings` and the
+  shared `BillingComplianceRequirements` owner on 2026-08-27.
 - **`ComplianceOverride` on `Note`** — fields exist, full UI not wired. Do not remove.
 
 ### Architectural Tension

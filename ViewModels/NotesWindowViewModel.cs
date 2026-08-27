@@ -180,14 +180,16 @@ namespace Sati.ViewModels
             if (SelectedNote is null) return;
 
             var (passed, reasons) = SelectedNote.Person.EvaluateComplianceGate(DateTime.Today,
-                SelectedNote.NoteType == NoteType.Form ? SelectedNote.FormType : null);
+                SelectedNote.NoteType == NoteType.Form ? SelectedNote.FormType : null,
+                NoteEntry.ComplianceRequirements);
 
             // Window check keyed to the note's date — previously missing here,
             // which let notes inside a missed-form window get Logged from the
             // context menu when the dashboard would have blocked them. Notes
             // without an EventDate skip the window check (nothing to key on).
             var windowReasons = SelectedNote.EventDate is DateTime eventDate
-                ? SelectedNote.Person.EvaluateBillingWindow(eventDate)
+                ? SelectedNote.Person.EvaluateBillingWindow(
+                    eventDate, NoteEntry.ComplianceRequirements)
                 : [];
 
             if (!passed || windowReasons.Count > 0)

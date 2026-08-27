@@ -436,6 +436,55 @@
                            Style="{StaticResource LabelStyle}" />
                 <TextBox AutomationProperties.Name="Per-unit incentive" Text="{Binding PerUnitIncentive, UpdateSourceTrigger=PropertyChanged}" />
 
+                <TextBlock Text="BILLING COMPLIANCE REQUIREMENTS"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,8,0,8" />
+                <Separator />
+                <TextBlock Text="An enabled requirement blocks billing only when that document is incomplete and its due date has passed. Changes apply to the whole agency."
+                           TextWrapping="Wrap"
+                           MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,12" />
+                <WrapPanel Margin="0,0,0,12">
+                    <CheckBox Content="90-day reviews"
+                              AutomationProperties.Name="Count 90-day reviews for billing compliance"
+                              IsChecked="{Binding ComplianceQuarterlyReviews}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="PCPs"
+                              AutomationProperties.Name="Count PCPs for billing compliance"
+                              IsChecked="{Binding CompliancePcp}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Comprehensive assessments"
+                              AutomationProperties.Name="Count comprehensive assessments for billing compliance"
+                              IsChecked="{Binding ComplianceComprehensiveAssessment}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Reclassifications"
+                              AutomationProperties.Name="Count reclassifications for billing compliance"
+                              IsChecked="{Binding ComplianceReclassification}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Safety plans"
+                              AutomationProperties.Name="Count safety plans for billing compliance"
+                              IsChecked="{Binding ComplianceSafetyPlan}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Privacy practices"
+                              AutomationProperties.Name="Count privacy practices for billing compliance"
+                              IsChecked="{Binding CompliancePrivacyPractices}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Agency releases"
+                              AutomationProperties.Name="Count agency releases for billing compliance"
+                              IsChecked="{Binding ComplianceAgencyRelease}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="DHHS releases"
+                              AutomationProperties.Name="Count DHHS releases for billing compliance"
+                              IsChecked="{Binding ComplianceDhhsRelease}"
+                              Margin="0,0,22,10" />
+                    <CheckBox Content="Medical releases"
+                              AutomationProperties.Name="Count medical releases for billing compliance"
+                              IsChecked="{Binding ComplianceMedicalRelease}"
+                              Margin="0,0,22,10" />
+                </WrapPanel>
+
                 <!-- AT / PAYMENT REQUESTS -->
                 <TextBlock Text="AT / PAYMENT REQUESTS"
                            Style="{StaticResource SectionHeader}"

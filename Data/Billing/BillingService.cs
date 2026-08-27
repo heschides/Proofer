@@ -11,6 +11,8 @@ namespace Sati.Services.Billing
     {
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISessionService _sessionService;
+        private BillingComplianceRequirements _complianceRequirements =
+            BillingComplianceGate.DefaultRequirements;
 
         public BillingService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
         {
@@ -105,6 +107,8 @@ namespace Sati.Services.Billing
             if (note.Status != NoteStatus.Approved)
                 throw new InvalidOperationException("Only an approved service note can become a claim line.");
 
+            _complianceRequirements = await LoadComplianceRequirementsAsync(
+                context, actor.AgencyId);
             var validation = ValidateNoteForBilling(note);
             if (!validation.IsValid)
                 throw new InvalidOperationException(
@@ -231,6 +235,8 @@ namespace Sati.Services.Billing
         {
             var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            _complianceRequirements = await LoadComplianceRequirementsAsync(
+                context, actor.AgencyId);
             return await context.Notes
                 .Include(n => n.Person)
                     .ThenInclude(p => p.Agency)
@@ -285,10 +291,12 @@ namespace Sati.Services.Billing
                 else
                 {
                     var (passed, complianceReasons) = note.Person.EvaluateComplianceGate(
-                        BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow));
+                        BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow),
+                        requirements: _complianceRequirements);
                     if (!passed)
                         errors.AddRange(complianceReasons);
-                    errors.AddRange(note.Person.EvaluateBillingWindow(note.EventDate.Value));
+                    errors.AddRange(note.Person.EvaluateBillingWindow(
+                        note.EventDate.Value, _complianceRequirements));
                 }
             }
 
@@ -306,6 +314,14 @@ namespace Sati.Services.Billing
                 .SingleAsync(candidate => candidate.Id == actor.AgencyId);
             return ToBillingConfiguration(agency);
         }
+
+        private static async Task<BillingComplianceRequirements> LoadComplianceRequirementsAsync(
+            SatiContext context,
+            int agencyId) =>
+            await context.Settings.AsNoTracking()
+                .Where(settings => settings.AgencyId == agencyId)
+                .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
+                .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
 
         public async Task SaveBillingConfigurationAsync(BillingConfiguration configuration)
         {

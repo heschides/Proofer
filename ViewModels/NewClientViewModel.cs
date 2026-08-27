@@ -34,6 +34,9 @@ namespace Sati.ViewModels
         private readonly IReviewItemService _reviewItemService;
         private readonly IPersonContactService _personContactService;
         private readonly IATRequestService _atRequestService;
+        private readonly IIncidentReporter _incidentReporter;
+        public BillingComplianceRequirements BillingComplianceRequirements { get; private set; } =
+            BillingComplianceGate.DefaultRequirements;
         private readonly ATRequestPdfExporter _atRequestPdfExporter;
 
         public DhhsFormsViewModel DhhsForms { get; }
@@ -57,6 +60,8 @@ namespace Sati.ViewModels
         private int? _journalPersonId;
         private bool _suppressJournalSave;
         private int _journalLoadVersion;
+        private int? _justSavedPersonId;
+        private readonly LatestRequestTracker _workspaceLoads = new();
         private readonly JournalSaveCoordinator _journalSaveCoordinator = new();
         private readonly JournalDraftTracker _journalDraftTracker = new();
 
@@ -76,6 +81,7 @@ namespace Sati.ViewModels
 
         public event Func<List<Form>, bool>? ComplianceReviewRequested;
         public event EventHandler? FormComplianceChanged;
+        public event EventHandler<ClientSaveProblemEventArgs>? ClientSaveProblemOccurred;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -126,6 +132,10 @@ namespace Sati.ViewModels
         private bool isClientListCompact;
         [ObservableProperty]
         private int clientWorkspaceTabIndex;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasClientSaveError))]
+        private string clientSaveErrorMessage = string.Empty;
+        public bool HasClientSaveError => !string.IsNullOrWhiteSpace(ClientSaveErrorMessage);
         [ObservableProperty]
         private bool openWithVR;
 
@@ -276,10 +286,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(ReleaseMedicalDueDate));
             OnPropertyChanged(nameof(ReleaseDhhsDueDate));
             RefreshComplianceFlags();
-            _ = LoadSelectedPersonNotesAsync(value);
-            _ = LoadAppointmentsAsync(value);
-            _ = LoadContactsAsync(value);
-            _ = LoadAtRequestsAsync(value);
+            _ = LoadSelectedPersonWorkspaceSafelyAsync(value, _workspaceLoads.Begin());
             SsnPanel.SetPerson(value?.Id);
             DhhsForms.SetPerson(value);
             AgencyRelease.SetPerson(value);
@@ -416,11 +423,16 @@ namespace Sati.ViewModels
 
         public bool HasSelectedPersonServices => SelectedPersonServices.Length > 0;
         public IReadOnlyList<string> SelectedPersonComplianceReasons =>
-            GetComplianceReasons(SelectedPerson, DateTime.Today);
+            GetComplianceReasons(
+                SelectedPerson, DateTime.Today, BillingComplianceRequirements);
         public bool HasSelectedPersonComplianceIssues => SelectedPersonComplianceReasons.Count > 0;
 
-        internal static IReadOnlyList<string> GetComplianceReasons(Person? person, DateTime today) =>
-            person?.EvaluateComplianceGate(today).Reasons ?? [];
+        internal static IReadOnlyList<string> GetComplianceReasons(
+            Person? person,
+            DateTime today,
+            BillingComplianceRequirements requirements =
+                BillingComplianceGate.DefaultRequirements) =>
+            person?.EvaluateComplianceGate(today, requirements: requirements).Reasons ?? [];
 
         // Employed and receiving no employment supports from any funding stream —
         // the population whose employment parameters must be tracked quarterly.
@@ -526,6 +538,7 @@ namespace Sati.ViewModels
                            IReviewItemService reviewItemService,
                            IPersonContactService personContactService,
                            IATRequestService atRequestService,
+                           IIncidentReporter incidentReporter,
                            ATRequestPdfExporter atRequestPdfExporter,
                            DhhsFormsViewModel dhhsForms,
                            AgencyReleaseViewModel agencyRelease,
@@ -539,13 +552,14 @@ namespace Sati.ViewModels
             _reviewItemService = reviewItemService;
             _personContactService = personContactService;
             _atRequestService = atRequestService;
+            _incidentReporter = incidentReporter;
             _atRequestPdfExporter = atRequestPdfExporter;
             DhhsForms = dhhsForms;
             SsnPanel = ssnPanel;
             AgencyRelease = agencyRelease;
             PeopleView = CollectionViewSource.GetDefaultView(People);
             PeopleView.Filter = MatchesConsumerFilter;
-            _ = LoadHealthcareOptionsAsync();
+            _ = LoadHealthcareOptionsSafelyAsync();
         }
 
         // ---------------------------------------------------------------------
@@ -684,6 +698,7 @@ namespace Sati.ViewModels
         [RelayCommand]
         private void OpenEntryPanel()
         {
+            ClientSaveErrorMessage = string.Empty;
             SelectedPerson = null;
             IsEditMode = false;
             IsClientEditorOpen = true;
@@ -694,6 +709,7 @@ namespace Sati.ViewModels
         private void BeginClientEdit()
         {
             if (SelectedPerson is not Person person) return;
+            ClientSaveErrorMessage = string.Empty;
             PopulateFrom(person);
             IsClientEditorOpen = true;
             ClientWorkspaceTabIndex = 0;
@@ -702,6 +718,7 @@ namespace Sati.ViewModels
         [RelayCommand]
         private void CancelClientEdit()
         {
+            ClientSaveErrorMessage = string.Empty;
             if (SelectedPerson is Person person)
                 PopulateFrom(person);
             else
@@ -797,15 +814,33 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task Submit()
         {
+            ClientSaveErrorMessage = string.Empty;
+            var creating = !(IsEditMode && SelectedPerson is Person);
             ValidateAllProperties();
             if (HasErrors)
-                return;
-
-            var effectiveDate = TryGetEffectiveDate(EffectiveDateText);
-            var settings = await _settingsService.LoadAsync();
-
-            if (IsEditMode && SelectedPerson is Person existing)
             {
+                var validationMessages = ((INotifyDataErrorInfo)this)
+                    .GetErrors(null)
+                    .Cast<ValidationResult>()
+                    .Select(result => result.ErrorMessage ?? "A client field is invalid.");
+                ShowClientSaveProblem(ClientSaveProblem.Validation(validationMessages, creating));
+                return;
+            }
+
+            var stage = ClientSaveStage.PreparingRecord;
+            try
+            {
+                var effectiveDate = TryGetEffectiveDate(EffectiveDateText);
+                var settings = new Settings();
+                if (effectiveDate.HasValue)
+                {
+                    stage = ClientSaveStage.LoadingSettings;
+                    settings = await _settingsService.LoadAsync();
+                }
+                stage = ClientSaveStage.PreparingRecord;
+
+                if (IsEditMode && SelectedPerson is Person existing)
+                {
                 var wasNoWaiver = existing.Waiver == WaiverType.None;
                 var isAddingWaiver = Waiver != WaiverType.None;
 
@@ -846,12 +881,11 @@ namespace Sati.ViewModels
                 existing.HasCommunitySupportSelfDirected = HasCommunitySupportSelfDirected;
                 existing.HasCommunitySupportDayProgram = HasCommunitySupportDayProgram;
                 existing.DayProgramCount = HasCommunitySupportDayProgram ? DayProgramCount : 1;
-                existing.HasEmploymentSpecialist = HasEmploymentSpecialist;
-                existing.HasWorkSupports = HasWorkSupports;
+                existing.HasEmploymentSpecialist = IsEmployed && HasEmploymentSpecialist;
+                existing.HasWorkSupports = IsEmployed && HasWorkSupports;
 
                 if (wasNoWaiver && isAddingWaiver && effectiveDate is not null)
                 {
-                    await _formService.DeleteFormsAsync(existing.Forms);
                     var forms = Person.GenerateFormList(effectiveDate.Value, settings);
                     existing.Forms = forms;
                     var confirmed = ComplianceReviewRequested?.Invoke(existing.Forms) ?? true;
@@ -859,6 +893,7 @@ namespace Sati.ViewModels
                         return;
                 }
 
+                stage = ClientSaveStage.SavingRecord;
                 await _personService.EditPersonAsync(existing);
 
                 var index = People.IndexOf(existing);
@@ -870,10 +905,12 @@ namespace Sati.ViewModels
 
                 SelectedPerson = null;
                 SelectedPerson = existing;
-            }
-            else
-            {
-                var person = Person.CreatePerson(_sessionService.CurrentUser!.Id,
+                }
+                else
+                {
+                var currentUser = _sessionService.CurrentUser
+                    ?? throw new InvalidOperationException("A signed-in user is required to add a client.");
+                var person = Person.CreatePerson(currentUser.Id,
                                     FirstName!, LastName!, Bio!, BirthDate!.Value, effectiveDate, Waiver, settings);
                 person.Gender = Gender;
                 person.OpenWithVR = OpenWithVR;
@@ -907,19 +944,26 @@ namespace Sati.ViewModels
                 person.HasCommunitySupportSelfDirected = HasCommunitySupportSelfDirected;
                 person.HasCommunitySupportDayProgram = HasCommunitySupportDayProgram;
                 person.DayProgramCount = HasCommunitySupportDayProgram ? DayProgramCount : 1;
-                person.HasEmploymentSpecialist = HasEmploymentSpecialist;
-                person.HasWorkSupports = HasWorkSupports;
+                person.HasEmploymentSpecialist = IsEmployed && HasEmploymentSpecialist;
+                person.HasWorkSupports = IsEmployed && HasWorkSupports;
                 var confirmed = ComplianceReviewRequested?.Invoke(person.Forms) ?? true;
                 if (!confirmed)
                     return;
+                stage = ClientSaveStage.SavingRecord;
                 await _personService.AddPersonAsync(person);
                 People.Add(person);
+                _justSavedPersonId = person.Id;
                 SelectedPerson = person;
-            }
+                }
 
-            PeopleView.Refresh();
-            IsClientEditorOpen = false;
-            IsEditMode = false;
+                PeopleView.Refresh();
+                IsClientEditorOpen = false;
+                IsEditMode = false;
+            }
+            catch (Exception exception)
+            {
+                await ReportClientSaveProblemAsync(exception, stage, creating);
+            }
         }
 
         [RelayCommand]
@@ -1070,7 +1114,10 @@ namespace Sati.ViewModels
             }
             else
             {
+                var personId = person.Id;
                 var (medical, dental) = await _reviewItemService.GetLatestAppointmentsAsync(person.Id);
+                if (SelectedPerson?.Id != personId)
+                    return;
                 _latestDoctor = medical;
                 _latestDentist = dental;
             }
@@ -1082,6 +1129,65 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(DentistName));
             OnPropertyChanged(nameof(IsDentistOverdue));
         }
+
+        private async Task LoadSelectedPersonWorkspaceSafelyAsync(Person? person, int request)
+        {
+            var results = await Task.WhenAll(
+                CaptureWorkspaceLoadAsync("case notes", () => LoadSelectedPersonNotesAsync(person)),
+                CaptureWorkspaceLoadAsync("appointments", () => LoadAppointmentsAsync(person)),
+                CaptureWorkspaceLoadAsync("contacts", () => LoadContactsAsync(person)),
+                CaptureWorkspaceLoadAsync("AT requests", () => LoadAtRequestsAsync(person)));
+            var failures = results.Where(result => result.Exception is not null).ToList();
+            if (failures.Count == 0 ||
+                !_workspaceLoads.IsCurrent(request) ||
+                SelectedPerson?.Id != person?.Id)
+            {
+                if (_justSavedPersonId == person?.Id)
+                    _justSavedPersonId = null;
+                return;
+            }
+
+            var reference = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+            foreach (var failure in failures)
+            {
+                try
+                {
+                    await _incidentReporter.ReportAsync(
+                        failure.Exception!,
+                        $"client.workspace.load.{failure.Area.Replace(' ', '-')}",
+                        reference,
+                        severity: "Warning");
+                }
+                catch (Exception reportingFailure)
+                {
+                    Debug.WriteLine($"Client workspace incident reporting failed: {reportingFailure.Message}");
+                }
+            }
+
+            var justSaved = _justSavedPersonId == person?.Id;
+            _justSavedPersonId = null;
+            ShowClientSaveProblem(ClientSaveProblem.RefreshFailure(
+                failures.Select(failure => failure.Area),
+                justSaved,
+                reference));
+        }
+
+        private static async Task<WorkspaceLoadResult> CaptureWorkspaceLoadAsync(
+            string area,
+            Func<Task> load)
+        {
+            try
+            {
+                await load();
+                return new WorkspaceLoadResult(area, null);
+            }
+            catch (Exception exception)
+            {
+                return new WorkspaceLoadResult(area, exception);
+            }
+        }
+
+        private sealed record WorkspaceLoadResult(string Area, Exception? Exception);
 
         private async Task LoadContactsAsync(Person? person)
         {
@@ -1261,12 +1367,68 @@ namespace Sati.ViewModels
             return false;
         }
 
+        private async Task LoadHealthcareOptionsSafelyAsync()
+        {
+            try
+            {
+                await LoadHealthcareOptionsAsync();
+            }
+            catch (Exception exception)
+            {
+                // Construction cannot await this optional page initialization. Keep
+                // its failure inside the view model rather than letting a fire-and-
+                // forget task become an application-level crash.
+                await ReportClientSaveProblemAsync(
+                    exception,
+                    ClientSaveStage.LoadingSettings,
+                    creating: true,
+                    showDialog: false);
+            }
+        }
+
+        private async Task ReportClientSaveProblemAsync(
+            Exception exception,
+            ClientSaveStage stage,
+            bool creating,
+            bool showDialog = true)
+        {
+            var reference = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+            try
+            {
+                await _incidentReporter.ReportAsync(
+                    exception,
+                    creating ? "client.create" : "client.edit",
+                    reference);
+            }
+            catch (Exception reportingFailure)
+            {
+                // The original save guidance is more important than telemetry. The
+                // reporter is also fail-safe, but this boundary prevents a custom or
+                // future reporter from replacing the user's actionable message.
+                Debug.WriteLine($"Client save incident reporting failed: {reportingFailure.Message}");
+            }
+
+            ShowClientSaveProblem(
+                ClientSaveProblem.FromException(exception, stage, creating, reference),
+                showDialog);
+        }
+
+        private void ShowClientSaveProblem(ClientSaveProblem problem, bool showDialog = true)
+        {
+            ClientSaveErrorMessage = problem.Message;
+            if (showDialog)
+                ClientSaveProblemOccurred?.Invoke(this, new ClientSaveProblemEventArgs(problem));
+        }
+
         // Loads the configurable system names from Settings and projects each into a
         // HealthcareSystemOption for the combobox. Normalize re-applies the "Other"
         // floor and ordering in case the stored list was hand-edited.
         private async Task LoadHealthcareOptionsAsync()
         {
             var settings = await _settingsService.LoadAsync();
+            BillingComplianceRequirements = settings.BillingComplianceRequirements;
+            OnPropertyChanged(nameof(BillingComplianceRequirements));
+            RefreshComplianceFlags();
             HealthcareSystems.Clear();
             foreach (var name in HealthcareSystemOptions.Normalize(settings.HealthcareSystems))
                 HealthcareSystems.Add(new HealthcareSystemOption(name));

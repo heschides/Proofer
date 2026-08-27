@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Deep harbor navy with lighthouse teal and warm brass. -->
+    <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FF101B24" Offset="0"/><GradientStop Color="#FF142631" Offset="0.58"/><GradientStop Color="#FF1B242A" Offset="1"/></LinearGradientBrush>
+    <LinearGradientBrush x:Key="NavBackgroundBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FF172A36" Offset="0"/><GradientStop Color="#FF1B3038" Offset="1"/></LinearGradientBrush>
+    <LinearGradientBrush x:Key="SurfaceBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FF213640" Offset="0"/><GradientStop Color="#FF1C3039" Offset="0.58"/><GradientStop Color="#FF263538" Offset="1"/></LinearGradientBrush>
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#263D46"/><SolidColorBrush x:Key="SurfaceMutedBrush" Color="#2D4650"/><SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#2B4149"/><SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B3213640"/><SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#40213640"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#46616A"/><SolidColorBrush x:Key="InputBorderBrush" Color="#66818A"/><SolidColorBrush x:Key="DividerBrush" Color="#38525B"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#6FB6AE"/><SolidColorBrush x:Key="AccentHoverBrush" Color="#87CBC2"/><SolidColorBrush x:Key="AccentPressedBrush" Color="#57968F"/><SolidColorBrush x:Key="OnAccentBrush" Color="#0C2222"/>
+    <Color x:Key="AiGlowColor">#FFD1A75D</Color><SolidColorBrush x:Key="AiAccentBrush" Color="#B48A43"/><SolidColorBrush x:Key="AiAccentHoverBrush" Color="#CEA45E"/><SolidColorBrush x:Key="AiAccentPressedBrush" Color="#906C32"/><SolidColorBrush x:Key="AiAccentSoftBrush" Color="#423824"/><SolidColorBrush x:Key="AiAccentBorderBrush" Color="#9F814C"/><SolidColorBrush x:Key="OnAiAccentBrush" Color="#1D1609"/><SolidColorBrush x:Key="AiPanelTextBrush" Color="#F1D9AB"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#2D4751"/><SolidColorBrush x:Key="HoverStrongBrush" Color="#3B5963"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F0F5F4"/><SolidColorBrush x:Key="TextSecondaryBrush" Color="#C0D0D0"/><SolidColorBrush x:Key="TextMutedBrush" Color="#A7BBBC"/><SolidColorBrush x:Key="TextSubtleBrush" Color="#9FB3B5"/><SolidColorBrush x:Key="NarrativeTextBrush" Color="#D4E1DD"/>
+    <SolidColorBrush x:Key="PersonGroupBrush" Color="#20343D"/><SolidColorBrush x:Key="PersonGroupAltBrush" Color="#293C41"/>
+    <Color x:Key="SurfaceAltColor">#FF263D46</Color><Color x:Key="SurfaceRaisedColor">#FF2B4149</Color><Color x:Key="TextSubtleColor">#FF9FB3B5</Color>
+    <SolidColorBrush x:Key="OverdueBrush" Color="#FFAAA5"/><SolidColorBrush x:Key="OverdueBorderBrush" Color="#9A5960"/><SolidColorBrush x:Key="OverdueFillBrush" Color="#4B3035"/>
+    <SolidColorBrush x:Key="CompliantBrush" Color="#A8DDAE"/><SolidColorBrush x:Key="CompliantFillBrush" Color="#294536"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#F2D080"/><SolidColorBrush x:Key="WarningFillBrush" Color="#4B3E22"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="#9FD1F3"/><SolidColorBrush x:Key="InfoFillBrush" Color="#234458"/>
+    <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A7D9AE"/><SolidColorBrush x:Key="SuccessDarkBrush" Color="#B9E4BF"/><SolidColorBrush x:Key="SuccessBorderBrush" Color="#658F6C"/><SolidColorBrush x:Key="SuccessSoftBrush" Color="#2E4A37"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA"/><SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0"/><SolidColorBrush x:Key="DangerSoftBrush" Color="#4D3035"/>
+    <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#D7C5EE"/><SolidColorBrush x:Key="WorkflowPurpleFillBrush" Color="#403650"/><SolidColorBrush x:Key="WorkflowPurpleBorderBrush" Color="#79698D"/>
+    <SolidColorBrush x:Key="OpenedFormBrush" Color="#F1B66F"/><SolidColorBrush x:Key="OpenedFormFillBrush" Color="#493722"/>
+    <SolidColorBrush x:Key="MatrixGoodBrush" Color="#2C4B38"/><SolidColorBrush x:Key="MatrixWatchBrush" Color="#514623"/><SolidColorBrush x:Key="MatrixConcernBrush" Color="#563D2A"/><SolidColorBrush x:Key="MatrixUrgentBrush" Color="#553136"/><SolidColorBrush x:Key="MatrixEmptyBrush" Color="#2D454E"/>
+    <Color x:Key="MatrixGoodColor">#FF2C4B38</Color><Color x:Key="MatrixWatchColor">#FF514623</Color><Color x:Key="MatrixUrgentColor">#FF553136</Color><Color x:Key="MatrixEmptyColor">#FF2D454E</Color>
+</ResourceDictionary>

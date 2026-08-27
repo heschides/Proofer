@@ -17,7 +17,11 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16,8">
-            <StackPanel Orientation="Horizontal">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          CanContentScroll="True">
+            <StackPanel Orientation="Horizontal"
+                        KeyboardNavigation.TabNavigation="Local">
 
                 <Border Cursor="Hand"
                         CornerRadius="4"
@@ -330,7 +334,26 @@
                     </TextBlock>
                 </Border>
 
+                <Button Content="AT Requests"
+                        Style="{StaticResource NavTabButton}"
+                        AutomationProperties.Name="Assistive technology requests"
+                        views:NavTab.IsActive="{Binding IsATRequestsSubActive}"
+                        Command="{Binding NavigateToATRequestsCommand}" />
+
+                <Button Content="Authorized Rep"
+                        Style="{StaticResource NavTabButton}"
+                        AutomationProperties.Name="DHHS authorized representative form"
+                        views:NavTab.IsActive="{Binding IsAuthorizedRepresentativeSubActive}"
+                        Command="{Binding NavigateToAuthorizedRepresentativeCommand}" />
+
+                <Button Content="Releases"
+                        Style="{StaticResource NavTabButton}"
+                        AutomationProperties.Name="Release forms"
+                        views:NavTab.IsActive="{Binding IsReleasesSubActive}"
+                        Command="{Binding NavigateToReleasesCommand}" />
+
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ═══ CONTENT AREA ═══ -->

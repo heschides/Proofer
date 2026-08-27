@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
 using Sati.Services;
+using Sati.Contracts.V1;
 
 namespace Sati.Data
 {
@@ -26,6 +27,7 @@ namespace Sati.Data
                 settings = new Settings
                 {
                     AgencyId = agencyId,
+                    BillingComplianceRequirements = BillingComplianceGate.DefaultRequirements,
                     ReviewOpenDaysBefore = 10,
                     ReviewDaysAfterDue = 10,
                     PcpOpenDaysBefore = 90,
@@ -73,6 +75,10 @@ namespace Sati.Data
                 throw new SettingsSaveException(
                     "Only an agency administrator can change operational settings.",
                     new UnauthorizedAccessException());
+            if (!BillingComplianceGate.IsSupported(settings.BillingComplianceRequirements))
+                throw new SettingsSaveException(
+                    "The billing-compliance requirement selection is invalid.",
+                    new ArgumentOutOfRangeException(nameof(settings)));
 
             await using var context = _contextFactory.CreateDbContext();
             var agencyId = CurrentAgencyId();

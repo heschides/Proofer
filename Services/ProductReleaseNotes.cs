@@ -6,30 +6,31 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Faster note entry and clearer Visit details";
-    public const string ReleaseDate = "August 26, 2026";
+    public const string ReleaseName = "Accurate compliance and safer client setup";
+    public const string ReleaseDate = "August 27, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Personal typing shortcuts",
+            "Accurate, configurable billing compliance",
             [
-                "Every user can now map Win+Shift+1 through Win+Shift+0 to ten personal text snippets in Settings.",
-                "A shortcut inserts up to 200 characters only into the note narrative or Today's Work and Tomorrow's Agenda Scratchpad editors.",
-                "Mappings stay on this Windows profile and are kept separate for each Sati user and for Demo versus Local Production."
+                "Only required documents that are both incomplete and past due now block billing; unfinished future-year documents no longer make a client noncompliant early.",
+                "Agency Admins can choose whether reviews, PCPs, Comprehensive Assessments, Reclassification, Safety Plans, Privacy Practices, and each release type participate in billing compliance.",
+                "Current queues, historical service dates, billing validation, and billing-loss reports now use the same date-based rule."
             ]),
         new(
-            "More complete Visit notes",
+            "Safer Add Client workflow",
             [
-                "Visit Setting, Appearance, Participation, and Health/Safety now use checkboxes so more than one observation can be recorded in each group.",
-                "Existing Visit notes remain readable, and newly saved notes retain compatibility with their earlier single-choice format.",
-                "Local drafting assistance now includes every checked Visit observation while keeping the case manager in control of the final narrative."
+                "Add Client errors stay inside the Clients page instead of terminating Sati.",
+                "A failed save now explains what was saved, what went wrong, and the safest fix, including when a connection must be checked before retrying.",
+                "Client details, initial forms, lifecycle history, and the audit entry are validated and saved together so a database rejection cannot leave a partial client."
             ]),
         new(
-            "Clearer date selection",
+            "Consistent workspaces and more appearance choices",
             [
-                "Date fields once again show a themed calendar button inside the picker, aligned vertically with the date text.",
-                "The restored button keeps the normal Windows date-picker popup, keyboard operation, and accessible name."
+                "AT Requests, Authorized Rep, and Releases are available together on the main case-manager navigation and remain available under Clients.",
+                "Notes filters now align consistently above the notes grid.",
+                "Pine Coast, Blueberry Mist, and Harbor Night add three new complete color themes."
             ]),
         new(
             "Still planned before commercial production",

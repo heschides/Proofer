@@ -386,6 +386,9 @@ namespace Sati.Data
             {
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.Revision).IsConcurrencyToken();
+                entity.Property(s => s.BillingComplianceRequirements)
+                      .HasConversion<int>()
+                      .HasDefaultValue(Contracts.V1.BillingComplianceGate.DefaultRequirements);
                 entity.HasIndex(s => s.AgencyId).IsUnique();
                 entity.HasOne<Agency>()
                       .WithMany()

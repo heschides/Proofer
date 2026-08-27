@@ -246,6 +246,37 @@ public sealed class NotePanelRenderTests
         });
     }
 
+    [Fact]
+    public async Task NotesFilterControlsShareRenderedHeightsAndRowBaselines()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var log = fixture.NotesWindow();
+
+        WpfUiHarness.Run(() =>
+        {
+            var view = new NotesLogView { DataContext = log };
+            WpfUiHarness.Realize(view, 1400, 900);
+
+            var client = WpfUiHarness.FindByAutomationName<ComboBox>(view, "Filter by person");
+            var status = WpfUiHarness.FindByAutomationName<ComboBox>(view, "Filter by status");
+            var search = WpfUiHarness.FindByAutomationName<TextBox>(view, "Search Text");
+            var start = WpfUiHarness.FindByAutomationName<DatePicker>(view, "Range start date");
+            var end = WpfUiHarness.FindByAutomationName<DatePicker>(view, "Range end date");
+            var summary = FindNamed<Border>(view, "UnitsRangeSummary");
+            var filter = FindNamed<Border>(view, "NotesFilterPanel");
+
+            Assert.All(new FrameworkElement[] { client, status, search, start, end, summary },
+                control => Assert.Equal(36, control.ActualHeight, precision: 1));
+            Assert.Equal(Top(client), Top(status), precision: 1);
+            Assert.Equal(Top(client), Top(search), precision: 1);
+            Assert.Equal(Top(start), Top(end), precision: 1);
+            Assert.Equal(Top(start), Top(summary), precision: 1);
+
+            double Top(FrameworkElement element) =>
+                element.TranslatePoint(new Point(0, 0), filter).Y;
+        });
+    }
+
     // -------------------------------------------------------------------------
     // The way back to New Note, as loaded
     // -------------------------------------------------------------------------

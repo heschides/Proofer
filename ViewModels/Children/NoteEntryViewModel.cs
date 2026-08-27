@@ -48,6 +48,8 @@ namespace Sati.ViewModels.Children
         private readonly DiscardChangesPrompt _confirmDiscard;
 
         private Settings? _settings;
+        public BillingComplianceRequirements ComplianceRequirements =>
+            _settings?.BillingComplianceRequirements ?? BillingComplianceGate.DefaultRequirements;
         private Note? _editingNote;
         private string? _aiSourceNarrative;
         private string? _aiSourceFingerprint;
@@ -1583,11 +1585,13 @@ namespace Sati.ViewModels.Children
                 if (Status == NoteStatus.Logged)
                 {
                     var (passed, reasons) = SelectedPerson!.EvaluateComplianceGate(DateTime.Today,
-                        SelectedNoteType == NoteType.Form ? SelectedFormType : null);
+                        SelectedNoteType == NoteType.Form ? SelectedFormType : null,
+                        ComplianceRequirements);
 
                     // Window check is keyed to the NOTE's date, not today.
                     // EventDate is non-null here — validated above.
-                    var windowReasons = SelectedPerson!.EvaluateBillingWindow(EventDate!.Value);
+                    var windowReasons = SelectedPerson!.EvaluateBillingWindow(
+                        EventDate!.Value, ComplianceRequirements);
 
                     if (!passed || windowReasons.Count > 0)
                     {

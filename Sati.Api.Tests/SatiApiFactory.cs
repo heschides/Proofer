@@ -620,6 +620,29 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
         var nextId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        var overduePcp = DateTime.Today.AddDays(-2);
+        var overdueAssessment = DateTime.Today.AddDays(-1);
+        if (!await db.Forms.AnyAsync(form => form.PersonId == 102 &&
+                form.Type == "PCP" && form.DueDate == overduePcp))
+            db.Forms.Add(new ServerForm
+            {
+                PersonId = 102,
+                Type = "PCP",
+                DueDate = overduePcp,
+                CompletedDate = null,
+                // Deliberately stale: the date fields, not this flag, must win.
+                IsCompliant = true
+            });
+        if (!await db.Forms.AnyAsync(form => form.PersonId == 102 &&
+                form.Type == "ComprehensiveAssessment" && form.DueDate == overdueAssessment))
+            db.Forms.Add(new ServerForm
+            {
+                PersonId = 102,
+                Type = "ComprehensiveAssessment",
+                DueDate = overdueAssessment,
+                CompletedDate = null,
+                IsCompliant = true
+            });
         db.Notes.Add(new ServerNote
         {
             Id = nextId,
@@ -634,15 +657,51 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         return nextId;
     }
 
+    public async Task<int> CreateFutureIncompleteReviewNoteAsync()
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var personId = await db.People.MaxAsync(person => person.Id) + 1;
+        var noteId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        var futureDueDate = DateTime.Today.AddMonths(4);
+        var person = new ServerPerson
+        {
+            Id = personId,
+            UserId = 12,
+            AgencyId = 1,
+            FirstName = "Future",
+            LastName = "Documents",
+            BirthDate = new DateTime(1990, 1, 1),
+            EffectiveDate = DateTime.Today.AddMonths(-1),
+            Forms =
+            [
+                FutureIncompleteForm(personId, "PCP", futureDueDate),
+                FutureIncompleteForm(personId, "ComprehensiveAssessment", futureDueDate),
+                FutureIncompleteForm(personId, "Reclassification", futureDueDate),
+                FutureIncompleteForm(personId, "SafetyPlan", futureDueDate)
+            ]
+        };
+        db.People.Add(person);
+        db.Notes.Add(new ServerNote
+        {
+            Id = noteId,
+            PersonId = personId,
+            AgencyId = 1,
+            Narrative = "Future documents must not block this note.",
+            EventDate = DateTime.Today,
+            Minutes = 30,
+            Status = 2
+        });
+        await db.SaveChangesAsync();
+        return noteId;
+    }
+
     /// <summary>
-    /// The start of the compliance cycle the billable seeded people sit in.
+    /// A relative anchor for the billable seeded people.
     /// </summary>
     /// <remarks>
-    /// Relative to today rather than pinned to a calendar date. BillingComplianceGate
-    /// derives the current cycle from the effective date and only counts forms due
-    /// inside it, so a fixed 2026 effective date with forms due in December 2026
-    /// would silently fall out of cycle on 1 January 2027 and take every approval
-    /// and billing test with it.
+    /// Relative to today so the fixtures remain representative at any run date.
     /// </remarks>
     private static DateTime CycleStart => DateTime.Today.AddMonths(-1);
 
@@ -653,6 +712,18 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         DueDate = CycleStart.AddMonths(6),
         IsCompliant = true,
         CompletedDate = CycleStart.AddDays(1)
+    };
+
+    private static ServerForm FutureIncompleteForm(
+        int personId,
+        string type,
+        DateTime dueDate) => new()
+    {
+        PersonId = personId,
+        Type = type,
+        DueDate = dueDate,
+        IsCompliant = false,
+        CompletedDate = null
     };
 
     private static string ClaimSnapshot(

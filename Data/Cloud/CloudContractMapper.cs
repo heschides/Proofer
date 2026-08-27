@@ -121,6 +121,7 @@ internal static class CloudContractMapper
     public static Settings ToSettings(SettingsDto s) => new()
     {
         Id = s.Id,
+        BillingComplianceRequirements = s.BillingComplianceRequirements,
         AbandonedAfterDays = s.AbandonedAfterDays,
         ProductivityThreshold = s.ProductivityThreshold,
         BaseIncentive = s.BaseIncentive,
@@ -196,7 +197,8 @@ internal static class CloudContractMapper
         s.PcpDaysBeforeAnniversary, s.CompAssessmentDaysBeforeAnniversary, s.ReclassificationDaysBeforeAnniversary,
         s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
         s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
-        s.ReleaseMedicalDaysBeforeAnniversary, s.Revision);
+        s.ReleaseMedicalDaysBeforeAnniversary, s.Revision,
+        s.BillingComplianceRequirements);
 
     public static Scratchpad ToScratchpad(ScratchpadDto dto) => new()
     {
@@ -252,53 +254,8 @@ internal static class CloudContractMapper
         note.VisitDocumentationJson,
         note.Revision);
 
-    public static SavePersonRequest ToSavePersonRequest(Person person) => new(
-        person.FirstName ?? string.Empty,
-        person.LastName ?? string.Empty,
-        person.BirthDate,
-        person.Gender.ToString(),
-        person.EffectiveDate,
-        person.Bio,
-        person.Waiver.ToString(),
-        person.MaineCareId,
-        person.DiagnosisCode,
-        person.PlaceOfService,
-        person.EvergreenId,
-        person.OpenWithVR,
-        person.HasGuardian,
-        person.GuardianName,
-        person.PhoneNumber,
-        person.Address,
-        person.BillingStreet,
-        person.BillingCity,
-        person.BillingState,
-        person.BillingZip,
-        person.PrimaryCareProvider,
-        person.HealthcareSystemName,
-        person.HasHomeSupport,
-        person.HasSelfDirectedHomeSupport,
-        person.HasSharedLiving,
-        person.HasCommunitySupport1To1,
-        person.HasCommunitySupportSelfDirected,
-        person.HasCommunitySupportDayProgram,
-        person.DayProgramCount,
-        person.HasEmploymentSpecialist,
-        person.HasWorkSupports,
-        person.IsEmployed,
-        person.Forms.Select(form => new SavePersonFormRequest(
-            form.Id,
-            form.Type.ToString(),
-            form.IsCompliant,
-            form.CompletedDate,
-            form.OpenedDate)).ToList(),
-        person.Revision,
-        true,
-        person.CaseManagerIsRepPayee,
-        person.RepPayeeMonthlyIncome,
-        person.RepPayeeRegularCheckRequestNeeds,
-        person.CaseManagerIsDhhsRepresentative,
-        person.UsesModivcare,
-        person.Email);
+    public static SavePersonRequest ToSavePersonRequest(Person person) =>
+        PersonContractMapper.ToSaveRequest(person);
 
     public static PersonContact ToPersonContact(PersonContactDto dto)
     {

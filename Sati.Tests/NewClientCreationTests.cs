@@ -1,0 +1,380 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
+using Sati.Data;
+using Sati.Models;
+using Sati.ViewModels;
+using Xunit;
+
+namespace Sati.Tests;
+
+public sealed class NewClientCreationTests
+{
+    [Fact]
+    public async Task PersonSaveFailureIsContainedAndExplainsThatSaveStatusMustBeChecked()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            41,
+            "case-manager",
+            "Case Manager",
+            "hash",
+            "salt",
+            UserRole.CaseManager,
+            null,
+            7));
+        var viewModel = new NewClientViewModel(
+            new ThrowingPersonService(),
+            session,
+            null!,
+            null!,
+            new FixedSettingsService(),
+            null!,
+            null!,
+            null!,
+            new RecordingIncidentReporter(),
+            null!,
+            null!,
+            null!,
+            null!)
+        {
+            FirstName = "Jamie",
+            LastName = "River",
+            BirthDate = new DateTime(1990, 4, 3),
+            Bio = "New client creation regression test."
+        };
+        ClientSaveProblem? shownProblem = null;
+        viewModel.ClientSaveProblemOccurred += (_, args) => shownProblem = args.Problem;
+
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.NotNull(shownProblem);
+        Assert.True(shownProblem.SaveStatusUnknown);
+        Assert.Contains("WHAT WAS SAVED", shownProblem.Message);
+        Assert.Contains("WHAT WENT WRONG", shownProblem.Message);
+        Assert.Contains("BEST FIX", shownProblem.Message);
+        Assert.Contains("Refresh the client list", shownProblem.Message);
+        Assert.True(viewModel.HasClientSaveError);
+        Assert.Empty(viewModel.People);
+    }
+
+    [Fact]
+    public async Task MissingRequiredFieldsExplainExactlyWhyNoSaveWasAttempted()
+    {
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, new FixedSettingsService());
+        ClientSaveProblem? shownProblem = null;
+        viewModel.ClientSaveProblemOccurred += (_, args) => shownProblem = args.Problem;
+
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, people.AddCalls);
+        Assert.NotNull(shownProblem);
+        Assert.False(shownProblem.SaveStatusUnknown);
+        Assert.Contains("First name is required", shownProblem.Message);
+        Assert.Contains("Last name is required", shownProblem.Message);
+        Assert.Contains("Birthdate is required", shownProblem.Message);
+        Assert.Contains("No client record", shownProblem.Message);
+    }
+
+    [Fact]
+    public async Task SettingsFailureStopsBeforeSaveAndOffersMigrationRecovery()
+    {
+        var settings = new FirstThenThrowSettingsService();
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, settings);
+        await settings.FirstLoadCompleted.Task;
+        viewModel.FirstName = "Jamie";
+        viewModel.LastName = "River";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "Settings failure regression test.";
+        viewModel.Waiver = WaiverType.Section21;
+        viewModel.EffectiveDateText = DateTime.Today.AddMonths(-2).ToString("MM/dd");
+        ClientSaveProblem? shownProblem = null;
+        viewModel.ClientSaveProblemOccurred += (_, args) => shownProblem = args.Problem;
+
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, people.AddCalls);
+        Assert.NotNull(shownProblem);
+        Assert.False(shownProblem.SaveStatusUnknown);
+        Assert.Contains("form-deadline settings", shownProblem.Message);
+        Assert.Contains("Close and reopen Sati", shownProblem.Message);
+    }
+
+    [Fact]
+    public async Task LocalCreationCommitsClientFormsLifecycleAndAuditTogether()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(seedActor: true);
+        var effectiveDate = DateTime.Today.AddMonths(-2);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Jamie",
+            "River",
+            "A client saved by the local transaction test.",
+            new DateTime(1990, 4, 3),
+            effectiveDate,
+            WaiverType.Section21,
+            new Settings());
+        person.AgencyId = 999; // The service must replace caller-supplied agency scope.
+
+        var saved = await fixture.Service.AddPersonAsync(person);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        var stored = await db.People.AsNoTracking().SingleAsync();
+        Assert.Equal(saved.Id, stored.Id);
+        Assert.Equal(fixture.Actor.Id, stored.UserId);
+        Assert.Equal(fixture.Actor.AgencyId, stored.AgencyId);
+        Assert.Equal(PersonSaveRules.FormTypes.Count, await db.Forms.CountAsync());
+        Assert.Single(await db.PersonVersions.AsNoTracking().ToListAsync());
+        Assert.Single(await db.AuditEvents.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task LocalCreationRejectsCallerSuppliedOwnerBeforeWritingAnything()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(seedActor: true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id + 1,
+            "Wrong",
+            "Owner",
+            "Ownership scope regression test.",
+            new DateTime(1990, 4, 3),
+            null,
+            WaiverType.None,
+            new Settings());
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.AddPersonAsync(person));
+
+        Assert.Contains("owner", error.Errors.Keys);
+        await fixture.AssertCreationTablesEmptyAsync();
+    }
+
+    [Fact]
+    public async Task LocalCreationUsesSharedFieldValidationBeforeWriting()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(seedActor: true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Jamie",
+            "River",
+            "Field validation regression test.",
+            new DateTime(1990, 4, 3),
+            null,
+            WaiverType.None,
+            new Settings());
+        person.PhoneNumber = new string('1', PersonSaveRules.PhoneMaxLength + 1);
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.AddPersonAsync(person));
+
+        Assert.Contains("phoneNumber", error.Errors.Keys);
+        await fixture.AssertCreationTablesEmptyAsync();
+    }
+
+    [Fact]
+    public async Task DatabaseRejectionLeavesNoPartialClientGraph()
+    {
+        // The signed-in actor intentionally is not seeded as a User. SQLite's
+        // foreign-key rejection happens during SaveChanges after EF has staged the
+        // Person, forms, lifecycle version, and audit event.
+        await using var fixture = await LocalPersonFixture.CreateAsync(seedActor: false);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Jamie",
+            "River",
+            "Atomic rollback regression test.",
+            new DateTime(1990, 4, 3),
+            DateTime.Today.AddMonths(-2),
+            WaiverType.Section21,
+            new Settings());
+
+        await Assert.ThrowsAsync<PersonPersistenceException>(
+            () => fixture.Service.AddPersonAsync(person));
+
+        await fixture.AssertCreationTablesEmptyAsync();
+    }
+
+    [Fact]
+    public void GeneratedAdmissionFormsNeverClaimCompletionInTheFutureOrWithoutADate()
+    {
+        var pastForms = Person.GenerateFormList(DateTime.Today.AddMonths(-1), new Settings());
+        var futureForms = Person.GenerateFormList(DateTime.Today.AddMonths(1), new Settings());
+
+        Assert.All(pastForms, form => Assert.Equal(form.IsCompliant, form.CompletedDate.HasValue));
+        Assert.All(pastForms.Where(form => form.CompletedDate.HasValue), form =>
+            Assert.True(form.CompletedDate!.Value.Date <= DateTime.Today));
+        Assert.All(futureForms, form =>
+        {
+            Assert.False(form.IsCompliant);
+            Assert.Null(form.CompletedDate);
+        });
+    }
+
+    private sealed class FixedSettingsService : ISettingsService
+    {
+        public Task<Settings> LoadAsync() => Task.FromResult(new Settings());
+        public Task SaveAsync(Settings settings) => Task.CompletedTask;
+    }
+
+    private static NewClientViewModel CreateViewModel(
+        IPersonService personService,
+        ISettingsService settingsService)
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            41,
+            "case-manager",
+            "Case Manager",
+            "hash",
+            "salt",
+            UserRole.CaseManager,
+            null,
+            7));
+        return new NewClientViewModel(
+            personService,
+            session,
+            null!,
+            null!,
+            settingsService,
+            null!,
+            null!,
+            null!,
+            new RecordingIncidentReporter(),
+            null!,
+            null!,
+            null!,
+            null!);
+    }
+
+    private sealed class FirstThenThrowSettingsService : ISettingsService
+    {
+        private int _loads;
+        public TaskCompletionSource FirstLoadCompleted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<Settings> LoadAsync()
+        {
+            if (Interlocked.Increment(ref _loads) == 1)
+            {
+                FirstLoadCompleted.TrySetResult();
+                return Task.FromResult(new Settings());
+            }
+
+            return Task.FromException<Settings>(
+                new InvalidOperationException("simulated missing Settings column"));
+        }
+
+        public Task SaveAsync(Settings settings) => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingPersonService : IPersonService
+    {
+        public Task<Person> AddPersonAsync(Person person) =>
+            Task.FromException<Person>(new InvalidOperationException("simulated persistence failure"));
+
+        public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
+        public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) => throw new NotSupportedException();
+        public Task<string?> GetJournalAsync(int personId) => throw new NotSupportedException();
+        public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
+        public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CountingPersonService : IPersonService
+    {
+        public int AddCalls { get; private set; }
+
+        public Task<Person> AddPersonAsync(Person person)
+        {
+            AddCalls++;
+            return Task.FromResult(person);
+        }
+
+        public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
+        public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) => throw new NotSupportedException();
+        public Task<string?> GetJournalAsync(int personId) => throw new NotSupportedException();
+        public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
+        public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RecordingIncidentReporter : IIncidentReporter
+    {
+        public Task ReportAsync(
+            Exception exception,
+            string operation,
+            string reference,
+            string severity = "Error",
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class LocalPersonFixture : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private LocalPersonFixture(
+            SqliteConnection connection,
+            IDbContextFactory<SatiContext> factory,
+            User actor)
+        {
+            _connection = connection;
+            Factory = factory;
+            Actor = actor;
+            var session = new SessionService();
+            session.SetUser(actor);
+            Service = new PersonService(factory, new FixedSettingsService(), session);
+        }
+
+        public IDbContextFactory<SatiContext> Factory { get; }
+        public User Actor { get; }
+        public PersonService Service { get; }
+
+        public static async Task<LocalPersonFixture> CreateAsync(bool seedActor)
+        {
+            var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
+            await connection.OpenAsync();
+            var options = new DbContextOptionsBuilder<SatiContext>()
+                .UseSqlite(connection)
+                .Options;
+            var factory = new LocalContextFactory(options);
+            var actor = User.Create(
+                41,
+                "case-manager",
+                "Case Manager",
+                "hash",
+                "salt",
+                UserRole.CaseManager,
+                null,
+                7);
+
+            await using var db = factory.CreateDbContext();
+            await db.Database.EnsureCreatedAsync();
+            db.Agencies.Add(new Agency { Id = 7, Name = "Agency Seven" });
+            if (seedActor)
+                db.Users.Add(actor);
+            await db.SaveChangesAsync();
+            return new LocalPersonFixture(connection, factory, actor);
+        }
+
+        public async Task AssertCreationTablesEmptyAsync()
+        {
+            await using var db = Factory.CreateDbContext();
+            Assert.Empty(await db.People.AsNoTracking().ToListAsync());
+            Assert.Empty(await db.Forms.AsNoTracking().ToListAsync());
+            Assert.Empty(await db.PersonVersions.AsNoTracking().ToListAsync());
+            Assert.Empty(await db.AuditEvents.AsNoTracking().ToListAsync());
+        }
+
+        public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
+
+        private sealed class LocalContextFactory(DbContextOptions<SatiContext> options)
+            : IDbContextFactory<SatiContext>
+        {
+            public SatiContext CreateDbContext() => new(options);
+        }
+    }
+}

@@ -57,6 +57,23 @@
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="12">
+            <Border.Resources>
+                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+                <Style TargetType="DatePicker" BasedOn="{StaticResource {x:Type DatePicker}}">
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+            </Border.Resources>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -97,7 +114,8 @@
                            Text="FILTERS"
                            Style="{StaticResource SectionHeader}" />
 
-                <WrapPanel Grid.Row="2">
+                <WrapPanel Grid.Row="2"
+                           VerticalAlignment="Top">
 
                     <StackPanel Width="180"
                                 Margin="0,0,14,6">
@@ -151,11 +169,13 @@
                     <StackPanel Margin="0,0,14,6">
                         <TextBlock Text="UNITS IN RANGE"
                                    Style="{StaticResource LabelStyle}" />
-                        <Border Background="{DynamicResource WindowBackgroundBrush}"
+                        <Border x:Name="UnitsRangeSummary"
+                                Background="{DynamicResource WindowBackgroundBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
-                                Padding="10,5">
+                                Height="36"
+                                Padding="10,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Pending"
                                            FontSize="12"
@@ -210,6 +230,7 @@
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Cursor="Hand"
+                                    Height="36"
                                     Command="{Binding ShowReturnedCommand}"
                                     Visibility="{Binding HasReturned,
                                         Converter={StaticResource BoolToVisibilityConverter}}">
@@ -256,6 +277,7 @@
                                     AutomationProperties.Name="Show notes held for compliance"
                                     BorderThickness="0"
                                     Cursor="Hand"
+                                    Height="36"
                                     Margin="6,0,0,0"
                                     Command="{Binding ShowHeldCommand}"
                                     Visibility="{Binding HasHeld,

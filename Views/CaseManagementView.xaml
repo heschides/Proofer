@@ -42,12 +42,6 @@
                         views:NavTab.IsActive="{Binding IsReferenceActive}"
                         Command="{Binding NavigateToReferenceCommand}" />
 
-                <Button Content="AT Requests"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Assistive technology requests"
-                        views:NavTab.IsActive="{Binding IsATRequestsActive}"
-                        Command="{Binding NavigateToATRequestsCommand}" />
-
             </StackPanel>
         </Border>
 

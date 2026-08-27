@@ -789,6 +789,8 @@ internal static class ApiEndpoints
             // compliance cycle that turns over a day early here would disagree
             // with the billing gate, which has always used the Maine date.
             var today = clock.Today;
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
             var result = rows
                 .Select(row => new
                 {
@@ -796,7 +798,8 @@ internal static class ApiEndpoints
                     Compliance = EvaluatePersonCompliance(
                         row.Person,
                         formsByPerson.GetValueOrDefault(row.Person.Id) ?? [],
-                        today)
+                        today,
+                        complianceRequirements)
                 })
                 .Where(row => row.Compliance.Passed == compliant)
                 .Select(row => ContractMapper.ToNote(
@@ -828,7 +831,10 @@ internal static class ApiEndpoints
             var forms = await db.Forms.AsNoTracking()
                 .Where(form => form.PersonId == row.Person.Id)
                 .ToListAsync(cancellationToken);
-            if (!EvaluatePersonCompliance(row.Person, forms, clock.Today).Passed)
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
+            if (!EvaluatePersonCompliance(
+                    row.Person, forms, clock.Today, complianceRequirements).Passed)
             {
                 return Results.Conflict(new ApiErrorDto(
                     "compliance_required",
@@ -1113,7 +1119,10 @@ internal static class ApiEndpoints
             lifecycle.RecordCreated(actor, person);
             auditTrail.Record(actor, AuditActions.PersonCreated, "Person");
             await db.SaveChangesAsync(cancellationToken);
-            return Results.Ok(await LoadPersonDtoAsync(db, person, cancellationToken));
+            // Everything needed for the response is already tracked. Avoid a second
+            // database read after the transaction commits: if that read failed, the
+            // caller would be told creation failed even though the client existed.
+            return Results.Ok(ContractMapper.ToPerson(person, person.Forms, []));
         });
 
         api.MapPut("/people/{personId:int}", async Task<IResult> (
@@ -2329,6 +2338,8 @@ internal static class ApiEndpoints
                 request.BaseIncentive < 0 || request.PerUnitIncentive < 0 ||
                 request.PassthroughRate is < 0 or > 1 || request.SalesTaxRate is < 0 or > 1)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["settings"] = ["Settings contain an invalid negative value or percentage."] });
+            if (!BillingComplianceGate.IsSupported(request.BillingComplianceRequirements))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["billingComplianceRequirements"] = ["The compliance requirement selection is invalid."] });
             if (request.DefaultPassthroughProviderId is int providerId &&
                 !await db.Providers.AsNoTracking().AnyAsync(
                     x => x.Id == providerId && x.AgencyId == actor.AgencyId && x.ProvidesPassthroughService,
@@ -2668,6 +2679,8 @@ internal static class ApiEndpoints
             }
 
             var actor = Actor.From(principal);
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
             var people = await db.People.AsNoTracking()
                 .Where(x => x.UserId == actor.UserId)
                 .OrderBy(x => x.LastName)
@@ -2709,8 +2722,9 @@ internal static class ApiEndpoints
                 {
                     for (var date = activeStart; date <= end; date = date.AddDays(1))
                     {
-                        if (personForms.Any(form => IsBillingWindowBlocked(
-                                form.Type, form.DueDate, form.CompletedDate, date)))
+                        if (personForms.Any(form => BillingComplianceGate.IsBillingWindowBlocked(
+                                form.Type, form.DueDate, form.CompletedDate, date,
+                                complianceRequirements)))
                             blockedDates.Add(date);
                     }
                 }
@@ -2898,10 +2912,13 @@ internal static class ApiEndpoints
                 .GroupBy(form => form.PersonId)
                 .ToDictionary(group => group.Key, group => (IReadOnlyList<ServerForm>)group.ToList());
             var today = BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow);
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
             var candidates = rows.Select(row => new BillingCandidateDto(
                 ContractMapper.ToNote(row.Note, row.Person),
                 ValidateBillingCandidate(row.Note, row.Person, agency,
-                    formsByPerson.GetValueOrDefault(row.Person.Id) ?? [], today))).ToList();
+                    formsByPerson.GetValueOrDefault(row.Person.Id) ?? [], today,
+                    complianceRequirements))).ToList();
             return Results.Ok(candidates);
         });
 
@@ -2931,8 +2948,11 @@ internal static class ApiEndpoints
             var forms = await db.Forms.AsNoTracking()
                 .Where(form => form.PersonId == row.Person.Id)
                 .ToListAsync(cancellationToken);
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
             var errors = ValidateBillingCandidate(row.Note, row.Person, agency, forms,
-                BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow));
+                BillingRules.MaineBusinessDate(DateTimeOffset.UtcNow),
+                complianceRequirements);
             if (errors.Count > 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = errors.ToArray() });
 
@@ -3231,67 +3251,8 @@ internal static class ApiEndpoints
 
     private static Dictionary<string, string[]> ValidatePerson(
         SavePersonRequest request,
-        bool requireNewForms)
-    {
-        var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(request.FirstName) || request.FirstName.Trim().Length > 50)
-            errors["firstName"] = ["First name is required and must not exceed 50 characters."];
-        if (string.IsNullOrWhiteSpace(request.LastName) || request.LastName.Trim().Length > 50)
-            errors["lastName"] = ["Last name is required and must not exceed 50 characters."];
-        if (request.BirthDate.Date < new DateTime(1900, 1, 1) || request.BirthDate.Date > DateTime.Today)
-            errors["birthDate"] = ["Birth date must be between January 1, 1900 and today."];
-        if (string.IsNullOrWhiteSpace(request.Bio) || request.Bio.Length > 1_000_000)
-            errors["bio"] = ["A biography is required and must not exceed 1,000,000 characters."];
-        if (!ContractMapper.TryParseGender(request.Gender, out _))
-            errors["gender"] = ["Gender is invalid."];
-        if (!ContractMapper.TryParseWaiver(request.Waiver, out _))
-            errors["waiver"] = ["Waiver is invalid."];
-        if (request.DayProgramCount is < 1 or > 100)
-            errors["dayProgramCount"] = ["Day program count must be between 1 and 100."];
-
-        ValidateLength(errors, "guardianName", request.GuardianName, 100);
-        ValidateLength(errors, "phoneNumber", request.PhoneNumber, 20);
-        ValidateLength(errors, "email", request.Email, 254);
-        if (!string.IsNullOrWhiteSpace(request.Email) &&
-            !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.Email))
-            errors["email"] = ["Email must be a valid email address."];
-        ValidateLength(errors, "address", request.Address, 250);
-        ValidateLength(errors, "billingStreet", request.BillingStreet, 55);
-        ValidateLength(errors, "billingCity", request.BillingCity, 30);
-        ValidateLength(errors, "billingState", request.BillingState, 2);
-        ValidateLength(errors, "billingZip", request.BillingZip, 15);
-        ValidateLength(errors, "primaryCareProvider", request.PrimaryCareProvider, 100);
-        ValidateLength(errors, "healthcareSystemName", request.HealthcareSystemName, 100);
-        foreach (var error in RepresentativePayeeRules.Validate(
-                     request.CaseManagerIsRepPayee,
-                     request.RepPayeeMonthlyIncome,
-                     request.RepPayeeRegularCheckRequestNeeds))
-        {
-            errors[error.Key] = error.Value;
-        }
-
-        var newForms = request.Forms.Where(form => form.Id == 0).ToList();
-        if (requireNewForms)
-        {
-            var parsedTypes = new HashSet<int>();
-            foreach (var form in newForms)
-            {
-                if (!ContractMapper.TryParseFormType(form.Type, out var parsed) || !parsed.HasValue)
-                {
-                    errors["forms"] = ["Every generated form must have a recognized type."];
-                    break;
-                }
-                parsedTypes.Add(parsed.Value);
-                if (!form.IsCompliant && form.CompletedDate.HasValue)
-                    errors["forms"] = ["A noncompliant form cannot have a completion date."];
-            }
-
-            if (newForms.Count != ContractMapper.FormTypeCount || parsedTypes.Count != ContractMapper.FormTypeCount)
-                errors["forms"] = ["A complete, non-duplicated initial form set is required."];
-        }
-
-        return errors;
-    }
+        bool requireNewForms) =>
+        PersonSaveRules.Validate(request, DateTime.Today, requireNewForms);
 
     private static void ApplyPerson(ServerPerson person, SavePersonRequest request, int gender, int waiver)
     {
@@ -3458,19 +3419,22 @@ internal static class ApiEndpoints
     private static BillingComplianceResult EvaluatePersonCompliance(
         ServerPerson person,
         IReadOnlyList<ServerForm> forms,
-        DateTime today)
+        DateTime today,
+        BillingComplianceRequirements requirements)
         => BillingComplianceGate.Evaluate(
             person.EffectiveDate,
             forms.Select(form => new ComplianceFormSnapshot(
-                form.Type, form.DueDate, form.IsCompliant)),
-            today);
+                form.Type, form.DueDate, form.CompletedDate)),
+            today,
+            requirements: requirements);
 
     private static IReadOnlyList<string> ValidateBillingCandidate(
         ServerNote note,
         ServerPerson person,
         ServerAgency? agency,
         IReadOnlyList<ServerForm> forms,
-        DateTime today)
+        DateTime today,
+        BillingComplianceRequirements requirements)
     {
         var errors = new List<string>();
         if (note.Status != 6)
@@ -3500,14 +3464,15 @@ internal static class ApiEndpoints
         }
         else
         {
-            if (!EvaluatePersonCompliance(person, forms, today).Passed)
+            if (!EvaluatePersonCompliance(person, forms, today, requirements).Passed)
                 errors.Add("Consumer does not meet current compliance requirements.");
             if (note.EventDate is DateTime serviceDate)
             {
-                errors.AddRange(forms
-                    .Where(form => IsBillingWindowBlocked(form.Type, form.DueDate,
-                        form.CompletedDate, serviceDate))
-                    .Select(form => $"{form.Type} was due {form.DueDate:MMM d, yyyy} and was not completed as of this service date."));
+                errors.AddRange(BillingComplianceGate.EvaluateBillingWindow(
+                    forms.Select(form => new ComplianceFormSnapshot(
+                        form.Type, form.DueDate, form.CompletedDate)),
+                    serviceDate,
+                    requirements));
             }
         }
         return errors;
@@ -3631,19 +3596,6 @@ internal static class ApiEndpoints
          where review.PersonId == personId && review.Category == category
          orderby appointment.Date descending
          select appointment).FirstOrDefaultAsync(cancellationToken);
-
-    private static bool IsBillingWindowBlocked(
-        string formType,
-        DateTime dueDate,
-        DateTime? completedDate,
-        DateTime serviceDate)
-    {
-        var isGated = formType is "PCP" or "ComprehensiveAssessment" or "Reclassification" or
-            "Q1R" or "Q2R" or "Q3R" or "Q4R";
-        return isGated &&
-               serviceDate.Date > dueDate.Date &&
-               (completedDate is null || serviceDate.Date < completedDate.Value.Date);
-    }
 
     private static int CalculateUnits(int? minutes) =>
         minutes.HasValue ? Math.Max(1, (int)Math.Ceiling(minutes.Value / 15.0)) : 0;

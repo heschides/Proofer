@@ -100,6 +100,16 @@ internal static class WpfUiHarness
         Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
     }
 
+    internal static void Realize(FrameworkElement element, double width, double height)
+    {
+        element.Width = width;
+        element.Height = height;
+        element.Measure(new Size(width, height));
+        element.Arrange(new Rect(0, 0, width, height));
+        element.UpdateLayout();
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
+    }
+
     /// <summary>The first descendant of that type carrying that automation name.</summary>
     internal static T FindByAutomationName<T>(DependencyObject root, string name)
         where T : DependencyObject

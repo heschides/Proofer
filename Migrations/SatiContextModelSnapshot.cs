@@ -1038,6 +1038,11 @@ namespace Sati.Migrations
                     b.Property<decimal>("BaseIncentive")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("BillingComplianceRequirements")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(31);
+
                     b.Property<int>("CompAssessmentDaysAfterDue")
                         .HasColumnType("int");
 

@@ -25,6 +25,7 @@ namespace Sati.Views
             {
                 _viewModel.AtRequestPdfReady -= SaveAtRequestPdf;
                 _viewModel.AtRequestProblem -= ShowAtRequestProblem;
+                _viewModel.ClientSaveProblemOccurred -= ShowClientSaveProblem;
                 _viewModel = null;
             }
 
@@ -33,6 +34,7 @@ namespace Sati.Views
                 _viewModel = vm;
                 vm.AtRequestPdfReady += SaveAtRequestPdf;
                 vm.AtRequestProblem += ShowAtRequestProblem;
+                vm.ClientSaveProblemOccurred += ShowClientSaveProblem;
 
                 vm.ComplianceReviewRequested += (forms) =>
                 {
@@ -64,6 +66,13 @@ namespace Sati.Views
 
         private void ShowAtRequestProblem(object? sender, ATRequestProblemEventArgs e) =>
             MessageBox.Show(e.Message, e.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        private void ShowClientSaveProblem(object? sender, ClientSaveProblemEventArgs e) =>
+            MessageBox.Show(
+                e.Problem.Message,
+                e.Problem.Title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
 
         private void ClientList_MouseDoubleClick(object sender, MouseEventArgs e)
         {

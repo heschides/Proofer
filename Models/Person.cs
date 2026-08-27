@@ -213,20 +213,28 @@ namespace Sati
         // Methods
         // -------------------------------------------------------------------------
 
-        // First-cycle generation. Annual non-reviews default compliant (cycle 1
-        // begins with signed documents in place at admission); reviews default
-        // non-compliant (tasks to complete during the cycle). The creation-time
-        // compliance dialog handles overrides for backdated admissions.
+        // First-cycle generation. Annual non-reviews default completed on the
+        // effective date when admission is not in the future; reviews remain open.
+        // This preserves the original admission assumption without creating the
+        // contradictory legacy state "compliant with no completion date" or a
+        // completion date in a future year. The creation dialog still lets the
+        // case manager correct every assumption before anything is saved.
         public static List<Form> GenerateFormList(DateTime effective, Settings settings)
         {
             var cycleStart = effective;
             var cycleEnd = effective.AddYears(1);
 
             return Enum.GetValues<FormType>()
-                .Select(type => new Form(
-                    type,
-                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
-                    isCompliant: !IsReviewType(type)))
+                .Select(type =>
+                {
+                    var form = new Form(
+                        type,
+                        FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
+                        isCompliant: false);
+                    if (!IsReviewType(type) && effective.Date <= DateTime.Today)
+                        form.MarkComplete(effective.Date);
+                    return form;
+                })
                 .ToList();
         }
 
@@ -425,49 +433,35 @@ namespace Sati
 
         // Returns whether the billing compliance gate passes, and if not, every
         // reason it failed. One pass produces both, so they can't drift.
-        public (bool Passed, IReadOnlyList<string> Reasons) EvaluateComplianceGate(DateTime today, FormType? beingCompleted = null)
+        public (bool Passed, IReadOnlyList<string> Reasons) EvaluateComplianceGate(
+            DateTime today,
+            FormType? beingCompleted = null,
+            Contracts.V1.BillingComplianceRequirements requirements =
+                Contracts.V1.BillingComplianceGate.DefaultRequirements)
         {
             var result = Contracts.V1.BillingComplianceGate.Evaluate(
                 EffectiveDate,
                 Forms.Select(form => new Contracts.V1.ComplianceFormSnapshot(
-                    form.Type.ToString(), form.DueDate, form.IsCompliant)),
+                    form.Type.ToString(), form.DueDate, form.CompletedDate)),
                 today,
-                beingCompleted?.ToString());
+                beingCompleted?.ToString(),
+                requirements);
             return (result.Passed, result.Reasons);
         }
 
-        // Forward-looking, date-keyed billing window check: returns gated forms
-        // whose missed-due-date window contains noteDate. Empty list => clear
-        // to bill.
-        //
-        // Separate from EvaluateComplianceGate because that reasons as of TODAY;
-        // this reasons as of the NOTE's date, which may sit in a different cycle
-        // when back-entering — so it walks Forms directly by due date rather than
-        // via GetCurrentCycleForm, which is pinned to today.
-        //
-        // Gated: PCP, Comp, Reclass, four reviews. Safety Plan keeps its
-        // current-state check in EvaluateComplianceGate and is NOT windowed;
-        // Releases and Privacy Practices are excluded pending the configurable-
-        // billability-scope work.
-        //
-        // Endpoints exclusive on both ends: a note ON the due date bills, a note
-        // ON or after the completion date bills. Only strictly between blocks.
+        // Date-keyed historical billing window. It delegates to the same shared
+        // requirement mapping as the current-state gate, so enabling or disabling
+        // a document affects both decisions consistently. A note ON the due date
+        // bills; a note ON or after completion bills. Only the gap between blocks.
         public static bool IsBillingWindowBlocked(
             FormType formType,
             DateTime dueDate,
             DateTime? completedDate,
-            DateTime serviceDate)
-        {
-            var isGated = formType is
-                FormType.PCP or
-                FormType.ComprehensiveAssessment or
-                FormType.Reclassification or
-                FormType.Q1R or FormType.Q2R or FormType.Q3R or FormType.Q4R;
-
-            return isGated
-                && serviceDate.Date > dueDate.Date
-                && (completedDate is null || serviceDate.Date < completedDate.Value.Date);
-        }
+            DateTime serviceDate,
+            Contracts.V1.BillingComplianceRequirements requirements =
+                Contracts.V1.BillingComplianceGate.DefaultRequirements) =>
+            Contracts.V1.BillingComplianceGate.IsBillingWindowBlocked(
+                formType.ToString(), dueDate, completedDate, serviceDate, requirements);
 
         // Network hydration seam for the HTTP-backed Demo client. Only identity is
         // set here; CloudContractMapper applies the safe DTO fields afterward.
@@ -478,19 +472,15 @@ namespace Sati
             UserId = userId
         };
 
-        public IReadOnlyList<string> EvaluateBillingWindow(DateTime noteDate)
-        {
-            var blocking = new List<string>();
-
-            foreach (var form in Forms)
-            {
-                if (IsBillingWindowBlocked(form.Type, form.DueDate, form.CompletedDate, noteDate))
-                    blocking.Add($"{FormDisplayName(form.Type)} was due {form.DueDate:MMM d, yyyy} "
-                               + "and was not completed as of this note's date.");
-            }
-
-            return blocking;
-        }
+        public IReadOnlyList<string> EvaluateBillingWindow(
+            DateTime noteDate,
+            Contracts.V1.BillingComplianceRequirements requirements =
+                Contracts.V1.BillingComplianceGate.DefaultRequirements) =>
+            Contracts.V1.BillingComplianceGate.EvaluateBillingWindow(
+                Forms.Select(form => new Contracts.V1.ComplianceFormSnapshot(
+                    form.Type.ToString(), form.DueDate, form.CompletedDate)),
+                noteDate,
+                requirements);
 
         public static string FormDisplayName(FormType type) => type switch
         {

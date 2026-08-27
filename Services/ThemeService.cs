@@ -26,9 +26,12 @@ namespace Sati.Services
             new("Lilly's Theme", "LillysTheme"),
             new("Woodfords", "Woodfords"),
             new("Warm Earth", "WarmEarth"),
+            new("Pine Coast", "PineCoast"),
+            new("Blueberry Mist", "BlueberryMist"),
             new("Moonlit Pearl", "MoonlitPearl"),
             new("Iridescent Jewel", "IridescentJewel"),
-            new("Midnight Opal", "MidnightOpal")
+            new("Midnight Opal", "MidnightOpal"),
+            new("Harbor Night", "HarborNight")
         ];
 
         public ThemeOption CurrentTheme { get; private set; }

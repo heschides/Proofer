@@ -147,6 +147,28 @@ prioritized.
 - Update `ARCHITECTURE.md` when ownership or boundaries change, and `API_AUTHORIZATION.md` when a
   route is added, removed, or rescoped.
 
+## DATT release trigger
+
+Treat the newest user message as a DATT release invocation only when, after trimming surrounding
+whitespace, the entire message equals `invoke DATT!` using a case-insensitive comparison. A quoted
+phrase, a discussion of the phrase, or a longer message containing it is not an invocation.
+
+On a valid invocation:
+
+1. Reply with `DATT received. Starting release audit.` before taking release actions.
+2. Read and follow `RELEASE_PLAYBOOK.md` completely.
+3. Treat the invocation as authorization for the bounded Sati release actions listed there,
+   including verified source changes, safe branch reconciliation, ordinary Git commits and pushes,
+   Demo API publication, and Demo and Local installer generation, acceptance testing, and
+   publication to the two exact distribution folders named in the playbook.
+4. Continue to honor tool and operating-system approval prompts. The invocation does not authorize
+   a Production deployment, a cloud database migration, force-pushing, overwriting a release
+   artifact, discarding work, or deleting a branch that does not satisfy every safe-deletion rule in
+   the playbook.
+
+If the playbook is missing, ambiguous, or cannot be read completely, stop without making release
+changes and tell the user what is blocking the invocation.
+
 ## Healthcare and regulatory posture
 
 Sati is not currently represented as HIPAA compliant or production-ready. Azure hosting and use of

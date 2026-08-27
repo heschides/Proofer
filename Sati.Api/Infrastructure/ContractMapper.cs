@@ -251,7 +251,8 @@ internal static class ContractMapper
         s.CompAssessmentDaysBeforeAnniversary, s.ReclassificationDaysBeforeAnniversary,
         s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
         s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
-        s.ReleaseMedicalDaysBeforeAnniversary, s.Revision);
+        s.ReleaseMedicalDaysBeforeAnniversary, s.Revision,
+        s.BillingComplianceRequirements);
 
     public static bool TryParseNoteStatus(string? value, out int? parsed) =>
         TryParseNullableOrdinal(NoteStatusNames, value, out parsed);

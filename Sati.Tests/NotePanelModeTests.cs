@@ -216,8 +216,8 @@ public sealed class NotePanelModeTests
     }
 
     /// <summary>
-    /// The seeded client has no compliance paperwork, so Mark Note Logged opens the
-    /// compliance dialog rather than logging outright. Holding the note is the
+    /// The test gives the seeded client one explicitly overdue incomplete form, so
+    /// Mark Note Logged opens the compliance dialog. Holding the note is the
     /// status change this test is about; which of the two hold statuses the gate
     /// picks is `NotesWindowViewModel`'s business and is asserted elsewhere.
     /// </summary>
@@ -238,6 +238,8 @@ public sealed class NotePanelModeTests
         await log.ReloadAsync();
 
         var saved = Assert.Single(log.NotesView.Cast<Note>());
+        saved.Person.Forms.Add(new Form(
+            FormType.PCP, DateTime.Today.AddDays(-1), isCompliant: false));
         log.SelectedNote = saved;
         Assert.Equal(NoteStatus.Pending, log.NoteEntry.Status);
 

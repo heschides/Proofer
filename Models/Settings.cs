@@ -12,6 +12,11 @@ namespace Sati.Models
         public int AgencyId { get; set; }
         public int Revision { get; set; } = 1;
 
+        // Agency policy: which overdue, incomplete forms stop billing. The
+        // decision itself remains in the shared BillingComplianceGate.
+        public Contracts.V1.BillingComplianceRequirements BillingComplianceRequirements { get; set; } =
+            Contracts.V1.BillingComplianceGate.DefaultRequirements;
+
         // Abandonment
         public int AbandonedAfterDays { get; set; } = 7;
 

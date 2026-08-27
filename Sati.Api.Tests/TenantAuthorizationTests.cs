@@ -80,7 +80,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.26", release["releaseVersion"]);
+        Assert.Equal("1.2.27", release["releaseVersion"]);
     }
 
     [Fact]
@@ -449,6 +449,23 @@ public sealed class TenantAuthorizationTests
             reason.Contains("PCP", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(note.ComplianceFailureReasons!, reason =>
             reason.Contains("Comprehensive Assessment", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FutureIncompleteDocumentsRemainInTheCompliantQueueAndCanBeApproved()
+    {
+        var noteId = await _factory.CreateFutureIncompleteReviewNoteAsync();
+        using var supervisor = await _factory.CreateAuthenticatedClientAsync("supervisor-one");
+
+        var queue = await supervisor.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/supervisor/notes?compliant=true&allSupervisees=true");
+        var note = Assert.Single(queue!, candidate => candidate.Id == noteId);
+
+        var approval = await supervisor.PostAsJsonAsync(
+            $"/api/v1/supervisor/notes/{noteId}/approve",
+            new SupervisorNoteActionRequest(null, note.Revision));
+
+        Assert.Equal(HttpStatusCode.OK, approval.StatusCode);
     }
 
     [Fact]
@@ -1127,17 +1144,37 @@ public sealed class TenantAuthorizationTests
     {
         using var agencyOneAdmin = await _factory.CreateAuthenticatedClientAsync("admin-one");
         using var agencyTwoAdmin = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
         var original = await agencyOneAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
         var otherAgencyOriginal = await agencyTwoAdmin.GetFromJsonAsync<SettingsDto>("/api/v1/settings");
         var auditBefore = await _factory.GetAuditEventsAsync("settings.updated");
 
+        var updatedRequirements = original!.BillingComplianceRequirements |
+                                  BillingComplianceRequirements.PrivacyPractices;
         var successfulResponse = await agencyOneAdmin.PutAsJsonAsync(
             "/api/v1/settings",
-            original! with { ProductivityThreshold = original.ProductivityThreshold + 7 });
+            original with
+            {
+                ProductivityThreshold = original.ProductivityThreshold + 7,
+                BillingComplianceRequirements = updatedRequirements
+            });
         var successful = await successfulResponse.Content.ReadFromJsonAsync<SettingsDto>();
 
         Assert.Equal(HttpStatusCode.OK, successfulResponse.StatusCode);
         Assert.Equal(original.Revision + 1, successful!.Revision);
+
+        var forbidden = await caseManager.PutAsJsonAsync(
+            "/api/v1/settings", successful with { ProductivityThreshold = 999 });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        var invalidRequirements = await agencyOneAdmin.PutAsJsonAsync(
+            "/api/v1/settings",
+            successful with
+            {
+                BillingComplianceRequirements = updatedRequirements |
+                    (BillingComplianceRequirements)(1 << 20)
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidRequirements.StatusCode);
 
         var staleResponse = await agencyOneAdmin.PutAsJsonAsync(
             "/api/v1/settings",
@@ -1165,6 +1202,7 @@ public sealed class TenantAuthorizationTests
         var auditAfter = await _factory.GetAuditEventsAsync("settings.updated");
 
         Assert.Equal(original.ProductivityThreshold + 7, stored!.ProductivityThreshold);
+        Assert.Equal(updatedRequirements, stored.BillingComplianceRequirements);
         Assert.Equal(successful.Revision, stored.Revision);
         Assert.Equal(otherAgencyOriginal, otherAgencyStored);
         Assert.Equal(auditBefore.Count + 1, auditAfter.Count);

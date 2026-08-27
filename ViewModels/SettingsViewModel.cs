@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Helpers;
 using Sati.Models;
@@ -321,6 +322,15 @@ namespace Sati.ViewModels
         [ObservableProperty] private int productivityThreshold;
         [ObservableProperty] private decimal baseIncentive;
         [ObservableProperty] private decimal perUnitIncentive;
+        [ObservableProperty] private bool complianceQuarterlyReviews;
+        [ObservableProperty] private bool compliancePcp;
+        [ObservableProperty] private bool complianceComprehensiveAssessment;
+        [ObservableProperty] private bool complianceReclassification;
+        [ObservableProperty] private bool complianceSafetyPlan;
+        [ObservableProperty] private bool compliancePrivacyPractices;
+        [ObservableProperty] private bool complianceAgencyRelease;
+        [ObservableProperty] private bool complianceDhhsRelease;
+        [ObservableProperty] private bool complianceMedicalRelease;
         [ObservableProperty] private string visitTemplate = string.Empty;
         [ObservableProperty] private string contactTemplate = string.Empty;
         [ObservableProperty] private string documentationTemplate = string.Empty;
@@ -413,6 +423,16 @@ namespace Sati.ViewModels
             ProductivityThreshold = _settings.ProductivityThreshold;
             BaseIncentive = _settings.BaseIncentive;
             PerUnitIncentive = _settings.PerUnitIncentive;
+            var compliance = _settings.BillingComplianceRequirements;
+            ComplianceQuarterlyReviews = compliance.HasFlag(BillingComplianceRequirements.QuarterlyReviews);
+            CompliancePcp = compliance.HasFlag(BillingComplianceRequirements.Pcp);
+            ComplianceComprehensiveAssessment = compliance.HasFlag(BillingComplianceRequirements.ComprehensiveAssessment);
+            ComplianceReclassification = compliance.HasFlag(BillingComplianceRequirements.Reclassification);
+            ComplianceSafetyPlan = compliance.HasFlag(BillingComplianceRequirements.SafetyPlan);
+            CompliancePrivacyPractices = compliance.HasFlag(BillingComplianceRequirements.PrivacyPractices);
+            ComplianceAgencyRelease = compliance.HasFlag(BillingComplianceRequirements.AgencyRelease);
+            ComplianceDhhsRelease = compliance.HasFlag(BillingComplianceRequirements.DhhsRelease);
+            ComplianceMedicalRelease = compliance.HasFlag(BillingComplianceRequirements.MedicalRelease);
             VisitTemplate = _settings.VisitTemplate;
             ContactTemplate = _settings.ContactTemplate;
             DocumentationTemplate = _settings.DocumentationTemplate;
@@ -485,6 +505,16 @@ namespace Sati.ViewModels
             _settings.ProductivityThreshold = ProductivityThreshold;
             _settings.BaseIncentive = BaseIncentive;
             _settings.PerUnitIncentive = PerUnitIncentive;
+            _settings.BillingComplianceRequirements =
+                (ComplianceQuarterlyReviews ? BillingComplianceRequirements.QuarterlyReviews : 0) |
+                (CompliancePcp ? BillingComplianceRequirements.Pcp : 0) |
+                (ComplianceComprehensiveAssessment ? BillingComplianceRequirements.ComprehensiveAssessment : 0) |
+                (ComplianceReclassification ? BillingComplianceRequirements.Reclassification : 0) |
+                (ComplianceSafetyPlan ? BillingComplianceRequirements.SafetyPlan : 0) |
+                (CompliancePrivacyPractices ? BillingComplianceRequirements.PrivacyPractices : 0) |
+                (ComplianceAgencyRelease ? BillingComplianceRequirements.AgencyRelease : 0) |
+                (ComplianceDhhsRelease ? BillingComplianceRequirements.DhhsRelease : 0) |
+                (ComplianceMedicalRelease ? BillingComplianceRequirements.MedicalRelease : 0);
             _settings.VisitTemplate = VisitTemplate;
             _settings.ContactTemplate = ContactTemplate;
             _settings.DocumentationTemplate = DocumentationTemplate;

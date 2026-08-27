@@ -354,9 +354,32 @@ public sealed class CloudApiClient
             return;
 
         ApiErrorDto? error = null;
+        string? validationMessage = null;
         try
         {
-            error = await response.Content.ReadFromJsonAsync<ApiErrorDto>(JsonOptions, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                using var document = JsonDocument.Parse(body);
+                if (document.RootElement.TryGetProperty("errors", out var errors) &&
+                    errors.ValueKind == JsonValueKind.Object)
+                {
+                    validationMessage = string.Join(
+                        " ",
+                        errors.EnumerateObject()
+                            .SelectMany(property => property.Value.ValueKind == JsonValueKind.Array
+                                ? property.Value.EnumerateArray()
+                                    .Where(value => value.ValueKind == JsonValueKind.String)
+                                    .Select(value => value.GetString())
+                                : [])
+                            .Where(message => !string.IsNullOrWhiteSpace(message))
+                            .Distinct(StringComparer.Ordinal));
+                }
+                else
+                {
+                    error = JsonSerializer.Deserialize<ApiErrorDto>(body, JsonOptions);
+                }
+            }
         }
         catch (JsonException)
         {
@@ -372,6 +395,7 @@ public sealed class CloudApiClient
             HttpStatusCode.TooManyRequests when retryAfter.HasValue =>
                 $"Too many requests were sent. Try again in about {Math.Max(1, (int)Math.Ceiling(retryAfter.Value.TotalSeconds))} seconds.",
             HttpStatusCode.TooManyRequests => "Too many requests were sent. Wait one minute and try again.",
+            HttpStatusCode.BadRequest when !string.IsNullOrWhiteSpace(validationMessage) => validationMessage,
             _ => error?.Message ?? $"The Demo API returned {(int)response.StatusCode}."
         };
 

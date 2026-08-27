@@ -267,11 +267,11 @@ public sealed class StabilizationTests
         var today = new DateTime(2026, 8, 14);
         var forms = new[]
         {
-            new ComplianceFormSnapshot("PCP", new DateTime(2026, 12, 31), true),
-            new ComplianceFormSnapshot("ComprehensiveAssessment", new DateTime(2026, 12, 31), false),
-            new ComplianceFormSnapshot("Reclassification", new DateTime(2026, 12, 31), true),
-            new ComplianceFormSnapshot("SafetyPlan", new DateTime(2026, 12, 31), true),
-            new ComplianceFormSnapshot("Q2R", new DateTime(2026, 8, 1), false)
+            new ComplianceFormSnapshot("PCP", new DateTime(2026, 12, 31), null),
+            new ComplianceFormSnapshot("ComprehensiveAssessment", new DateTime(2026, 7, 31), null),
+            new ComplianceFormSnapshot("Reclassification", new DateTime(2026, 12, 31), null),
+            new ComplianceFormSnapshot("SafetyPlan", new DateTime(2026, 12, 31), null),
+            new ComplianceFormSnapshot("Q2R", new DateTime(2026, 8, 1), null)
         };
 
         var result = BillingComplianceGate.Evaluate(
@@ -285,6 +285,42 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void FutureIncompleteDocumentsDoNotBlockBillingBeforeTheirDueDate()
+    {
+        var forms = new[]
+        {
+            new ComplianceFormSnapshot("PCP", new DateTime(2027, 1, 15), null),
+            new ComplianceFormSnapshot("ComprehensiveAssessment", new DateTime(2027, 1, 15), null),
+            new ComplianceFormSnapshot("Reclassification", new DateTime(2027, 1, 15), null),
+            new ComplianceFormSnapshot("SafetyPlan", new DateTime(2027, 1, 15), null)
+        };
+
+        var result = BillingComplianceGate.Evaluate(
+            new DateTime(2026, 1, 1), forms, new DateTime(2026, 8, 14));
+
+        Assert.True(result.Passed, string.Join("; ", result.Reasons));
+    }
+
+    [Fact]
+    public void IncompleteOverdueDocumentsBlockBilling()
+    {
+        var forms = new[]
+        {
+            new ComplianceFormSnapshot("PCP", new DateTime(2026, 7, 31), null),
+            new ComplianceFormSnapshot("ComprehensiveAssessment", new DateTime(2026, 12, 31), null),
+            new ComplianceFormSnapshot("Reclassification", new DateTime(2026, 12, 31), null),
+            new ComplianceFormSnapshot("SafetyPlan", new DateTime(2026, 12, 31), null)
+        };
+
+        var result = BillingComplianceGate.Evaluate(
+            new DateTime(2026, 1, 1), forms, new DateTime(2026, 8, 14));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Reasons, reason =>
+            reason.Contains("PCP") && reason.Contains("Jul 31, 2026"));
+    }
+
+    [Fact]
     public void ClientCompliancePresentationUsesTheSharedGate()
     {
         var person = Person.Rehydrate(44, 7);
@@ -292,7 +328,7 @@ public sealed class StabilizationTests
         person.Forms =
         [
             new Form(FormType.PCP, new DateTime(2026, 12, 31), true),
-            new Form(FormType.ComprehensiveAssessment, new DateTime(2026, 12, 31), false),
+            new Form(FormType.ComprehensiveAssessment, new DateTime(2026, 7, 31), false),
             new Form(FormType.Reclassification, new DateTime(2026, 12, 31), true),
             new Form(FormType.SafetyPlan, new DateTime(2026, 12, 31), true)
         ];
@@ -302,7 +338,9 @@ public sealed class StabilizationTests
 
         Assert.Single(reasons);
         Assert.Contains("Comprehensive Assessment", reasons[0]);
-        Assert.False(Assert.IsType<bool>(converter.Convert(person, typeof(bool), null, CultureInfo.InvariantCulture)));
+        Assert.False(Assert.IsType<bool>(converter.Convert(
+            [person, BillingComplianceGate.DefaultRequirements],
+            typeof(bool), null, CultureInfo.InvariantCulture)));
     }
 
     [Fact]
@@ -515,21 +553,22 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.26", version);
+        Assert.Equal("1.2.27", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Faster note entry and clearer Visit details", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Accurate compliance and safer client setup", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Personal typing shortcuts" &&
-            section.Items.Any(item => item.Contains("Win+Shift+1", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("200 characters", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Accurate, configurable billing compliance" &&
+            section.Items.Any(item => item.Contains("past due", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Agency Admins", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "More complete Visit notes" &&
-            section.Items.Any(item => item.Contains("checkboxes", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Existing Visit notes", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Safer Add Client workflow" &&
+            section.Items.Any(item => item.Contains("terminating Sati", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("saved together", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Clearer date selection" &&
-            section.Items.Any(item => item.Contains("calendar button", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Consistent workspaces and more appearance choices" &&
+            section.Items.Any(item => item.Contains("AT Requests", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Harbor Night", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
@@ -1255,6 +1294,7 @@ public sealed class StabilizationTests
         var generation = context.Model.FindEntityType(typeof(EdiGeneration))!;
         var claim = context.Model.FindEntityType(typeof(ClaimLine))!;
         var person = context.Model.FindEntityType(typeof(Person))!;
+        var settings = context.Model.FindEntityType(typeof(Settings))!;
         var retryIndex = Assert.Single(generation.GetIndexes(), index =>
             index.Properties.Select(property => property.Name).SequenceEqual([
                 nameof(EdiGeneration.AgencyId),
@@ -1268,9 +1308,11 @@ public sealed class StabilizationTests
         Assert.True(retryIndex.IsUnique);
         Assert.Contains("20260812235500_AddEdiIdempotency", migrations.Migrations.Keys);
         Assert.Contains("20260813110000_AddBillingPipelineConfiguration", migrations.Migrations.Keys);
+        Assert.Contains("20260827141239_AddBillingComplianceRequirements", migrations.Migrations.Keys);
         Assert.NotNull(claim.FindProperty(nameof(ClaimLine.ClaimSnapshotJson)));
         Assert.NotNull(claim.FindProperty(nameof(ClaimLine.ChargeAmount)));
         Assert.NotNull(person.FindProperty(nameof(Person.BillingStreet)));
+        Assert.NotNull(settings.FindProperty(nameof(Settings.BillingComplianceRequirements)));
     }
 
     [Fact]

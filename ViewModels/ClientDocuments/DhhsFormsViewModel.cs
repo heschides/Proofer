@@ -86,6 +86,13 @@ public partial class DhhsFormsViewModel : ObservableObject
     public event EventHandler<DhhsPdfReadyEventArgs>? PdfReady;
     public event EventHandler<DhhsProblemEventArgs>? Problem;
 
+    public void SelectForm(DhhsFormDefinition.FormKey key)
+    {
+        var choice = FormChoices.FirstOrDefault(candidate => candidate.Key == key);
+        if (choice is not null)
+            SelectedFormChoice = choice;
+    }
+
     partial void OnSelectedFormChoiceChanged(DhhsFormChoice value)
     {
         ActiveConsentGroups = _groups[value.Key];

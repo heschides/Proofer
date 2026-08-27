@@ -7,8 +7,10 @@
              xmlns:supervisor="clr-namespace:Sati.ViewModels.Supervisor"
              xmlns:supervisorVms="clr-namespace:Sati.ViewModels.Supervisor"
              xmlns:billingVms="clr-namespace:Sati.ViewModels.Billing"
+             xmlns:clientDocumentVms="clr-namespace:Sati.ViewModels.ClientDocuments"
              xmlns:adminVms="clr-namespace:Sati.ViewModels.Admin"
              xmlns:views="clr-namespace:Sati.Views"
+             xmlns:clientDocumentViews="clr-namespace:Sati.Views.ClientDocuments"
              xmlns:billingViews="clr-namespace:Sati.Views.Billing">
     <Application.Resources>
         <ResourceDictionary>
@@ -906,6 +908,9 @@
 
             <DataTemplate DataType="{x:Type children:ATRequestViewModel}">
                 <views:ATRequestView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type clientDocumentVms:ClientDocumentHubViewModel}">
+                <clientDocumentViews:ClientDocumentHubView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
                 <views:ProvidersView />

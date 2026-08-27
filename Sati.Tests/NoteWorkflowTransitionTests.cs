@@ -210,13 +210,10 @@ public sealed class NoteWorkflowTransitionTests
     }
 
     [Fact]
-    public void TheCycleRelativeCompliancePatternHoldsWheneverTheSuiteRuns()
+    public void FutureAndCompletedDocumentsStayCompliantWheneverTheSuiteRuns()
     {
-        // Both fixtures build a billable client's compliance relative to the start
-        // of its cycle. Confirm that shape stays compliant at any point in time,
-        // rather than expiring on a calendar boundary the way a pinned seed date
-        // does: forms dated December 2026 fall out of cycle on 1 January 2027 and
-        // take every approval and billing test with them.
+        // Future incomplete documents do not block, regardless of the date on
+        // which this suite happens to run.
         var annualTypes = new[]
         {
             "PCP", "ComprehensiveAssessment", "Reclassification", "SafetyPlan"
@@ -227,7 +224,7 @@ public sealed class NoteWorkflowTransitionTests
             var today = new DateTime(2026, 8, 17).AddDays(offsetDays);
             var cycleStart = today.AddMonths(-1);
             var forms = annualTypes.Select(type =>
-                new ComplianceFormSnapshot(type, cycleStart.AddMonths(6), true));
+                new ComplianceFormSnapshot(type, cycleStart.AddMonths(6), null));
 
             var result = BillingComplianceGate.Evaluate(cycleStart, forms, today);
 
@@ -235,12 +232,12 @@ public sealed class NoteWorkflowTransitionTests
                 $"day {offsetDays}: {string.Join("; ", result.Reasons)}");
         }
 
-        // And the shape it replaced does expire, which is why it was replaced.
+        // A completed document also stays complete after a calendar boundary.
         var pinnedForms = annualTypes.Select(type =>
-            new ComplianceFormSnapshot(type, new DateTime(2026, 12, 31), true));
+            new ComplianceFormSnapshot(type, new DateTime(2026, 12, 31), new DateTime(2026, 12, 30)));
         var afterTheBoundary = BillingComplianceGate.Evaluate(
             new DateTime(2026, 1, 1), pinnedForms, new DateTime(2027, 6, 1));
-        Assert.False(afterTheBoundary.Passed);
+        Assert.True(afterTheBoundary.Passed);
     }
 
     [Fact]
