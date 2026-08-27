@@ -61,7 +61,9 @@
       `claude/cool-jang-f6b3c4` worktree plus `second-machine-setup` and
       `origin/claude/local-vs-github-workflow-dlcqpb` because they contain active, untracked, or
       unique work unrelated to this release.
-- [ ] Commit and push the final release evidence and confirm `master` equals `origin/master`.
+- [x] Commit and push the final release evidence as
+      `19455e3fece1322877e1dc0d8d8d7231eb254a0c`; after this release-index update, confirm a clean
+      working tree and exact equality between `master` and `origin/master`.
 
 ## Release 1.2.26 — 2026-08-26
 
