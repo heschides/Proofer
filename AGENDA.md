@@ -29,8 +29,9 @@
       authenticated owner/agency at the local seam, and cover required fields, every SQL length,
       enum/date/form invariants, transaction rollback, tenant ownership, API mapping, and crash
       containment with desktop and API tests.
-- [x] Run the complete desktop and API suites and inspect rendered UI behavior: 617 desktop tests
-      passed with one opt-in local-AI test skipped, and all 196 API tests passed.
+- [x] Run the complete Release validation: the solution build passed; 617 desktop tests passed with
+      one opt-in local-AI test skipped; all 196 API tests and all 4 authorized shared-solution Carika
+      tests passed; and 74 migrations replayed from empty with zero problems.
 - [x] Apply and verify `20260827141239_AddBillingComplianceRequirements` against the
       identity-validated Local `SatiProduction` and synthetic Azure `SatiDemo` targets. Both report
       no pending code migrations, valid default requirement bits, and the new non-null column and
@@ -38,11 +39,28 @@
       removed and verified absent.
 - [x] Advance the desktop, API, installer builders, release checks, examples, and Settings release
       tracker to 1.2.27 together.
-- [ ] Commit and push the verified 1.2.27 source release.
-- [ ] Publish and verify Demo API 1.2.27; record package hash, deployment identifier, health,
-      release version, and contract revision.
-- [ ] Generate, acceptance-test, and publish the 1.2.27 Demo and Local installers without
-      overwriting an artifact; record sizes, hashes, cleanup, and exact distribution paths.
+- [x] Commit and push the verified 1.2.27 source release as
+      `c18f0001de80fc51eaabc502cacc2322026c3a59` on `master` without rewriting history.
+- [x] Publish `Sati.Api-1.2.27.zip` (9,300,104 bytes; SHA-256
+      `54AA740C74FED38E51D4EEBC09C9C9A13A33BBCBFAC08763AF66809D34E5A8B1`) to the existing Demo API
+      only with OneDeploy deployment `071e2f7b46ff4ac4903d6073747b74e3`. Liveness and readiness are
+      healthy, `/health/version` reports product `Sati.Api` and release 1.2.27, and deployed contract
+      revision `EE21C645AB81` exactly matches the client.
+- [x] Generate and accept `SatiDemoSetup-1.2.27.exe` (100,282,368 bytes; SHA-256
+      `1B0DBEEECE5BD5EEC18E57B7AFDD5B097E2C134726E28FCD15C3538B2061BD10`). It passed five responsive
+      sign-in launches, normal closes, exact version 1.2.27.0, and isolated cleanup, then the installer
+      and checksum were hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+- [x] Generate and accept `SatiLocalSetup-1.2.27.exe` (202,356,490 bytes; SHA-256
+      `954A837CC0A0E76D2B976E30190FDA17C7032A30A0895B9159C6C3395424A43E`) from the one valid
+      Microsoft-signed `SqlLocalDB.msi`. It passed exact version 1.2.27.0, Windows integrated-security,
+      and isolated cleanup checks, then the installer and checksum were hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop`.
+- [x] Delete fully merged, inactive feature branches `codex/repository-stabilization` at `74ea991`
+      and `reminder-note-type` at `1fd3d5f` locally and remotely. Retain the linked
+      `claude/cool-jang-f6b3c4` worktree plus `second-machine-setup` and
+      `origin/claude/local-vs-github-workflow-dlcqpb` because they contain active, untracked, or
+      unique work unrelated to this release.
 - [ ] Commit and push the final release evidence and confirm `master` equals `origin/master`.
 
 ## Release 1.2.26 — 2026-08-26
