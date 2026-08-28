@@ -22,14 +22,36 @@
       authorized shared-solution Carika tests passed, and all 80 focused note-reassignment and
       scratchpad checks passed. All 74 migrations replayed from empty with zero problems, and the
       resulting disposable schema matched all 362 model columns with no drift.
-- [ ] Commit and push the verified 1.2.29 source release to the resolved default branch without
-      rewriting history.
-- [ ] Publish and verify the matching 1.2.29 Demo API package; record its hash, deployment ID,
-      health/version result, and contract revision.
-- [ ] Build and accept the non-overwritten 1.2.29 Demo and Local installers, then independently
-      verify their installers and checksums in the two authorized distribution folders.
-- [ ] Re-audit every retained branch and linked worktree; merge or delete only branches satisfying
-      every DATT safety rule.
+- [x] Commit and push the verified 1.2.29 source release as
+      `e329af12dada557a56203aa56411cdf02c375948` on `master` without rewriting history.
+- [x] Publish `Sati.Api-1.2.29.zip` (9,302,353 bytes; SHA-256
+      `A7C23E88F0079F3F03F896B2811F0328FBC6FA872016A3D844485365FDC270D6`) from the pushed source
+      commit to the existing Demo API only with OneDeploy deployment
+      `f1303da3894c41f5b5a657f4e007a2ab`. Liveness and readiness are healthy,
+      `/health/version` reports product `Sati.Api` and release 1.2.29, and deployed contract
+      revision `EE21C645AB81` exactly matches the client. The package contains no private desktop
+      settings or credential markers. The optional authenticated Admin extension was skipped
+      because no synthetic Demo credentials were configured in this Windows session; all required
+      public release checks passed. Release 1.2.28 deployment
+      `d06af5344f8543d497727f02338474aa` and its API ZIP remain available as prior known-healthy
+      evidence.
+- [x] Generate and accept `SatiDemoSetup-1.2.29.exe` (100,311,040 bytes; SHA-256
+      `F8A76038BA687DC88F82B4D172E149AF97E370D43FA42D7B8E77477E87A111BC`). It passed five
+      responsive sign-in launches, normal closes, exact version 1.2.29.0, public-only
+      configuration, and isolated cleanup. The installer and checksum were independently
+      hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+- [x] Generate and accept `SatiLocalSetup-1.2.29.exe` (202,633,482 bytes; SHA-256
+      `8585A1E32F6E57B8067F32B5D09FB282958D9CF40D79D9A8FA976FB564A183DA`) from Microsoft-signed
+      `SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`). It passed exact
+      version 1.2.29.0, Windows integrated-security, credential-rejection, and isolated cleanup
+      checks. The installer and checksum were independently hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop`.
+- [x] Merge or delete no branches. Retain linked worktree `claude/cool-jang-f6b3c4` at `c439fa8`
+      because it contains an untracked instruction file; retain `second-machine-setup` at
+      `f31fdf0` and `origin/claude/local-vs-github-workflow-dlcqpb` at `62b2f83` because they have
+      unique setup work unrelated to this release.
 - [ ] Commit and push final release evidence, then confirm a clean `master` exactly matching
       `origin/master`.
 
