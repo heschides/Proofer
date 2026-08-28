@@ -165,6 +165,12 @@ On a valid invocation:
    a Production deployment, a cloud database migration, force-pushing, overwriting a release
    artifact, discarding work, or deleting a branch that does not satisfy every safe-deletion rule in
    the playbook.
+5. The invocation never authorizes changing a security setting, including an Azure SQL firewall
+   rule, even temporarily and even when the release cannot proceed without it. `SatiDemo`'s firewall
+   admits only the Demo API's outbound addresses, so a migration run from a workstation needs a
+   temporary exact-IP rule that the user adds and removes. Detect that need during preflight, report
+   the workstation's public address, and wait. Do not treat a later "proceed" or "I trust you" as
+   permission to make the change instead.
 
 If the playbook is missing, ambiguous, or cannot be read completely, stop without making release
 changes and tell the user what is blocking the invocation.

@@ -30,6 +30,8 @@ The invocation does not authorize:
 - a Production API or infrastructure deployment;
 - a cloud database migration or any transformation of Production data;
 - copying Production data into Demo;
+- opening or altering a database, network, or other security setting, including an Azure SQL
+  firewall rule, even temporarily and even when the release cannot proceed without it;
 - force-pushing, rewriting published history, discarding changes, or overwriting an artifact;
 - deleting a protected, active, ambiguous, or uniquely valuable branch; or
 - expanding the release to another product merely because it shares this repository.
@@ -66,7 +68,20 @@ A DATT release is complete only when all applicable conditions are true:
    unrelated changes and changes in other worktrees.
 5. Identify the releasable change set. If there are no new releasable changes, report that result
    and stop without incrementing a version, committing, deploying, or packaging.
-6. If a change's ownership or intent cannot be determined safely, stop and ask the smallest
+6. Determine during preflight whether the change set adds or alters database schema, by checking
+   for new `Migrations/` entries and for API contracts that read columns or tables the deployed
+   Demo database may lack. Schema work makes the release dependent on two things the release
+   itself cannot supply, so establish both before building anything:
+   - explicit authorization for the controlled Demo migration; and
+   - network access to `SatiDemo`, whose SQL firewall admits only `sati-demo-api-satilogica`'s
+     outbound addresses. No developer workstation has standing access. Running a migration from
+     one therefore needs a temporary exact-IP rule, which is a security setting: **ask the user to
+     add it and to remove it afterwards. Never add, alter, or delete a firewall rule.** Report the
+     workstation's public address so the user can create the rule without hunting for it.
+
+   Discovering either of these at the API publication step wastes a full release pass. Raise both
+   in the preflight report, alongside the other findings, before any version bump or commit.
+7. If a change's ownership or intent cannot be determined safely, stop and ask the smallest
    necessary question. Never hide uncertainty by stashing, resetting, or overwriting it.
 
 ## 2. Branch reconciliation and cleanup
@@ -157,6 +172,20 @@ No database migration is implied by this workflow. If the release requires a clo
 stop and obtain explicit authorization for the controlled migration procedure before publishing a
 dependent API.
 
+Apply an authorized Demo migration with an existence-guarded script rather than EF's generated
+idempotent script. `SatiDemo` and `SatiProduction` have acquired columns outside the migration
+chain, so `__EFMigrationsHistory` and the real schema disagree in both directions, and the
+generated script fails with SQL 2705 on a column that exists without its history row. Follow
+`scripts/Apply-ProviderDirectoryMigrations.ps1`: fail closed on database and environment identity,
+guard every statement on the actual schema, verify that anything already present has the expected
+semantics rather than merely the expected name, and stay rerunnable. Run it once with a
+rollback-only dry run, then for real, then once more to prove idempotency.
+
+Reaching `SatiDemo` from a workstation requires the temporary firewall rule described in preflight.
+The user adds and removes it; this workflow never does. A readiness check that returns healthy
+afterwards is the real confirmation that the migration satisfied the deployed model, because
+`SchemaDriftHealthCheck` compares the model's tables and columns against the database.
+
 After publication, verify:
 
 - deployment success and deployment identifier;
@@ -242,6 +271,8 @@ Stop before the next side effect and explain the blocker when any of these occur
   log;
 - a cloud database migration or Production deployment would be required;
 - the deployed API is unhealthy or reports the wrong version or contract revision;
+- a required Demo migration is unauthorized, or reaching SatiDemo would need a firewall or other
+  security setting the user has not already put in place;
 - the LocalDB prerequisite is missing or its Microsoft signature is invalid;
 - a distribution path resolves outside the named documents root, cannot be written, or contains a
   same-named artifact with a different hash; or
