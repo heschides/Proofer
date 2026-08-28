@@ -122,6 +122,74 @@ public sealed class NotePipelineTests
         Assert.Equal("Winner", await fixture.NarrativeOfAsync(noteId));
     }
 
+    [Fact]
+    public async Task APendingNoteCanBeReassignedWithinTheCaseManagersOwnCaseloadAndIsAudited()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var service = fixture.NotesAs(fixture.CaseManagerOne);
+        var noteId = await fixture.SeedNoteAsync(
+            fixture.PersonOneId, NoteStatus.Pending, fixture.ServiceDate(1));
+        var draft = await fixture.DetachedNoteAsync(noteId);
+        draft.PersonId = fixture.PersonIncompleteId;
+
+        await service.UpdateNoteAsync(draft);
+
+        var stored = await fixture.NoteAsync(noteId);
+        Assert.Equal(fixture.PersonIncompleteId, stored.PersonId);
+        Assert.Equal(2, stored.Revision);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        var reassignment = await db.AuditEvents.AsNoTracking()
+            .SingleAsync(candidate => candidate.Action == "note.reassigned");
+        using var metadata = System.Text.Json.JsonDocument.Parse(reassignment.MetadataJson);
+        Assert.Equal(fixture.PersonOneId,
+            metadata.RootElement.GetProperty("previousPersonId").GetInt32());
+        Assert.Equal(fixture.PersonIncompleteId,
+            metadata.RootElement.GetProperty("newPersonId").GetInt32());
+        Assert.DoesNotContain("Seeded note", reassignment.MetadataJson, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("peer")]
+    [InlineData("foreign")]
+    public async Task ANoteCannotBeReassignedOutsideTheCaseManagersOwnCaseload(string target)
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var service = fixture.NotesAs(fixture.CaseManagerOne);
+        var noteId = await fixture.SeedNoteAsync(
+            fixture.PersonOneId, NoteStatus.Pending, fixture.ServiceDate(1));
+        var draft = await fixture.DetachedNoteAsync(noteId);
+        draft.PersonId = target == "peer" ? fixture.PersonPeerId : fixture.PersonTwoId;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.UpdateNoteAsync(draft));
+
+        Assert.Equal(fixture.PersonOneId, (await fixture.NoteAsync(noteId)).PersonId);
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.False(await db.AuditEvents.AnyAsync(candidate => candidate.Action == "note.reassigned"));
+    }
+
+    [Fact]
+    public async Task AStaleReassignmentCannotMoveTheNewerNoteOrWriteAReassignmentAudit()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var service = fixture.NotesAs(fixture.CaseManagerOne);
+        var noteId = await fixture.SeedNoteAsync(
+            fixture.PersonOneId, NoteStatus.Pending, fixture.ServiceDate(1));
+        var winner = await fixture.DetachedNoteAsync(noteId);
+        var staleMove = await fixture.DetachedNoteAsync(noteId);
+        winner.Narrative = "Newer saved correction";
+        staleMove.PersonId = fixture.PersonIncompleteId;
+
+        await service.UpdateNoteAsync(winner);
+        await Assert.ThrowsAsync<NoteConcurrencyException>(() => service.UpdateNoteAsync(staleMove));
+
+        var stored = await fixture.NoteAsync(noteId);
+        Assert.Equal(fixture.PersonOneId, stored.PersonId);
+        Assert.Equal("Newer saved correction", stored.Narrative);
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.False(await db.AuditEvents.AnyAsync(candidate => candidate.Action == "note.reassigned"));
+    }
+
     // ---------------------------------------------------------------------
     // Supervisory review
     // ---------------------------------------------------------------------

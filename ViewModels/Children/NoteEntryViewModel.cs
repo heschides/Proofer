@@ -59,6 +59,7 @@ namespace Sati.ViewModels.Children
         private bool _suppressVisitChangeNotifications;
         private bool _synchronizingVisitChoices;
         private bool _suppressDirtyTracking;
+        private bool _suppressPersonSelectionEffects;
         private bool _applyingSchedulingPolicy;
         private readonly LatestRequestTracker _aiDraftRequests = new();
         private CancellationTokenSource? _aiDraftCancellation;
@@ -125,6 +126,13 @@ namespace Sati.ViewModels.Children
         public Func<FormType, bool, Task>? FormNoteSavedAsync { get; set; }
 
         public event EventHandler? NoteSaved;
+
+        // The view owns the confirmation window. The ViewModel supplies the exact
+        // old/new client names and treats an absent handler as a refusal, so a
+        // background or test caller cannot bypass the human confirmation by
+        // changing SelectedPerson directly.
+        public event EventHandler<NoteReassignmentConfirmationEventArgs>?
+            NoteReassignmentConfirmationRequested;
 
         // The panel went back to a blank New Note. Hosts use this to drop the row
         // their grid still has highlighted, so the highlight and the panel never
@@ -434,17 +442,45 @@ namespace Sati.ViewModels.Children
                 return;
             }
 
+            if (_suppressPersonSelectionEffects)
+                return;
+
             InvalidateAiGeneration();
 
-            // Genuine client switch: reset the draft; edit mode ends because the
-            // note being edited belongs to the previous client.
-            if (IsEditing)
+            // A client change while editing is now a reassignment of the existing
+            // record. Confirm it immediately, while the old and new names are both
+            // visible in context, and leave every other note field untouched.
+            if (IsEditing && !IsLocked && _editingNote is Note editingNote)
             {
-                IsEditing = false;
-                IsLocked = false;
-                ReturnReason = null;
-                _editingNote = null;
+                var originalPerson = People.FirstOrDefault(person =>
+                    person.Id == editingNote.PersonId) ?? editingNote.Person;
+                if (newValue is null)
+                {
+                    SetSelectedPersonWithoutEffects(originalPerson);
+                    return;
+                }
+
+                if (newValue.Id != editingNote.PersonId)
+                {
+                    var confirmation = new NoteReassignmentConfirmationEventArgs(
+                        originalPerson?.FullName ?? "the current client",
+                        newValue.FullName);
+                    NoteReassignmentConfirmationRequested?.Invoke(this, confirmation);
+                    if (!confirmation.Confirmed)
+                    {
+                        SetSelectedPersonWithoutEffects(originalPerson);
+                        return;
+                    }
+                }
+
+                MarkDirty();
+                _ = LoadVisitAttendeesAsync(newValue);
+                return;
             }
+
+            // Genuine client switch: reset the draft; edit mode ends because the
+            // note being edited belongs to the previous client. Editing client
+            // changes return above; this branch is the New Note workflow.
             Status = null;
             Narrative = string.Empty;
             EventDate = null;
@@ -459,6 +495,19 @@ namespace Sati.ViewModels.Children
             // wiped by the client switch, which is itself the deliberate act.
             HasUnsavedChanges = false;
             _ = LoadVisitAttendeesAsync(newValue);
+        }
+
+        private void SetSelectedPersonWithoutEffects(Person? person)
+        {
+            _suppressPersonSelectionEffects = true;
+            try
+            {
+                SelectedPerson = person;
+            }
+            finally
+            {
+                _suppressPersonSelectionEffects = false;
+            }
         }
 
         partial void OnSelectedNoteTypeChanged(NoteType? value)
@@ -1223,12 +1272,10 @@ namespace Sati.ViewModels.Children
             _freshnessChecks.Invalidate();
             StaleNoteMessage = null;
 
-            // Select the person FIRST — OnSelectedPersonChanged clears the draft
-            // fields, so populating them before selection would wipe them. The note
-            // is attached AFTER that runs: a genuine client switch nulls
-            // _editingNote, so attaching it first left IsEditing true with no note
-            // behind it and the next save wrote a duplicate instead of an update.
-            SelectedPerson = People.FirstOrDefault(p => p.Id == note.PersonId);
+            // Select the person without treating navigation between saved records
+            // as a user-requested reassignment. The note is attached only after
+            // the selection points at the record's stored client.
+            SetSelectedPersonWithoutEffects(People.FirstOrDefault(p => p.Id == note.PersonId));
             _editingNote = note;
 
             // Filling the fields from the record is a read, not the case manager's
@@ -1444,7 +1491,7 @@ namespace Sati.ViewModels.Children
         [RelayCommand]
         public void Clear()
         {
-            SelectedPerson = null;
+            SetSelectedPersonWithoutEffects(null);
             ReturnToNewNote();
         }
 
@@ -1719,6 +1766,9 @@ namespace Sati.ViewModels.Children
             if (wasEdit)
             {
                 var note = _editingNote!;
+                var selectedPerson = SelectedPerson!;
+                var previousPersonId = note.PersonId;
+                var previousPerson = note.Person;
                 note.Narrative = Narrative!;
                 note.EventDate = EventDate;
                 note.Minutes = Minutes ?? 0;
@@ -1727,6 +1777,7 @@ namespace Sati.ViewModels.Children
                 note.NoteType = SelectedNoteType;
                 note.FormType = SelectedFormType;
                 note.VisitDocumentation = BuildVisitDocumentation();
+                note.PersonId = selectedPerson.Id;
                 if (caseManagerJustification is not null)
                     note.CaseManagerJustification = caseManagerJustification;
 
@@ -1736,9 +1787,18 @@ namespace Sati.ViewModels.Children
                 }
                 catch (NoteConcurrencyException)
                 {
+                    note.PersonId = previousPersonId;
+                    note.Person = previousPerson;
                     await ReconcileNoteConflictAsync(note);
                     return;
                 }
+                catch
+                {
+                    note.PersonId = previousPersonId;
+                    note.Person = previousPerson;
+                    throw;
+                }
+                note.Person = selectedPerson;
                 savedFormType = note.FormType;
             }
             else
@@ -1976,12 +2036,12 @@ namespace Sati.ViewModels.Children
 
         public void Reset()
         {
-            SelectedPerson = null;
             _editingNote = null;
             _pendingVisitDocumentation = null;
             IsEditing = false;
             IsLocked = false;
             ReturnReason = null;
+            SetSelectedPersonWithoutEffects(null);
             ClearNoteFields();
             People.Clear();
         }
@@ -1998,5 +2058,16 @@ namespace Sati.ViewModels.Children
     {
         public int PersonId { get; } = personId;
         public string? Journal { get; } = journal;
+    }
+
+    public sealed class NoteReassignmentConfirmationEventArgs(
+        string previousClientName,
+        string newClientName) : EventArgs
+    {
+        public string PreviousClientName { get; } = previousClientName;
+        public string NewClientName { get; } = newClientName;
+        public string Message { get; } =
+            $"Are you sure you want to reassign this note from {previousClientName} to {newClientName}?";
+        public bool Confirmed { get; set; }
     }
 }

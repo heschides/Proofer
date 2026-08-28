@@ -388,7 +388,9 @@
                         <TextBlock Text="CLIENT"
                            Grid.Row="1"
                            Style="{StaticResource LabelStyle}" />
-                <ComboBox AutomationProperties.Name="Person" Grid.Row="2"
+                <ComboBox AutomationProperties.Name="Person"
+                          AutomationProperties.HelpText="When editing a saved note, changing the client asks you to confirm the reassignment."
+                          Grid.Row="2"
                           ItemsSource="{Binding People}"
                           SelectedItem="{Binding SelectedPerson}"
                           DisplayMemberPath="FullName" />

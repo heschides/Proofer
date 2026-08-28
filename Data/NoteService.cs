@@ -64,14 +64,42 @@ public class NoteService(
             throw new InvalidOperationException(
                 NoteWorkflow.DescribeRejectedTransition((int?)stored.Status, (int?)note.Status));
 
+        var previousPersonId = stored.PersonId;
+        var targetPerson = stored.Person;
+        if (note.PersonId != previousPersonId)
+        {
+            targetPerson = await context.People.SingleOrDefaultAsync(person =>
+                person.Id == note.PersonId && person.UserId == actor.Id &&
+                person.AgencyId == actor.AgencyId)
+                ?? throw new UnauthorizedAccessException(
+                    "You may reassign a note only to another client on your own caseload.");
+        }
+
         await EnsureServiceTimeAvailableAsync(context, actor.Id, note, stored.Id);
         CopyCaseManagerValues(note, stored);
+        stored.PersonId = note.PersonId;
+        stored.Person = targetPerson;
         stored.Revision++;
         LocalAuditTrail.Record(context, actor, LocalAuditActions.NoteUpdated, "Note", stored.Id);
+        if (previousPersonId != stored.PersonId)
+        {
+            LocalAuditTrail.Record(
+                context,
+                actor,
+                LocalAuditActions.NoteReassigned,
+                "Note",
+                stored.Id,
+                System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    previousPersonId,
+                    newPersonId = stored.PersonId
+                }));
+        }
         try
         {
             await context.SaveChangesAsync();
             note.Revision = stored.Revision;
+            note.Person = targetPerson;
         }
         catch (DbUpdateConcurrencyException ex) { throw new NoteConcurrencyException(ex); }
     }

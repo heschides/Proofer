@@ -2,6 +2,37 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.29 — 2026-08-28
+
+- [x] Allow an editable saved note to be reassigned with the existing Client selector without
+      creating a duplicate note.
+- [x] Ask the case manager, “Are you sure you want to reassign this note from [name] to [name]?”,
+      default the popup to No, and restore the original selection when the move is declined.
+- [x] Enforce current-note and target-client ownership in Local and Demo/API, retain workflow and
+      optimistic-concurrency protection, and record a PHI-minimized `note.reassigned` audit event
+      in the same save transaction.
+- [x] Make both scratchpad tabs use the active theme's primary text and caret colors, including dark
+      themes, with a rendered Harbor Night regression check.
+- [x] Add focused ViewModel, local persistence, API integration, tenant-isolation, audit,
+      concurrency, and WPF theme coverage.
+- [x] Advance the desktop, API, installer builders, readiness checks, examples, and Settings release
+      tracker to 1.2.29 together. No database migration is required for this release.
+- [x] Run the complete Release build and every test project: 631 desktop/domain tests passed with
+      one documented opt-in local-AI test skipped, all 199 API integration tests and all 4
+      authorized shared-solution Carika tests passed, and all 80 focused note-reassignment and
+      scratchpad checks passed. All 74 migrations replayed from empty with zero problems, and the
+      resulting disposable schema matched all 362 model columns with no drift.
+- [ ] Commit and push the verified 1.2.29 source release to the resolved default branch without
+      rewriting history.
+- [ ] Publish and verify the matching 1.2.29 Demo API package; record its hash, deployment ID,
+      health/version result, and contract revision.
+- [ ] Build and accept the non-overwritten 1.2.29 Demo and Local installers, then independently
+      verify their installers and checksums in the two authorized distribution folders.
+- [ ] Re-audit every retained branch and linked worktree; merge or delete only branches satisfying
+      every DATT safety rule.
+- [ ] Commit and push final release evidence, then confirm a clean `master` exactly matching
+      `origin/master`.
+
 ## Release 1.2.28 — 2026-08-27
 
 - [x] Correct Add Person email handling so a blank value is genuinely optional while a supplied

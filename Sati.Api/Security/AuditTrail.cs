@@ -34,6 +34,7 @@ internal static class AuditActions
     public const string NoteApproved = "note.approved";
     public const string NoteApprovalOverridden = "note.approval-overridden";
     public const string NoteReturned = "note.returned";
+    public const string NoteReassigned = "note.reassigned";
     public const string AssessmentCreated = "assessment.created";
     public const string AssessmentUpdated = "assessment.updated";
     public const string AssessmentSubmitted = "assessment.submitted";

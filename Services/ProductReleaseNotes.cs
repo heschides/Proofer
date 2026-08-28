@@ -6,24 +6,31 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Clearer Add Person requirements";
-    public const string ReleaseDate = "August 27, 2026";
+    public const string ReleaseName = "Safer note reassignment and themed scratchpads";
+    public const string ReleaseDate = "August 28, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Clear requirements at a glance",
+            "Correct the client without duplicating the note",
             [
-                "First name, last name, date of birth, and biography now carry visible required-field asterisks.",
-                "A compact completion guide changes each required item from orange to green as meaningful information is entered, while retaining text labels so status is not conveyed by color alone.",
-                "All other details are identified as optional; representative-payee income and regular check-request needs become required only when Yes is selected."
+                "An editable saved note can now be moved to the correct client with the existing Client selector.",
+                "Sati names both clients in an explicit confirmation before changing the record, and No safely restores the original selection.",
+                "The same note is moved rather than copied, so correcting the client does not create a duplicate clinical record."
             ]),
         new(
-            "Email is genuinely optional",
+            "Protected and traceable in Local and Demo",
             [
-                "The active Add Person editor now includes the email field and clearly labels it optional.",
-                "Leaving email blank no longer blocks a save; Sati checks email format only when an address is entered.",
-                "Validation and accessibility coverage protect the optional-email behavior and the live requirement guide."
+                "A note can move only between clients on the signed-in case manager's own caseload and in the same agency.",
+                "Stale edits and submitted-record locks still apply; logged or approved notes must be returned before correction.",
+                "Each successful reassignment is audited with record IDs only, keeping client names and note text out of the general audit envelope."
+            ]),
+        new(
+            "Scratchpad text follows the active theme",
+            [
+                "Today's Work and Tomorrow's Agenda now use the theme's primary text color instead of falling back to dark system text.",
+                "The typing caret follows the same dynamic theme color, including Harbor Night and the other dark themes.",
+                "Rendered-view coverage checks both scratchpad tabs under a dark theme."
             ]),
         new(
             "Still planned before commercial production",

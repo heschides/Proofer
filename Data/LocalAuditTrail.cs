@@ -41,6 +41,7 @@ internal static class LocalAuditActions
     public const string AssessmentSubmitted = "assessment.submitted";
     public const string NoteCreated = "note.created";
     public const string NoteUpdated = "note.updated";
+    public const string NoteReassigned = "note.reassigned";
     public const string NoteApproved = "note.approved";
     public const string NoteApprovalOverridden = "note.approval-overridden";
     public const string NoteReturned = "note.returned";

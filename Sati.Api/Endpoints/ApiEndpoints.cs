@@ -2136,6 +2136,7 @@ internal static class ApiEndpoints
             ClaimsPrincipal principal,
             ApiDbContext db,
             ApiClock clock,
+            AuditTrail auditTrail,
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
@@ -2145,10 +2146,13 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(validation);
             var row = await (from note in db.Notes
                              join person in db.People on note.PersonId equals person.Id
-                             where person.UserId == actor.UserId && note.Id == id
+                             where person.UserId == actor.UserId &&
+                                   person.AgencyId == actor.AgencyId &&
+                                   note.AgencyId == actor.AgencyId &&
+                                   note.Id == id
                              select new { Note = note, Person = person })
                 .SingleOrDefaultAsync(cancellationToken);
-            if (row is null || row.Note.PersonId != request.PersonId)
+            if (row is null)
                 return Results.NotFound();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
@@ -2164,6 +2168,19 @@ internal static class ApiEndpoints
                     NoteWorkflow.DescribeRejectedTransition(row.Note.Status, requestedStatus),
                     string.Empty));
 
+            var previousPersonId = row.Note.PersonId;
+            var responsePerson = row.Person;
+            if (request.PersonId != previousPersonId)
+            {
+                responsePerson = await db.People.SingleOrDefaultAsync(person =>
+                    person.Id == request.PersonId &&
+                    person.UserId == actor.UserId &&
+                    person.AgencyId == actor.AgencyId,
+                    cancellationToken);
+                if (responsePerson is null)
+                    return Results.NotFound();
+            }
+
             var timeConflict = await FindServiceTimeProblemAsync(db, actor, request, id, cancellationToken);
             if (timeConflict is not null)
                 return timeConflict;
@@ -2176,11 +2193,25 @@ internal static class ApiEndpoints
             row.Note.Status = status;
             row.Note.Minutes = request.Minutes;
             row.Note.StartTime = request.StartTime;
+            row.Note.PersonId = request.PersonId;
             row.Note.FormType = formType;
             row.Note.NoteType = noteType;
             row.Note.CaseManagerJustification = request.CaseManagerJustification;
             row.Note.VisitDocumentationJson = request.VisitDocumentationJson;
             row.Note.Revision++;
+            if (previousPersonId != row.Note.PersonId)
+            {
+                auditTrail.Record(
+                    actor,
+                    AuditActions.NoteReassigned,
+                    "Note",
+                    row.Note.Id,
+                    JsonSerializer.Serialize(new
+                    {
+                        previousPersonId,
+                        newPersonId = row.Note.PersonId
+                    }));
+            }
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
@@ -2189,7 +2220,7 @@ internal static class ApiEndpoints
             {
                 return StaleNoteConflict();
             }
-            return Results.Ok(ContractMapper.ToNote(row.Note, row.Person));
+            return Results.Ok(ContractMapper.ToNote(row.Note, responsePerson));
         });
 
         api.MapDelete("/notes/{id:int}", async (

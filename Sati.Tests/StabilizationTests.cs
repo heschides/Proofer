@@ -553,18 +553,21 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.28", version);
+        Assert.Equal("1.2.29", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Clearer Add Person requirements", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Safer note reassignment and themed scratchpads", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Clear requirements at a glance" &&
-            section.Items.Any(item => item.Contains("orange", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("asterisk", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Correct the client without duplicating the note" &&
+            section.Items.Any(item => item.Contains("confirmation", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("duplicate", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Email is genuinely optional" &&
-            section.Items.Any(item => item.Contains("blank", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("format", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Protected and traceable in Local and Demo" &&
+            section.Items.Any(item => item.Contains("caseload", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("audited", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Scratchpad text follows the active theme" &&
+            section.Items.Any(item => item.Contains("dark theme", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));

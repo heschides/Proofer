@@ -352,6 +352,86 @@ public sealed class NotePipelineApiTests
     }
 
     [Fact]
+    public async Task APendingNoteCanBeReassignedWithinTheAuthorsCaseloadAndIsAudited()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var noteId = await _factory.CreateNoteInStatusAsync(Pending);
+        var (_, revision) = await _factory.GetNoteStateAsync(noteId);
+        var before = await _factory.GetAuditEventsAsync("note.reassigned");
+
+        var response = await client.PutAsJsonAsync($"/api/v1/notes/{noteId}",
+            new SaveNoteRequest("Correct client", new DateTime(2026, 8, 3), "Pending", 60,
+                null, 102, null, null, null, null, revision));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<NoteDto>();
+        Assert.Equal(102, updated!.PersonId);
+        Assert.Equal(102, updated.Person?.Id);
+        Assert.Equal(revision + 1, updated.Revision);
+
+        var originalClientNotes = await client.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/people/101/notes");
+        var correctedClientNotes = await client.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/people/102/notes");
+        Assert.DoesNotContain(originalClientNotes!, note => note.Id == noteId);
+        Assert.Contains(correctedClientNotes!, note => note.Id == noteId);
+
+        var after = await _factory.GetAuditEventsAsync("note.reassigned");
+        Assert.Equal(before.Count + 1, after.Count);
+        var audit = after[^1];
+        Assert.Equal("Note", audit.ResourceType);
+        Assert.Equal(noteId.ToString(), audit.ResourceId);
+        using var metadata = System.Text.Json.JsonDocument.Parse(audit.MetadataJson);
+        Assert.Equal(101, metadata.RootElement.GetProperty("previousPersonId").GetInt32());
+        Assert.Equal(102, metadata.RootElement.GetProperty("newPersonId").GetInt32());
+        Assert.DoesNotContain("Correct client", audit.MetadataJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AReassignmentCannotMoveANoteIntoAnotherAgency()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var noteId = await _factory.CreateNoteInStatusAsync(Pending);
+        var (_, revision) = await _factory.GetNoteStateAsync(noteId);
+        var before = await _factory.GetAuditEventsAsync("note.reassigned");
+
+        var response = await client.PutAsJsonAsync($"/api/v1/notes/{noteId}",
+            new SaveNoteRequest("Cross-tenant move", new DateTime(2026, 8, 3), "Pending", 60,
+                null, 201, null, null, null, null, revision));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var originalClientNotes = await client.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/people/101/notes");
+        Assert.Contains(originalClientNotes!, note => note.Id == noteId);
+        Assert.Equal(before.Count,
+            (await _factory.GetAuditEventsAsync("note.reassigned")).Count);
+    }
+
+    [Fact]
+    public async Task AStaleReassignmentCannotMoveTheNewerNoteOrWriteAnAudit()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var noteId = await _factory.CreateNoteInStatusAsync(Pending);
+        var (_, revision) = await _factory.GetNoteStateAsync(noteId);
+        var before = await _factory.GetAuditEventsAsync("note.reassigned");
+        var winner = await client.PutAsJsonAsync($"/api/v1/notes/{noteId}",
+            SaveRequest(Pending, revision, "Newer saved correction"));
+        Assert.Equal(HttpStatusCode.OK, winner.StatusCode);
+
+        var staleMove = await client.PutAsJsonAsync($"/api/v1/notes/{noteId}",
+            new SaveNoteRequest("Stale move", new DateTime(2026, 8, 3), "Pending", 60,
+                null, 102, null, null, null, null, revision));
+
+        Assert.Equal(HttpStatusCode.Conflict, staleMove.StatusCode);
+        var originalClientNotes = await client.GetFromJsonAsync<List<NoteDto>>(
+            "/api/v1/people/101/notes");
+        var stored = Assert.Single(originalClientNotes!, note => note.Id == noteId);
+        Assert.Equal("Newer saved correction", stored.Narrative);
+        Assert.Equal(before.Count,
+            (await _factory.GetAuditEventsAsync("note.reassigned")).Count);
+    }
+
+    [Fact]
     public async Task OnlyAnApprovedNoteCanBecomeAClaimLine()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");

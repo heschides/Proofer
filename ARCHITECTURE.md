@@ -658,6 +658,10 @@ old rows as a side effect.
 - Owns `Note` CRUD and status transitions. `UpdateAbandonedNotesAsync` (startup sweep) moves stale
   `Pending` → `Abandoned`. `GetMonthlyNotesAsync` uses inline `DateTime.Now` twice (midnight-straddle,
   low risk). No compliance logic here.
+- An editable note may be reassigned only to another client owned by the signed-in case manager in
+  the same agency. The shared note editor asks for an explicit old-name/new-name confirmation; both
+  persistence paths repeat ownership and revision checks and record `note.reassigned` with Person
+  IDs only, in the same transaction as the note change.
 - `GetDayScheduleAsync(userId, date)` returns every note on one case manager's calendar date across
   their caseload. It exists for the service-time overlap rule and is deliberately not person-scoped.
 

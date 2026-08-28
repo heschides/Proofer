@@ -497,4 +497,84 @@ public sealed class NotePanelModeTests
         Assert.Equal(personTwo.Id, panel.SelectedPerson?.Id);
         Assert.Equal("Second client's note.", panel.Narrative);
     }
+
+    [Fact]
+    public async Task DecliningAClientChangeKeepsTheExistingNoteAndNamesBothClients()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var panel = fixture.NoteEntry();
+        var personOne = await fixture.PersonOneAsync();
+        var personTwo = await fixture.PersonTwoAsync();
+        panel.SetPeople([personOne, personTwo]);
+        var note = ExistingNote(personOne.Id, "Keep this correction on screen.");
+        panel.EnterEditMode(note);
+        string? confirmationMessage = null;
+        panel.NoteReassignmentConfirmationRequested += (_, confirmation) =>
+        {
+            confirmationMessage = confirmation.Message;
+            confirmation.Confirmed = false;
+        };
+
+        panel.SelectedPerson = personTwo;
+
+        Assert.Equal(
+            "Are you sure you want to reassign this note from Journal Person to Second Person?",
+            confirmationMessage);
+        Assert.Equal(personOne.Id, panel.SelectedPerson?.Id);
+        Assert.True(panel.IsShowing(note));
+        Assert.True(panel.IsEditing);
+        Assert.Equal("Keep this correction on screen.", panel.Narrative);
+    }
+
+    [Fact]
+    public async Task AClientChangeWithoutAConfirmationHandlerFailsClosed()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var panel = fixture.NoteEntry();
+        var personOne = await fixture.PersonOneAsync();
+        var personTwo = await fixture.PersonTwoAsync();
+        panel.SetPeople([personOne, personTwo]);
+        var note = ExistingNote(personOne.Id);
+        panel.EnterEditMode(note);
+
+        panel.SelectedPerson = personTwo;
+
+        Assert.Equal(personOne.Id, panel.SelectedPerson?.Id);
+        Assert.True(panel.IsShowing(note));
+    }
+
+    [Fact]
+    public async Task ConfirmingAClientChangeMovesTheSavedNoteInsteadOfCreatingADuplicate()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var notes = fixture.NotesFromAnotherSession();
+        var personOne = await fixture.PersonOneAsync();
+        var personTwo = await fixture.PersonTwoAsync();
+        var created = await notes.AddNoteAsync(Note.Create(
+            "Entered for the wrong client.",
+            DateTime.Today.AddDays(-1),
+            NoteStatus.Pending,
+            15,
+            personOne.Id,
+            null,
+            NoteType.Contact));
+        var loaded = Assert.Single(await notes.GetAllByPersonAsync(personOne.Id),
+            candidate => candidate.Id == created.Id);
+        var panel = fixture.NoteEntry(notes: notes);
+        panel.SetPeople([personOne, personTwo]);
+        panel.EnterEditMode(loaded);
+        panel.NoteReassignmentConfirmationRequested += (_, confirmation) =>
+            confirmation.Confirmed = true;
+
+        panel.SelectedPerson = personTwo;
+        await panel.SubmitNoteCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain(await notes.GetAllByPersonAsync(personOne.Id),
+            candidate => candidate.Id == created.Id);
+        var moved = Assert.Single(await notes.GetAllByPersonAsync(personTwo.Id),
+            candidate => candidate.Id == created.Id);
+        Assert.Equal("Entered for the wrong client.", moved.Narrative);
+        Assert.False(panel.IsEditing);
+        Assert.Equal(personTwo.Id, panel.SelectedPerson?.Id);
+    }
 }

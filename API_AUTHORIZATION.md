@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-23, covering all 96 protected routes. Every route added,
+*Route inventory current as of 2026-08-28, covering all 96 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -84,7 +84,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | AT | `POST /at-requests/{id}/reopen` | Request person's assigned user and agency | Accessible case manager only. Discards the attestation, returns the request to `Development`, and records the discarded signer in the audit event. Refused if the revision is stale. |
 | AI context | `GET /people/{personId}/ai-context` | Person's assigned user and agency | Own caseload only; actor identity is derived from the validated session and the response contains selected-client identity only. |
 | Notes | `POST /notes` | Note person's assigned user and agency | Own caseload only; note agency is assigned server-side. |
-| Notes | `PUT /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces the `NoteWorkflow` transition table and rejects stale revisions. |
+| Notes | `PUT /notes/{id}` | Current and requested note persons' assigned user and agency | Both the stored note and any requested reassignment target must belong to the actor's own caseload and agency; server enforces the `NoteWorkflow` transition table, rejects stale revisions, and audits a successful reassignment. |
 | Notes | `DELETE /notes/{id}` | Note person's assigned user and agency | Own caseload only; server enforces deletable workflow states and rejects stale revisions. |
 | Notes | `GET /people/{personId}/notes` | Note person's assigned user and agency | Own caseload only. |
 | Notes | `GET /notes/monthly` | Target user's `AgencyId` | Accessible case manager only. |

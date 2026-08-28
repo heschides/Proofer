@@ -1,6 +1,6 @@
 # Audit events
 
-*Current as of 2026-08-15.*
+*Current as of 2026-08-28.*
 
 Sati records a small, append-only event when a protected action succeeds. The event answers
 “who did what, to which record, for which agency, and during which request?” It is not a second
@@ -27,7 +27,7 @@ for content; the audit event is only its activity index.
 
 - `authentication.succeeded`
 - `user.created`, `user.updated`, `user.password-reset`, `user.password-changed`
-- `note.approved`, `note.approval-overridden`, `note.returned`
+- `note.reassigned`, `note.approved`, `note.approval-overridden`, `note.returned`
 - `assessment.created`, `assessment.updated`, `assessment.submitted`
 - `person.created`, `person.updated`, `person.journal-updated`, `person.journal-reminder-added`
 - `person-history.viewed`, `person-history-pdf.generated`
@@ -43,6 +43,10 @@ manager's attestation; `at-request.reopened` records that an attestation was dis
 the discarded signer and timestamp in its metadata so the trail does not simply go quiet. Reopening
 is its own action rather than an implicit consequence of a status change, because a reviewer reading
 the trail should not have to infer that a signature was removed.
+
+`note.reassigned` records a successful correction from one client to another on the same case
+manager's own caseload. Its metadata contains only the previous and new Person IDs; client names
+and note content remain out of the general audit envelope.
 
 The two incident actions cover the operational telemetry surface: every cross-tenant dashboard read
 by a `PlatformOperator` is recorded, and an agency Admin changing an incident's lifecycle status is
