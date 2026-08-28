@@ -20,12 +20,34 @@
       zero problems.
 - [x] Advance the desktop, API, installer builders, readiness checks, examples, and Settings release
       tracker to 1.2.28 together.
-- [ ] Commit and push the verified 1.2.28 source release without rewriting history.
-- [ ] Publish the matching 1.2.28 API ZIP to the existing Demo API only; record its deployment,
-      health, version, contract revision, size, and SHA-256 evidence.
-- [ ] Generate and accept new non-overwritten 1.2.28 Demo and Local installers, then hash-verify
-      their installers and checksum files in the two approved distribution folders.
-- [ ] Record branch-retention decisions and final evidence, push it, and confirm a clean `master`
+- [x] Commit and push the verified 1.2.28 source release as
+      `90d47d764392d20992e306e2eef9ee4d033d40f2` on `master` without rewriting history.
+- [x] Publish `Sati.Api-1.2.28.zip` (9,300,111 bytes; SHA-256
+      `83AC37E1B38286A0FAF7261900464DF84B54F330152054442CFAAD57FF04EEB9`) from the pushed source
+      commit to the existing Demo API only with OneDeploy deployment
+      `d06af5344f8543d497727f02338474aa`. Liveness and readiness are healthy,
+      `/health/version` reports product `Sati.Api` and release 1.2.28, and deployed contract
+      revision `EE21C645AB81` exactly matches the client. The package contains no private settings
+      or credential markers; release 1.2.27 deployment `071e2f7b46ff4ac4903d6073747b74e3`
+      and its API ZIP remain available as prior known-healthy evidence.
+- [x] Generate and accept `SatiDemoSetup-1.2.28.exe` (100,302,848 bytes; SHA-256
+      `213298C98CE014B30F5AF0D284A3E0B9A766250EAA1025C765E2D03DD514B5D9`). It passed five
+      responsive sign-in launches, normal closes, exact version 1.2.28.0, public-only
+      configuration, and isolated cleanup. The installer and checksum were independently
+      hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+- [x] Generate and accept `SatiLocalSetup-1.2.28.exe` (202,357,002 bytes; SHA-256
+      `C6BCE962ED4ED0CB7D9CE32F2D9B697CBCCA54023B740CD140EBDCC27AACF072`) from
+      Microsoft-signed `SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`). It passed exact
+      version 1.2.28.0, Windows integrated-security, credential-rejection, and isolated cleanup
+      checks. The installer and checksum were independently hash-verified at
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop`.
+- [x] Merge or delete no branches. Retain linked worktree `claude/cool-jang-f6b3c4` at `c439fa8`
+      because it contains an untracked instruction file; retain `second-machine-setup` at
+      `f31fdf0` and `origin/claude/local-vs-github-workflow-dlcqpb` at `62b2f83` because they have
+      unique setup work unrelated to this release.
+- [ ] Commit and push final release evidence, record its identifier, and confirm a clean `master`
       exactly matching `origin/master`.
 
 ## Release 1.2.27 — 2026-08-27
