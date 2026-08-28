@@ -52,15 +52,38 @@ work tracked as "Unreleased" below, which shipped in this release.
 - [x] 243 API integration tests pass.
 - [x] 4 Carika tests pass.
 
-### Deployment and artifact evidence — PENDING
-- [ ] SatiDemo schema migration applied (`scripts/Apply-ProviderDirectoryMigrations.ps1`).
-      **Blocked:** the Demo SQL firewall admits only the API's three outbound addresses, and
-      opening it to a workstation is an owner decision.
-- [ ] Demo API published; deployment identifier, ZIP SHA-256, `/health/live`, `/health/ready`,
-      `/health/version`, and contract revision parity recorded.
-- [ ] Demo installer built, accepted, hashed, and published.
-- [ ] Local installer built, accepted, hashed, and published.
-- [ ] Evidence commit pushed.
+### Deployment and artifact evidence
+- [x] Source release commit `afea910` pushed to `origin/master` without rewriting history.
+- [x] Applied the SatiDemo schema with `scripts/Apply-ProviderDirectoryMigrations.ps1`: 2 tables,
+      3 columns, 7 indexes, 1 foreign key, 4 `__EFMigrationsHistory` rows, and the Demo-only
+      backfill marked 177 consumers as test data. A rollback-only dry run preceded it and a
+      second run changed nothing, proving idempotency. Existence-guarded rather than EF's
+      generated script, because SatiDemo's history and schema disagree in both directions.
+- [x] Published `Sati.Api-1.2.30.zip` (9,215,613 bytes; SHA-256
+      `40741170E749191182A1054EE01C36215BCAEF1924A6A0E2E41F0732CA936FAD`) from the pushed commit
+      to the existing Demo API only, with OneDeploy deployment
+      `03cc6a69372247f1bbb061e1e29ca8d6`. The package contains no private desktop settings or
+      credential markers.
+- [x] Liveness healthy, readiness healthy — `SchemaDriftHealthCheck` therefore confirms the
+      database satisfies the deployed model. `/health/version` reports product `Sati.Api` and
+      release 1.2.30, and deployed contract revision `58E5DFFE4966` exactly matches the client.
+- [x] Generated and accepted `SatiDemoSetup-1.2.30.exe` (100,356,096 bytes; SHA-256
+      `552B25007716707BF86EB3758E5BB5BBBF1925D8C1C0C043A892CA907FCB72A7`): five responsive
+      launches, graceful closes, zero exit codes, version 1.2.30.0, isolated cleanup passed.
+- [x] Generated and accepted `SatiLocalSetup-1.2.30.exe` (202,419,978 bytes; SHA-256
+      `B9EBDBAE3ABFA8DEF66C0AEF13255E458BFD3BB40420E9C13EA78E296CE58FE2`): version 1.2.30.0,
+      integrated security confirmed, isolated cleanup passed. The embedded `SqlLocalDB.msi`
+      carries a valid Microsoft Corporation Authenticode signature.
+- [x] Published both installers and their `.sha256` files by verified copy-then-rename to
+      `…\SatiLogica - Documents\Sati Desktop` (Local) and
+      `…\SatiLogica - Documents\SatiLogica Demo Files` (Demo). No existing file was replaced.
+- [x] The authenticated Demo Admin extension was skipped: no synthetic Demo credentials are
+      configured in this Windows session. All required public release checks passed.
+
+### Follow-up
+- [ ] Remove the temporary `datt-workstation-temp` firewall rule on `sati-demo-api-satilogica`.
+- [ ] `SatiProduction` has not received these four migrations. The desktop applies them on its
+      next direct connection; given that database's own history drift, watch that first launch.
 
 ## Admin test-data deletion — shipped in 1.2.30
 
