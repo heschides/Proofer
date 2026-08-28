@@ -55,7 +55,8 @@ internal static class PersonLifecycleLedger
         new("dayProgramCount", "Day program count", person => person.DayProgramCount.ToString()),
         new("hasEmploymentSpecialist", "Employment specialist", person => YesNo(person.HasEmploymentSpecialist)),
         new("hasWorkSupports", "Work supports", person => YesNo(person.HasWorkSupports)),
-        new("isEmployed", "Employed", person => YesNo(person.IsEmployed))
+        new("isEmployed", "Employed", person => YesNo(person.IsEmployed)),
+        new("isTestData", "Test consumer", person => YesNo(person.IsTestData))
     ];
 
     public static Dictionary<string, string?> Capture(Person person) =>

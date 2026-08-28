@@ -816,6 +816,58 @@ namespace Sati.Migrations
                     b.ToTable("PersonContacts");
                 });
 
+            modelBuilder.Entity("Sati.Models.PersonProvider", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("HasActiveRelease")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPrimaryCare")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProviderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PersonProviders_OneCurrentPrimaryCare")
+                        .HasFilter("[IsPrimaryCare] = 1 AND [EndDate] IS NULL");
+
+                    b.HasIndex("ProviderId");
+
+                    b.HasIndex("PersonId", "EndDate");
+
+                    b.HasIndex("PersonId", "ProviderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PersonProviders_OneCurrentLinkPerProvider")
+                        .HasFilter("[EndDate] IS NULL");
+
+                    b.ToTable("PersonProviders");
+                });
+
             modelBuilder.Entity("Sati.Models.PersonVersion", b =>
                 {
                     b.Property<long>("Id")
@@ -899,6 +951,10 @@ namespace Sati.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("MedicalKind")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -909,6 +965,9 @@ namespace Sati.Migrations
                         .HasColumnType("nvarchar(10)");
 
                     b.Property<int>("OfferedServices")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ParentProviderId")
                         .HasColumnType("int");
 
                     b.Property<string>("Phone")
@@ -945,6 +1004,8 @@ namespace Sati.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParentProviderId");
+
                     b.HasIndex("AgencyId", "MaineCareProviderId")
                         .IsUnique()
                         .HasFilter("[MaineCareProviderId] IS NOT NULL");
@@ -956,6 +1017,56 @@ namespace Sati.Migrations
                         .HasFilter("[Npi] IS NOT NULL");
 
                     b.ToTable("Providers");
+                });
+
+            modelBuilder.Entity("Sati.Models.ProviderContact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("Extension")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("ProviderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProviderContacts_OnePrimary")
+                        .HasFilter("[IsPrimary] = 1");
+
+                    b.HasIndex("ProviderId", "SortOrder");
+
+                    b.ToTable("ProviderContacts");
                 });
 
             modelBuilder.Entity("Sati.Models.Scratchpad", b =>
@@ -1384,6 +1495,11 @@ namespace Sati.Migrations
                     b.Property<bool>("IsEmployed")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsTestData")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Journal")
                         .HasColumnType("nvarchar(max)");
 
@@ -1669,6 +1785,23 @@ namespace Sati.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("Sati.Models.PersonProvider", b =>
+                {
+                    b.HasOne("Sati.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.Provider", null)
+                        .WithMany()
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("Sati.Models.PersonVersion", b =>
                 {
                     b.HasOne("Sati.Person", "Person")
@@ -1686,6 +1819,20 @@ namespace Sati.Migrations
                         .WithMany()
                         .HasForeignKey("AgencyId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.Provider", null)
+                        .WithMany()
+                        .HasForeignKey("ParentProviderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Sati.Models.ProviderContact", b =>
+                {
+                    b.HasOne("Sati.Models.Provider", null)
+                        .WithMany()
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

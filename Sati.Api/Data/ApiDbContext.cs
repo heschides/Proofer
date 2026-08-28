@@ -15,6 +15,8 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerExemptDate> ExemptDates => Set<ServerExemptDate>();
     public DbSet<ServerIncentive> Incentives => Set<ServerIncentive>();
     public DbSet<ServerPersonContact> PersonContacts => Set<ServerPersonContact>();
+    public DbSet<ServerPersonProvider> PersonProviders => Set<ServerPersonProvider>();
+    public DbSet<ServerProviderContact> ProviderContacts => Set<ServerProviderContact>();
     public DbSet<ServerAgency> Agencies => Set<ServerAgency>();
     public DbSet<ServerBillingPeriod> BillingPeriods => Set<ServerBillingPeriod>();
     public DbSet<ServerClaimLine> ClaimLines => Set<ServerClaimLine>();
@@ -50,6 +52,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.SsnKeyId).HasMaxLength(400);
             entity.Property(x => x.SsnLastFour).HasMaxLength(4);
             entity.Property(x => x.Email).HasMaxLength(254);
+            entity.Property(x => x.IsTestData).HasDefaultValue(false);
             entity.Property(x => x.CaseManagerIsDhhsRepresentative);
             entity.Property(x => x.UsesModivcare);
             entity.Property(x => x.RepPayeeMonthlyIncome).HasColumnType("decimal(18,2)");
@@ -132,6 +135,42 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.HasIndex(x => new { x.PersonId, x.IsActive });
         });
 
+        modelBuilder.Entity<ServerProviderContact>(entity =>
+        {
+            entity.ToTable("ProviderContacts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(150);
+            entity.Property(x => x.Role).HasMaxLength(100);
+            entity.Property(x => x.Phone).HasMaxLength(30);
+            entity.Property(x => x.Extension).HasMaxLength(10);
+            entity.Property(x => x.Email).HasMaxLength(254);
+            entity.HasIndex(x => new { x.ProviderId, x.SortOrder });
+            // Mirrors the desktop context: one "try this person first" per entry.
+            entity.HasIndex(x => x.ProviderId)
+                  .IsUnique()
+                  .HasFilter("[IsPrimary] = 1")
+                  .HasDatabaseName("IX_ProviderContacts_OnePrimary");
+        });
+
+        modelBuilder.Entity<ServerPersonProvider>(entity =>
+        {
+            entity.ToTable("PersonProviders");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Role).HasMaxLength(ConsumerProviderRules.MaxRoleLength);
+            entity.HasIndex(x => new { x.PersonId, x.EndDate });
+            // Mirrors the desktop context: both rules are enforced by the database as well
+            // as by the routes, and both filters key on EndDate IS NULL because an ended
+            // relationship constrains nothing.
+            entity.HasIndex(x => x.PersonId)
+                  .IsUnique()
+                  .HasFilter("[IsPrimaryCare] = 1 AND [EndDate] IS NULL")
+                  .HasDatabaseName("IX_PersonProviders_OneCurrentPrimaryCare");
+            entity.HasIndex(x => new { x.PersonId, x.ProviderId })
+                  .IsUnique()
+                  .HasFilter("[EndDate] IS NULL")
+                  .HasDatabaseName("IX_PersonProviders_OneCurrentLinkPerProvider");
+        });
+
         modelBuilder.Entity<ServerAgency>(entity =>
         {
             entity.ToTable("Agencies");
@@ -208,6 +247,15 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("Providers"); entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.AgencyId, x.Name });
             entity.Property(x => x.Type).HasMaxLength(20);
+            // Restrict rather than SetNull: silently promoting a subtree to top level splits
+            // the hierarchy with nothing in the interface showing it. The route refuses the
+            // delete and names the affiliated entries.
+            entity.Property(x => x.MedicalKind).HasMaxLength(20);
+            entity.HasOne<ServerProvider>()
+                  .WithMany()
+                  .HasForeignKey(x => x.ParentProviderId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => x.ParentProviderId);
             // Mirrors the desktop context: durable organization identifiers, unique
             // within an agency when present. See DECISIONS.md for why these exist
             // before the Organization registry they will eventually resolve against.
@@ -338,6 +386,7 @@ internal sealed class ServerPerson
     public string? Journal { get; set; }
     public int Waiver { get; set; }
     public int? AgencyId { get; set; }
+    public bool IsTestData { get; set; }
     public string? MaineCareId { get; set; }
     public string? DiagnosisCode { get; set; }
     public int? PlaceOfService { get; set; }
@@ -546,6 +595,35 @@ internal sealed class ServerPersonContact
     public bool IsActive { get; set; } = true;
 }
 
+// A named person at a provider. Distinct from ServerProvider.PrimaryContact/Phone, which are the
+// organization's general directory contact.
+internal sealed class ServerProviderContact
+{
+    public int Id { get; set; }
+    public int ProviderId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Role { get; set; }
+    public string? Phone { get; set; }
+    public string? Extension { get; set; }
+    public string? Email { get; set; }
+    public bool IsPrimary { get; set; }
+    public int SortOrder { get; set; }
+}
+
+internal sealed class ServerPersonProvider
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public int ProviderId { get; set; }
+    public string? Role { get; set; }
+    public bool IsPrimaryCare { get; set; }
+    public DateTime? StartDate { get; set; }
+    // EndDate alone says whether the link is current; there is deliberately no active flag.
+    public DateTime? EndDate { get; set; }
+    public bool HasActiveRelease { get; set; }
+    public int SortOrder { get; set; }
+}
+
 internal sealed class ServerAgency
 {
     public int Id { get; set; }
@@ -653,6 +731,11 @@ internal sealed class ServerProvider
     public int AgencyId { get; set; }
     public string Type { get; set; } = "Waiver";
     public string Name { get; set; } = string.Empty;
+    // Affiliation, mirroring the desktop entity. MedicalKind is stored as a string like
+    // Type; ParentProviderId is a self-reference with no navigation, because the rule that
+    // reads it works on the agency's rows in memory through ProviderAffiliation.
+    public string? MedicalKind { get; set; }
+    public int? ParentProviderId { get; set; }
     public string? Npi { get; set; }
     public string? MaineCareProviderId { get; set; }
     public string? Street { get; set; }

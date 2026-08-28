@@ -1,7 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
+using Sati.Contracts.V1;
+using Sati.Models;
 using Sati.Models.Assessments;
+using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Windows.Threading;
@@ -12,6 +15,11 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
 {
     private readonly IComprehensiveAssessmentService _service;
     private readonly ISessionService _session;
+    // The consumer's own provider list, and the directory it resolves against. A need is
+    // associated with somebody the consumer actually sees, and the practice and network are
+    // frozen onto the document at the moment of choosing.
+    private readonly IConsumerProviderService _consumerProviders;
+    private readonly IProviderService _providers;
     private readonly DispatcherTimer _saveTimer;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -28,6 +36,15 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
     public ObservableCollection<AssessmentSectionViewModel> Sections { get; } = [];
     public ObservableCollection<AssessmentContributorViewModel> Contributors { get; } = [];
     public ObservableCollection<AssessmentNeedViewModel> Needs { get; } = [];
+
+    /// <summary>
+    /// The providers a need may be associated with: the ones this consumer actually sees, each
+    /// carrying its resolved practice and network. Shared by every need row rather than rebuilt
+    /// per row, so one load answers for all of them.
+    /// </summary>
+    public ObservableCollection<AssessmentProviderOption> ProviderOptions { get; } = [];
+
+    public bool HasProviderOptions => ProviderOptions.Count > 0;
     public Array AnswerStatuses => Enum.GetValues<AssessmentAnswerStatus>();
     public Array NeedTypes => Enum.GetValues<AssessmentNeedType>();
     public Array TherapySessionFormats => Enum.GetValues<TherapySessionFormat>().Cast<TherapySessionFormat>()
@@ -35,10 +52,16 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
     public Array TherapyFrequencyDirections => Enum.GetValues<TherapyFrequencyDirection>().Cast<TherapyFrequencyDirection>()
         .Where(value => value != TherapyFrequencyDirection.NotSelected).ToArray();
 
-    public ComprehensiveAssessmentViewModel(IComprehensiveAssessmentService service, ISessionService session)
+    public ComprehensiveAssessmentViewModel(
+        IComprehensiveAssessmentService service,
+        ISessionService session,
+        IConsumerProviderService consumerProviders,
+        IProviderService providers)
     {
         _service = service;
         _session = session;
+        _consumerProviders = consumerProviders;
+        _providers = providers;
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _saveTimer.Tick += async (_, _) => { _saveTimer.Stop(); await SaveAsync(); };
         BuildSections();
@@ -74,8 +97,12 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
                 ClearAnswers();
                 Contributors.Clear();
                 Needs.Clear();
+                ProviderOptions.Clear();
+                OnPropertyChanged(nameof(HasProviderOptions));
                 if (person is null || user is null) { SaveStatus = "Not loaded"; return; }
                 if (!CanEdit) { SaveStatus = "Read only — this consumer is not on your caseload"; return; }
+
+                await LoadProviderOptionsAsync(person.Id);
 
                 var record = await _service.GetOrCreateDraftAsync(person.Id, user.Id);
                 var document = JsonSerializer.Deserialize<AssessmentDocument>(record.DocumentJson,
@@ -113,11 +140,47 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         ScheduleSave();
     }
 
+    /// <summary>
+    /// Builds the provider choices from this consumer's current links, resolving each one's
+    /// chain once. Only current links: a need being written today should not offer somebody the
+    /// consumer stopped seeing last year.
+    /// <para>
+    /// A failure here leaves the list empty rather than blocking the assessment. The provider
+    /// association is optional, and an assessment that will not open because a directory read
+    /// failed is a worse outcome than one where the picker is briefly unavailable.
+    /// </para>
+    /// </summary>
+    private async Task LoadProviderOptionsAsync(int personId)
+    {
+        try
+        {
+            var directory = (await _providers.GetAllAsync()).ToAffiliationNodes();
+            var links = await _consumerProviders.GetByPersonAsync(personId);
+
+            foreach (var option in links
+                         .Where(link => link.IsActive)
+                         .Select(link => new AssessmentProviderOption(
+                             ProviderAffiliation.Snapshot(link.ProviderId, directory)))
+                         .Where(option => option.ProviderId != 0)
+                         .OrderBy(option => option.Display, StringComparer.CurrentCultureIgnoreCase))
+            {
+                ProviderOptions.Add(option);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+                                              or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Assessment provider options could not be loaded: {exception.Message}");
+        }
+
+        OnPropertyChanged(nameof(HasProviderOptions));
+    }
+
     [RelayCommand]
     public void AddNeed()
     {
         if (!CanEdit) return;
-        Needs.Add(new AssessmentNeedViewModel(new AssessmentNeed(), ScheduleSave, RemoveNeed));
+        Needs.Add(new AssessmentNeedViewModel(new AssessmentNeed(), ScheduleSave, RemoveNeed, ProviderOptions));
         ScheduleSave();
     }
 
@@ -132,7 +195,7 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         foreach (var contributor in _document.Contributors)
             Contributors.Add(new AssessmentContributorViewModel(contributor, ScheduleSave, RemoveContributor));
         foreach (var need in _document.Needs)
-            Needs.Add(new AssessmentNeedViewModel(need, ScheduleSave, RemoveNeed));
+            Needs.Add(new AssessmentNeedViewModel(need, ScheduleSave, RemoveNeed, ProviderOptions));
     }
 
     private void ClearAnswers()
@@ -625,6 +688,18 @@ public sealed partial class AssessmentContributorViewModel : ObservableObject
     public AssessmentContributor ToModel() => new() { Id = Id, Name = Name, Relationship = Relationship };
 }
 
+/// <summary>
+/// One provider a need may be associated with, already resolved. The snapshot travels with the
+/// option so choosing it is what freezes the practice and network onto the document — there is
+/// no second lookup that could disagree with what the picker showed.
+/// </summary>
+public sealed class AssessmentProviderOption(ProviderAffiliation.ProviderSnapshot snapshot)
+{
+    public ProviderAffiliation.ProviderSnapshot Snapshot { get; } = snapshot;
+    public int ProviderId => Snapshot.ProviderId;
+    public string Display => Snapshot.Describe();
+}
+
 public sealed partial class AssessmentNeedViewModel : ObservableObject
 {
     private readonly Action _changed;
@@ -635,22 +710,94 @@ public sealed partial class AssessmentNeedViewModel : ObservableObject
     [ObservableProperty] private string desiredResult;
     [ObservableProperty] private bool associateProvider;
     [ObservableProperty] private string providerNameSnapshot;
+    [ObservableProperty] private string providerPracticeSnapshot;
+    [ObservableProperty] private string providerNetworkSnapshot;
+    [ObservableProperty] private int? providerId;
 
-    public AssessmentNeedViewModel(AssessmentNeed model, Action changed, Action<AssessmentNeedViewModel> remove)
+    public AssessmentNeedViewModel(
+        AssessmentNeed model,
+        Action changed,
+        Action<AssessmentNeedViewModel> remove,
+        IReadOnlyList<AssessmentProviderOption>? providerOptions = null)
     {
         Id = model.Id; type = model.Type; description = model.Description; desiredResult = model.DesiredResult;
         associateProvider = model.AssociateProvider; providerNameSnapshot = model.ProviderNameSnapshot;
+        providerPracticeSnapshot = model.ProviderPracticeSnapshot;
+        providerNetworkSnapshot = model.ProviderNetworkSnapshot;
+        providerId = model.ProviderId;
+        ProviderOptions = providerOptions ?? [];
         _changed = changed; _remove = remove;
     }
+
+    public IReadOnlyList<AssessmentProviderOption> ProviderOptions { get; }
+
+    public bool HasProviderOptions => ProviderOptions.Count > 0;
+
+    /// <summary>
+    /// What this need currently records, exactly as it will read on the document. Shown even
+    /// when the provider is no longer in the directory, or was typed before the directory
+    /// existed — the document keeps what it froze.
+    /// </summary>
+    public string RecordedProvider => string.Join(" — ", new[]
+    {
+        ProviderNameSnapshot,
+        string.Join(" · ", new[] { ProviderPracticeSnapshot, ProviderNetworkSnapshot }
+            .Where(part => !string.IsNullOrWhiteSpace(part)))
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    public bool HasRecordedProvider => !string.IsNullOrWhiteSpace(ProviderNameSnapshot);
+
+    /// <summary>
+    /// Shown when a need already names a provider that is not among the current choices —
+    /// typed before the directory, or somebody the consumer no longer sees. The document is not
+    /// rewritten to match; it says what it said.
+    /// </summary>
+    public bool RecordedProviderIsOutsideCurrentChoices =>
+        HasRecordedProvider && ProviderOptions.All(option => option.ProviderId != ProviderId);
+
     partial void OnTypeChanged(AssessmentNeedType value) => _changed();
     partial void OnDescriptionChanged(string value) => _changed();
     partial void OnDesiredResultChanged(string value) => _changed();
     partial void OnAssociateProviderChanged(bool value) => _changed();
-    partial void OnProviderNameSnapshotChanged(string value) => _changed();
+
+    /// <summary>
+    /// Choosing a provider freezes its resolved chain onto the need. This is the one place in
+    /// Sati where the practice and network are copied rather than derived, and it is deliberate:
+    /// an assessment approved in March has to keep saying what it said in March.
+    /// </summary>
+    partial void OnProviderIdChanged(int? value)
+    {
+        var chosen = ProviderOptions.FirstOrDefault(option => option.ProviderId == value);
+        if (chosen is not null)
+        {
+            ProviderNameSnapshot = chosen.Snapshot.ProviderName;
+            ProviderPracticeSnapshot = chosen.Snapshot.PracticeName;
+            ProviderNetworkSnapshot = chosen.Snapshot.NetworkName;
+        }
+
+        RaiseRecordedProviderChanged();
+        _changed();
+    }
+
+    partial void OnProviderNameSnapshotChanged(string value) => RaiseRecordedProviderChanged();
+    partial void OnProviderPracticeSnapshotChanged(string value) => RaiseRecordedProviderChanged();
+    partial void OnProviderNetworkSnapshotChanged(string value) => RaiseRecordedProviderChanged();
+
+    private void RaiseRecordedProviderChanged()
+    {
+        OnPropertyChanged(nameof(RecordedProvider));
+        OnPropertyChanged(nameof(HasRecordedProvider));
+        OnPropertyChanged(nameof(RecordedProviderIsOutsideCurrentChoices));
+    }
+
     [RelayCommand] public void Remove() => _remove(this);
+
     public AssessmentNeed ToModel() => new()
     {
         Id = Id, Type = Type, Description = Description, DesiredResult = DesiredResult,
-        AssociateProvider = AssociateProvider, ProviderNameSnapshot = ProviderNameSnapshot
+        AssociateProvider = AssociateProvider, ProviderId = ProviderId,
+        ProviderNameSnapshot = ProviderNameSnapshot,
+        ProviderPracticeSnapshot = ProviderPracticeSnapshot,
+        ProviderNetworkSnapshot = ProviderNetworkSnapshot
     };
 }

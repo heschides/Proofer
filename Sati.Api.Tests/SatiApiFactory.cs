@@ -28,6 +28,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _connection = new(TestDatabaseConnection);
     private readonly SemaphoreSlim _seedLock = new(1, 1);
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
+    private readonly SemaphoreSlim _testDataLock = new(1, 1);
     private readonly Dictionary<string, string> _tokens = new(StringComparer.Ordinal);
     private bool _seeded;
 
@@ -512,6 +513,221 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         };
     }
 
+    public async Task<TestConsumerSeed> CreateTestConsumerGraphAsync(
+        int agencyId = 1,
+        bool withClaimLine = false)
+    {
+        await EnsureSeededAsync();
+        await _testDataLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var userId = agencyId == 1 ? 12 : 22;
+            var person = new ServerPerson
+            {
+                UserId = userId,
+                AgencyId = agencyId,
+                FirstName = "Disposable",
+                LastName = $"Test {Guid.NewGuid():N}",
+                BirthDate = new DateTime(1990, 1, 1),
+                EffectiveDate = CycleStart,
+                IsTestData = true,
+                Revision = 3
+            };
+            db.People.Add(person);
+            var provider = new ServerProvider
+            {
+                AgencyId = agencyId,
+                Type = "Healthcare",
+                Name = $"Synthetic clinician {Guid.NewGuid():N}",
+                MedicalKind = "Individual"
+            };
+            db.Providers.Add(provider);
+            await db.SaveChangesAsync();
+
+            var note = new ServerNote
+            {
+                PersonId = person.Id,
+                AgencyId = agencyId,
+                Narrative = "Synthetic deletion fixture",
+                EventDate = DateTime.Today,
+                Minutes = 15,
+                Status = 1
+            };
+            var review = new ServerReviewItem
+            {
+                PersonId = person.Id,
+                CycleAnchor = CycleStart,
+                Quarter = 1,
+                Category = "Medical",
+                Appointment = new ServerAppointment
+                {
+                    Date = DateTime.Today,
+                    ProviderName = "Test provider"
+                }
+            };
+            var atRequest = new ServerAtRequest
+            {
+                PersonId = person.Id,
+                ClientName = "Disposable Test",
+                CaseManagerName = "case-manager",
+                Items =
+                [
+                    new ServerAtRequestItem
+                    {
+                        Name = "Test item",
+                        ItemCost = 1m,
+                        Quantity = 1
+                    }
+                ]
+            };
+            db.Forms.Add(new ServerForm
+            {
+                PersonId = person.Id,
+                Type = "PCP",
+                DueDate = DateTime.Today.AddDays(30)
+            });
+            db.Notes.Add(note);
+            db.PersonContacts.Add(new ServerPersonContact
+            {
+                PersonId = person.Id,
+                FirstName = "Test",
+                LastName = "Contact"
+            });
+            db.PersonProviders.Add(new ServerPersonProvider
+            {
+                PersonId = person.Id,
+                ProviderId = provider.Id,
+                Role = "Test clinician"
+            });
+            db.ReviewItems.Add(review);
+            db.ComprehensiveAssessments.Add(new ServerComprehensiveAssessment
+            {
+                PersonId = person.Id,
+                AuthorUserId = userId,
+                DocumentJson = "{\"testData\":true}"
+            });
+            db.AtRequests.Add(atRequest);
+            db.PersonVersions.Add(new ServerPersonVersion
+            {
+                PersonId = person.Id,
+                Person = person,
+                AgencyId = agencyId,
+                ActorUserId = userId,
+                ActorDisplayName = "Test fixture",
+                Version = 1,
+                ChangeKind = "Created",
+                ChangedAtUtc = DateTime.UtcNow,
+                CorrelationId = $"fixture-{Guid.NewGuid():N}",
+                SnapshotGzip = [1],
+                ChangesGzip = [1]
+            });
+            db.AuditEvents.Add(new ServerAuditEvent
+            {
+                AgencyId = agencyId,
+                ActorUserId = userId,
+                Action = "test-data.fixture-created",
+                ResourceType = "Person",
+                ResourceId = person.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                CorrelationId = $"fixture-{Guid.NewGuid():N}"
+            });
+            await db.SaveChangesAsync();
+
+            if (withClaimLine)
+            {
+                db.ClaimLines.Add(new ServerClaimLine
+                {
+                    NoteId = note.Id,
+                    BillingPeriodId = agencyId == 1 ? 1101 : 1201,
+                    DateOfService = DateTime.Today,
+                    ProcedureCode = "G9012",
+                    Units = 1,
+                    ChargeAmount = 25m,
+                    ClientMaineCareId = "TEST",
+                    RenderingProviderNpi = "1999999984",
+                    DiagnosisCode = "F89",
+                    PlaceOfService = 11,
+                    ClaimSnapshotJson = "{\"testData\":true}"
+                });
+                await db.SaveChangesAsync();
+            }
+
+            return new TestConsumerSeed(person.Id, person.Revision);
+        }
+        finally
+        {
+            _testDataLock.Release();
+        }
+    }
+
+    public async Task<TestConsumerGraphSnapshot> GetTestConsumerGraphAsync(int personId)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        return new TestConsumerGraphSnapshot(
+            await db.People.CountAsync(candidate => candidate.Id == personId),
+            await db.Forms.CountAsync(candidate => candidate.PersonId == personId),
+            await db.Notes.CountAsync(candidate => candidate.PersonId == personId),
+            await db.PersonContacts.CountAsync(candidate => candidate.PersonId == personId),
+            await db.PersonProviders.CountAsync(candidate => candidate.PersonId == personId),
+            await db.ReviewItems.CountAsync(candidate => candidate.PersonId == personId),
+            await db.Appointments.CountAsync(appointment => db.ReviewItems.Any(review =>
+                review.Id == appointment.ReviewItemId && review.PersonId == personId)),
+            await db.ComprehensiveAssessments.CountAsync(candidate => candidate.PersonId == personId),
+            await db.AtRequests.CountAsync(candidate => candidate.PersonId == personId),
+            await db.AtRequestItems.CountAsync(item => db.AtRequests.Any(request =>
+                request.Id == item.ATRequestId && request.PersonId == personId)),
+            await db.PersonVersions.CountAsync(candidate => candidate.PersonId == personId),
+            await db.ClaimLines.CountAsync(line => db.Notes.Any(note =>
+                note.Id == line.NoteId && note.PersonId == personId)),
+            await db.AuditEvents.CountAsync(candidate =>
+                candidate.ResourceType == "Person" && candidate.ResourceId == personId.ToString()));
+    }
+
+    public async Task RemoveTestConsumerGraphAsync(int personId)
+    {
+        await EnsureSeededAsync();
+        await _testDataLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            await db.ClaimLines.Where(line => db.Notes.Any(note =>
+                note.Id == line.NoteId && note.PersonId == personId)).ExecuteDeleteAsync();
+            await db.Appointments.Where(appointment => db.ReviewItems.Any(review =>
+                review.Id == appointment.ReviewItemId && review.PersonId == personId)).ExecuteDeleteAsync();
+            await db.ReviewItems.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.PersonContacts.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.PersonProviders.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.Forms.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.AtRequestItems.Where(item => db.AtRequests.Any(request =>
+                request.Id == item.ATRequestId && request.PersonId == personId)).ExecuteDeleteAsync();
+            await db.AtRequests.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.ComprehensiveAssessments.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.Notes.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.PersonVersions.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.People.Where(candidate => candidate.Id == personId).ExecuteDeleteAsync();
+            await db.AuditEvents.Where(candidate =>
+                candidate.ResourceType == "Person" && candidate.ResourceId == personId.ToString()).ExecuteDeleteAsync();
+        }
+        finally
+        {
+            _testDataLock.Release();
+        }
+    }
+
+    public async Task SetTestConsumerMarkerAsync(int personId, bool isTestData)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var person = await db.People.SingleAsync(candidate => candidate.Id == personId);
+        person.IsTestData = isTestData;
+        await db.SaveChangesAsync();
+    }
+
     public async Task<int> CreateBillingWorkflowPersonAsync()
     {
         await EnsureSeededAsync();
@@ -772,3 +988,25 @@ public sealed record AuditEventSnapshot(
     string? ResourceId,
     string CorrelationId,
     string MetadataJson);
+
+public sealed record TestConsumerSeed(int PersonId, int Revision);
+
+public sealed record TestConsumerGraphSnapshot(
+    int People,
+    int Forms,
+    int Notes,
+    int Contacts,
+    int PersonProviders,
+    int Reviews,
+    int Appointments,
+    int Assessments,
+    int AtRequests,
+    int AtRequestItems,
+    int PersonVersions,
+    int ClaimLines,
+    int AuditEvents)
+{
+    public int RelatedRecords =>
+        Forms + Notes + Contacts + Reviews + Appointments + Assessments +
+        PersonProviders + AtRequests + AtRequestItems + PersonVersions;
+}

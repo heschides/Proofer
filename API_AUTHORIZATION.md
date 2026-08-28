@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-28, covering all 96 protected routes. Every route added,
+*Route inventory current as of 2026-08-28, covering all 112 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -30,6 +30,7 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Audit | `GET /audit-events` | Audit event's `AgencyId` | Admin only; response is restricted to actor agency, a bounded date window, and at most 500 rows. |
 | Admin | `GET /admin/overview` | Actor's `AgencyId` | Admin only; every count is computed within the actor's agency. |
 | Admin | `GET /admin/people` | Person and assigned user's `AgencyId` | Admin only; both ownership markers must equal actor agency. |
+| Admin | `POST /admin/test-data/consumers/{personId}/delete` | Person and assigned user's `AgencyId` | Admin only; both ownership markers must equal actor agency and the Person must carry the immutable creation-time test-data marker. Requires the exact versioned test-only attestation and expected Person revision, runs the complete dependent-record cleanup in one serializable transaction, and retains a PHI-minimized `test-data.consumer-deleted` audit event. Any billing claim line for the consumer blocks the operation, and missing/cross-agency records return 404. |
 | Admin | `POST /admin/demo/seed-ssns` | Person's `AgencyId` | Admin only; enabled in effect only when the API's startup-validated identity is exactly `SatiDemo` / `Demo`. Generates deterministic synthetic values server-side, encrypts through the configured Demo Key Vault, remains within actor agency, and records `person.ssn-updated` for every Person. It does not broaden the ordinary own-caseload SSN routes. |
 | Admin | `GET /admin/activity` | Audit event's `AgencyId` | Admin only; bounded activity feed with actor display names from the same agency. |
 | Admin | `GET /admin/operations` | Actor's `AgencyId` | Admin only; reports database health, retained audit/EDI counts, oldest-record timestamps, and the configured retention policy for the actor's agency. |
@@ -47,8 +48,8 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Caseload | `GET /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `PUT /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `POST /people/{personId}/journal/entries` | Person's assigned user and agency | Own caseload only; same gate as the journal `PUT`. Server prepends the stamped entry and stamps from `ApiClock`, so the caller supplies only the text. |
-| People | `POST /people` | Actor's user and agency | Creates only in the actor's own caseload and agency. |
-| People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. |
+| People | `POST /people` | Actor's user and agency | Creates only in the actor's own caseload and agency. `IsTestData=true` is accepted only from a validated Admin and is otherwise rejected. |
+| People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. The creation-time test-data classification is immutable, including for Admins. |
 | SSN | `GET /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Returns the mask and an on-file flag; no route anywhere returns a plaintext SSN. Response is not cacheable. |
 | SSN | `PUT /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Shape-checked before encryption; audited as `person.ssn-updated` without the value. Null or empty clears every stored part including the last four. |
 | DHHS forms | `POST /people/{personId}/forms.pdf` | Person's assigned user and agency | Own caseload only. The ONLY operation permitted to decrypt an SSN; records `person.ssn-decrypted` alongside `dhhs-form.generated`. Consent selections are taken only from the request body, never derived. Response is not cacheable. |
@@ -69,10 +70,19 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Assessments | `PUT /assessments/{assessmentId}/document` | Assessment author plus owned person | Author alone may edit; approved/superseded versions are locked. |
 | Assessments | `POST /assessments/{assessmentId}/submit` | Assessment author plus owned person | Author alone may submit their editable draft. |
 | Assessments | `GET /people/{personId}/pcp-source` | Person's assigned user and agency | Accessible case manager; read-only supervisory access is allowed. |
+| Consumer providers | `GET /people/{personId}/providers` | Person's assigned user and agency | Accessible case manager only. Returns ended links as well as current ones; the caller decides what to show. |
+| Consumer providers | `POST /people/{personId}/providers` | Person's assigned user and agency, plus provider's `AgencyId` | Accessible case manager only. A caller-supplied `providerId` is resolved only against the actor's own agency, so a directory entry from another tenant is rejected as absent. |
+| Consumer providers | `PUT /people/{personId}/providers/{linkId}` | Person's assigned user and agency, plus provider's `AgencyId` | Accessible case manager only. The link must belong to the consumer named in the route, so a link id cannot select the scope it is then checked against. |
+| Consumer providers | `DELETE /people/{personId}/providers/{linkId}` | Person's assigned user and agency | Accessible case manager only; same link-belongs-to-consumer check. Removal is for a mis-entry — ending a real relationship is a `PUT` that sets `EndDate` and keeps the row. |
 | Providers | `GET /providers` | Provider's `AgencyId` | Authenticated actor; response restricted to actor agency. |
-| Providers | `POST /providers` | Actor's `AgencyId` | Admin only; agency is assigned server-side. |
-| Providers | `PUT /providers/{id}` | Provider's `AgencyId` | Admin only in same agency. |
-| Providers | `DELETE /providers/{id}` | Provider's `AgencyId` | Admin only in same agency. |
+| Providers | `POST /providers` | Actor's `AgencyId` | CaseManager, Supervisor, Director, or Admin; agency is assigned server-side. A caller-supplied `parentProviderId` is resolved only against the actor's own agency, so a parent in another tenant is rejected as absent. |
+| Providers | `PUT /providers/{id}` | Provider's `AgencyId` | CaseManager, Supervisor, Director, or Admin in the same agency. Same agency-scoped resolution of `parentProviderId`; an entry cannot be repointed across a tenant boundary. |
+| Providers | `DELETE /providers/{id}` | Provider's `AgencyId` | Admin only in same agency. Refused with `provider_has_affiliated_entries` while entries are affiliated beneath it, and with `provider_on_consumer_records` while any consumer record references it — a count only, never consumer names. Both checks run before any other state is touched. |
+| Provider contacts | `GET /providers/{providerId}/contacts` | Provider's `AgencyId` | Authenticated actor in the same agency. These are shared-directory contacts and carry no consumer identity. |
+| Provider contacts | `POST /providers/{providerId}/contacts` | Provider's `AgencyId` | CaseManager, Supervisor, Director, or Admin in the same agency. Provider id is resolved inside the actor's agency before the contact is written. |
+| Provider contacts | `PUT /providers/{providerId}/contacts/{contactId}` | Provider's `AgencyId`, contact's `ProviderId` | CaseManager, Supervisor, Director, or Admin in the same agency; contact must belong to the provider named in the route. |
+| Provider contacts | `DELETE /providers/{providerId}/contacts/{contactId}` | Provider's `AgencyId`, contact's `ProviderId` | CaseManager, Supervisor, Director, or Admin in the same agency; same contact-belongs-to-provider check. |
+| Provider merge | `POST /providers/{survivingId}/merge` | Both providers' `AgencyId` | Admin only; both entries must be in the actor's agency. Runs atomically, refuses identifier/tier/loop/current-consumer-link conflicts, moves live references, leaves assessment snapshots untouched, and records `provider.merged` without names or consumer IDs. |
 | AT | `GET /at-requests` | Request person's assigned user and agency | Accessible case manager only. |
 | AT | `GET /people/{personId}/at-requests` | Request person's assigned user and agency | Accessible case manager only. The list follows the client rather than the current caseload holder, so a transfer does not orphan filed requests. |
 | AT | `GET /at-requests/{id}` | Request person's assigned user and agency | Accessible case manager only. |

@@ -20,6 +20,11 @@ public interface IAdminService
         string reason,
         CancellationToken cancellationToken = default);
     Task<List<AdminPersonListItemDto>> GetPeopleAsync(CancellationToken cancellationToken = default);
+    Task<TestConsumerDeletionResultDto> DeleteTestConsumerAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        CancellationToken cancellationToken = default);
     Task<List<AdminActivityDto>> GetActivityAsync(
         int days = 30,
         int take = 100,

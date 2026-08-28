@@ -79,7 +79,8 @@ internal static class ContractMapper
         person.RepPayeeRegularCheckRequestNeeds,
         person.CaseManagerIsDhhsRepresentative,
         person.UsesModivcare,
-        person.Email);
+        person.Email,
+        person.IsTestData);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,
@@ -123,6 +124,14 @@ internal static class ContractMapper
         note.Revision,
         person is null ? null : new PersonReferenceDto(person.Id, person.UserId, person.FirstName, person.LastName),
         complianceFailureReasons);
+
+    public static ProviderContactDto ToProviderContact(ServerProviderContact contact) => new(
+        contact.Id, contact.ProviderId, contact.Name, contact.Role, contact.Phone,
+        contact.Extension, contact.Email, contact.IsPrimary, contact.SortOrder);
+
+    public static ConsumerProviderDto ToConsumerProvider(ServerPersonProvider link) => new(
+        link.Id, link.PersonId, link.ProviderId, link.Role, link.IsPrimaryCare,
+        link.StartDate, link.EndDate, link.HasActiveRelease, link.SortOrder);
 
     public static PersonContactDto ToPersonContact(ServerPersonContact contact) => new(
         contact.Id,
@@ -218,7 +227,7 @@ internal static class ContractMapper
     public static ProviderDto ToProvider(ServerProvider p) => new(
         p.Id, p.Type, p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,
         p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact,
-        p.Npi, p.MaineCareProviderId);
+        p.Npi, p.MaineCareProviderId, p.MedicalKind, p.ParentProviderId);
 
     public static AtRequestDto ToAtRequest(ServerAtRequest a) => new(
         a.Id, a.PersonId, a.ClientName, a.ClientEvergreenId, a.CaseManagerName, a.CaseManagerEmail,

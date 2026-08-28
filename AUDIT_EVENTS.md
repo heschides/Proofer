@@ -35,6 +35,7 @@ for content; the audit event is only its activity index.
 - `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
 - `at-request.published`, `at-request.reopened`
+- `provider.merged`
 - `audit.exported`
 - `platform-incidents.viewed`, `incident-status.updated`
 
@@ -47,6 +48,12 @@ the trail should not have to infer that a signature was removed.
 `note.reassigned` records a successful correction from one client to another on the same case
 manager's own caseload. Its metadata contains only the previous and new Person IDs; client names
 and note content remain out of the general audit envelope.
+
+`provider.merged` records an Admin's atomic consolidation of two entries in the shared agency
+directory. Its resource is the surviving Provider ID; metadata contains only the absorbed Provider
+ID and counts of affiliated entries, consumer links, and named provider contacts moved. It carries
+no provider names, consumer IDs, or document content. Assessment snapshots are not rewritten by
+the merge.
 
 The two incident actions cover the operational telemetry surface: every cross-tenant dashboard read
 by a `PlatformOperator` is recorded, and an agency Admin changing an incident's lifecycle status is
@@ -120,7 +127,10 @@ the actual Person profile values needed to reconstruct each successful revision.
   and request correlation ID.
 - The Person row is an optimistic-concurrency record. A stale client revision receives HTTP 409
   and cannot silently replace a newer edit.
-- Both database contexts reject application attempts to update or delete Person history rows.
+- Both database contexts reject tracked application attempts to update or delete Person history
+  rows. The sole named exception is the Admin test-consumer deletion command described below,
+  which removes the synthetic consumer's PHI-bearing versions while preserving the independent
+  audit trail.
 - `GET /api/v1/people/{personId}/history` and `.pdf` are Admin-only, agency-scoped, marked
   `no-store`, and their use is itself recorded in the lightweight audit log.
 - Existing People cannot acquire history retroactively. Their first edit or history request adds a
@@ -131,6 +141,23 @@ The PDF is an auditor-friendly rendering of the same append-only ledger. It incl
 handling language, record and revision identifiers, chronological actor/timestamp details, and
 the old and new value for every changed field. Related notes, contacts, forms, assessments, and
 billing items retain their own histories and are not silently folded into the Person profile ledger.
+
+## Admin deletion of consumer test data
+
+The Admin dashboard exposes one deliberately narrow destructive command for a consumer marked as
+synthetic test data when an Admin created it. It is not the path for duplicates, inactive consumers,
+or ordinary retention work. The local and API implementations both require that immutable marker,
+the exact versioned deletion attestation, Admin role, actor-agency ownership, and the selected Person
+revision.
+
+Deletion runs in one serializable transaction and explicitly removes the consumer-owned forms,
+notes, contacts, consumer-provider links, reviews and appointments, assessments, AT requests and
+their items, and Person versions before removing the Person row. A claim line referencing any of
+the consumer's notes blocks the entire operation. The existing `AuditEvent` ledger is never deleted;
+a successful operation appends `test-data.consumer-deleted` with the Person ID, attestation version,
+and record counts—including consumer-provider links—but no name, narrative, or profile value.
+Removing Person versions here is a narrow test-data exception because those compressed rows contain
+copies of the synthetic profile; it does not weaken the append-only rule for real lifecycle history.
 
 The WPF client's Admin tab is the supported human-facing entry point. It summarizes agency usage,
 renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the protected PDF export. It also reports database/retention status and creates a

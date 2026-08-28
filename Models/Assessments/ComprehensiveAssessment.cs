@@ -115,6 +115,35 @@ public sealed class AssessmentNeed
     public string Description { get; set; } = string.Empty;
     public string DesiredResult { get; set; } = string.Empty;
     public bool AssociateProvider { get; set; }
+
+    // The provider this need is associated with, frozen at the moment it was chosen.
+    //
+    // A document is the one place the practice and network are COPIED rather than derived.
+    // Everywhere else in Sati a directory correction reaches every reader, which is exactly
+    // what an assessment must not do: one approved in March has to keep saying what it said
+    // in March, even after the physician moves practices. ProviderId stays alongside so the
+    // entry can still be traced back, but nothing recomputes these three strings.
+    //
+    // Both new fields default to empty, so documents written before 2026-08-28 deserialize
+    // unchanged — the document is stored as JSON, so this needs no migration.
     public int? ProviderId { get; set; }
     public string ProviderNameSnapshot { get; set; } = string.Empty;
+    public string ProviderPracticeSnapshot { get; set; } = string.Empty;
+    public string ProviderNetworkSnapshot { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The frozen provider as one line, for a document or a plan. Falls back to the bare name,
+    /// which is all an entry typed before the directory existed ever had.
+    /// </summary>
+    public string DescribeProvider()
+    {
+        var affiliation = string.Join(" · ", new[]
+        {
+            ProviderPracticeSnapshot, ProviderNetworkSnapshot
+        }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        return affiliation.Length == 0
+            ? ProviderNameSnapshot
+            : $"{ProviderNameSnapshot} — {affiliation}";
+    }
 }

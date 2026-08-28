@@ -94,7 +94,9 @@ public sealed partial class PersonCenteredPlanViewModel : ObservableObject
                     FormatNeedType(need.Type),
                     need.Description,
                     need.DesiredResult,
-                    need.AssociateProvider ? need.ProviderNameSnapshot : string.Empty));
+                    // The frozen triple, not just the name: the plan quotes what the assessment
+                    // recorded at the time, affiliation included.
+                    need.AssociateProvider ? need.DescribeProvider() : string.Empty));
             }
 
             foreach (var (key, title) in NarrativeSources)

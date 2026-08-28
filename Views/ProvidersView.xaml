@@ -39,6 +39,14 @@
                                 <TextBlock Text="{Binding Name}"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <!-- Tier tag on medical entries, so a directory that now
+                                     has a hierarchy still reads at a glance. Text, not
+                                     colour, carries the distinction. -->
+                                <TextBlock Text="{Binding MedicalKind}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Visibility="{Binding MedicalKind,
+                                               Converter={StaticResource NullToVisibilityConverter}}" />
                                 <!-- Passthrough tag only when applicable, so the
                                      directory reads at a glance which agencies the
                                      AT dropdown will offer. -->
@@ -72,6 +80,21 @@
                     <TextBlock Text="Name"
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Name" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                    <Border Margin="0,6,0,4"
+                            Padding="10,8"
+                            CornerRadius="4"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            Background="{DynamicResource WarningFillBrush}"
+                            Visibility="{Binding HasSameNameWarning,
+                                Converter={StaticResource BoolToVisibilityConverter}}"
+                            AutomationProperties.Name="Possible duplicate provider"
+                            AutomationProperties.LiveSetting="Polite">
+                        <TextBlock Text="{Binding SameNameWarning}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="11" />
+                    </Border>
 
                     <TextBlock Text="Type"
                                Style="{StaticResource LabelStyle}" />
@@ -79,6 +102,59 @@
                               SelectedItem="{Binding Type}"
                               HorizontalAlignment="Left"
                               Width="200" />
+
+                    <!-- ═══ Affiliation: medical entries only ═══
+                         Revealed by IsMedical. The parent picker is filtered by
+                         ProviderAffiliation to exactly what a save would accept, so the
+                         form never offers a choice the server would refuse. The resolved
+                         chain below it is derived on every read, never stored — which is
+                         what makes a correction in the directory show up everywhere. -->
+                    <StackPanel Visibility="{Binding IsMedical,
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
+
+                        <TextBlock Text="AFFILIATION"
+                                   Style="{StaticResource SectionHeader}"
+                                   Margin="0,8,0,8" />
+
+                        <TextBlock Text="Designation"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ComboBox AutomationProperties.Name="Medical designation"
+                                  ToolTip="An individual clinician, the practice they work in, or the network that owns the practice."
+                                  ItemsSource="{Binding MedicalKindOptions}"
+                                  SelectedItem="{Binding MedicalKind}"
+                                  HorizontalAlignment="Left"
+                                  Width="200" />
+
+                        <TextBlock Text="Belongs to"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ComboBox AutomationProperties.Name="Parent organization"
+                                  ItemsSource="{Binding ParentOptions}"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding ParentProviderId, Mode=TwoWay}"
+                                  Visibility="{Binding HasParentOptions,
+                                      Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                        <!-- An empty picker with no explanation reads as a broken control
+                             rather than an empty directory, so the reason is stated. -->
+                        <TextBlock Text="{Binding ParentEmptyExplanation}"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="16"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding HasParentOptions,
+                                       Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                        <TextBlock Text="{Binding AffiliationSummary}"
+                                   AutomationProperties.Name="Resolved affiliation"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   LineHeight="16"
+                                   Margin="0,6,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding HasAffiliation,
+                                       Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </StackPanel>
 
                     <TextBlock Text="ADDRESS"
                                Style="{StaticResource SectionHeader}"
@@ -160,6 +236,156 @@
                                Style="{StaticResource LabelStyle}" />
                     <TextBox AutomationProperties.Name="Phone" Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
 
+                    <TextBlock Text="NAMED CONTACTS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0,12,0,6" />
+                    <TextBlock Text="The Primary Contact and Phone above are the organization's general line. Add the specific people who work there below."
+                               TextWrapping="Wrap"
+                               FontSize="11"
+                               LineHeight="16"
+                               Margin="0,0,0,8"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                    <TextBlock Text="Save this provider before adding named contacts."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Visibility="{Binding DataContext.CanManageContacts,
+                                   RelativeSource={RelativeSource AncestorType=UserControl},
+                                   Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                    <StackPanel Visibility="{Binding DataContext.CanManageContacts,
+                                    RelativeSource={RelativeSource AncestorType=UserControl},
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Button Content="+ Add named contact"
+                                AutomationProperties.Name="Add named provider contact"
+                                Style="{StaticResource SmallButton}"
+                                HorizontalAlignment="Left"
+                                Margin="0,0,0,8"
+                                Command="{Binding DataContext.NewProviderContactCommand,
+                                    RelativeSource={RelativeSource AncestorType=UserControl}}" />
+
+                        <TextBlock Text="No named contacts yet."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding DataContext.HasProviderContacts,
+                                       RelativeSource={RelativeSource AncestorType=UserControl},
+                                       Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                        <ListBox ItemsSource="{Binding DataContext.ProviderContacts,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 SelectedItem="{Binding DataContext.SelectedProviderContact,
+                                          RelativeSource={RelativeSource AncestorType=UserControl},
+                                          Mode=TwoWay}"
+                                 AutomationProperties.Name="Named provider contacts"
+                                 Background="Transparent"
+                                 BorderBrush="{DynamicResource BorderBrush}"
+                                 Margin="0,0,0,8">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DisplayLabel}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock FontSize="10"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}">
+                                                <Run Text="{Binding Phone, Mode=OneWay}" />
+                                                <Run Text="  ext. " />
+                                                <Run Text="{Binding Extension, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <TextBlock Text="Primary contact"
+                                                       FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       Visibility="{Binding IsPrimary,
+                                                           Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="Remove"
+                                                Style="{StaticResource SmallButton}"
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding DataContext.RemoveProviderContactCommand,
+                                                    RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.Name="Remove named provider contact" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Border Padding="10"
+                                CornerRadius="5"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                Background="{DynamicResource WindowBackgroundBrush}"
+                                Visibility="{Binding DataContext.IsContactEditorOpen,
+                                    RelativeSource={RelativeSource AncestorType=UserControl},
+                                    Converter={StaticResource BoolToVisibilityConverter}}"
+                                AutomationProperties.Name="Named provider contact editor">
+                            <StackPanel>
+                                <TextBlock Text="{Binding DataContext.ContactEditorHeader,
+                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           Style="{StaticResource LabelStyle}" />
+                                <TextBlock Text="Name *" Style="{StaticResource LabelStyle}" />
+                                <TextBox Text="{Binding DataContext.ContactName,
+                                              RelativeSource={RelativeSource AncestorType=UserControl},
+                                              UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Provider contact name, required" />
+                                <TextBlock Text="Role" Style="{StaticResource LabelStyle}" />
+                                <TextBox Text="{Binding DataContext.ContactRole,
+                                              RelativeSource={RelativeSource AncestorType=UserControl},
+                                              UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Provider contact role" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Phone" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding DataContext.ContactPhone,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl},
+                                                      UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Provider contact phone" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Extension" Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding DataContext.ContactExtension,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl},
+                                                      UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Provider contact extension" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="Email" Style="{StaticResource LabelStyle}" />
+                                <TextBox Text="{Binding DataContext.ContactEmail,
+                                              RelativeSource={RelativeSource AncestorType=UserControl},
+                                              UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Provider contact email" />
+                                <CheckBox Content="Try this person first"
+                                          IsChecked="{Binding DataContext.ContactIsPrimary,
+                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          Margin="0,8,0,8" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Save contact"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Margin="0,0,8,0"
+                                            Command="{Binding DataContext.SaveProviderContactCommand,
+                                                RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <Button Content="Cancel"
+                                            Style="{StaticResource SmallButton}"
+                                            Command="{Binding DataContext.CancelProviderContactCommand,
+                                                RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
                     <TextBlock Text="WAIVER SERVICES"
                                Style="{StaticResource SectionHeader}"
                                Margin="0,8,0,8" />
@@ -207,6 +433,82 @@
                         <TextBox AutomationProperties.Name="Billing Contact" Text="{Binding BillingContact, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
+                    <Border Margin="0,16,0,0"
+                            Padding="10"
+                            CornerRadius="5"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            Background="{DynamicResource WarningFillBrush}"
+                            Visibility="{Binding DataContext.CanMergeProviders,
+                                RelativeSource={RelativeSource AncestorType=UserControl},
+                                Converter={StaticResource BoolToVisibilityConverter}}"
+                            AutomationProperties.Name="Admin provider merge">
+                        <StackPanel>
+                            <TextBlock Text="MERGE DUPLICATE ENTRY"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="Admin only. Choose the duplicate to absorb into this entry. Live affiliations, consumer links, and contacts move here; existing documents do not change."
+                                       Margin="0,4,0,7"
+                                       FontSize="11"
+                                       LineHeight="16"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <ComboBox ItemsSource="{Binding DataContext.MergeCandidates,
+                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      SelectedItem="{Binding DataContext.MergeProvider,
+                                               RelativeSource={RelativeSource AncestorType=UserControl},
+                                               Mode=TwoWay}"
+                                      DisplayMemberPath="Name"
+                                      AutomationProperties.Name="Duplicate provider to merge" />
+                            <Button Content="Review merge"
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource DangerButton}"
+                                    IsEnabled="{Binding DataContext.HasMergeSelection,
+                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    Command="{Binding DataContext.MergeProviderEntriesCommand,
+                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    AutomationProperties.Name="Review provider merge" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,12,0,0"
+                            Padding="10,8"
+                            CornerRadius="4"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource SuccessStrongBrush}"
+                            Visibility="{Binding DataContext.HasNoticeMessage,
+                                RelativeSource={RelativeSource AncestorType=UserControl},
+                                Converter={StaticResource BoolToVisibilityConverter}}"
+                            AutomationProperties.LiveSetting="Polite">
+                        <TextBlock Text="{Binding DataContext.NoticeMessage,
+                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   AutomationProperties.Name="Provider directory update completed"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                    </Border>
+
+                    <!-- Why the last save or delete was refused. LiveSetting announces it
+                         to a screen reader without moving focus, and the border carries the
+                         meaning for anyone who does not see the colour. -->
+                    <Border Margin="0,16,0,0"
+                            Padding="10,8"
+                            CornerRadius="4"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource DangerStrongBrush}"
+                            Visibility="{Binding DataContext.HasSaveError,
+                                RelativeSource={RelativeSource AncestorType=UserControl},
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="{Binding DataContext.SaveError,
+                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   AutomationProperties.Name="Provider was not saved"
+                                   AutomationProperties.LiveSetting="Assertive"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   LineHeight="17"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                    </Border>
+
                     <!-- Save/Delete/Cancel. Commands live on the ProvidersViewModel
                          (the parent), not the editor VM this ScrollViewer is scoped to,
                          so they reach up via AncestorType=UserControl → the page VM. -->
@@ -222,6 +524,9 @@
                                 Style="{StaticResource DangerButton}"
                                 Width="100"
                                 Margin="0,0,8,0"
+                                Visibility="{Binding DataContext.CanMergeProviders,
+                                    RelativeSource={RelativeSource AncestorType=UserControl},
+                                    Converter={StaticResource BoolToVisibilityConverter}}"
                                 Command="{Binding DataContext.DeleteProviderCommand,
                                     RelativeSource={RelativeSource AncestorType=UserControl}}" />
                         <Button Content="Cancel"

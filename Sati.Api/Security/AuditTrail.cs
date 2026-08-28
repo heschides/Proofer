@@ -55,6 +55,8 @@ internal static class AuditActions
     public const string AgencyReleaseGenerated = "agency-release.generated";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
+    public const string TestConsumerDeleted = "test-data.consumer-deleted";
+    public const string ProviderMerged = "provider.merged";
     public const string BillingPeriodSubmitted = "billing-period.submitted";
     public const string BillingClaimLineCreated = "billing-claim-line.created";
     public const string BillingEdiGenerated = "billing-edi.generated";

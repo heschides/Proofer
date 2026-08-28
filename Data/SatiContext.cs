@@ -26,7 +26,9 @@ namespace Sati.Data
         public DbSet<ATRequest> ATRequests { get; set; }
         public DbSet<ATRequestItem> ATRequestItems { get; set; }
         public DbSet<Provider> Providers { get; set; }
+        public DbSet<ProviderContact> ProviderContacts { get; set; }
         public DbSet<PersonContact> PersonContacts { get; set; }
+        public DbSet<PersonProvider> PersonProviders { get; set; }
         public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
         public DbSet<AuditEvent> AuditEvents { get; set; }
         public DbSet<PersonVersion> PersonVersions { get; set; }
@@ -97,6 +99,24 @@ namespace Sati.Data
                       .HasConversion<string>()
                       .HasMaxLength(20);
 
+                // Affiliation. MedicalKind stores as a string like Type; the parent is a
+                // self-reference with no navigation property, because every read that needs
+                // the chain already has the agency's rows in memory and walks them through
+                // ProviderAffiliation.
+                //
+                // Restrict, not SetNull: clearing the link would silently promote a whole
+                // subtree to top level, and a split hierarchy is invisible in the UI. The
+                // services refuse the delete with a message naming the affiliated entries
+                // instead of surfacing a foreign-key violation.
+                entity.Property(p => p.MedicalKind)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+                entity.HasOne<Provider>()
+                      .WithMany()
+                      .HasForeignKey(p => p.ParentProviderId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(p => p.ParentProviderId);
+
                 entity.Property(p => p.Street).HasMaxLength(250);
                 entity.Property(p => p.City).HasMaxLength(100);
                 entity.Property(p => p.State).HasMaxLength(2);
@@ -124,6 +144,31 @@ namespace Sati.Data
                 // The historical statewide default was seeded before providers
                 // became tenant-owned. The tenant-scope migration assigns that row
                 // to the active agency; tenant provisioning owns future defaults.
+            });
+
+            modelBuilder.Entity<ProviderContact>(entity =>
+            {
+                entity.HasKey(contact => contact.Id);
+                entity.Property(contact => contact.Name).IsRequired().HasMaxLength(150);
+                entity.Property(contact => contact.Role).HasMaxLength(100);
+                entity.Property(contact => contact.Phone).HasMaxLength(30);
+                entity.Property(contact => contact.Extension).HasMaxLength(10);
+                entity.Property(contact => contact.Email).HasMaxLength(254);
+                entity.HasIndex(contact => new { contact.ProviderId, contact.SortOrder });
+
+                // Cascade: contacts are part of the directory entry, not independent records,
+                // so they go with it. Deleting the entry itself is Admin-only and separately
+                // refused while anything else still points at it.
+                entity.HasOne<Provider>()
+                      .WithMany()
+                      .HasForeignKey(contact => contact.ProviderId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // One "try this person first" per entry, enforced rather than left to the form.
+                entity.HasIndex(contact => contact.ProviderId)
+                      .IsUnique()
+                      .HasFilter("[IsPrimary] = 1")
+                      .HasDatabaseName("IX_ProviderContacts_OnePrimary");
             });
 
             modelBuilder.Entity<ComprehensiveAssessment>(entity =>
@@ -190,6 +235,7 @@ namespace Sati.Data
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Revision).IsConcurrencyToken();
+                entity.Property(p => p.IsTestData).HasDefaultValue(false);
                 entity.Property(p => p.FirstName)
                       .IsRequired()
                       .HasMaxLength(50);
@@ -263,6 +309,39 @@ namespace Sati.Data
                       .WithMany(p => p.Contacts)
                       .HasForeignKey(c => c.PersonId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PersonProvider>(entity =>
+            {
+                entity.HasKey(link => link.Id);
+                entity.Property(link => link.Role).HasMaxLength(ConsumerProviderRules.MaxRoleLength);
+                entity.HasIndex(link => new { link.PersonId, link.EndDate });
+
+                // Cascade from the person, Restrict from the provider. A consumer's records
+                // go with the consumer; a directory entry someone is currently seeing may
+                // not be deleted out from under them.
+                entity.HasOne(link => link.Person)
+                      .WithMany()
+                      .HasForeignKey(link => link.PersonId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne<Provider>()
+                      .WithMany()
+                      .HasForeignKey(link => link.ProviderId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // The at-most-one-primary-care rule and the one-current-link-per-provider
+                // rule, enforced by the database as well as by the services. Both filters
+                // are on EndDate IS NULL, because an ended relationship constrains nothing:
+                // a consumer may have had several primary care providers over the years and
+                // may return to a provider they previously left.
+                entity.HasIndex(link => link.PersonId)
+                      .IsUnique()
+                      .HasFilter("[IsPrimaryCare] = 1 AND [EndDate] IS NULL")
+                      .HasDatabaseName("IX_PersonProviders_OneCurrentPrimaryCare");
+                entity.HasIndex(link => new { link.PersonId, link.ProviderId })
+                      .IsUnique()
+                      .HasFilter("[EndDate] IS NULL")
+                      .HasDatabaseName("IX_PersonProviders_OneCurrentLinkPerProvider");
             });
 
             modelBuilder.Entity<Note>(entity =>

@@ -16,7 +16,9 @@ namespace Sati.Views.ClientDocuments
             var app = (App)System.Windows.Application.Current;
             Workspace = new ComprehensiveAssessmentViewModel(
                 app.Services.GetRequiredService<Data.IComprehensiveAssessmentService>(),
-                app.Services.GetRequiredService<Data.ISessionService>());
+                app.Services.GetRequiredService<Data.ISessionService>(),
+                app.Services.GetRequiredService<Data.IConsumerProviderService>(),
+                app.Services.GetRequiredService<Data.IProviderService>());
             InitializeComponent();
             DataContextChanged += OnParentDataContextChanged;
             Unloaded += async (_, _) => await Workspace.LoadPersonAsync(null);

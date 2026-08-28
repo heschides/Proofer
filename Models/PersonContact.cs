@@ -17,7 +17,15 @@ namespace Sati.Models
         [Description("Service provider")]
         ServiceProvider,
 
-        [Description("Healthcare provider")]
+        /// <summary>
+        /// A person to contact <em>at</em> a healthcare provider — an office manager, a care
+        /// coordinator, a nurse who returns calls. Not the clinician as a provider: since
+        /// 2026-08-28 that is a <see cref="PersonProvider"/> link to a directory entry, which
+        /// carries the practice and network with it. Kept rather than retired because existing
+        /// rows are real people somebody recorded, and because "who do I actually phone at that
+        /// office" is a question the provider directory does not answer.
+        /// </summary>
+        [Description("Contact at a healthcare provider")]
         HealthcareProvider,
 
         [Description("Other support")]

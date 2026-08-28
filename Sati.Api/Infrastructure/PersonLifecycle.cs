@@ -50,7 +50,8 @@ internal sealed class PersonLifecycle(ApiDbContext db, IHttpContextAccessor http
         new("dayProgramCount", "Day program count", value => value.DayProgramCount),
         new("hasEmploymentSpecialist", "Employment specialist", value => value.HasEmploymentSpecialist),
         new("hasWorkSupports", "Work supports", value => value.HasWorkSupports),
-        new("isEmployed", "Employed", value => value.IsEmployed)
+        new("isEmployed", "Employed", value => value.IsEmployed),
+        new("isTestData", "Test consumer", value => value.IsTestData)
     ];
 
     public static PersonSnapshot Capture(ServerPerson person) => new(
@@ -90,7 +91,8 @@ internal sealed class PersonLifecycle(ApiDbContext db, IHttpContextAccessor http
         person.DayProgramCount,
         person.HasEmploymentSpecialist,
         person.HasWorkSupports,
-        person.IsEmployed);
+        person.IsEmployed,
+        person.IsTestData);
 
     public void RecordCreated(Actor actor, ServerPerson person)
     {
@@ -257,4 +259,5 @@ internal sealed record PersonSnapshot(
     int DayProgramCount,
     bool HasEmploymentSpecialist,
     bool HasWorkSupports,
-    bool IsEmployed);
+    bool IsEmployed,
+    bool IsTestData);

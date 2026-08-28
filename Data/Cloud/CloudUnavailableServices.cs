@@ -315,6 +315,41 @@ public sealed class CloudAtRequestService(CloudApiClient api) : IATRequestServic
     }
 }
 
+public sealed class CloudConsumerProviderService(CloudApiClient api) : IConsumerProviderService
+{
+    public async Task<List<PersonProvider>> GetByPersonAsync(int personId) =>
+        (await api.GetAsync<List<ConsumerProviderDto>>($"/api/v1/people/{personId}/providers"))
+        .Select(CloudContractMapper.ToConsumerProvider)
+        .ToList();
+
+    public async Task<PersonProvider> SaveAsync(PersonProvider link)
+    {
+        var request = CloudContractMapper.ToSaveConsumerProviderRequest(link);
+        var response = link.Id == 0
+            ? await api.PostAsync<SaveConsumerProviderRequest, ConsumerProviderDto>(
+                $"/api/v1/people/{link.PersonId}/providers", request)
+            : await api.PutAsync<SaveConsumerProviderRequest, ConsumerProviderDto>(
+                $"/api/v1/people/{link.PersonId}/providers/{link.Id}", request);
+        return CloudContractMapper.ToConsumerProvider(response);
+    }
+
+    // Ending is the ordinary update with EndDate set. Reading the link back first keeps
+    // the other fields intact — a PUT replaces the whole row, so ending a relationship
+    // must not quietly blank the role or the release flag along the way.
+    public async Task EndAsync(int personId, int linkId, DateTime endDate)
+    {
+        var links = await GetByPersonAsync(personId);
+        var link = links.SingleOrDefault(candidate => candidate.Id == linkId)
+            ?? throw new InvalidOperationException(
+                "That provider entry is no longer on this consumer's record.");
+        link.EndDate = endDate.Date;
+        await SaveAsync(link);
+    }
+
+    public Task RemoveAsync(int personId, int linkId) =>
+        api.DeleteAsync($"/api/v1/people/{personId}/providers/{linkId}");
+}
+
 public sealed class CloudProviderService(CloudApiClient api) : IProviderService
 {
     public async Task<List<Provider>> GetAllAsync() =>
@@ -326,6 +361,29 @@ public sealed class CloudProviderService(CloudApiClient api) : IProviderService
     public async Task<Provider> UpdateAsync(Provider provider) => CloudContractMapper.ToProvider(
         await api.PutAsync<SaveProviderRequest, ProviderDto>($"/api/v1/providers/{provider.Id}", CloudContractMapper.ToSaveProviderRequest(provider)));
     public Task DeleteAsync(Provider provider) => api.DeleteAsync($"/api/v1/providers/{provider.Id}");
+
+    public async Task<List<ProviderContact>> GetContactsAsync(int providerId) =>
+        (await api.GetAsync<List<ProviderContactDto>>($"/api/v1/providers/{providerId}/contacts"))
+        .Select(CloudContractMapper.ToProviderContact).ToList();
+
+    public async Task<ProviderContact> SaveContactAsync(ProviderContact contact)
+    {
+        var request = CloudContractMapper.ToSaveProviderContactRequest(contact);
+        var response = contact.Id == 0
+            ? await api.PostAsync<SaveProviderContactRequest, ProviderContactDto>(
+                $"/api/v1/providers/{contact.ProviderId}/contacts", request)
+            : await api.PutAsync<SaveProviderContactRequest, ProviderContactDto>(
+                $"/api/v1/providers/{contact.ProviderId}/contacts/{contact.Id}", request);
+        return CloudContractMapper.ToProviderContact(response);
+    }
+
+    public Task RemoveContactAsync(int providerId, int contactId) =>
+        api.DeleteAsync($"/api/v1/providers/{providerId}/contacts/{contactId}");
+
+    public async Task<string> MergeAsync(int survivingProviderId, int mergedProviderId) =>
+        (await api.PostAsync<MergeProvidersRequest, MergeProvidersResultDto>(
+            $"/api/v1/providers/{survivingProviderId}/merge",
+            new MergeProvidersRequest(mergedProviderId))).Summary;
 }
 
 public sealed class CloudComprehensiveAssessmentService(CloudApiClient api) : IComprehensiveAssessmentService

@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-27.*
+sections at the bottom. Last updated: 2026-08-28.*
 
 ---
 
@@ -1705,3 +1705,338 @@ update succeeds. Cancellation or a later failure would turn an edit into unrepor
 
 **Rejected:** reporting every network failure as simply "not saved." Once a request may have been
 sent, that claim is unsafe; refresh-first recovery is required.
+
+### Test-consumer deletion requires a durable creation marker and an Admin attestation
+
+The Admin dashboard may permanently remove one consumer and their owned records only after the
+record was marked as synthetic test data when an Admin created it **and** the deleting Admin
+explicitly affirms that it was created for testing. The marker is creation-only and immutable;
+ordinary users cannot set it and an update cannot convert a real consumer into deletable test data.
+The warning directs duplicate and inactive-consumer cases to Cancel and the help menu. The
+attestation is versioned in `Sati.Contracts.V1`, the selected Person revision is required, and the
+local and API paths repeat the marker, Admin, and agency checks. UI visibility is not the permission
+control.
+
+The operation explicitly deletes forms, notes, contacts, consumer-provider links, quarterly reviews
+and appointments, Comprehensive Assessments, AT requests and items, and Person lifecycle versions
+in one serializable transaction. A billing claim line blocks the operation before any delete.
+`AuditEvent` rows remain, and success appends `test-data.consumer-deleted` with the Person ID,
+attestation version, and counts but no consumer name or narrative.
+
+Removing `PersonVersion` and AT-request rows is a deliberate exception for attested synthetic data:
+both may contain copies or snapshots of the test consumer, and their restrictive foreign keys
+otherwise prevent the Person removal. This does not create an ordinary-client deletion policy and
+does not supersede the unfinished retention/legal-hold work.
+
+The `IsTestData` migration defaults every existing row to false. It backfills existing rows only
+when `dbo.SatiDatabaseIdentity` exists and identifies the database as exactly `SatiDemo` / `Demo`,
+where all consumers are defined to be synthetic. Production and legacy local databases remain
+unmarked because guessing from names, dates, or other profile content would be unreliable. Their
+existing consumers therefore cannot use this destructive command; an Admin may create a new,
+explicitly marked test consumer when testing is needed.
+
+**Rejected:** using either the marker or the attestation alone. A mutable or caller-forgeable marker
+could reclassify a real consumer, while attestation alone asks one click to establish a historical
+fact the application could have recorded at creation. Requiring both, plus authorization, agency,
+revision, financial-record, transaction, and audit controls, gives each control one narrow job.
+
+**Rejected:** deleting claim lines, billing periods, EDI generations, or audit events as part of
+consumer cleanup. Those records have independent financial or evidentiary value even when the
+source data began as a test.
+
+## 2026-08-28 — Provider affiliation is one parent link, not three typed tiers
+
+*Design decision recorded ahead of implementation. No code exists for this yet.*
+
+Medical directory entries gain two columns: `Provider.MedicalKind`
+(`Individual | Practice | Network`, nullable, required when `Type == Healthcare`) and
+`Provider.ParentProviderId`, a self-reference.
+
+The tiers are real rather than a UI convenience — they are the same split the federal identifier
+system already makes, individual NPIs being Type 1 and organizational NPIs Type 2. `Provider.Npi`
+and `BillingRules.IsValidNpi` therefore serve both without change.
+
+**Affiliation is a single parent, not `PracticeId` + `NetworkId`.** Two typed FKs cannot express a
+hospitalist who belongs to a network with no practice between, so they would force `NetworkId` onto
+individuals as well — at which point an individual's network can disagree with their practice's
+network, and the model contains a contradiction by construction. One parent has no such state.
+
+Legal parents, enforced in `Sati.Contracts.V1` so the desktop and the API cannot disagree:
+
+| Child | May parent to |
+|---|---|
+| Individual | Practice, Network, or nothing |
+| Practice | Network, or nothing |
+| Network | another Network, or nothing |
+
+Network→Network is what lets three tier *names* survive four-level reality: MaineHealth owns Maine
+Medical Partners, which owns practices. Individual→Individual is rejected — a nurse practitioner
+under a supervising physician is a supervision relationship, not an affiliation, and folding it in
+would corrupt every ancestor walk.
+
+`ParentProviderId` is deliberately **not** gated to healthcare in the schema. Waiver providers have
+the same shape (an agency owning programs owning direct-support staff), and the expensive-to-retrofit
+part is the link, the cycle guard, and the resolution walk — not the vocabulary. `MedicalKind` stays
+medical-specific because a second vocabulary is cheap to add later; the structure is not.
+
+Resolution returns the ancestor chain generically and the medical UI labels each entry by its
+`MedicalKind`. Saving validates the tier rule, rejects a parent that already has the child as an
+ancestor, and bounds the walk by depth so a cycle introduced by concurrent edits cannot hang a
+reader.
+
+**Rejected:** flattening the tiers into `ProviderType` as `HealthcareIndividual` /
+`HealthcarePractice` / `HealthcareNetwork`. `ProviderDto.Type` crosses the wire as a string, so this
+would break the existing `Healthcare` value for no modelling gain. A separate nullable enum is
+additive, and matches how `Npi` and `MaineCareProviderId` were already added as optional parameters.
+
+**Rejected:** renaming `ProviderType.Healthcare` to `Medical` to match how case managers speak. Same
+wire-compatibility cost. "Medical" is a display label.
+
+**Consequence — duplicates stop being merely untidy.** Two case managers each typing "MaineHealth"
+is cosmetic today. Once providers have parents it silently splits the tree, with half the practices
+hanging off each row and no view that reveals it. The admin-curated directory governance already
+deferred in `AGENDA.md` is promoted by this design from cleanup to prerequisite.
+
+Per the 2026-08-15 decision, directory rows remain one agency's local knowledge, so the hierarchy is
+local knowledge too and two agencies may legitimately disagree about who owns whom. The future
+canonical organization registry is where that resolves; nothing here should try to resolve it early.
+
+## 2026-08-28 — A consumer's provider list stores the link, never the resolved chain
+
+*Design decision recorded ahead of implementation. No code exists for this yet.*
+
+A new `PersonProvider` child collection links a consumer to a directory entry. It stores the
+`ProviderId` and the attributes of the *relationship* — role, an at-most-one primary-care flag,
+start and end dates, active state, release-on-file, display order — and stores **no copy of the
+practice or network**.
+
+Practice and network are derived by walking `ParentProviderId` at read time and rendered read-only.
+Copying them onto the consumer row would mean that when a physician changes practices, every profile
+naming her keeps showing the old one, silently and with no signal that it went stale. Deriving them
+means the directory is corrected once and every profile follows. The fields are read-only in the UI
+for the same reason: an editable derived value is a copy wearing a different costume.
+
+This follows the split the codebase already draws twice — `PersonContact` is live profile data while
+notes snapshot attendees, and an `ATRequest` snapshots vendor fields at select-time because it is a
+document. Live profile derives; **documents snapshot the resolved triple at generation**, which is
+what the deferred Comprehensive Assessment and PCP provider-selection items require.
+
+`ProviderId` may point at any tier. A consumer whose relationship is with a walk-in clinic rather
+than a named clinician selects the practice, and the derived chain simply starts higher. Blocking
+that would model a workflow that does not exist.
+
+**No cap on the number of providers.** An eight-row limit was considered and dropped: it is a
+document constraint dressed as a data rule, and a medically complex consumer with eleven specialists
+would have the eleventh recorded nowhere. Where a form has a fixed number of rows, the form takes
+that many in the case manager's explicit order. A high sanity bound may guard against runaway input,
+but it is not a product rule and no workflow should ever meet it.
+
+Profiles stay tidy through **state, not truncation**: the default view shows active links only, with
+the primary care provider pinned first, and past providers collapse behind a disclosure. Ending a
+relationship sets an end date rather than deleting a row, because who was treating someone in a
+given year is exactly the kind of question a case record has to be able to answer.
+
+**Consequence — three existing fields are superseded and must be reconciled, not left alongside.**
+`Person.PrimaryCareProvider` and `Person.HealthcareSystemName` are free text and a settings-driven
+string list, and `PersonContact.Kind == HealthcareProvider` carries a free-text `Organization`. Left
+in place, the same fact would live in four locations, which the one-named-owner rule forbids.
+`HealthcareSystemName` already documents this seam and anticipates a name-match backfill.
+
+Reconciliation keeps the string columns, adds the link beside them, matches what matches, and
+surfaces the remainder for a case manager to link by hand. Unmatched free text is never deleted —
+it is the only record of what someone actually typed.
+
+**Rejected:** a medical-only consumer↔provider link table. `AGENDA.md` already carries an open
+waiver-side need for the same association — the AT dropdown cannot pre-select a consumer's own
+agency, and `Provider.OfferedServices` stays inert until it can. One table serves both; two would be
+the same defect the one-named-owner rule exists to prevent.
+
+## 2026-08-28 — `EndDate` is the only fact that says a provider link is current
+
+Implementing the consumer provider list raised a choice the design had left open: whether a link
+carries both an `IsActive` flag and an `EndDate`, as `PersonContact` does.
+
+It carries only `EndDate`. Two columns meaning the same thing drift, and the drift is silent —
+a row marked inactive with no end date, or ended with the flag still true, are both writable and
+neither is obviously wrong at a glance. `ConsumerProviderRules.IsCurrent` names the rule so it
+cannot come to mean two things in two places, and `PersonProvider.IsActive` is a computed
+projection rather than a stored column.
+
+A future-dated end is deliberately **not** current. A transfer recorded ahead of time is a real
+workflow, but "current" has to be answerable without a clock: a rule whose result depends on when
+it is asked cannot be enforced identically on a client and a server.
+
+Both filtered unique indexes — one current primary care provider, one current link per provider —
+filter on `EndDate IS NULL` for the same reason. An ended relationship constrains nothing: a
+consumer may have had several primary care providers over the years, and may return to a provider
+they left, which is exactly the history a second row is there to record.
+
+**Rejected:** mirroring `PersonContact.IsActive` for consistency. The consistency would be with a
+shape that was already carrying the ambiguity, not with a decision anyone had made.
+
+## 2026-08-28 — A directory entry on a consumer's record cannot be deleted, and the refusal counts rather than names
+
+An API test written for the consumer provider list failed on its first run: deleting a directory
+entry a consumer was currently seeing succeeded. The foreign key would have caught it in
+production, where the schema comes from the desktop migrations — as a raw constraint violation
+surfacing to an Admin as an unexplained failure.
+
+Both delete paths now refuse explicitly, before touching any other state, and count **ended links
+as well as current ones**: the row still references the entry, and keeping that history readable is
+the whole reason the row was not deleted when the relationship ended.
+
+The refusal reports **a count and never consumer names**. An Admin curating the provider directory
+has no need to know which consumers see which clinician, and a message is a disclosure channel like
+any other. This is the same reasoning as `AuditCsv` neutralizing on the way out: the constraint
+belongs where the value leaves, not only where it enters.
+
+**Rejected:** letting the foreign key be the only guard. It produces the right outcome and the
+wrong experience, and an error a user cannot act on is a defect even when the data is safe.
+
+**Rejected:** naming the consumers so the Admin can go and clear the links. That is the same
+argument that justifies every convenience disclosure, and the count plus the provider name is
+enough to act on.
+
+## 2026-08-28 — Removing a consumer provider link is separate from ending one
+
+The list has both a `DELETE` route and an ordinary update that sets `EndDate`, and they mean
+different things. Ending records that a real relationship stopped; removing corrects a link entered
+against the wrong consumer.
+
+Collapsing them would force one of two bad outcomes: either a typo is permanent, or ending a
+relationship destroys the history the row exists to hold. The interface labels them accordingly and
+the remove button's tooltip says what it is for.
+
+Neither writes an audit event today, which matches how `PersonContact` behaves and is tracked in
+`AGENDA.md` rather than quietly accepted — a removal is the one operation here that destroys a
+record, and it is the obvious candidate for the first audited profile-child event.
+
+**Deferred:** a free-text note on the link ("only sees him for the injections"). Genuinely useful,
+but it is PHI-bearing free text with export and retention consequences and no consumer yet. Adding
+a column is cheap later; adding it now without deciding those questions is not.
+
+## 2026-08-28 — The legacy provider fields are linked by hand, never backfilled
+
+`Person.PrimaryCareProvider` and `Person.HealthcareSystemName` are free text that predates the
+directory. The obvious way to reconcile them is a migration that matches names and writes the
+links. That is not what happens.
+
+**Nothing is written automatically.** `LegacyProviderLinking` proposes; a case manager confirms,
+one consumer at a time, from the provider panel on that consumer's profile. A bulk name-match write
+across live consumer medical records is exactly the operation that should not run unreviewed, and
+the failure mode is asymmetric: an unlinked value is visibly unfinished, a wrong link looks
+finished. A consumer silently attached to the wrong physician is a clinical record defect that
+nothing in the interface would ever flag.
+
+**Matching is exact after trimming, case-insensitive, and nothing else.** No edit distance, no
+token overlap, no prefix matching. "Dr. Reed" and "Dr. Reedy" are different statements of fact, and
+so are "Dr. Reed" and "Dr. Reed, MD" — the second may well be the same person, but only somebody
+who knows the caseload can say so. The tests name these cases explicitly because they are precisely
+what a fuzzy matcher would get wrong while appearing to work.
+
+**An ambiguous name is refused rather than resolved.** Directory names are unique per agency only
+by identifier, so two "Dr. Reed" rows are possible. Linking to one would attach the consumer to
+whichever sorted first. The panel says how many entries share the name and directs the case manager
+to merge them in the directory — which is the actual defect.
+
+**No schema change was needed.** The target of `PrimaryCareProvider` is a `PersonProvider` row with
+`IsPrimaryCare` set, not a new foreign key on `Person`; the target of `HealthcareSystemName` is the
+network already derived from that provider's chain. Adding either as a column would have created
+the fourth copy this work exists to remove.
+
+**The legacy strings are never cleared**, before or after linking. They are the only record of what
+somebody actually typed, and a link is an addition beside them rather than a replacement. Where the
+typed system name disagrees with the derived network, the panel says so rather than preferring
+either: one of the two is stale and only a person knows which.
+
+**Rejected:** a migration with a name-match backfill and a report of what it did. The report arrives
+after the writes, which is the wrong order for an operation nobody can eyeball first.
+
+**Rejected:** linking the healthcare system as a relationship of its own. A consumer's relationship
+is with a clinician or a practice; the network follows from that. A second link would reintroduce
+the disagreement between an individual's network and their practice's network that one parent link
+exists to prevent.
+
+**Deferred:** an agency-wide view of how many consumers still hold unlinked text. The per-consumer
+prompt is enough to finish the work; a queue would make it easier to plan, and is tracked rather
+than built.
+
+## 2026-08-28 — `PersonContactKind.HealthcareProvider` is redefined, not retired
+
+With clinicians now recorded as directory links, the contact kind could have been removed. It is
+kept and re-scoped: it now means a person to contact **at** a healthcare provider — an office
+manager, a care coordinator, the nurse who returns calls. Its display text says so.
+
+Retiring it would orphan rows that are real people somebody deliberately recorded, and "who do I
+actually phone at that office" is a question the provider directory does not answer and should not
+try to. The two are different facts about different kinds of entity, and the ambiguity was in the
+old label rather than in the data.
+
+## 2026-08-28 — A document freezes the provider chain; everything else derives it
+
+The consumer profile resolves a provider's practice and network on every read, so correcting a
+directory entry reaches every consumer at once. A Comprehensive Assessment does the opposite.
+
+`AssessmentNeed` now carries `ProviderPracticeSnapshot` and `ProviderNetworkSnapshot` beside the
+existing `ProviderNameSnapshot` and `ProviderId`, and `ProviderAffiliation.Snapshot` is the shared
+function that produces them. Choosing a provider on a need is what freezes the chain; nothing
+recomputes it afterwards. An assessment approved in March has to keep saying what it said in March,
+even after the physician moves practices — a document that silently rewrites itself when reference
+data changes is not a record of anything.
+
+This is the only place in Sati where the chain is copied. Getting the direction wrong is silent in
+both directions: a profile that copies goes stale invisibly, and a document that derives rewrites
+history invisibly. The tests assert the difference explicitly rather than assuming it.
+
+`ProviderId` is kept alongside the frozen strings so an entry can still be traced back to the
+directory, but it is a reference for humans, not a lookup the renderer performs.
+
+**The free-text provider box on a need is replaced by a picker** over the consumer's own current
+provider list, closing the deferred "replace the temporary provider-name entry" item. Only current
+links are offered: a need written today should not propose somebody the consumer stopped seeing
+last year. A need whose provider was typed before the directory existed, or who has since left the
+consumer's list, still renders exactly what it recorded — the document keeps what it froze rather
+than being rewritten to match the present.
+
+**Rejected:** resolving the chain when the assessment is rendered, from `ProviderId`. It would keep
+one copy of the truth, and it would silently change approved documents.
+
+**Rejected:** dropping `ProviderNameSnapshot` now that a picker supplies the name. Every assessment
+written before this change has only that field, and it is the whole record for those needs.
+
+## 2026-08-28 — Provider-directory editing is broad, destructive curation is Admin-only
+
+The provider directory is one agency-wide rolodex. A case manager on the phone with a new
+specialist must be able to add the entry immediately, and supervisors/directors must be able to
+correct it. `ProviderDirectoryRules.CanCreateOrEdit` therefore permits CaseManager, Supervisor,
+Director, and Admin in both local and API paths. Delete and merge remain Admin-only because they
+remove a shared row other users' consumers, affiliations, and settings may reference.
+
+**A same-name match warns and never blocks.** Names are normalized by trimming, collapsing internal
+whitespace, and ignoring case, but they are not identities: two real organizations can share one.
+The form explains the split-tree risk and leaves the decision to the person who can verify it.
+Durable NPI/MaineCare identifier conflicts continue to block.
+
+**Named contacts are not the general phone line.** `Provider.PrimaryContact` and `Phone` describe
+the organization's main directory contact. `ProviderContact` describes several actual people who
+work there (referral coordinator, billing contact, office manager), with one optional primary.
+Combining them would make a one-to-many fact overwrite a one-to-one fact.
+
+**Merge moves live references and never rewrites documents.** In one serializable transaction it
+moves affiliated children, consumer-provider links, named contacts, and the agency passthrough
+default; adopts identifiers and a parent only where the survivor has none; then removes the
+duplicate and records `provider.merged`. Tier mismatches, conflicting durable identifiers,
+affiliation loops, cross-agency entries, and a consumer currently linked to both entries are
+refused before any write. The refusal counts consumers and never names them.
+
+`AssessmentNeed.ProviderId` and its name/practice/network snapshots are deliberately excluded.
+They are part of a document that froze what was selected; repointing them would silently change
+what an assessment says. This asymmetry is the point of the merge: live directory relationships
+follow the survivor, records of what was documented do not.
+
+**Rejected:** making all directory writes Admin-only. It turns normal phone-call work into an
+administrative queue and caused Demo and local Production to disagree about the same button.
+
+**Rejected:** silently choosing one of two current consumer links during merge. The two rows may
+carry different role, release, and date facts. Sati directs the case manager to end or correct one
+instead of destroying relationship history under an Admin curation command.

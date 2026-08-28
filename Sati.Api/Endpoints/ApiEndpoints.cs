@@ -1,3 +1,5 @@
+using System.Data;
+using System.Data.Common;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text;
@@ -354,9 +356,169 @@ internal static class ApiEndpoints
                     ((person.LastName ?? string.Empty) + ", " + (person.FirstName ?? string.Empty)).Trim(' ', ','),
                     person.Revision,
                     user.Id,
-                    user.DisplayName))
+                    user.DisplayName,
+                    person.IsTestData))
                 .ToListAsync(cancellationToken);
             return Results.Ok(people);
+        });
+
+        api.MapPost("/admin/test-data/consumers/{personId:int}/delete", async Task<IResult> (
+            int personId,
+            DeleteTestConsumerRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            if (personId <= 0 || request.ExpectedRevision <= 0)
+            {
+                return Results.BadRequest(new ApiErrorDto(
+                    "invalid_test_consumer",
+                    "Select a current consumer record and try again.",
+                    string.Empty));
+            }
+            if (!TestDataDeletionRules.HasValidConsumerAttestation(request.Attestation))
+            {
+                return Results.BadRequest(new ApiErrorDto(
+                    "invalid_test_data_attestation",
+                    "The required test-data affirmation was not supplied.",
+                    string.Empty));
+            }
+
+            PreventSensitiveResponseCaching(httpContext);
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId &&
+                db.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId),
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+            if (!person.IsTestData)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "consumer_not_test_data",
+                    "This consumer was not marked as Test when created and cannot be deleted with the test-data tool.",
+                    string.Empty));
+            }
+            if (person.Revision != request.ExpectedRevision)
+                return StaleTestConsumerConflict();
+
+            var claimLineCount = await db.ClaimLines.AsNoTracking().CountAsync(claimLine =>
+                db.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId),
+                cancellationToken);
+            if (claimLineCount > 0)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "test_consumer_has_claims",
+                    TestDataDeletionRules.ConsumerHasClaimsMessage,
+                    string.Empty));
+            }
+
+            try
+            {
+                var appointmentsDeleted = await db.Appointments
+                    .Where(appointment => db.ReviewItems.Any(review =>
+                        review.Id == appointment.ReviewItemId && review.PersonId == personId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                var reviewsDeleted = await db.ReviewItems
+                    .Where(review => review.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var contactsDeleted = await db.PersonContacts
+                    .Where(contact => contact.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var personProvidersDeleted = await db.PersonProviders
+                    .Where(link => link.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var formsDeleted = await db.Forms
+                    .Where(form => form.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var atRequestItemsDeleted = await db.AtRequestItems
+                    .Where(item => db.AtRequests.Any(atRequest =>
+                        atRequest.Id == item.ATRequestId && atRequest.PersonId == personId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                var atRequestsDeleted = await db.AtRequests
+                    .Where(atRequest => atRequest.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var assessmentsDeleted = await db.ComprehensiveAssessments
+                    .Where(assessment => assessment.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                var notesDeleted = await db.Notes
+                    .Where(note => note.PersonId == personId)
+                    .ExecuteDeleteAsync(cancellationToken);
+
+                // PersonVersion is normally append-only. Test-data deletion is the
+                // one narrow exception because each snapshot contains a copy of the
+                // synthetic consumer record. AuditEvent remains append-only.
+                var personVersionsDeleted = await db.PersonVersions
+                    .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+                    .ExecuteDeleteAsync(cancellationToken);
+
+                var peopleDeleted = await db.People
+                    .Where(candidate => candidate.Id == personId &&
+                        candidate.Revision == request.ExpectedRevision &&
+                        candidate.AgencyId == actor.AgencyId && candidate.IsTestData &&
+                        db.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                if (peopleDeleted != 1)
+                    return StaleTestConsumerConflict();
+
+                var result = new TestConsumerDeletionResultDto(
+                    personId,
+                    formsDeleted,
+                    notesDeleted,
+                    contactsDeleted,
+                    reviewsDeleted,
+                    appointmentsDeleted,
+                    assessmentsDeleted,
+                    atRequestsDeleted,
+                    atRequestItemsDeleted,
+                    personVersionsDeleted,
+                    personProvidersDeleted);
+                auditTrail.Record(
+                    actor,
+                    AuditActions.TestConsumerDeleted,
+                    "Person",
+                    personId,
+                    JsonSerializer.Serialize(new
+                    {
+                        attestationVersion = TestDataDeletionRules.ConsumerAttestation,
+                        relatedRecordsDeleted = result.RelatedRecordsDeleted,
+                        formsDeleted = result.FormsDeleted,
+                        notesDeleted = result.NotesDeleted,
+                        contactsDeleted = result.ContactsDeleted,
+                        personProvidersDeleted = result.PersonProvidersDeleted,
+                        reviewsDeleted = result.ReviewsDeleted,
+                        appointmentsDeleted = result.AppointmentsDeleted,
+                        assessmentsDeleted = result.AssessmentsDeleted,
+                        atRequestsDeleted = result.AtRequestsDeleted,
+                        atRequestItemsDeleted = result.AtRequestItemsDeleted,
+                        personVersionsDeleted = result.PersonVersionsDeleted
+                    }));
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return Results.Ok(result);
+            }
+            catch (DbUpdateException)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "test_consumer_related_record_changed",
+                    "The consumer was not deleted because a related record changed or is protected. Refresh and try again, or seek guidance in the help menu.",
+                    string.Empty));
+            }
+            catch (DbException)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "test_consumer_related_record_changed",
+                    "The consumer was not deleted because a related record changed or is protected. Refresh and try again, or seek guidance in the help menu.",
+                    string.Empty));
+            }
         });
 
         // Operational Demo seed only. This is deliberately not a broader permission
@@ -1100,12 +1262,20 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(validation);
 
             var actor = Actor.From(principal);
+            if (request.IsTestData && actor.Role != "Admin")
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["isTestData"] = ["Only a current Admin can create a consumer marked as Test."]
+                });
+            }
             ContractMapper.TryParseGender(request.Gender, out var gender);
             ContractMapper.TryParseWaiver(request.Waiver, out var waiver);
             var person = new ServerPerson
             {
                 UserId = actor.UserId,
-                AgencyId = actor.AgencyId
+                AgencyId = actor.AgencyId,
+                IsTestData = request.IsTestData
             };
             ApplyPerson(person, request, gender, waiver);
 
@@ -1147,6 +1317,13 @@ internal static class ApiEndpoints
                 return Results.NotFound();
             if (request.ExpectedRevision != person.Revision)
                 return StalePersonConflict();
+            if (request.IsTestData != person.IsTestData)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["isTestData"] = ["The Test designation is set only when a consumer is created and cannot be changed later."]
+                });
+            }
 
             var before = PersonLifecycle.Capture(person);
             await lifecycle.EnsureBaselineAsync(person, cancellationToken);
@@ -1578,6 +1755,170 @@ internal static class ApiEndpoints
             await db.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
         });
+
+        MapConsumerProviders(api);
+    }
+
+    // A consumer's medical provider list. The response carries the link's own fields and
+    // nothing derived: the practice and network are resolved by the caller from the
+    // directory it already holds, so a payload cannot disagree with the directory it came
+    // from, and correcting a directory entry corrects every profile at once.
+    private static void MapConsumerProviders(RouteGroupBuilder api)
+    {
+        api.MapGet("/people/{personId:int}/providers", async Task<IResult> (
+            int personId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            // Ended links are returned too. Past providers are part of the record; which
+            // of them to show is the caller's decision, not the query's.
+            var links = await db.PersonProviders.AsNoTracking()
+                .Where(link => link.PersonId == personId)
+                .OrderByDescending(link => link.IsPrimaryCare)
+                .ThenBy(link => link.SortOrder)
+                .ThenBy(link => link.Id)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(links.Select(ContractMapper.ToConsumerProvider).ToList());
+        });
+
+        api.MapPost("/people/{personId:int}/providers", async Task<IResult> (
+            int personId, SaveConsumerProviderRequest request, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var errors = ConsumerProviderRules.Validate(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var conflict = await FindConsumerProviderConflictAsync(
+                db, actor.AgencyId, personId, request, editingLinkId: 0, cancellationToken);
+            if (conflict is not null) return conflict;
+
+            var link = new ServerPersonProvider { PersonId = personId };
+            ApplyConsumerProvider(link, request);
+            db.PersonProviders.Add(link);
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ContractMapper.ToConsumerProvider(link));
+        });
+
+        api.MapPut("/people/{personId:int}/providers/{linkId:int}", async Task<IResult> (
+            int personId, int linkId, SaveConsumerProviderRequest request, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var errors = ConsumerProviderRules.Validate(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var link = await db.PersonProviders.SingleOrDefaultAsync(
+                candidate => candidate.Id == linkId && candidate.PersonId == personId, cancellationToken);
+            if (link is null) return Results.NotFound();
+
+            var conflict = await FindConsumerProviderConflictAsync(
+                db, actor.AgencyId, personId, request, linkId, cancellationToken);
+            if (conflict is not null) return conflict;
+
+            ApplyConsumerProvider(link, request);
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ContractMapper.ToConsumerProvider(link));
+        });
+
+        // Removal, for a link recorded against the wrong consumer. Ending a real
+        // relationship is a PUT that sets EndDate, which keeps the row.
+        api.MapDelete("/people/{personId:int}/providers/{linkId:int}", async Task<IResult> (
+            int personId, int linkId, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var link = await db.PersonProviders.SingleOrDefaultAsync(
+                candidate => candidate.Id == linkId && candidate.PersonId == personId, cancellationToken);
+            if (link is null) return Results.NotFound();
+
+            db.PersonProviders.Remove(link);
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.NoContent();
+        });
+    }
+
+    // The provider lookup is scoped to the actor's agency, which is what makes a directory
+    // entry from another tenant fail as absent rather than linking across the boundary.
+    private static async Task<IResult?> FindConsumerProviderConflictAsync(
+        ApiDbContext db,
+        int agencyId,
+        int personId,
+        SaveConsumerProviderRequest request,
+        int editingLinkId,
+        CancellationToken cancellationToken)
+    {
+        var provider = await db.Providers.AsNoTracking()
+            .Where(candidate => candidate.Id == request.ProviderId && candidate.AgencyId == agencyId)
+            .Select(candidate => new { candidate.Id, candidate.Name })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (provider is null)
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["providerId"] = [ConsumerProviderRules.ProviderOutsideAgencyMessage()]
+            });
+
+        var existing = await db.PersonProviders.AsNoTracking()
+            .Where(candidate => candidate.PersonId == personId && candidate.Id != editingLinkId)
+            .Select(candidate => new
+            {
+                candidate.ProviderId, candidate.IsPrimaryCare, candidate.EndDate
+            })
+            .ToListAsync(cancellationToken);
+
+        if (editingLinkId == 0 && existing.Count >= ConsumerProviderRules.MaxProvidersPerConsumer)
+            return Results.Conflict(new ApiErrorDto(
+                "consumer_provider_limit", ConsumerProviderRules.TooManyProvidersMessage(), string.Empty));
+
+        if (!ConsumerProviderRules.IsCurrent(request.EndDate))
+            return null;
+
+        if (existing.Any(candidate =>
+                candidate.ProviderId == request.ProviderId &&
+                ConsumerProviderRules.IsCurrent(candidate.EndDate)))
+            return Results.Conflict(new ApiErrorDto(
+                "consumer_provider_duplicate",
+                ConsumerProviderRules.DuplicateCurrentLinkMessage(provider.Name), string.Empty));
+
+        if (!request.IsPrimaryCare)
+            return null;
+
+        var currentPrimaryId = existing
+            .Where(candidate => candidate.IsPrimaryCare && ConsumerProviderRules.IsCurrent(candidate.EndDate))
+            .Select(candidate => (int?)candidate.ProviderId)
+            .FirstOrDefault();
+        if (currentPrimaryId is null)
+            return null;
+
+        var name = await db.Providers.AsNoTracking()
+            .Where(candidate => candidate.Id == currentPrimaryId)
+            .Select(candidate => candidate.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? "Another provider";
+        return Results.Conflict(new ApiErrorDto(
+            "consumer_provider_primary_care",
+            ConsumerProviderRules.PrimaryCareConflictMessage(name), string.Empty));
+    }
+
+    private static void ApplyConsumerProvider(ServerPersonProvider link, SaveConsumerProviderRequest request)
+    {
+        link.ProviderId = request.ProviderId;
+        link.Role = Normalize(request.Role);
+        link.IsPrimaryCare = request.IsPrimaryCare;
+        link.StartDate = request.StartDate?.Date;
+        link.EndDate = request.EndDate?.Date;
+        link.HasActiveRelease = request.HasActiveRelease;
+        link.SortOrder = request.SortOrder;
     }
 
     private static void MapReviews(RouteGroupBuilder api)
@@ -1821,9 +2162,14 @@ internal static class ApiEndpoints
         });
         api.MapPost("/providers", async Task<IResult> (SaveProviderRequest request, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
+            // Anyone working a caseload may add and correct entries: the directory is only useful
+            // if the person on the phone with a new specialist can record them straight away.
+            // Removing and merging stay Admin-only, below.
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin") return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var affiliationErrors = await ValidateProviderAffiliationAsync(db, actor.AgencyId, request, 0, cancellationToken);
+            if (affiliationErrors.Count > 0) return Results.ValidationProblem(affiliationErrors);
             var duplicate = await FindDuplicateProviderAsync(db, actor.AgencyId, request, null, cancellationToken);
             if (duplicate is not null) return duplicate;
             var provider = new ServerProvider { AgencyId = actor.AgencyId }; ApplyProvider(provider, request); db.Providers.Add(provider);
@@ -1832,22 +2178,273 @@ internal static class ApiEndpoints
         api.MapPut("/providers/{id:int}", async Task<IResult> (int id, SaveProviderRequest request, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin") return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var affiliationErrors = await ValidateProviderAffiliationAsync(db, actor.AgencyId, request, id, cancellationToken);
+            if (affiliationErrors.Count > 0) return Results.ValidationProblem(affiliationErrors);
             var duplicate = await FindDuplicateProviderAsync(db, actor.AgencyId, request, id, cancellationToken);
             if (duplicate is not null) return duplicate;
             var provider = await db.Providers.SingleOrDefaultAsync(x => x.Id == id && x.AgencyId == actor.AgencyId, cancellationToken); if (provider is null) return Results.NotFound();
             ApplyProvider(provider, request); await db.SaveChangesAsync(cancellationToken); return Results.Ok(ContractMapper.ToProvider(provider));
         });
+        // Delete stays Admin-only: the directory is shared, so removing an entry reaches other
+        // case managers' consumers and is not undoable by the person who did it.
         api.MapDelete("/providers/{id:int}", async Task<IResult> (int id, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin") return Results.Forbid();
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role)) return Results.Forbid();
             var provider = await db.Providers.SingleOrDefaultAsync(x => x.Id == id && x.AgencyId == actor.AgencyId, cancellationToken); if (provider is null) return Results.NotFound();
+            // Refused before the settings default is cleared, so a rejected delete leaves
+            // nothing changed. Restrict would raise a foreign-key error anyway; this names
+            // the affiliated entries instead.
+            var affiliated = await db.Providers.AsNoTracking()
+                .Where(child => child.AgencyId == actor.AgencyId && child.ParentProviderId == id)
+                .OrderBy(child => child.Name).Select(child => child.Name).ToListAsync(cancellationToken);
+            if (affiliated.Count > 0)
+                return Results.Conflict(new ApiErrorDto(
+                    "provider_has_affiliated_entries",
+                    ProviderAffiliation.AffiliatedChildrenMessage(provider.Name, affiliated),
+                    string.Empty));
+            // Also refused while any consumer record references it, ended links included.
+            // Without this the foreign key raises a raw constraint error instead, which
+            // reaches the Admin as an unexplained failure.
+            var onRecords = await db.PersonProviders.AsNoTracking()
+                .CountAsync(link => link.ProviderId == id, cancellationToken);
+            if (onRecords > 0)
+                return Results.Conflict(new ApiErrorDto(
+                    "provider_on_consumer_records",
+                    ConsumerProviderRules.ProviderOnConsumerRecordsMessage(provider.Name, onRecords),
+                    string.Empty));
             var settings = await db.Settings.FirstOrDefaultAsync(x => x.AgencyId == actor.AgencyId && x.DefaultPassthroughProviderId == id, cancellationToken);
             if (settings is not null) settings.DefaultPassthroughProviderId = null;
             db.Providers.Remove(provider); await db.SaveChangesAsync(cancellationToken); return Results.NoContent();
         });
+
+        MapProviderContacts(api);
+        MapProviderMerge(api);
+    }
+
+    // Named people at a provider. Ordinary editing, so any caseload role may maintain them: a
+    // phone number is not an entry other case managers' consumers point at.
+    private static void MapProviderContacts(RouteGroupBuilder api)
+    {
+        api.MapGet("/providers/{providerId:int}/contacts", async Task<IResult> (
+            int providerId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
+                return Results.NotFound();
+
+            var contacts = await db.ProviderContacts.AsNoTracking()
+                .Where(contact => contact.ProviderId == providerId)
+                .OrderByDescending(contact => contact.IsPrimary)
+                .ThenBy(contact => contact.SortOrder).ThenBy(contact => contact.Id)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(contacts.Select(ContractMapper.ToProviderContact).ToList());
+        });
+
+        api.MapPost("/providers/{providerId:int}/contacts", async Task<IResult> (
+            int providerId, SaveProviderContactRequest request, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            var errors = ProviderDirectoryRules.ValidateContact(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
+                return Results.NotFound();
+
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
+            await DemoteOtherPrimaryContactsAsync(db, providerId, 0, request.IsPrimary, cancellationToken);
+            var contact = new ServerProviderContact { ProviderId = providerId };
+            ApplyProviderContact(contact, request);
+            db.ProviderContacts.Add(contact);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Results.Ok(ContractMapper.ToProviderContact(contact));
+        });
+
+        api.MapPut("/providers/{providerId:int}/contacts/{contactId:int}", async Task<IResult> (
+            int providerId, int contactId, SaveProviderContactRequest request, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            var errors = ProviderDirectoryRules.ValidateContact(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
+                return Results.NotFound();
+
+            var contact = await db.ProviderContacts.SingleOrDefaultAsync(
+                candidate => candidate.Id == contactId && candidate.ProviderId == providerId, cancellationToken);
+            if (contact is null) return Results.NotFound();
+
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
+            await DemoteOtherPrimaryContactsAsync(db, providerId, contactId, request.IsPrimary, cancellationToken);
+            ApplyProviderContact(contact, request);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Results.Ok(ContractMapper.ToProviderContact(contact));
+        });
+
+        api.MapDelete("/providers/{providerId:int}/contacts/{contactId:int}", async Task<IResult> (
+            int providerId, int contactId, ClaimsPrincipal principal,
+            ApiDbContext db, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
+                return Results.NotFound();
+
+            var contact = await db.ProviderContacts.SingleOrDefaultAsync(
+                candidate => candidate.Id == contactId && candidate.ProviderId == providerId, cancellationToken);
+            if (contact is null) return Results.NotFound();
+
+            db.ProviderContacts.Remove(contact);
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.NoContent();
+        });
+    }
+
+    // Folding one directory entry into another. Admin only, and deliberately does NOT repoint
+    // AssessmentNeed.ProviderId: a document froze that entry, and rewriting it would change what
+    // an approved assessment says.
+    private static void MapProviderMerge(RouteGroupBuilder api)
+    {
+        api.MapPost("/providers/{survivingId:int}/merge", async Task<IResult> (
+            int survivingId, MergeProvidersRequest request, ClaimsPrincipal principal,
+            ApiDbContext db, AuditTrail auditTrail, CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role)) return Results.Forbid();
+
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+            var surviving = await db.Providers.SingleOrDefaultAsync(
+                p => p.Id == survivingId && p.AgencyId == actor.AgencyId, cancellationToken);
+            var merged = await db.Providers.SingleOrDefaultAsync(
+                p => p.Id == request.MergedProviderId && p.AgencyId == actor.AgencyId, cancellationToken);
+            if (surviving is null || merged is null) return Results.NotFound();
+
+            var problem = ProviderDirectoryRules.ValidateMerge(
+                ToAffiliationNode(surviving), ToAffiliationNode(merged));
+            if (problem is not null)
+                return Results.Conflict(new ApiErrorDto("provider_merge_invalid", problem, string.Empty));
+
+            var identifierProblem =
+                IdentifierConflict(surviving.Npi, merged.Npi, "National Provider Identifier")
+                ?? IdentifierConflict(surviving.MaineCareProviderId, merged.MaineCareProviderId,
+                    "MaineCare provider identifier");
+            if (identifierProblem is not null)
+                return Results.Conflict(new ApiErrorDto(
+                    "provider_merge_identifier_conflict", identifierProblem, string.Empty));
+
+            var directory = (await db.Providers.AsNoTracking()
+                    .Where(p => p.AgencyId == actor.AgencyId)
+                    .Select(p => new { p.Id, p.Name, p.ParentProviderId, p.MedicalKind })
+                    .ToListAsync(cancellationToken))
+                .Select(p => new ProviderAffiliationNode(p.Id, p.Name, p.ParentProviderId,
+                    Enum.TryParse<MedicalProviderKind>(p.MedicalKind, out var kind) ? kind : null))
+                .ToList();
+            if (ProviderAffiliation.ResolveAncestors(surviving.Id, directory).Any(n => n.Id == merged.Id))
+                return Results.Conflict(new ApiErrorDto(
+                    "provider_merge_loop", ProviderDirectoryRules.MergeWouldCreateLoopMessage, string.Empty));
+
+            var duplicateCurrentLinks = await (
+                from incoming in db.PersonProviders.AsNoTracking()
+                join existing in db.PersonProviders.AsNoTracking()
+                    on incoming.PersonId equals existing.PersonId
+                where incoming.ProviderId == merged.Id && incoming.EndDate == null &&
+                      existing.ProviderId == surviving.Id && existing.EndDate == null
+                select incoming.PersonId).Distinct().CountAsync(cancellationToken);
+            if (duplicateCurrentLinks > 0)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "provider_merge_consumer_link_conflict",
+                    ProviderDirectoryRules.MergeConsumerLinkConflictMessage(duplicateCurrentLinks),
+                    string.Empty));
+            }
+
+            var affiliatedMoved = await db.Providers
+                .Where(child => child.AgencyId == actor.AgencyId && child.ParentProviderId == merged.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(child => child.ParentProviderId, surviving.Id), cancellationToken);
+            var consumerLinksMoved = await db.PersonProviders
+                .Where(link => link.ProviderId == merged.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(link => link.ProviderId, surviving.Id), cancellationToken);
+            var contactsMoved = await db.ProviderContacts
+                .Where(contact => contact.ProviderId == merged.Id)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(contact => contact.ProviderId, surviving.Id)
+                    .SetProperty(contact => contact.IsPrimary, false), cancellationToken);
+            await db.Settings
+                .Where(s => s.AgencyId == actor.AgencyId && s.DefaultPassthroughProviderId == merged.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.DefaultPassthroughProviderId, surviving.Id), cancellationToken);
+
+            // Adopted only where the survivor has none, so a merge never overwrites a fact
+            // somebody deliberately recorded on the surviving entry.
+            surviving.Npi ??= merged.Npi;
+            surviving.MaineCareProviderId ??= merged.MaineCareProviderId;
+            surviving.ParentProviderId ??= merged.ParentProviderId == surviving.Id ? null : merged.ParentProviderId;
+
+            db.Providers.Remove(merged);
+            auditTrail.Record(
+                actor,
+                AuditActions.ProviderMerged,
+                "Provider",
+                surviving.Id,
+                JsonSerializer.Serialize(new
+                {
+                    mergedProviderId = merged.Id,
+                    affiliatedMoved,
+                    consumerLinksMoved,
+                    contactsMoved
+                }));
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return Results.Ok(new MergeProvidersResultDto(
+                surviving.Id,
+                ProviderDirectoryRules.MergeSummary(
+                    surviving.Name, merged.Name, affiliatedMoved, consumerLinksMoved, contactsMoved)));
+        });
+    }
+
+    private static ProviderAffiliationNode ToAffiliationNode(ServerProvider provider) =>
+        new(provider.Id, provider.Name, provider.ParentProviderId,
+            Enum.TryParse<MedicalProviderKind>(provider.MedicalKind, out var kind) ? kind : null);
+
+    private static string? IdentifierConflict(string? surviving, string? merged, string which) =>
+        Normalize(surviving) is { } left && Normalize(merged) is { } right &&
+        !string.Equals(left, right, StringComparison.OrdinalIgnoreCase)
+            ? ProviderDirectoryRules.ConflictingIdentifierMessage(which)
+            : null;
+
+    private static Task<bool> ProviderIsInAgencyAsync(
+        ApiDbContext db, int agencyId, int providerId, CancellationToken cancellationToken) =>
+        db.Providers.AsNoTracking().AnyAsync(p => p.Id == providerId && p.AgencyId == agencyId, cancellationToken);
+
+    private static async Task DemoteOtherPrimaryContactsAsync(
+        ApiDbContext db, int providerId, int editingContactId, bool isPrimary, CancellationToken cancellationToken)
+    {
+        if (!isPrimary) return;
+        await db.ProviderContacts
+            .Where(other => other.ProviderId == providerId && other.Id != editingContactId && other.IsPrimary)
+            .ExecuteUpdateAsync(u => u.SetProperty(other => other.IsPrimary, false), cancellationToken);
+    }
+
+    private static void ApplyProviderContact(ServerProviderContact contact, SaveProviderContactRequest request)
+    {
+        contact.Name = request.Name.Trim();
+        contact.Role = Normalize(request.Role);
+        contact.Phone = Normalize(request.Phone);
+        contact.Extension = Normalize(request.Extension);
+        contact.Email = Normalize(request.Email);
+        contact.IsPrimary = request.IsPrimary;
+        contact.SortOrder = request.SortOrder;
     }
 
     private static void MapAtRequests(RouteGroupBuilder api)
@@ -3643,6 +4240,12 @@ internal static class ApiEndpoints
             "This person record was changed after you opened it. Reload it before saving.",
             string.Empty));
 
+    private static IResult StaleTestConsumerConflict() =>
+        Results.Conflict(new ApiErrorDto(
+            "stale_test_consumer",
+            "This consumer changed after you selected them. Refresh the Admin dashboard and review the current record before trying again.",
+            string.Empty));
+
     private static IResult StaleNoteConflict() =>
         Results.Conflict(new ApiErrorDto(
             "stale_note",
@@ -3996,6 +4599,59 @@ internal static class ApiEndpoints
     /// agencies' directories is correct — each holds its own local knowledge of that
     /// organization — and must not be treated as a duplicate.
     /// </summary>
+    // Affiliation is decided by ProviderAffiliation in Sati.Contracts, the same call the
+    // transitional desktop service makes. Only this agency's rows are loaded, so a parent
+    // belonging to another tenant fails as "not in this directory" rather than linking
+    // across the boundary.
+    private static async Task<Dictionary<string, string[]>> ValidateProviderAffiliationAsync(
+        ApiDbContext db,
+        int agencyId,
+        SaveProviderRequest request,
+        int editingProviderId,
+        CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        MedicalProviderKind? kind = null;
+        if (!string.IsNullOrWhiteSpace(request.MedicalKind))
+        {
+            if (!Enum.TryParse<MedicalProviderKind>(request.MedicalKind, out var parsed))
+            {
+                errors["medicalKind"] = ["The medical provider designation is invalid."];
+                return errors;
+            }
+            kind = parsed;
+        }
+
+        var kindProblem = ProviderAffiliation.ValidateKind(request.Type == "Healthcare", kind);
+        if (kindProblem is not null)
+        {
+            errors["medicalKind"] = [kindProblem];
+            return errors;
+        }
+
+        if (request.ParentProviderId is null)
+            return errors;
+
+        var directory = (await db.Providers.AsNoTracking()
+                .Where(candidate => candidate.AgencyId == agencyId)
+                .Select(candidate => new { candidate.Id, candidate.Name, candidate.ParentProviderId, candidate.MedicalKind })
+                .ToListAsync(cancellationToken))
+            .Select(candidate => new ProviderAffiliationNode(
+                candidate.Id,
+                candidate.Name,
+                candidate.ParentProviderId,
+                Enum.TryParse<MedicalProviderKind>(candidate.MedicalKind, out var storedKind) ? storedKind : null))
+            .ToList();
+
+        var parentProblem = ProviderAffiliation.ValidateParent(
+            editingProviderId, kind, request.ParentProviderId, directory);
+        if (parentProblem is not null)
+            errors["parentProviderId"] = [parentProblem];
+
+        return errors;
+    }
+
     private static async Task<IResult?> FindDuplicateProviderAsync(
         ApiDbContext db,
         int agencyId,
@@ -4062,6 +4718,7 @@ internal static class ApiEndpoints
         provider.BillingLocationEis = Normalize(request.BillingLocationEis); provider.ProgramContact = Normalize(request.ProgramContact);
         provider.BillingContact = Normalize(request.BillingContact);
         provider.Npi = Normalize(request.Npi); provider.MaineCareProviderId = Normalize(request.MaineCareProviderId);
+        provider.MedicalKind = Normalize(request.MedicalKind); provider.ParentProviderId = request.ParentProviderId;
     }
 
     private static Dictionary<string, string[]> ValidateAtRequest(SaveAtRequestRequest request)

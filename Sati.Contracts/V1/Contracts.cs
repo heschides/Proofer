@@ -91,7 +91,8 @@ public sealed record PersonDto(
     string? RepPayeeRegularCheckRequestNeeds = null,
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
-    string? Email = null);
+    string? Email = null,
+    bool IsTestData = false);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -141,7 +142,8 @@ public sealed record SavePersonRequest(
     string? RepPayeeRegularCheckRequestNeeds = null,
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
-    string? Email = null);
+    string? Email = null,
+    bool IsTestData = false);
 
 public sealed record PersonContactDto(
     int Id,
@@ -167,6 +169,30 @@ public sealed record SavePersonContactRequest(
     string? Email,
     bool IsEmergencyContact,
     bool HasActiveRelease);
+
+// One consumer's link to a directory entry. It carries the relationship's own fields and
+// nothing derived: the practice and the network are resolved from the directory the caller
+// already holds, so a payload can never disagree with the directory it was built from.
+// EndDate alone says whether the link is current; there is no separate active flag.
+public sealed record ConsumerProviderDto(
+    int Id,
+    int PersonId,
+    int ProviderId,
+    string? Role,
+    bool IsPrimaryCare,
+    DateTime? StartDate,
+    DateTime? EndDate,
+    bool HasActiveRelease,
+    int SortOrder);
+
+public sealed record SaveConsumerProviderRequest(
+    int ProviderId,
+    string? Role,
+    bool IsPrimaryCare,
+    DateTime? StartDate,
+    DateTime? EndDate,
+    bool HasActiveRelease,
+    int SortOrder);
 
 public sealed record NoteDto(
     int Id,
@@ -391,7 +417,31 @@ public sealed record AdminPersonListItemDto(
     string DisplayName,
     int Revision,
     int AssignedUserId,
-    string AssignedUserDisplayName);
+    string AssignedUserDisplayName,
+    bool IsTestData = false);
+
+public sealed record DeleteTestConsumerRequest(
+    int ExpectedRevision,
+    string Attestation);
+
+public sealed record TestConsumerDeletionResultDto(
+    int PersonId,
+    int FormsDeleted,
+    int NotesDeleted,
+    int ContactsDeleted,
+    int ReviewsDeleted,
+    int AppointmentsDeleted,
+    int AssessmentsDeleted,
+    int AtRequestsDeleted,
+    int AtRequestItemsDeleted,
+    int PersonVersionsDeleted,
+    int PersonProvidersDeleted = 0)
+{
+    public int RelatedRecordsDeleted =>
+        FormsDeleted + NotesDeleted + ContactsDeleted + ReviewsDeleted +
+        AppointmentsDeleted + AssessmentsDeleted + AtRequestsDeleted +
+        AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted;
+}
 
 public sealed record AdminActivityDto(
     long Id,
@@ -497,17 +547,37 @@ public sealed record SaveAssessmentDocumentRequest(string DocumentJson, int Expe
 public sealed record PersonCenteredPlanSourceDto(
     int AssessmentId, int Version, string Status, DateTime UpdatedAt, string DocumentJson);
 
+// MedicalKind and ParentProviderId are optional trailing parameters for the same reason
+// Npi and MaineCareProviderId were: adding them is additive, so an older client that omits
+// them still round-trips. ProviderDto.Type stays the existing "Waiver"/"Healthcare"/"Other"
+// string — flattening the tiers into it would have broken that value for no modelling gain.
 public sealed record ProviderDto(
     int Id, string Type, string Name, string? Street, string? City, string? State, string? Zip,
     string? PrimaryContact, string? Phone, int OfferedServices, bool ProvidesPassthroughService,
     string? BillingLocationEis, string? ProgramContact, string? BillingContact,
-    string? Npi = null, string? MaineCareProviderId = null);
+    string? Npi = null, string? MaineCareProviderId = null,
+    string? MedicalKind = null, int? ParentProviderId = null);
 
 public sealed record SaveProviderRequest(
     string Type, string Name, string? Street, string? City, string? State, string? Zip,
     string? PrimaryContact, string? Phone, int OfferedServices, bool ProvidesPassthroughService,
     string? BillingLocationEis, string? ProgramContact, string? BillingContact,
-    string? Npi = null, string? MaineCareProviderId = null);
+    string? Npi = null, string? MaineCareProviderId = null,
+    string? MedicalKind = null, int? ParentProviderId = null);
+
+// A named person at a provider, distinct from the organization's general directory contact on
+// ProviderDto.PrimaryContact/Phone. A directory entry accumulates several of these.
+public sealed record ProviderContactDto(
+    int Id, int ProviderId, string Name, string? Role, string? Phone, string? Extension,
+    string? Email, bool IsPrimary, int SortOrder);
+
+public sealed record SaveProviderContactRequest(
+    string Name, string? Role, string? Phone, string? Extension, string? Email,
+    bool IsPrimary, int SortOrder);
+
+public sealed record MergeProvidersRequest(int MergedProviderId);
+
+public sealed record MergeProvidersResultDto(int SurvivingProviderId, string Summary);
 
 // ScreenshotBase64 is the item's pasted evidence clip, carried inline rather
 // than through a separate blob route. It travels on the ordinary item payload

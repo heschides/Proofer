@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:Sati"
         xmlns:converters="clr-namespace:Sati.Converters"
         xmlns:clientDocuments="clr-namespace:Sati.Views.ClientDocuments"
+        xmlns:views="clr-namespace:Sati.Views"
         Background="{DynamicResource WindowBackgroundBrush}">
 
     <UserControl.Resources>
@@ -452,6 +453,27 @@
                               IsChecked="{Binding HasWorkSupports}"
                               IsEnabled="{Binding IsEmployed}"
                               Margin="20,0,0,6" />
+
+                <Border Background="{DynamicResource WarningFillBrush}"
+                        BorderBrush="{DynamicResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="5"
+                        Padding="10"
+                        Margin="0,8,0,10"
+                        Visibility="{Binding CanMarkNewConsumerAsTest, Converter={StaticResource BoolToVisibilityConverter}}"
+                        AutomationProperties.Name="Test consumer creation option">
+                    <StackPanel>
+                        <CheckBox Content="Test consumer"
+                                  IsChecked="{Binding IsTestData}"
+                                  FontWeight="SemiBold"
+                                  AutomationProperties.Name="Mark new consumer as Test" />
+                        <TextBlock Text="Use only for synthetic records created for testing. This designation cannot be added or removed after creation."
+                                   Margin="22,3,0,0"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
 
                 <Border Background="{DynamicResource WarningFillBrush}"
                         BorderBrush="{DynamicResource WarningBrush}"
@@ -1407,6 +1429,27 @@
                                                        TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Border>
+                                    <Border Margin="0,8,12,0"
+                                            Padding="10,7"
+                                            HorizontalAlignment="Left"
+                                            Background="{DynamicResource WarningFillBrush}"
+                                            BorderBrush="{DynamicResource WarningBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Visibility="{Binding CanMarkNewConsumerAsTest, Converter={StaticResource BoolToVisibilityConverter}}"
+                                            AutomationProperties.Name="Test consumer creation option">
+                                        <StackPanel>
+                                            <CheckBox Content="Test consumer"
+                                                      IsChecked="{Binding IsTestData}"
+                                                      FontWeight="SemiBold"
+                                                      AutomationProperties.Name="Mark new consumer as Test" />
+                                            <TextBlock Text="Use only for synthetic records created for testing. This designation cannot be added or removed after creation."
+                                                       Margin="22,3,0,0"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
                                     <Border Background="{DynamicResource WarningFillBrush}"
                                             BorderBrush="{DynamicResource WarningBrush}"
                                             BorderThickness="1"
@@ -1649,10 +1692,14 @@
                         </ScrollViewer>
                     </Border>
 
+                    <!-- Row 2 carries the two live-profile panels: the support network and
+                         the medical provider list. They share a row rather than each taking
+                         one so the grid's later row numbers stay as they are. -->
+                    <StackPanel Grid.Row="2">
+
                     <!-- Live support-network profile. Notes snapshot selected
                          attendees, so edits here never rewrite historical visits. -->
-                    <Border Grid.Row="2"
-                            Background="{DynamicResource SurfaceBrush}"
+                    <Border Background="{DynamicResource SurfaceBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="7"
@@ -1841,6 +1888,13 @@
                             </StackPanel>
                         </Expander>
                     </Border>
+
+                    <!-- Medical providers. Its own control so the panel can be loaded and
+                         asserted on without the rest of the profile; see
+                         ConsumerProvidersView.xaml for why that matters. -->
+                    <views:ConsumerProvidersView DataContext="{Binding ConsumerProviders}" />
+
+                    </StackPanel>
 
                     <!-- FORMS COMPLIANCE -->
                     <Grid Grid.Row="4">

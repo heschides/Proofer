@@ -285,6 +285,16 @@ and its assigned user's agency and record the access in the general audit envelo
 receive a labeled current-state baseline when tracking first touches them; the system does not claim
 to reconstruct changes made before the ledger existed.
 
+The only deletion exception is the Admin test-consumer command. It requires both a durable,
+creation-only `Person.IsTestData` marker and the deleting Admin's explicit attestation. Only an Admin
+may set the marker while creating a consumer; neither local nor API updates may add, remove, or
+change it. Because each `PersonVersion` contains a copy of that synthetic profile and its FK is
+restrictive, the command removes those versions and explicitly counted `PersonProvider` links with
+the rest of the test consumer graph inside one serializable transaction. It never deletes
+`AuditEvent` rows and instead appends `test-data.consumer-deleted` with only IDs and counts.
+Claim-linked consumers are blocked. This command is not an inactive-client, duplicate, retention,
+or legal-hold workflow.
+
 Representative-payee status, monthly income, and regular check-request needs are ordinary live
 Person profile fields inside that same tenant-scoped revision boundary. They are intentionally not
 claim data or a payment instruction. `RepresentativePayeeRules` is the shared validation owner, and
@@ -304,6 +314,13 @@ audit CSV export. Retention is explicitly reported as `PolicyOnly`; `OPERATIONS.
 legal-hold gate, SQL-principal split, monitoring expectations, and remaining enforcement work.
 Menu visibility is only presentation; both service implementations and all API routes independently
 require Admin.
+
+The same dashboard also owns the Admin test-data cleanup doorway. Admin-created test consumers are
+marked at creation and shown with a non-color-only `TEST` badge; that classification is immutable.
+The view supplies an explicit destructive confirmation and a versioned test-only attestation;
+`IAdminService` carries the command through either the local or cloud implementation. The API/local
+service, not the button, enforces the marker, Admin role, agency ownership, optimistic concurrency,
+billing-record protection, all-or-nothing graph deletion, and audit preservation.
 
 Unexpected desktop failures produce a short support reference rather than displaying stack traces.
 The local JSON-lines diagnostic entry records exception type, HRESULT, target, and stack but omits
@@ -508,6 +525,89 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
   no directory row is repointed and no foreign key rewritten.
 - AT requests continue to snapshot vendor fields with no foreign key, so submitted requests are
   unaffected by anything that happens to a directory entry afterwards.
+
+### Provider Directory Curation
+
+**Single source of truth: `ProviderDirectoryRules` (`Sati.Contracts.V1`).**
+
+- The directory is an agency-wide rolodex, not a case manager's private list. Case managers,
+  supervisors, directors, and Admins may add and correct entries; deletion and merge are Admin-only.
+  The API's validated actor filter and the transitional local service enforce the role split rather
+  than relying on which buttons are visible.
+- A normalized same-name match (trimmed, internal whitespace collapsed, case-insensitive) produces
+  a warning but does not block. Two real organizations may share a name; the interface asks a human
+  to check instead of pretending a name is a durable identity.
+- `Provider.PrimaryContact` and `Phone` remain the organization's general directory line.
+  `ProviderContact` is a separate one-to-many list of named people who work there, with at most one
+  primary contact. Provider contacts are agency-shared and deliberately carry no consumer identity.
+- An Admin merge retains one provider row, moves affiliated children, live consumer links, named
+  contacts, and the agency passthrough default, and adopts identifiers/parent only where the
+  survivor has none. It refuses tier, durable-identifier, affiliation-loop, cross-agency, and
+  current-consumer-link conflicts.
+- Merge is a serializable transaction in both persistence paths. It records the PHI-minimized
+  `provider.merged` audit action with provider IDs and moved counts. `AssessmentNeed.ProviderId`
+  and its provider-name/practice/network snapshots are deliberately not rewritten: a document
+  keeps what it recorded when the provider was selected.
+
+### Provider Affiliation
+
+**Single source of truth: `ProviderAffiliation` (`Sati.Contracts.V1`).**
+
+- A medical entry carries `MedicalKind` (`Individual | Practice | Network`) and one
+  `ParentProviderId` self-reference. Not two typed columns: a hospitalist belongs to a network
+  with no practice between, so a separate network column would have to exist on individuals too,
+  and could then disagree with the practice's network. One parent cannot hold that contradiction.
+- Legal parents are Individual → Practice or Network, Practice → Network, Network → Network.
+  Network to Network is what lets three tier names describe a four-level reality. Individual to
+  Individual is refused: supervision is not affiliation.
+- `ParentProviderId` is **not** gated to healthcare in the schema. Waiver providers have the same
+  shape and the link is the expensive-to-retrofit part; only the vocabulary is medical. The form
+  gates it, so no unvalidated hierarchy can be entered today.
+- The chain is **derived, never stored**. Callers pass their own agency's rows and walk them, so
+  correcting a directory entry corrects every reader; scoping the rows to one agency is what makes
+  a parent from another tenant fail as "not in this directory".
+- Enforced in `ApiEndpoints.ValidateProviderAffiliationAsync` and mirrored in
+  `ProviderService.GuardAffiliationAsync`, matching the duplicate-identifier arrangement above.
+- Deleting an entry that still has entries beneath it is refused by both paths and by
+  `OnDelete(Restrict)`. `SetNull` was rejected: it would promote a whole subtree to top level with
+  nothing in the interface revealing that the hierarchy had split.
+- Hierarchy raises the cost of duplicate rows — two "MaineHealth" entries split the tree
+  invisibly — which promotes the deferred directory-governance item to a prerequisite.
+
+### Consumer Provider List
+
+**Single source of truth: `ConsumerProviderRules` (`Sati.Contracts.V1`), over `PersonProvider`.**
+
+- A row stores the provider and the relationship's own fields — role, primary-care mark,
+  dates, release-on-file, order — and **no copy of the practice or network**. Those are derived
+  by walking `Provider.ParentProviderId` at read time, so a physician who changes practices is
+  corrected once instead of leaving a stale copy on every profile that names her. The derived
+  values render read-only for the same reason: an editable derived value is a stored copy.
+- `EndDate` alone says whether a link is current. There is no active flag — two columns meaning
+  the same thing drift — and ending a relationship keeps the row, because who was treating
+  someone in a given year is a question a case record has to answer.
+- Two filtered unique indexes back the rules the services also enforce: one current primary care
+  provider per consumer, and one current link per provider. Both filter on `EndDate IS NULL`,
+  because an ended relationship constrains nothing: a consumer may have had several primary care
+  providers, and may return to one they previously left.
+- **No product cap** on list length. `MaxProvidersPerConsumer` is a runaway guard whose message
+  says so. Tidiness is state, not truncation: ended links collapse behind a disclosure.
+- `ProviderId` may point at any tier. A consumer whose relationship is with a walk-in clinic
+  rather than a named clinician selects the practice, and the derived chain starts higher.
+- A directory entry cannot be deleted while any consumer record references it, ended links
+  included. The refusal carries a **count and never consumer names** — a directory screen is not
+  where who-sees-whom is disclosed.
+- Live profile data, following `PersonContact`: documents snapshot the resolved chain at
+  generation, this stays current.
+
+**Superseding the pre-directory fields.** `Person.PrimaryCareProvider` and
+`Person.HealthcareSystemName` are free text kept in place and never cleared. `LegacyProviderLinking`
+matches them to directory entries — **exact after trimming, case-insensitive, nothing else** — and
+the profile panel offers a one-click link when there is a single unambiguous match. Nothing is ever
+written without a person confirming it, and an ambiguous name is reported rather than resolved. A
+consumer silently attached to the wrong physician is a record defect nothing in the interface would
+flag, so the matcher is deliberately narrow and the writes are deliberately manual.
+`PersonContactKind.HealthcareProvider` now means a human contact *at* a provider, not the clinician.
 
 ### Service Day and Time Overlap
 
@@ -794,6 +894,9 @@ rather than in either client.
 | `AtRequestPublication` | Whether an AT request is complete enough to publish, what the case manager attests to, and whether a published request may still be edited. |
 | `AtRequestScreenshot` | The accepted format, downscale target, and size ceiling for a pasted item evidence clip. |
 | `BillingRules.IsValidNpi` | NPI check-digit validation, shared by claim generation and provider directory entry. |
+| `ProviderAffiliation` | Which medical tier may belong to which, what makes a proposed parent illegal — self, loop, wrong tier, another agency — how an ancestor chain resolves, and why an entry with entries beneath it cannot be deleted. |
+| `ConsumerProviderRules` | What a consumer's provider list accepts, what "current" means, the at-most-one-primary-care and one-current-link-per-provider rules, the display order, and the runaway guard that is explicitly not a clinical limit. |
+| `LegacyProviderLinking` | Matching the pre-directory free-text provider fields to directory entries — exact only, ambiguity refused rather than resolved — and what to tell the case manager for each outcome. Proposes; never writes. |
 | `IncidentHealthScoring` | The versioned operational health score. |
 | `JournalEntry` | The stamp format, the length ceiling, and the newest-first placement of an application-written journal entry. |
 

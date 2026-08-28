@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '1.2.29',
+    [string]$Version = '1.2.30',
 
     [Parameter(Mandatory)]
     [string]$LocalDbMsiPath

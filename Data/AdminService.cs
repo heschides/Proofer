@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -237,8 +238,136 @@ public sealed class AdminService(
                 ((person.LastName ?? string.Empty) + ", " + (person.FirstName ?? string.Empty)).Trim(' ', ','),
                 person.Revision,
                 user.Id,
-                user.DisplayName))
+                user.DisplayName,
+                person.IsTestData))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<TestConsumerDeletionResultDto> DeleteTestConsumerAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        if (personId <= 0 || expectedRevision <= 0)
+            throw new ArgumentException("Select a current consumer record and try again.");
+        if (!TestDataDeletionRules.HasValidConsumerAttestation(attestation))
+            throw new ArgumentException("The required test-data affirmation was not supplied.", nameof(attestation));
+
+        await using var context = contextFactory.CreateDbContext();
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(candidate =>
+            candidate.Id == actor.Id && candidate.AgencyId == actor.AgencyId &&
+            candidate.Role == UserRole.Admin,
+            cancellationToken);
+        if (!actorIsCurrentAdmin)
+            throw new UnauthorizedAccessException("Only a current Admin can delete test consumer data.");
+
+        var person = await context.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+            candidate.Id == personId && candidate.AgencyId == actor.AgencyId &&
+            context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId),
+            cancellationToken);
+        if (person is null)
+            throw new InvalidOperationException("This consumer was not found in your agency.");
+        if (!person.IsTestData)
+            throw new InvalidOperationException(
+                "This consumer was not marked as Test when created and cannot be deleted with the test-data tool.");
+        if (person.Revision != expectedRevision)
+            throw new InvalidOperationException(
+                "This consumer changed after you selected them. Refresh the Admin dashboard and review the current record before trying again.");
+
+        var claimLineCount = await context.ClaimLines.AsNoTracking().CountAsync(claimLine =>
+            context.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId),
+            cancellationToken);
+        if (claimLineCount > 0)
+            throw new InvalidOperationException(TestDataDeletionRules.ConsumerHasClaimsMessage);
+
+        var appointmentsDeleted = await context.Appointments
+            .Where(appointment => context.ReviewItems.Any(review =>
+                review.Id == appointment.ReviewItemId && review.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var reviewsDeleted = await context.ReviewItems
+            .Where(review => review.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var contactsDeleted = await context.PersonContacts
+            .Where(contact => contact.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var personProvidersDeleted = await context.PersonProviders
+            .Where(link => link.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var formsDeleted = await context.Forms
+            .Where(form => form.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var atRequestItemsDeleted = await context.ATRequestItems
+            .Where(item => context.ATRequests.Any(request =>
+                request.Id == item.ATRequestId && request.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var atRequestsDeleted = await context.ATRequests
+            .Where(request => request.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var assessmentsDeleted = await context.ComprehensiveAssessments
+            .Where(assessment => assessment.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var notesDeleted = await context.Notes
+            .Where(note => note.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // PersonVersion is normally append-only. This is the one narrow exception:
+        // the version ledger contains copies of a consumer's test PHI and has a
+        // restrictive FK, while the independent AuditEvent ledger remains intact.
+        var personVersionsDeleted = await context.PersonVersions
+            .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var peopleDeleted = await context.People
+            .Where(candidate => candidate.Id == personId && candidate.Revision == expectedRevision &&
+                candidate.AgencyId == actor.AgencyId && candidate.IsTestData &&
+                context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId))
+            .ExecuteDeleteAsync(cancellationToken);
+        if (peopleDeleted != 1)
+            throw new InvalidOperationException(
+                "This consumer changed while deletion was in progress. Refresh the Admin dashboard before trying again.");
+
+        var result = new TestConsumerDeletionResultDto(
+            personId,
+            formsDeleted,
+            notesDeleted,
+            contactsDeleted,
+            reviewsDeleted,
+            appointmentsDeleted,
+            assessmentsDeleted,
+            atRequestsDeleted,
+            atRequestItemsDeleted,
+            personVersionsDeleted,
+            personProvidersDeleted);
+        LocalAuditTrail.Record(
+            context,
+            actor,
+            LocalAuditActions.TestConsumerDeleted,
+            "Person",
+            personId,
+            JsonSerializer.Serialize(new
+            {
+                attestationVersion = TestDataDeletionRules.ConsumerAttestation,
+                relatedRecordsDeleted = result.RelatedRecordsDeleted,
+                formsDeleted = result.FormsDeleted,
+                notesDeleted = result.NotesDeleted,
+                contactsDeleted = result.ContactsDeleted,
+                personProvidersDeleted = result.PersonProvidersDeleted,
+                reviewsDeleted = result.ReviewsDeleted,
+                appointmentsDeleted = result.AppointmentsDeleted,
+                assessmentsDeleted = result.AssessmentsDeleted,
+                atRequestsDeleted = result.AtRequestsDeleted,
+                atRequestItemsDeleted = result.AtRequestItemsDeleted,
+                personVersionsDeleted = result.PersonVersionsDeleted
+            }));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     public async Task<List<AdminActivityDto>> GetActivityAsync(

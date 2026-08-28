@@ -35,6 +35,8 @@ internal static class LocalAuditActions
     public const string PersonJournalReminderAdded = "person.journal-reminder-added";
     public const string PersonHistoryViewed = "person-history.viewed";
     public const string PersonHistoryPdfGenerated = "person-history-pdf.generated";
+    public const string TestConsumerDeleted = "test-data.consumer-deleted";
+    public const string ProviderMerged = "provider.merged";
     public const string AuditExported = "audit.exported";
     public const string AssessmentCreated = "assessment.created";
     public const string AssessmentUpdated = "assessment.updated";

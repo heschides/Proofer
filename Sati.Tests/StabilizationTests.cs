@@ -553,21 +553,21 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.29", version);
+        Assert.Equal("1.2.30", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Safer note reassignment and themed scratchpads", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Medical provider directory and consumer provider lists", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Correct the client without duplicating the note" &&
-            section.Items.Any(item => item.Contains("confirmation", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("duplicate", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "The provider directory now describes practices and networks" &&
+            section.Items.Any(item => item.Contains("network", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("affiliat", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Protected and traceable in Local and Demo" &&
-            section.Items.Any(item => item.Contains("caseload", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("audited", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A consumer's medical providers, with the practice and network filled in" &&
+            section.Items.Any(item => item.Contains("primary care", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("directory", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Scratchpad text follows the active theme" &&
-            section.Items.Any(item => item.Contains("dark theme", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A shared agency directory with room to keep it tidy" &&
+            section.Items.Any(item => item.Contains("Admin", StringComparison.Ordinal)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
@@ -967,6 +967,11 @@ public sealed class StabilizationTests
                 services.AddSingleton<ISessionService, SessionService>();
                 services.AddSingleton<IComprehensiveAssessmentService, SmokeAssessmentService>();
                 services.AddSingleton<IPersonCenteredPlanSourceService, SmokePlanSourceService>();
+                // The assessment workspace resolves these in its constructor to offer the
+                // consumer's providers on a need. Registered here so the smoke test keeps
+                // covering that view rather than skipping it.
+                services.AddSingleton<IConsumerProviderService, SmokeConsumerProviderService>();
+                services.AddSingleton<IProviderService, SmokeProviderService>();
             })
             .Build();
 
@@ -1417,6 +1422,33 @@ public sealed class StabilizationTests
     {
         public Task<PersonCenteredPlanSource?> GetSourceAsync(int personId, int preferredAuthorUserId) =>
             Task.FromResult<PersonCenteredPlanSource?>(null);
+    }
+
+    private sealed class SmokeConsumerProviderService : IConsumerProviderService
+    {
+        public Task<List<Models.PersonProvider>> GetByPersonAsync(int personId) =>
+            Task.FromResult(new List<Models.PersonProvider>());
+        public Task<Models.PersonProvider> SaveAsync(Models.PersonProvider link) =>
+            Task.FromResult(link);
+        public Task EndAsync(int personId, int linkId, DateTime endDate) => Task.CompletedTask;
+        public Task RemoveAsync(int personId, int linkId) => Task.CompletedTask;
+    }
+
+    private sealed class SmokeProviderService : IProviderService
+    {
+        public Task<List<Models.Provider>> GetAllAsync() => Task.FromResult(new List<Models.Provider>());
+        public Task<List<Models.Provider>> GetPassthroughProvidersAsync() =>
+            Task.FromResult(new List<Models.Provider>());
+        public Task<Models.Provider> AddAsync(Models.Provider provider) => Task.FromResult(provider);
+        public Task<Models.Provider> UpdateAsync(Models.Provider provider) => Task.FromResult(provider);
+        public Task DeleteAsync(Models.Provider provider) => Task.CompletedTask;
+        public Task<List<Models.ProviderContact>> GetContactsAsync(int providerId) =>
+            Task.FromResult(new List<Models.ProviderContact>());
+        public Task<Models.ProviderContact> SaveContactAsync(Models.ProviderContact contact) =>
+            Task.FromResult(contact);
+        public Task RemoveContactAsync(int providerId, int contactId) => Task.CompletedTask;
+        public Task<string> MergeAsync(int survivingProviderId, int mergedProviderId) =>
+            Task.FromResult(string.Empty);
     }
     private sealed class RetryRecordingEdiService : IEdiService
     {

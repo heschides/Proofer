@@ -60,6 +60,11 @@ namespace Sati
         public string FullName => $"{FirstName} {LastName}".Trim();
         public int? AgencyId { get; set; }
         public Agency? Agency { get; set; } = null!;
+
+        // Creation-time classification for wholly synthetic consumers. Only an
+        // authenticated Admin may set this at birth; ordinary profile edits cannot
+        // change it. The Admin test-data deletion command requires it.
+        public bool IsTestData { get; set; }
         public string? MaineCareId { get; set; }
         public string? DiagnosisCode { get; set; }
         public int? PlaceOfService { get; set; }

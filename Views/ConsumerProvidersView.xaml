@@ -1,0 +1,260 @@
+<UserControl x:Class="Sati.Views.ConsumerProvidersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             TextElement.FontFamily="{StaticResource AppFont}">
+
+    <!-- The consumer's medical provider list.
+
+         Its own control rather than markup inside ClientsView, because the panel is
+         self-contained: it binds only to ConsumerProvidersViewModel, and a control that
+         can be loaded on its own can be tested on its own. The two per-row command
+         bindings reach the view model through RelativeSource, which fails silently when
+         it is wrong, so being able to render this in isolation is what makes that
+         provable rather than assumed.
+
+         The practice and network on each row are derived from the agency directory every
+         time the list is built and are read-only here: an editable derived value is a
+         stored copy in disguise, and the whole point is that correcting a directory entry
+         corrects every consumer who names it.
+
+         There is no cap on the list. Ended relationships keep their rows and collapse
+         behind the disclosure, which is what keeps it tidy. -->
+<Border Margin="0,10,0,0"
+        Background="{DynamicResource SurfaceBrush}"
+        BorderBrush="{DynamicResource BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="7"
+        Padding="12"
+        AutomationProperties.Name="Consumer medical providers">
+    <Expander IsExpanded="True">
+        <Expander.Header>
+            <StackPanel>
+                <TextBlock Text="MEDICAL PROVIDERS"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0"
+                           AutomationProperties.HeadingLevel="Level2" />
+                <TextBlock Text="Choose the clinician. Their practice and network fill in from the provider directory and update whenever the directory does."
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Expander.Header>
+
+        <StackPanel Margin="0,10,0,0">
+
+            <!-- Reconciling the free-text fields that predate the directory.
+                 Nothing is written automatically: the panel proposes, a case manager
+                 confirms, and the typed value is never cleared. A wrong provider on a
+                 medical record is worse than an unlinked one — unlinked is visibly
+                 unfinished, wrong looks finished. -->
+            <Border Padding="10,8"
+                    Margin="0,0,0,10"
+                    CornerRadius="4"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    AutomationProperties.Name="Provider still recorded as free text"
+                    Visibility="{Binding NeedsPrimaryCareLinking,
+                        Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding PrimaryCareLinkGuidance}"
+                               AutomationProperties.LiveSetting="Polite"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               LineHeight="17"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <!-- Offered only for a single unambiguous match. Two directory entries
+                         sharing one name is a merge problem, not a click. -->
+                    <Button Content="{Binding LinkLegacyPrimaryCareLabel}"
+                            Style="{StaticResource SmallButton}"
+                            HorizontalAlignment="Left"
+                            Padding="14,4"
+                            Margin="0,8,0,0"
+                            Command="{Binding LinkLegacyPrimaryCareCommand}"
+                            Visibility="{Binding CanLinkLegacyPrimaryCare,
+                                Converter={StaticResource BoolToVisibilityConverter}}"
+                            AutomationProperties.Name="Link this free-text provider to the directory" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding HealthcareSystemGuidance}"
+                       AutomationProperties.Name="Healthcare system reconciliation"
+                       AutomationProperties.LiveSetting="Polite"
+                       Margin="0,0,0,10"
+                       TextWrapping="Wrap"
+                       FontSize="11"
+                       LineHeight="16"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Visibility="{Binding HasHealthcareSystemGuidance,
+                           Converter={StaticResource BoolToVisibilityConverter}}" />
+
+            <!-- Add row -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Provider" Style="{StaticResource LabelStyle}" />
+                    <ComboBox AutomationProperties.Name="Medical provider"
+                              ItemsSource="{Binding ProviderOptions}"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"
+                              SelectedValue="{Binding NewProviderId, Mode=TwoWay}"
+                              IsEnabled="{Binding HasLoadedPerson}" />
+                    <TextBlock Text="{Binding SelectedProviderAffiliation}"
+                               AutomationProperties.Name="Selected provider affiliation"
+                               FontSize="11"
+                               Margin="0,3,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Visibility="{Binding HasSelectedProviderAffiliation,
+                                   Converter={StaticResource BoolToVisibilityConverter}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Role" Style="{StaticResource LabelStyle}" />
+                    <TextBox AutomationProperties.Name="Provider role"
+                             ToolTip="Neurologist, dentist, psychiatrist, and so on."
+                             MaxLength="80"
+                             Text="{Binding NewRole, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding HasLoadedPerson}" />
+                </StackPanel>
+                <StackPanel Grid.Column="4" VerticalAlignment="Bottom">
+                    <CheckBox Content="Primary care"
+                              AutomationProperties.Name="This is the primary care provider"
+                              IsChecked="{Binding NewIsPrimaryCare}"
+                              Margin="0,0,0,4" />
+                    <CheckBox Content="Release on file"
+                              AutomationProperties.Name="An information release covers this provider"
+                              IsChecked="{Binding NewHasActiveRelease}"
+                              Margin="0,0,0,6" />
+                    <Button Content="Add Provider"
+                            Style="{StaticResource PrimaryButton}"
+                            Padding="14,5"
+                            Command="{Binding AddProviderCommand}"
+                            IsEnabled="{Binding CanAdd}"
+                            AutomationProperties.Name="Add this provider to the consumer" />
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       AutomationProperties.Name="Provider list message"
+                       AutomationProperties.LiveSetting="Assertive"
+                       Margin="0,7,0,0"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource DangerStrongBrush}"
+                       Visibility="{Binding HasStatusMessage,
+                           Converter={StaticResource BoolToVisibilityConverter}}" />
+
+            <TextBlock Text="No providers recorded yet."
+                       Margin="0,10,0,0"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Visibility="{Binding HasCurrent,
+                           Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+            <ScrollViewer MaxHeight="170"
+                          Margin="0,8,0,0"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Current}"
+                              AutomationProperties.Name="Current medical providers">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,6"
+                                    Padding="9,7"
+                                    Background="{DynamicResource PersonGroupAltBrush}"
+                                    BorderBrush="{DynamicResource DividerBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    AutomationProperties.Name="{Binding AutomationName}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="3*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Text="{Binding ProviderName}"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding RoleLabel}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                        <!-- Derived, never stored. Read-only for that reason. -->
+                                        <TextBlock Text="{Binding Affiliation}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Visibility="{Binding HasAffiliation,
+                                                       Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <TextBlock Text="{Binding StatusLabel}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <Button Content="End"
+                                                Style="{StaticResource SmallButton}"
+                                                Padding="12,4"
+                                                Margin="0,0,6,0"
+                                                ToolTip="Record that this relationship has ended. The entry is kept."
+                                                Command="{Binding DataContext.EndProviderCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Remove"
+                                                Style="{StaticResource SmallButton}"
+                                                Padding="12,4"
+                                                ToolTip="Delete this entry. Use only when it was recorded against the wrong consumer."
+                                                Command="{Binding DataContext.RemoveProviderCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Past providers are kept and collapsed, never deleted:
+                 who was treating someone in a given year is a question
+                 the record has to be able to answer. -->
+            <Expander Margin="0,6,0,0"
+                      IsExpanded="{Binding ShowPast, Mode=TwoWay}"
+                      Header="{Binding PastDisclosureLabel}"
+                      AutomationProperties.Name="Show past providers"
+                      Visibility="{Binding HasPast,
+                          Converter={StaticResource BoolToVisibilityConverter}}">
+                <ItemsControl ItemsSource="{Binding Past}"
+                              Margin="0,6,0,0"
+                              AutomationProperties.Name="Past medical providers">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="3*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding ProviderName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           AutomationProperties.Name="{Binding AutomationName}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding StatusLabel}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Expander>
+        </StackPanel>
+    </Expander>
+</Border>
+</UserControl>

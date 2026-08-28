@@ -110,6 +110,27 @@ public sealed class ReleaseUiStructureTests
         Assert.Contains("SuccessStrongBrush", clients);
         Assert.Contains("All other details are optional", clients);
         Assert.Contains("Representative-payee income and needs become required only when Yes is selected", clients);
+        Assert.Contains("Mark new consumer as Test", clients);
+        Assert.Contains("CanMarkNewConsumerAsTest", clients);
+        Assert.Contains("This designation cannot be added or removed after creation", clients);
+    }
+
+    [Fact]
+    public void AdminTestConsumerDeletionIsVisibleAccessibleAndConfirmedByTheView()
+    {
+        var view = File.ReadAllText(Path.Combine(Root, "Views", "AdminDashboardView.xaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "Views", "AdminDashboardView.xaml.cs"));
+
+        Assert.Contains("DeleteTestConsumerCommand", view);
+        Assert.Contains("TEST DATA ONLY", view);
+        Assert.Contains("AutomationProperties.Name=\"Delete selected test consumer\"", view);
+        Assert.Contains("This cannot be undone", view);
+        Assert.Contains("AutomationProperties.Name=\"Test consumer\"", view);
+        Assert.Contains("marked Test at creation", view);
+        Assert.Contains("TestConsumerDeletionConfirmationRequested += ConfirmTestConsumerDeletion", codeBehind);
+        Assert.Contains("new ConfirmationDialog", codeBehind);
+        Assert.Contains("isDestructive: true", codeBehind);
+        Assert.Contains("\"Delete\"", codeBehind);
     }
 
     [Fact]

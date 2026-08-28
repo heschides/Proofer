@@ -6,31 +6,33 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Safer note reassignment and themed scratchpads";
+    public const string ReleaseName = "Medical provider directory and consumer provider lists";
     public const string ReleaseDate = "August 28, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Correct the client without duplicating the note",
+            "The provider directory now describes practices and networks",
             [
-                "An editable saved note can now be moved to the correct client with the existing Client selector.",
-                "Sati names both clients in an explicit confirmation before changing the record, and No safely restores the original selection.",
-                "The same note is moved rather than copied, so correcting the client does not create a duplicate clinical record."
+                "A medical provider is recorded as an individual clinician, a practice, or a network, and can be affiliated with the organization it belongs to.",
+                "Affiliation is one link, so a clinician's practice and network are read from the directory rather than typed twice and allowed to disagree.",
+                "The form offers only affiliations Sati will accept, and explains what is missing when there is nothing to choose."
             ]),
         new(
-            "Protected and traceable in Local and Demo",
+            "A consumer's medical providers, with the practice and network filled in",
             [
-                "A note can move only between clients on the signed-in case manager's own caseload and in the same agency.",
-                "Stale edits and submitted-record locks still apply; logged or approved notes must be returned before correction.",
-                "Each successful reassignment is audited with record IDs only, keeping client names and note text out of the general audit envelope."
+                "The consumer profile lists medical providers, with the primary care provider first and past providers kept behind a disclosure.",
+                "Choosing a clinician fills in their practice and network from the directory, so correcting the directory once corrects every consumer who names them.",
+                "Ending a relationship keeps the entry, so the record can still say who was treating a consumer in a given year.",
+                "There is no limit on how many providers a consumer may have."
             ]),
         new(
-            "Scratchpad text follows the active theme",
+            "A shared agency directory with room to keep it tidy",
             [
-                "Today's Work and Tomorrow's Agenda now use the theme's primary text color instead of falling back to dark system text.",
-                "The typing caret follows the same dynamic theme color, including Harbor Night and the other dark themes.",
-                "Rendered-view coverage checks both scratchpad tabs under a dark theme."
+                "The directory has always been agency-wide; any case manager can now add and correct entries, while only an Admin can remove or merge them.",
+                "Typing a name that already exists shows a warning rather than blocking the entry, because two organizations can genuinely share a name.",
+                "A directory entry can hold several named contacts alongside the organization's general phone line.",
+                "An Admin can merge two entries; documents that already named the merged entry keep exactly what they recorded."
             ]),
         new(
             "Still planned before commercial production",

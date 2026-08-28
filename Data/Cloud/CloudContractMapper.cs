@@ -66,6 +66,7 @@ internal static class CloudContractMapper
         person.HasEmploymentSpecialist = dto.HasEmploymentSpecialist;
         person.HasWorkSupports = dto.HasWorkSupports;
         person.IsEmployed = dto.IsEmployed;
+        person.IsTestData = dto.IsTestData;
         person.Revision = dto.Revision;
         person.Forms = dto.Forms.Select(ToForm).ToList();
         person.Notes = dto.Notes.Select(ToNoteSummary).ToList();
@@ -359,6 +360,42 @@ internal static class CloudContractMapper
         Revision = dto.Revision
     };
 
+    public static PersonProvider ToConsumerProvider(ConsumerProviderDto dto)
+    {
+        var link = PersonProvider.Rehydrate(dto.Id);
+        link.PersonId = dto.PersonId;
+        link.ProviderId = dto.ProviderId;
+        link.Role = dto.Role;
+        link.IsPrimaryCare = dto.IsPrimaryCare;
+        link.StartDate = dto.StartDate;
+        link.EndDate = dto.EndDate;
+        link.HasActiveRelease = dto.HasActiveRelease;
+        link.SortOrder = dto.SortOrder;
+        return link;
+    }
+
+    public static SaveConsumerProviderRequest ToSaveConsumerProviderRequest(PersonProvider link) => new(
+        link.ProviderId, link.Role, link.IsPrimaryCare, link.StartDate, link.EndDate,
+        link.HasActiveRelease, link.SortOrder);
+
+    public static ProviderContact ToProviderContact(ProviderContactDto dto)
+    {
+        var contact = ProviderContact.Rehydrate(dto.Id);
+        contact.ProviderId = dto.ProviderId;
+        contact.Name = dto.Name;
+        contact.Role = dto.Role;
+        contact.Phone = dto.Phone;
+        contact.Extension = dto.Extension;
+        contact.Email = dto.Email;
+        contact.IsPrimary = dto.IsPrimary;
+        contact.SortOrder = dto.SortOrder;
+        return contact;
+    }
+
+    public static SaveProviderContactRequest ToSaveProviderContactRequest(ProviderContact contact) =>
+        new(contact.Name, contact.Role, contact.Phone, contact.Extension, contact.Email,
+            contact.IsPrimary, contact.SortOrder);
+
     public static Provider ToProvider(ProviderDto dto) => new()
     {
         Id = dto.Id, Type = Parse<ProviderType>(dto.Type), Name = dto.Name,
@@ -368,13 +405,16 @@ internal static class CloudContractMapper
         ProvidesPassthroughService = dto.ProvidesPassthroughService,
         BillingLocationEis = dto.BillingLocationEis, ProgramContact = dto.ProgramContact,
         BillingContact = dto.BillingContact,
-        Npi = dto.Npi, MaineCareProviderId = dto.MaineCareProviderId
+        Npi = dto.Npi, MaineCareProviderId = dto.MaineCareProviderId,
+        // Absent or unrecognised leaves the entry unaffiliated rather than guessing a tier.
+        MedicalKind = Enum.TryParse<MedicalProviderKind>(dto.MedicalKind, out var kind) ? kind : null,
+        ParentProviderId = dto.ParentProviderId
     };
 
     public static SaveProviderRequest ToSaveProviderRequest(Provider p) => new(
         p.Type.ToString(), p.Name, p.Street, p.City, p.State, p.Zip, p.PrimaryContact, p.Phone,
         (int)p.OfferedServices, p.ProvidesPassthroughService, p.BillingLocationEis, p.ProgramContact, p.BillingContact,
-        p.Npi, p.MaineCareProviderId);
+        p.Npi, p.MaineCareProviderId, p.MedicalKind?.ToString(), p.ParentProviderId);
 
     public static ATRequest ToAtRequest(AtRequestDto dto)
     {

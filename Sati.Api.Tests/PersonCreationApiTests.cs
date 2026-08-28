@@ -43,6 +43,69 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
         Assert.Equal(auditBefore.Count + 1, (await factory.GetAuditEventsAsync("person.created")).Count);
     }
 
+    [Fact]
+    public async Task AdminCanCreateAMarkedTestConsumerAndTheLifecycleRecordsIt()
+    {
+        using var admin = await factory.CreateAuthenticatedClientAsync("admin-one");
+        var request = ValidRequest() with
+        {
+            FirstName = "Synthetic",
+            LastName = Guid.NewGuid().ToString("N")[..10],
+            IsTestData = true
+        };
+
+        var response = await admin.PostAsJsonAsync("/api/v1/people", request);
+        var created = await response.Content.ReadFromJsonAsync<PersonDto>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(created!.IsTestData);
+        var history = await admin.GetFromJsonAsync<List<PersonVersionDto>>(
+            $"/api/v1/people/{created!.Id}/history");
+        Assert.Contains(Assert.Single(history!).Changes,
+            change => change.Field == "isTestData" && change.NewValue == "Yes");
+    }
+
+    [Fact]
+    public async Task CaseManagerCannotForgeTheTestMarker()
+    {
+        using var owner = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var before = await owner.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload");
+
+        var response = await owner.PostAsJsonAsync(
+            "/api/v1/people",
+            ValidRequest() with { IsTestData = true });
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(problem.GetProperty("errors").TryGetProperty("isTestData", out _));
+        Assert.Equal(before!.Count,
+            (await owner.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload"))!.Count);
+    }
+
+    [Fact]
+    public async Task TestDesignationCannotBeChangedByTheOrdinaryEditRoute()
+    {
+        using var admin = await factory.CreateAuthenticatedClientAsync("admin-one");
+        var request = ValidRequest() with
+        {
+            FirstName = "Immutable",
+            LastName = Guid.NewGuid().ToString("N")[..10],
+            IsTestData = true
+        };
+        var createdResponse = await admin.PostAsJsonAsync("/api/v1/people", request);
+        var created = await createdResponse.Content.ReadFromJsonAsync<PersonDto>();
+
+        var editResponse = await admin.PutAsJsonAsync(
+            $"/api/v1/people/{created!.Id}",
+            request with { ExpectedRevision = created.Revision, IsTestData = false });
+        var problem = await editResponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, editResponse.StatusCode);
+        Assert.True(problem.GetProperty("errors").TryGetProperty("isTestData", out _));
+        var people = await admin.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload");
+        Assert.True(people!.Single(person => person.Id == created.Id).IsTestData);
+    }
+
     [Theory]
     [InlineData("first", "firstName")]
     [InlineData("last", "lastName")]

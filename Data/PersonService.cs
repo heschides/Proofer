@@ -35,8 +35,22 @@ namespace Sati.Data
             }
 
             person.AgencyId = actor.AgencyId;
-            ValidatePerson(person, requireNewForms: person.EffectiveDate.HasValue);
             await using var context = _contextFactory.CreateDbContext();
+            if (person.IsTestData)
+            {
+                var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(candidate =>
+                    candidate.Id == actor.Id && candidate.AgencyId == actor.AgencyId &&
+                    candidate.Role == UserRole.Admin);
+                if (!actorIsCurrentAdmin)
+                {
+                    throw new PersonValidationException(new Dictionary<string, string[]>
+                    {
+                        ["isTestData"] = ["Only a current Admin can create a consumer marked as Test."]
+                    });
+                }
+            }
+
+            ValidatePerson(person, requireNewForms: person.EffectiveDate.HasValue);
             person.Revision = 1;
             context.People.Add(person);
             PersonLifecycleLedger.RecordCreated(context, actor, person);
@@ -70,6 +84,13 @@ namespace Sati.Data
             if (person.Revision != stored.Revision)
                 throw new InvalidOperationException(
                     "This Person was changed after you opened it. Reload the Person before saving.");
+            if (person.IsTestData != stored.IsTestData)
+            {
+                throw new PersonValidationException(new Dictionary<string, string[]>
+                {
+                    ["isTestData"] = ["The Test designation is set only when a consumer is created and cannot be changed later."]
+                });
+            }
 
             var before = PersonLifecycleLedger.Capture(stored);
             await PersonLifecycleLedger.EnsureBaselineAsync(context, stored);

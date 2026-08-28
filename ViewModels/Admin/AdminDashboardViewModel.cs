@@ -34,9 +34,11 @@ public partial class AdminDashboardViewModel(
     [ObservableProperty] private AdminPersonListItemDto? selectedPerson;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string statusMessage = string.Empty;
+    [ObservableProperty] private string noticeMessage = string.Empty;
     [ObservableProperty] private DateTime? lastRefreshedAt;
 
     public bool HasError => !string.IsNullOrWhiteSpace(StatusMessage);
+    public bool HasNotice => !string.IsNullOrWhiteSpace(NoticeMessage);
     public bool HasSelectedPerson => SelectedPerson is not null;
     public bool HasHistory => PersonHistory.Count > 0;
     public string LastRefreshedLabel => LastRefreshedAt is null
@@ -45,6 +47,7 @@ public partial class AdminDashboardViewModel(
 
     public event EventHandler<AdminPdfReadyEventArgs>? PdfReady;
     public event EventHandler<AdminCsvReadyEventArgs>? CsvReady;
+    public event EventHandler<AdminTestConsumerDeletionConfirmationEventArgs>? TestConsumerDeletionConfirmationRequested;
 
     public async Task InitializeAsync()
     {
@@ -65,6 +68,7 @@ public partial class AdminDashboardViewModel(
 
         IsBusy = true;
         StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
         var selectedId = SelectedPerson?.PersonId;
         try
         {
@@ -103,6 +107,7 @@ public partial class AdminDashboardViewModel(
     {
         OnPropertyChanged(nameof(HasSelectedPerson));
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
+        DeleteTestConsumerCommand.NotifyCanExecuteChanged();
         _historyCancellation?.Cancel();
         _historyCancellation?.Dispose();
         _historyCancellation = new CancellationTokenSource();
@@ -114,6 +119,7 @@ public partial class AdminDashboardViewModel(
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
         UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
+        DeleteTestConsumerCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnAuditExportReasonChanged(string value) =>
@@ -130,6 +136,7 @@ public partial class AdminDashboardViewModel(
     partial void OnSelectedIncidentStatusChanged(string value) =>
         UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
     partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasError));
+    partial void OnNoticeMessageChanged(string value) => OnPropertyChanged(nameof(HasNotice));
     partial void OnLastRefreshedAtChanged(DateTime? value) => OnPropertyChanged(nameof(LastRefreshedLabel));
 
     private bool CanUpdateIncidentStatus() =>
@@ -205,6 +212,57 @@ public partial class AdminDashboardViewModel(
     }
 
     private bool CanExportPersonAuditPdf() => SelectedPerson is not null && !IsBusy;
+
+    private bool CanDeleteTestConsumer() =>
+        SelectedPerson?.IsTestData == true && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanDeleteTestConsumer))]
+    private async Task DeleteTestConsumerAsync()
+    {
+        var person = SelectedPerson;
+        if (person is null)
+            return;
+
+        var confirmation = new AdminTestConsumerDeletionConfirmationEventArgs(
+            person.PersonId,
+            person.DisplayName,
+            TestDataDeletionRules.ConsumerConfirmationText);
+        TestConsumerDeletionConfirmationRequested?.Invoke(this, confirmation);
+        if (!confirmation.Confirmed)
+            return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
+        TestConsumerDeletionResultDto? result = null;
+        try
+        {
+            _historyCancellation?.Cancel();
+            result = await adminService.DeleteTestConsumerAsync(
+                person.PersonId,
+                person.Revision,
+                TestDataDeletionRules.ConsumerAttestation);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The consumer was not deleted. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (result is null)
+            return;
+
+        await RefreshAsync();
+        if (!HasError)
+        {
+            NoticeMessage = result.RelatedRecordsDeleted == 1
+                ? $"Deleted test consumer {person.DisplayName} and 1 related test record. The audit event was retained."
+                : $"Deleted test consumer {person.DisplayName} and {result.RelatedRecordsDeleted} related test records. The audit event was retained.";
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanExportPersonAuditPdf))]
     private async Task ExportPersonAuditPdfAsync()
@@ -302,6 +360,7 @@ public sealed class AdminActivityRow(AdminActivityDto activity)
         "person.journal-updated" => "Updated Person journal",
         "person-history.viewed" => "Viewed Person history",
         "person-history-pdf.generated" => "Exported Person audit PDF",
+        "test-data.consumer-deleted" => "Deleted test consumer",
         "audit.exported" => "Exported audit activity",
         "user.created" => "Created user",
         "user.updated" => "Updated user",
@@ -336,4 +395,15 @@ public sealed class AdminPdfReadyEventArgs(byte[] content, string suggestedFileN
 {
     public byte[] Content { get; } = content;
     public string SuggestedFileName { get; } = suggestedFileName;
+}
+
+public sealed class AdminTestConsumerDeletionConfirmationEventArgs(
+    int personId,
+    string displayName,
+    string message) : EventArgs
+{
+    public int PersonId { get; } = personId;
+    public string DisplayName { get; } = displayName;
+    public string Message { get; } = message;
+    public bool Confirmed { get; set; }
 }

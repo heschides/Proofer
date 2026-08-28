@@ -201,6 +201,7 @@ namespace Sati
                         services.AddTransient<DatabasePatienceWindow>();
                         services.AddTransient<SchedulerViewModel>();
                         services.AddTransient<SsnPanelViewModel>();
+                        services.AddTransient<ConsumerProvidersViewModel>();
                         services.AddTransient<NewClientViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.DhhsFormsViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.AgencyReleaseViewModel>();
@@ -374,6 +375,7 @@ namespace Sati
             services.AddTransient<IPlatformHealthService, LocalPlatformHealthService>();
             services.AddSingleton<PersonAuditPdfExporter>();
             services.AddTransient<IPersonContactService, PersonContactService>();
+            services.AddTransient<IConsumerProviderService, ConsumerProviderService>();
             services.AddTransient<INoteService, NoteService>();
             services.AddTransient<IAuthService, AuthService>();
             services.AddTransient<IUserService, UserService>();
@@ -440,6 +442,7 @@ namespace Sati
             services.AddTransient<IFormService, CloudFormService>();
             services.AddTransient<IUserService, CloudUserService>();
             services.AddTransient<IPersonContactService, CloudPersonContactService>();
+            services.AddTransient<IConsumerProviderService, CloudConsumerProviderService>();
             services.AddTransient<ISupervisorService, CloudSupervisorService>();
             services.AddTransient<IReviewItemService, CloudReviewItemService>();
             services.AddTransient<IATRequestService, CloudAtRequestService>();

@@ -47,6 +47,11 @@ namespace Sati.ViewModels
         /// of the demographic save, which must not carry the number.
         /// </summary>
         public SsnPanelViewModel SsnPanel { get; }
+
+        // The consumer's medical provider list. Its own child view model because the
+        // practice and network are derived from the agency directory on every read, and
+        // that loading and resolution has nothing to do with the rest of this class.
+        public ConsumerProvidersViewModel ConsumerProviders { get; }
         public AgencyReleaseViewModel AgencyRelease { get; }
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
@@ -138,6 +143,8 @@ namespace Sati.ViewModels
         private bool isClientEditorOpen;
         [ObservableProperty]
         private bool isClientListCompact;
+        [ObservableProperty]
+        private bool isTestData;
         [ObservableProperty]
         private int clientWorkspaceTabIndex;
         [ObservableProperty]
@@ -297,6 +304,7 @@ namespace Sati.ViewModels
             RefreshComplianceFlags();
             _ = LoadSelectedPersonWorkspaceSafelyAsync(value, _workspaceLoads.Begin());
             SsnPanel.SetPerson(value?.Id);
+            ConsumerProviders.SetPerson(value);
             DhhsForms.SetPerson(value);
             AgencyRelease.SetPerson(value);
             RefreshUpcomingItems(value);
@@ -325,12 +333,14 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(SubmitButtonLabel));
             OnPropertyChanged(nameof(EntryPanelHeader));
             OnPropertyChanged(nameof(IsAddingClient));
+            OnPropertyChanged(nameof(CanMarkNewConsumerAsTest));
         }
 
         partial void OnIsClientEditorOpenChanged(bool value)
         {
             OnPropertyChanged(nameof(ShowClientWorkspace));
             OnPropertyChanged(nameof(IsAddingClient));
+            OnPropertyChanged(nameof(CanMarkNewConsumerAsTest));
         }
 
         partial void OnIsContactEditorOpenChanged(bool value)
@@ -401,6 +411,8 @@ namespace Sati.ViewModels
         public bool HasSelectedPerson => SelectedPerson is not null;
         public bool ShowClientWorkspace => HasSelectedPerson || IsClientEditorOpen;
         public bool IsAddingClient => IsClientEditorOpen && !IsEditMode;
+        public bool CanMarkNewConsumerAsTest =>
+            IsAddingClient && _sessionService.CurrentUser?.Role == UserRole.Admin;
 
         // Comma-joined list of the selected client's active waiver services, for
         // display only. Empty string when none are set, which the detail panel
@@ -551,7 +563,8 @@ namespace Sati.ViewModels
                            ATRequestPdfExporter atRequestPdfExporter,
                            DhhsFormsViewModel dhhsForms,
                            AgencyReleaseViewModel agencyRelease,
-                           SsnPanelViewModel ssnPanel)
+                           SsnPanelViewModel ssnPanel,
+                           ConsumerProvidersViewModel consumerProviders)
         {
             _personService = personService;
             _sessionService = session;
@@ -566,6 +579,7 @@ namespace Sati.ViewModels
             DhhsForms = dhhsForms;
             SsnPanel = ssnPanel;
             AgencyRelease = agencyRelease;
+            ConsumerProviders = consumerProviders;
             PeopleView = CollectionViewSource.GetDefaultView(People);
             PeopleView.Filter = MatchesConsumerFilter;
             _ = LoadHealthcareOptionsSafelyAsync();
@@ -955,6 +969,7 @@ namespace Sati.ViewModels
                 person.DayProgramCount = HasCommunitySupportDayProgram ? DayProgramCount : 1;
                 person.HasEmploymentSpecialist = IsEmployed && HasEmploymentSpecialist;
                 person.HasWorkSupports = IsEmployed && HasWorkSupports;
+                person.IsTestData = CanMarkNewConsumerAsTest && IsTestData;
                 var confirmed = ComplianceReviewRequested?.Invoke(person.Forms) ?? true;
                 if (!confirmed)
                     return;
@@ -1059,6 +1074,7 @@ namespace Sati.ViewModels
             DayProgramCount = person.DayProgramCount;
             HasEmploymentSpecialist = person.HasEmploymentSpecialist;
             HasWorkSupports = person.HasWorkSupports;
+            IsTestData = person.IsTestData;
         }
 
         public async Task ReloadAsync()
@@ -1523,6 +1539,7 @@ namespace Sati.ViewModels
             DayProgramCount = 1;
             HasEmploymentSpecialist = false;
             HasWorkSupports = false;
+            IsTestData = false;
             ClearErrors();
         }
 

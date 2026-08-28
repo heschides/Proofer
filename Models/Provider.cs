@@ -1,4 +1,6 @@
-﻿namespace Sati.Models
+﻿using Sati.Contracts.V1;
+
+namespace Sati.Models
 {
     // A service provider in the agency directory: waiver, healthcare, or other.
     // Reference data (shared, admin-curated in the multi-user future), so it's a
@@ -12,6 +14,25 @@
         public ProviderType Type { get; set; } = ProviderType.Waiver;
 
         public string Name { get; set; } = string.Empty;
+
+        // ── Affiliation ──────────────────────────────────────────────────────
+        // Which tier a medical entry occupies, and the one link that expresses who
+        // it belongs to. Null Kind on anything that is not healthcare.
+        //
+        // One parent rather than separate Practice and Network columns: two typed
+        // columns cannot express a hospitalist who belongs to a network with no
+        // practice between, and adding a network column to individuals to cover
+        // that lets an individual's network disagree with their practice's. The
+        // tier rule, the cycle guard, and the ancestor walk all live in
+        // ProviderAffiliation so the desktop and the API cannot answer differently.
+        //
+        // ParentProviderId is deliberately NOT gated to healthcare in the schema.
+        // Waiver providers have the same shape — an agency owning programs owning
+        // staff — and the link is the part that cannot be retrofitted cheaply. Only
+        // the Individual/Practice/Network vocabulary is medical, and vocabulary is
+        // cheap to add later. See DECISIONS.md, 2026-08-28.
+        public MedicalProviderKind? MedicalKind { get; set; }
+        public int? ParentProviderId { get; set; }
 
         // ── Durable organization identity ────────────────────────────────────
         // A directory entry names a real organization that may later become a
@@ -54,5 +75,17 @@
         public string? BillingLocationEis { get; set; }
         public string? ProgramContact { get; set; }
         public string? BillingContact { get; set; }
+    }
+
+    // The bridge from directory rows to the shape ProviderAffiliation reasons about.
+    // Both the services and the editor go through here, so neither builds its own
+    // reduced view of a provider and drifts from the other.
+    public static class ProviderAffiliationExtensions
+    {
+        public static ProviderAffiliationNode ToAffiliationNode(this Provider provider) =>
+            new(provider.Id, provider.Name, provider.ParentProviderId, provider.MedicalKind);
+
+        public static List<ProviderAffiliationNode> ToAffiliationNodes(this IEnumerable<Provider> providers) =>
+            providers.Select(ToAffiliationNode).ToList();
     }
 }

@@ -387,15 +387,47 @@
                                                 <TextBlock Text="What result is wanted?" Style="{StaticResource GuideLabel}" />
                                                 <TextBox Text="{Binding DesiredResult, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="45" TextWrapping="Wrap" />
                                                 <CheckBox Content="Associate a service provider with this need" IsChecked="{Binding AssociateProvider}" Margin="0,10,0,4" />
-                                                <TextBox Text="{Binding ProviderNameSnapshot, UpdateSourceTrigger=PropertyChanged}"
-                                                         AutomationProperties.Name="Current or proposed provider">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+
+                                                <!-- Chosen from the consumer's own provider list, not typed.
+                                                     Selecting one FREEZES its practice and network onto this
+                                                     document: an assessment approved in March has to keep saying
+                                                     what it said in March, even after the clinician moves. This
+                                                     is the one place in Sati the chain is copied rather than
+                                                     derived, and it is deliberate. -->
+                                                <ComboBox ItemsSource="{Binding ProviderOptions}"
+                                                          DisplayMemberPath="Display"
+                                                          SelectedValuePath="ProviderId"
+                                                          SelectedValue="{Binding ProviderId, Mode=TwoWay}"
+                                                          AutomationProperties.Name="Provider associated with this need"
+                                                          Visibility="{Binding HasProviderOptions, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <ComboBox.Style>
+                                                        <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                                                             <Setter Property="IsEnabled" Value="False" />
                                                             <Style.Triggers><DataTrigger Binding="{Binding AssociateProvider}" Value="True"><Setter Property="IsEnabled" Value="True" /></DataTrigger></Style.Triggers>
                                                         </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
+                                                    </ComboBox.Style>
+                                                </ComboBox>
+
+                                                <!-- Nothing to choose from: the consumer has no linked providers
+                                                     yet. Says where to go rather than showing an empty control. -->
+                                                <TextBlock Text="No providers are linked to this consumer yet. Add them on the consumer's profile first."
+                                                           AutomationProperties.Name="No linked providers to associate"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Visibility="{Binding HasProviderOptions, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                                                <!-- What the document actually records, including entries whose
+                                                     provider was typed before the directory existed or is no
+                                                     longer on the consumer's list. Read-only: the document keeps
+                                                     what it froze. -->
+                                                <TextBlock Text="{Binding RecordedProvider}"
+                                                           AutomationProperties.Name="Provider recorded on this need"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="11"
+                                                           Margin="0,4,0,0"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Visibility="{Binding HasRecordedProvider, Converter={StaticResource BoolToVisibilityConverter}}" />
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>

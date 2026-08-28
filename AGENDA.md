@@ -2,6 +2,89 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.30 — 2026-08-28
+
+Medical provider directory and consumer provider lists. Includes the Admin test-data deletion
+work tracked as "Unreleased" below, which shipped in this release.
+
+### Provider directory hierarchy
+- [x] `Provider.MedicalKind` (`Individual | Practice | Network`) and a single
+      `ParentProviderId` self-reference. Not two typed columns: a hospitalist belongs to a
+      network with no practice between, and a second column could disagree with the first.
+- [x] `ProviderAffiliation` in `Sati.Contracts.V1` owns the tier rule, loop rejection, depth
+      bound, ancestor walk, picker filter, and the delete refusal, so the desktop and the API
+      cannot answer differently.
+- [x] Deleting an entry with entries beneath it, or on any consumer record, is refused with a
+      count and never consumer names.
+
+### Consumer provider list
+- [x] `PersonProvider` stores the link and the relationship's own fields, and no copy of the
+      practice or network — those derive from the directory on every read.
+- [x] `EndDate` alone says whether a link is current; ending keeps the row. No cap on the list.
+- [x] At most one current primary care provider and one current link per provider, enforced by
+      `ConsumerProviderRules` and filtered unique indexes.
+
+### Superseding the pre-directory fields
+- [x] `LegacyProviderLinking` matches the free-text provider fields to directory entries —
+      exact only, ambiguity refused rather than resolved — and proposes; a case manager
+      confirms. No bulk backfill runs over live consumer records.
+
+### Documents
+- [x] `AssessmentNeed` freezes the resolved provider, practice, and network at the moment of
+      choosing. The one place the chain is copied rather than derived, so an approved
+      assessment keeps saying what it said.
+
+### Shared agency directory curation
+- [x] Any caseload role may add and correct directory entries; only an Admin may remove or
+      merge them, enforced in both paths.
+- [x] A same-name entry warns without blocking.
+- [x] `ProviderContact` holds several named people per entry, alongside the organization's
+      general directory line.
+- [x] An Admin can merge two entries; documents that named the merged entry are left alone.
+
+### Admin test-data deletion
+- [x] Shipped as described in the superseded section above, including the
+      `AddTestConsumerMarker` migration and its Demo-only backfill.
+
+### Validation
+- [x] Full solution builds in Release configuration.
+- [x] 828 desktop/domain tests pass, 1 documented opt-in local-AI test skipped.
+- [x] 243 API integration tests pass.
+- [x] 4 Carika tests pass.
+
+### Deployment and artifact evidence — PENDING
+- [ ] SatiDemo schema migration applied (`scripts/Apply-ProviderDirectoryMigrations.ps1`).
+      **Blocked:** the Demo SQL firewall admits only the API's three outbound addresses, and
+      opening it to a workstation is an owner decision.
+- [ ] Demo API published; deployment identifier, ZIP SHA-256, `/health/live`, `/health/ready`,
+      `/health/version`, and contract revision parity recorded.
+- [ ] Demo installer built, accepted, hashed, and published.
+- [ ] Local installer built, accepted, hashed, and published.
+- [ ] Evidence commit pushed.
+
+## Admin test-data deletion — shipped in 1.2.30
+
+- [x] Add a clearly labeled Admin-only “Delete test consumer” action to the agency Person directory.
+- [x] Require an explicit destructive confirmation with the requested test-only affirmation and
+      guidance for duplicate or inactive consumers; Cancel and a missing view handler fail closed.
+- [x] Enforce Admin role, agency ownership, exact versioned attestation, and optimistic concurrency
+      in both local and Demo/API service paths rather than relying on button visibility.
+- [x] Let an Admin mark a consumer as synthetic test data only while creating the record, display a
+      clear `TEST` badge in the Admin directory, and make that marker immutable after creation.
+- [x] Require the durable test-data marker as well as the final deletion attestation. Existing
+      Production/local rows remain unmarked; the migration backfills existing rows only when the
+      validated database identity is exactly `SatiDemo` / `Demo`.
+- [x] Delete the complete consumer-owned test graph in one serializable transaction, retain the
+      append-only audit ledger, and add a PHI-minimized `test-data.consumer-deleted` event.
+- [x] Block deletion when any note has a billing claim line; do not delete financial, EDI, or audit
+      records through this command.
+- [x] Add focused local, API, ViewModel, confirmation, rollback, tenant-isolation, concurrency,
+      billing-protection, audit, and accessible-interface tests.
+- [x] Re-run the complete solution validation after the test-data marker and provider-directory
+      curation work: the solution builds; 828 desktop/domain tests pass with one documented opt-in
+      local-AI test skipped; all 243 API integration tests and all 4 shared-solution Carika tests
+      pass.
+
 ## Release 1.2.29 — 2026-08-28
 
 - [x] Allow an editable saved note to be reassigned with the existing Client selector without
@@ -2023,3 +2106,250 @@ creator does not merely conflict, it fails permanently, and *which* test fails d
 order. `StabilizationTests.ParameterlessFeatureViewsCanOpenRenderAndCloseOnAnStaThread` used to
 build its own; it now borrows the harness and installs its host through `RunWithHost`. Any future
 test that needs a real view must go through the harness rather than constructing an `Application`.
+
+## Provider hierarchy and consumer provider list — designed 2026-08-28
+
+Design recorded in `DECISIONS.md`: "Provider affiliation is one parent link, not three typed tiers"
+and "A consumer's provider list stores the link, never the resolved chain". Nothing below is built.
+
+This supersedes the older **Client↔provider association** item from the 2026-08-07 AT session —
+that link is slice 2 here, and is deliberately not medical-only.
+
+### Slice 1 — Directory hierarchy ✅ (2026-08-28)
+
+- [x] Add `Provider.MedicalKind` (`Individual | Practice | Network`, nullable; required when
+      `Type == Healthcare`) and `Provider.ParentProviderId` self-reference. `OnDelete(Restrict)`
+      plus an explicit refusal in both services that names the affiliated entries, rather than
+      `SetNull` silently promoting a subtree to top level.
+- [x] Add `ProviderAffiliation` to `Sati.Contracts.V1` as the single owner of the tier rule, the
+      ancestor-loop rejection, the depth bound (`MaxDepth = 10`), the chain resolution both clients
+      render, the parent-picker filter, and the delete-refusal text.
+- [x] Migration `20260828180603_AddProviderAffiliation`. Both columns nullable with no backfill:
+      every existing row is legitimately unaffiliated, and guessing a tier from a name is the fuzzy
+      matching the durable identifiers exist to avoid.
+- [x] `ProviderEditorViewModel`: designation combo, parent picker filtered to legal parents only,
+      affiliation revealed only for healthcare entries, a derived read-only chain, and an
+      explanation when no legal parent exists. Changing tier or leaving medical clears a selection
+      that is no longer legal instead of leaving it to fail at save.
+- [x] `ProviderDto` / `SaveProviderRequest` gain optional `MedicalKind` and `ParentProviderId`,
+      following the optional-parameter pattern `Npi` already uses. API validates the same rule
+      through the same contracts type; `ProviderDto.Type` is unchanged.
+- [x] `ProvidersViewModel` gained a `SaveError` surface. The directory's refusals — duplicate
+      identifier, illegal affiliation, delete with entries beneath — previously had nowhere to go
+      and were thrown into an unobserved task. A refused save keeps the editor open with the
+      entered values intact.
+- [x] Tests: 31 rule, 9 local-service, 13 view-model, 13 API. The cross-agency, loop, and
+      delete-guard tests were each confirmed to fail against the guard removed, including one
+      view-model test that was rewritten after it turned out to be passing on the tier rule rather
+      than the loop check it claimed to cover.
+
+**Outstanding from this slice**
+
+- [ ] `ProvidersView` has no *structural* render test. `StabilizationTests`'
+      `ParameterlessFeatureViewsCanOpenRenderAndCloseOnAnStaThread` already loads, measures, and
+      arranges it, so the XAML is known to parse and its resources to resolve — but it runs with no
+      DataContext, so no binding path is exercised. `NotePanelRenderTests` is the pattern for the
+      affiliation reveal, the filtered picker, and the error banner.
+- [ ] A long-lived database whose `__EFMigrationsHistory` has diverged needs the same treatment
+      `Apply-ProviderDurableIdentifiersMigration.ps1` gave the identifier columns. The desktop
+      startup path backs up and migrates normally; only a diverged database needs the runner.
+- [ ] A clinician's affiliation is not versioned. Moving a physician between practices rewrites
+      what every consumer profile displays, with no record of the previous affiliation. Correct for
+      live profile data, and the reason documents must snapshot in slice 4 — but if "who was her
+      practice in March" is ever asked of the directory itself, this is where it gets answered.
+
+### Slice 2 — Consumer provider list ✅ (2026-08-28)
+
+- [x] `PersonProvider` model: `ProviderId`, role, `IsPrimaryCare`, start/end dates, release-on-file,
+      display order. No cap. **No active flag** — `EndDate` is the only fact that says a link is
+      current; see `DECISIONS.md`. A free-text note was deliberately deferred rather than dropped.
+- [x] At-most-one current primary care provider per consumer, and one current link per provider —
+      both in `ConsumerProviderRules`, both backed by filtered unique indexes, neither a UI
+      convention. Both filter on `EndDate IS NULL`, so a consumer may return to a provider they left.
+- [x] `IConsumerProviderService` with the transitional local EF implementation and a `Cloud*` HTTP
+      one. Four routes gated through `TenantAccess.OwnsPersonAsync`, inventoried in
+      `API_AUTHORIZATION.md`, declared in `ApiSurface`.
+- [x] The interface takes `personId` alongside `linkId` on end and remove. Reading the consumer off
+      the row would let a caller-supplied link id select the scope it is then validated against.
+- [x] Profile UI: picker leading with individuals, the selected provider's chain shown before
+      committing, derived practice and network read-only on each row, primary care pinned first,
+      past providers collapsed behind a disclosure.
+- [x] Accessibility — automation names on every repeater row carrying provider, role, and status;
+      the past-provider disclosure is a keyboard-reachable `Expander`; "Ended 4 Mar 2026" is text,
+      so status never depends on noticing a shade of grey.
+- [x] The panel is its own `ConsumerProvidersView`, not markup inside `ClientsView`. It binds only
+      to `ConsumerProvidersViewModel`, and a control that loads on its own can be asserted on its
+      own — which is what made the per-row command bindings provable rather than assumed.
+- [x] Tests: 14 rules, 13 local-service, 13 view-model, 5 WPF render, 11 API. The cross-agency,
+      link-scope, and primary-care guards were each confirmed to fail with the guard removed, as
+      was the row command binding. The stale-load test was rewritten after the first version could
+      have passed whenever the newer load happened to finish second, which would have proved
+      nothing about the request tracker.
+- [x] A directory entry on any consumer record cannot be deleted — found by a test that failed on
+      its first run, because only the foreign key was stopping it. The refusal carries a count and
+      never consumer names.
+
+**Outstanding from this slice**
+
+- [x] **The Admin test-data deletion command explicitly handles `PersonProviders`.** Both service
+      paths delete and count the rows, and the result contract and PHI-minimized audit metadata
+      report that count instead of relying on an unreported cascade.
+- [ ] **No audit event on a consumer provider change.** Matches `PersonContact`, which also records
+      none, but removal is the one operation here that destroys a record and is the obvious first
+      candidate for an audited profile-child event.
+- [ ] **The panel is render-tested; its host is not.** `ConsumerProvidersViewRenderTests` loads
+      `ConsumerProvidersView` with a DataContext and asserts the row commands, the disabled Add
+      button, the derived affiliation being text rather than an input, the collapsed disclosure,
+      and the assertive live region. What stays unverified is that `ClientsView` hands it the
+      right DataContext — the smoke test loads `ClientsView` without one.
+- [ ] **`SortOrder` has no interface.** The column, the rule, and the ordering all exist and are
+      tested; nothing yet lets a case manager reorder the list, so every row is added at the end.
+
+### Slice 3 — Reconcile the superseded fields ✅ (2026-08-28)
+
+- [x] **No backfill.** The plan said "backfill by name match"; that became a per-consumer linking
+      prompt instead. A bulk write across live consumer medical records should not run unreviewed,
+      and the failure mode is asymmetric — unlinked is visibly unfinished, wrong looks finished.
+      See `DECISIONS.md`, "The legacy provider fields are linked by hand, never backfilled".
+- [x] `LegacyProviderLinking` in `Sati.Contracts.V1`: exact trimmed case-insensitive matching only,
+      an explicit `Ambiguous` outcome that refuses to pick between duplicate names, and guidance
+      text that names the next action for each outcome.
+- [x] The provider panel offers the link when free text names a primary care provider and no
+      current link says the same; one click creates the `PersonProvider` row with `IsPrimaryCare`
+      set and no invented start date. Where the typed healthcare system disagrees with the derived
+      network, the panel says so rather than preferring either.
+- [x] **No schema change was needed.** The target of `PrimaryCareProvider` is a `PersonProvider`
+      row, and of `HealthcareSystemName` the derived network — a column for either would have been
+      the fourth copy this work exists to remove. Both legacy strings are kept and never cleared.
+- [x] `PersonContactKind.HealthcareProvider` redefined as a human contact *at* a provider rather
+      than retired; existing rows are real people and the directory does not answer "who do I
+      phone at that office".
+- [x] Tests: 15 matcher, 8 panel-linking, 3 render. The near-miss cases a fuzzy matcher would get
+      wrong are named explicitly, and one test asserts that merely opening a consumer writes
+      nothing.
+
+**Outstanding from this slice**
+
+- [ ] **Retire the Settings-managed `HealthcareSystems` JSON list.** Deliberately still in place:
+      the field it feeds is still the only record for consumers nobody has linked yet, so it cannot
+      go until the reconciliation is finished. Retiring it early would strand those consumers.
+- [ ] **No agency-wide view of what is still unlinked.** The per-consumer prompt is enough to
+      finish the work but not to plan it; a supervisor cannot see how much is left.
+- [ ] **Nothing marks a consumer as deliberately not linkable.** A consumer whose free text names
+      somebody who will never be in the directory keeps its prompt forever, and there is no way to
+      say "reviewed, leaving as text".
+
+### Slice 4 — Documents ✅ (2026-08-28)
+
+- [x] `AssessmentNeed` gained `ProviderPracticeSnapshot` and `ProviderNetworkSnapshot` beside the
+      existing name and id, frozen by `ProviderAffiliation.Snapshot` at the moment of choosing.
+      The document is stored as JSON, so this needed no migration and older documents deserialize
+      unchanged.
+- [x] The free-text provider box on a need is replaced by a picker over the consumer's **current**
+      linked providers, closing the deferred "replace the temporary provider-name entry" item.
+      A need whose provider was typed before the directory, or who has since left the consumer's
+      list, still renders exactly what it recorded.
+- [x] The Person-Centered Plan quotes the frozen triple rather than the bare name.
+- [x] Tests: 9 covering the snapshot, including that an already-taken snapshot does not move when
+      the directory does, that a hospitalist with no practice does not render a dangling separator,
+      and that a need written before this change still reads correctly.
+- [x] `StabilizationTests`' feature-view smoke host gained the two new service registrations, so
+      the assessment workspace stays covered rather than being skipped.
+
+**Outstanding from this slice**
+
+- [ ] **Fixed-row forms still do not take N providers in the case manager's order.** The rule and
+      the ordering exist in `ConsumerProviderRules.OrderForDisplay`, and `SortOrder` is stored, but
+      no document currently renders a provider table — so there is nothing yet to apply it to. It
+      lands with the first form that has provider rows.
+- [ ] **The assessment workspace resolves services in its view constructor.** Pre-existing
+      service-locator usage that this slice added two more entries to, and the reason the smoke
+      test needs a host at all. Worth moving to constructor injection when that view is next
+      touched properly.
+- [ ] **No test covers the assessment need picker end to end.** The snapshot function and the model
+      are tested; the picker binding and the freeze-on-select path are not.
+
+### Prerequisite promoted by this design
+
+- [x] **Provider directory governance.** Previously deferred as tidiness. Once entries have parents,
+      a duplicate network row splits the tree with no view that reveals it, so admin curation and a
+      merge path for duplicates become a precondition for slice 3 rather than later polish. The
+      role split, same-name warning, named contacts, Admin merge, audit event, UI, and focused tests
+      are now in place.
+
+### Open, deliberately not designed yet
+
+- [ ] A clinician affiliated with two practices — hospital privileges plus a private practice. A
+      single parent says one. Accepted for now; if it becomes real, the location belongs on the
+      `PersonProvider` link rather than as a second parent, which would reintroduce the
+      disagreement the single parent exists to prevent.
+- [ ] Waiver-side tier vocabulary. The parent link, cycle guard, and resolution walk are already
+      general; only the `Individual | Practice | Network` naming is medical.
+
+## Provider directory as a shared agency rolodex — assessed 2026-08-28
+
+Asked whether providers created by one case manager become an agency-wide pool everyone draws from.
+**They already do.** `Provider.AgencyId` scopes every directory entry to the agency, `GetAllAsync`
+returns the whole agency's directory, and both the Providers tab and the consumer profile's picker
+read from it. Nothing is per-user. What is missing is not sharing — it is the governance a shared
+pool needs to stay usable.
+
+- [x] **Writes now use the same role policy in both paths.** Case managers, supervisors, directors,
+      and Admins may add/correct shared directory entries; deletion and merge are Admin-only and
+      are enforced below the interface.
+- [x] **Duplicate detection warns on the way in.** Uniqueness is enforced only on `Npi` and
+      `MaineCareProviderId`, both optional and both usually absent when an entry is created from a
+      phone call. Two case managers each typing "MaineHealth" get two rows. Since the affiliation
+      work, that no longer merely clutters the list — it splits the hierarchy, with half the
+      practices hanging off each row. The editor now shows a normalized same-name warning without
+      blocking legitimate organizations that happen to share a name.
+- [x] **Admin merge is implemented.** It repoints
+      `ParentProviderId`, `PersonProvider.ProviderId`, `Settings.DefaultPassthroughProviderId`, and
+      `AssessmentNeed.ProviderId` — except the last, which must **not** move: a document froze that
+      entry deliberately. It also moves named contacts, refuses ambiguous live consumer-link
+      conflicts, runs transactionally, and records a PHI-minimized `provider.merged` event.
+- [x] **The directory has curation tools.** The shared Providers interface now includes the warning,
+      named-contact editor, and Admin-only merge confirmation workflow.
+- [ ] **Cross-agency sharing is a different problem and already designed.** Each agency holding its
+      own Spurwink row is correct, not redundant — see `DECISIONS.md`, "Provider directory entries
+      are local knowledge about a shared organization". A directory shared *between* agencies waits
+      on the canonical Organization registry, and reconciliation there links rather than swaps.
+
+## HANDOFF RESOLVED — provider directory curation completed 2026-08-28
+
+The earlier handoff below was completed in the same working branch. Provider contacts and the
+test-consumer marker have migrations generated but deliberately not applied by ordinary feature
+work; deployment and migration remain release-playbook actions.
+
+### What is finished and working
+
+- **Role split.** `ProviderDirectoryRules.CanCreateOrEdit` (CaseManager/Supervisor/Director/Admin)
+  and `CanDeleteOrMerge` (Admin only), applied in *both* paths. This closed the live inconsistency
+  where local Production let any case manager delete while the API returned 403 on create.
+- **Same-name detection.** `ProviderDirectoryRules.SameNameWarning` — normalized (trim, collapse
+  whitespace, case-insensitive), warns and never blocks, because two real organizations can share
+  a name.
+- **Multiple named contacts.** `ProviderContact` model, EF config both sides, migration
+  `20260828193518_AddProviderContacts`, service methods, four API routes, DTOs, cloud client,
+  `ApiSurface` updated and its test passing. Deliberately *separate* from
+  `Provider.PrimaryContact`/`Phone`, which stay as the organization's general directory line —
+  those are facts about the organization, contacts are facts about people who work there.
+- **Merge.** `ProviderDirectoryRules.ValidateMerge` plus implementations in both paths. Moves
+  affiliated entries, consumer links, and contacts to the survivor; adopts identifiers and parent
+  only where the survivor has none; refuses on conflicting NPI/MaineCare ids, mismatched tiers, and
+  loops. **Deliberately does NOT repoint `AssessmentNeed.ProviderId`** — a document froze that
+  entry and rewriting it would change what an approved assessment says.
+- Three API tests updated to the new policy, and two of the earlier delete-guard tests moved onto
+  an Admin session.
+
+### Completion of the handed-off work
+
+1. **UI complete.** The provider editor presents a non-blocking same-name warning, named-contact
+   maintenance, and an Admin-only merge review with a destructive confirmation that fails closed.
+2. **Tests complete.** Shared rules, both merge paths, contacts, stale selection loads, confirmation,
+   authorization/tenancy, frozen assessment references, and rendered WPF controls have focused
+   coverage.
+3. **Merge audit complete.** Both persistence paths retain `provider.merged` with IDs and counts,
+   never consumer names.
+4. **Documentation complete.** Architecture, route authorization, audit catalog, and durable design
+   decisions describe the implemented boundary.

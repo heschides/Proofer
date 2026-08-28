@@ -80,7 +80,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.29", release["releaseVersion"]);
+        Assert.Equal("1.2.30", release["releaseVersion"]);
     }
 
     [Fact]
@@ -295,13 +295,29 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task CaseManagerCannotCreateProvider()
+    public async Task CaseManagerCreatesProviderInTheirOwnAgencyOnly()
     {
+        // Creating is open to any caseload role as of 2026-08-28 — the directory is agency-wide
+        // and only useful if it can be added to in the moment. What stays closed is the tenant
+        // boundary: the agency is assigned server-side and never taken from the request.
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var otherAgency = await _factory.CreateAuthenticatedClientAsync("case-manager-two");
 
         var response = await client.PostAsJsonAsync("/api/v1/providers", ProviderRequest("New provider"));
+        var created = await response.Content.ReadFromJsonAsync<ProviderDto>();
+        try
+        {
+            var visibleElsewhere = await otherAgency.GetFromJsonAsync<List<ProviderDto>>("/api/v1/providers");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.DoesNotContain(visibleElsewhere!, provider => provider.Name == "New provider");
+        }
+        finally
+        {
+            using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+            if (created is not null)
+                await admin.DeleteAsync($"/api/v1/providers/{created.Id}");
+        }
     }
 
     [Fact]

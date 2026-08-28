@@ -37,7 +37,9 @@ public static class ApiSurface
     [
         "person-representative-payee-v1",
         "future-note-reminder-v1",
-        "billing-compliance-settings-v1"
+        "billing-compliance-settings-v1",
+        "admin-test-consumer-deletion-v1",
+        "person-test-data-v1"
     ];
 
     /// <summary>
@@ -51,7 +53,9 @@ public static class ApiSurface
         "DELETE /api/v1/contacts/{contactId:int}",
         "DELETE /api/v1/exempt-dates/{id:int}",
         "DELETE /api/v1/notes/{id:int}",
+        "DELETE /api/v1/people/{personId:int}/providers/{linkId:int}",
         "DELETE /api/v1/providers/{id:int}",
+        "DELETE /api/v1/providers/{providerId:int}/contacts/{contactId:int}",
         "GET /api/v1/admin/activity",
         "GET /api/v1/admin/incidents",
         "GET /api/v1/admin/operations",
@@ -82,10 +86,12 @@ public static class ApiSurface
         "GET /api/v1/people/{personId:int}/journal",
         "GET /api/v1/people/{personId:int}/notes",
         "GET /api/v1/people/{personId:int}/pcp-source",
+        "GET /api/v1/people/{personId:int}/providers",
         "GET /api/v1/people/{personId:int}/reviews",
         "GET /api/v1/people/{personId:int}/ssn",
         "GET /api/v1/platform/incidents",
         "GET /api/v1/providers",
+        "GET /api/v1/providers/{providerId:int}/contacts",
         "GET /api/v1/reports/consumer-billing-loss",
         "GET /api/v1/reviews",
         "GET /api/v1/scratchpad/history",
@@ -99,6 +105,7 @@ public static class ApiSurface
         "GET /health/version",
         "POST /api/v1/admin/audit-export.csv",
         "POST /api/v1/admin/demo/seed-ssns",
+        "POST /api/v1/admin/test-data/consumers/{personId:int}/delete",
         "POST /api/v1/assessments/{assessmentId:int}/submit",
         "POST /api/v1/at-requests",
         "POST /api/v1/at-requests/{id:int}/publish",
@@ -122,7 +129,10 @@ public static class ApiSurface
         "POST /api/v1/people/{personId:int}/contacts",
         "POST /api/v1/people/{personId:int}/forms.pdf",
         "POST /api/v1/people/{personId:int}/journal/entries",
+        "POST /api/v1/people/{personId:int}/providers",
         "POST /api/v1/providers",
+        "POST /api/v1/providers/{providerId:int}/contacts",
+        "POST /api/v1/providers/{survivingId:int}/merge",
         "POST /api/v1/reviews/ensure-current",
         "POST /api/v1/scratchpad/{scratchpadId:int}/comments",
         "POST /api/v1/supervisor/notes/{noteId:int}/approve",
@@ -139,8 +149,10 @@ public static class ApiSurface
         "PUT /api/v1/people/{personId:int}",
         "PUT /api/v1/people/{personId:int}/contacts/{contactId:int}",
         "PUT /api/v1/people/{personId:int}/journal",
+        "PUT /api/v1/people/{personId:int}/providers/{linkId:int}",
         "PUT /api/v1/people/{personId:int}/ssn",
         "PUT /api/v1/providers/{id:int}",
+        "PUT /api/v1/providers/{providerId:int}/contacts/{contactId:int}",
         "PUT /api/v1/reviews/{reviewItemId:int}/appointment",
         "PUT /api/v1/reviews/{reviewItemId:int}/stage",
         "PUT /api/v1/scratchpad",

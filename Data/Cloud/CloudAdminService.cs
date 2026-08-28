@@ -40,6 +40,16 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
     public Task<List<AdminPersonListItemDto>> GetPeopleAsync(CancellationToken cancellationToken = default) =>
         api.GetAsync<List<AdminPersonListItemDto>>("/api/v1/admin/people", cancellationToken);
 
+    public Task<TestConsumerDeletionResultDto> DeleteTestConsumerAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        CancellationToken cancellationToken = default) =>
+        api.PostAsync<DeleteTestConsumerRequest, TestConsumerDeletionResultDto>(
+            $"/api/v1/admin/test-data/consumers/{personId}/delete",
+            new DeleteTestConsumerRequest(expectedRevision, attestation),
+            cancellationToken);
+
     public Task<List<AdminActivityDto>> GetActivityAsync(
         int days = 30,
         int take = 100,

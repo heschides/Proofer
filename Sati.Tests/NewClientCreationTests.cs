@@ -79,6 +79,42 @@ public sealed class NewClientCreationTests
     }
 
     [Fact]
+    public async Task AdminCanMarkANewConsumerAsTestAndTheChoiceReachesTheSave()
+    {
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, new FixedSettingsService(), UserRole.Admin);
+        viewModel.OpenEntryPanelCommand.Execute(null);
+        viewModel.FirstName = "Synthetic";
+        viewModel.LastName = "Consumer";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "Test-only consumer.";
+        viewModel.IsTestData = true;
+
+        Assert.True(viewModel.CanMarkNewConsumerAsTest);
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.True(people.LastAdded!.IsTestData);
+    }
+
+    [Fact]
+    public async Task OrdinaryUserCannotMarkANewConsumerAsTestEvenIfThePropertyIsForged()
+    {
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, new FixedSettingsService(), UserRole.CaseManager);
+        viewModel.OpenEntryPanelCommand.Execute(null);
+        viewModel.FirstName = "Ordinary";
+        viewModel.LastName = "Consumer";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "Ordinary consumer.";
+        viewModel.IsTestData = true;
+
+        Assert.False(viewModel.CanMarkNewConsumerAsTest);
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.False(people.LastAdded!.IsTestData);
+    }
+
+    [Fact]
     public async Task PersonSaveFailureIsContainedAndExplainsThatSaveStatusMustBeChecked()
     {
         var session = new SessionService();
@@ -101,6 +137,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             new RecordingIncidentReporter(),
+            null!,
             null!,
             null!,
             null!,
@@ -199,6 +236,76 @@ public sealed class NewClientCreationTests
     }
 
     [Fact]
+    public async Task LocalAdminCanCreateAMarkedTestConsumerAndLifecycleRecordsTheDesignation()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true, UserRole.Admin);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Synthetic",
+            "Consumer",
+            "Admin-created test record.",
+            new DateTime(1990, 4, 3),
+            null,
+            WaiverType.None,
+            new Settings());
+        person.IsTestData = true;
+
+        await fixture.Service.AddPersonAsync(person);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.True((await db.People.AsNoTracking().SingleAsync()).IsTestData);
+        var version = await db.PersonVersions.AsNoTracking().SingleAsync();
+        var changes = PersonLifecycleLedger.ToDto(version).Changes;
+        Assert.Contains(changes, change => change.Field == "isTestData" && change.NewValue == "Yes");
+    }
+
+    [Fact]
+    public async Task LocalCaseManagerCannotForgeTheTestMarker()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Forged",
+            "Marker",
+            "Must not be saved.",
+            new DateTime(1990, 4, 3),
+            null,
+            WaiverType.None,
+            new Settings());
+        person.IsTestData = true;
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.AddPersonAsync(person));
+
+        Assert.Contains("isTestData", error.Errors.Keys);
+        await fixture.AssertCreationTablesEmptyAsync();
+    }
+
+    [Fact]
+    public async Task TestDesignationCannotBeAddedDuringALaterProfileEdit()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true, UserRole.Admin);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id,
+            "Ordinary",
+            "Consumer",
+            "Created without a test designation.",
+            new DateTime(1990, 4, 3),
+            null,
+            WaiverType.None,
+            new Settings());
+        await fixture.Service.AddPersonAsync(person);
+        person.IsTestData = true;
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.EditPersonAsync(person));
+
+        Assert.Contains("isTestData", error.Errors.Keys);
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.False((await db.People.AsNoTracking().SingleAsync()).IsTestData);
+    }
+
+    [Fact]
     public async Task LocalCreationRejectsCallerSuppliedOwnerBeforeWritingAnything()
     {
         await using var fixture = await LocalPersonFixture.CreateAsync(seedActor: true);
@@ -288,7 +395,8 @@ public sealed class NewClientCreationTests
 
     private static NewClientViewModel CreateViewModel(
         IPersonService personService,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        UserRole role = UserRole.CaseManager)
     {
         var session = new SessionService();
         session.SetUser(User.Create(
@@ -297,7 +405,7 @@ public sealed class NewClientCreationTests
             "Case Manager",
             "hash",
             "salt",
-            UserRole.CaseManager,
+            role,
             null,
             7));
         return new NewClientViewModel(
@@ -310,6 +418,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             new RecordingIncidentReporter(),
+            null!,
             null!,
             null!,
             null!,
@@ -354,10 +463,12 @@ public sealed class NewClientCreationTests
     private sealed class CountingPersonService : IPersonService
     {
         public int AddCalls { get; private set; }
+        public Person? LastAdded { get; private set; }
 
         public Task<Person> AddPersonAsync(Person person)
         {
             AddCalls++;
+            LastAdded = person;
             return Task.FromResult(person);
         }
 
@@ -401,7 +512,9 @@ public sealed class NewClientCreationTests
         public User Actor { get; }
         public PersonService Service { get; }
 
-        public static async Task<LocalPersonFixture> CreateAsync(bool seedActor)
+        public static async Task<LocalPersonFixture> CreateAsync(
+            bool seedActor,
+            UserRole role = UserRole.CaseManager)
         {
             var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
             await connection.OpenAsync();
@@ -415,7 +528,7 @@ public sealed class NewClientCreationTests
                 "Case Manager",
                 "hash",
                 "salt",
-                UserRole.CaseManager,
+                role,
                 null,
                 7);
 
