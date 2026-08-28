@@ -47,8 +47,9 @@
       because it contains an untracked instruction file; retain `second-machine-setup` at
       `f31fdf0` and `origin/claude/local-vs-github-workflow-dlcqpb` at `62b2f83` because they have
       unique setup work unrelated to this release.
-- [ ] Commit and push final release evidence, record its identifier, and confirm a clean `master`
-      exactly matching `origin/master`.
+- [x] Commit and push final release evidence as
+      `5f6a7acaebf6e58ff557ed078584a476f4cc853e`; after this release-index update, confirm a clean
+      `master` exactly matching `origin/master`.
 
 ## Release 1.2.27 — 2026-08-27
 
