@@ -553,21 +553,24 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.31", version);
+        Assert.Equal("1.2.32", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Billing submission home and remittance reconciliation", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Database change handling and schema drift detection", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
+        // A platform release must say plainly that daily use is unchanged, rather than dressing
+        // infrastructure work up as a feature the reader will go looking for.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A permanent home for outstanding submissions" &&
-            section.Items.Any(item => item.Contains("claim count", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("outstanding", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Nothing changes in daily use" &&
+            section.Items.Any(item => item.Contains("platform work", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("1.2.31", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Remittance outcomes that explain themselves" &&
-            section.Items.Any(item => item.Contains("aging", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("PLB", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Sati can now report how its own database differs from what it expects" &&
+            section.Items.Any(item => item.Contains("both directions", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("detector", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Synthetic data stays visibly synthetic" &&
-            section.Items.Any(item => item.Contains("clearinghouse", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Database updates no longer need a hole opened in the firewall" &&
+            section.Items.Any(item => item.Contains("direct access", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("migration history", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&

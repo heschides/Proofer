@@ -2,6 +2,44 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.32 — 2026-08-30
+
+Platform-neutral persistence, schema drift detection, and Demo schema changes without a firewall
+rule. No user-facing feature changes and no new migrations.
+
+### Controlled migration deployment
+- [x] `Sati.Persistence` targets plain `net10.0` and owns the entity model, `SatiContext`, and all 80
+      migrations, so nothing that needs the chain is forced onto Windows.
+- [x] `SchemaComparison` in `Sati.Contracts.V1` owns the rule for how two descriptions of a schema
+      differ, shared by the readiness check and the drift report. `GET /api/v1/admin/schema-drift`
+      returns it, Admin only.
+- [x] The `demo-history-reconciliation` triggered WebJob runs inside the App Service, so applying a
+      Demo schema change no longer needs a temporary exact-IP SQL firewall rule.
+- [x] `SatiDemo`'s migration history reconciled: two ids applied under superseded timestamps removed,
+      two chain migrations with no history row written, verified idempotent.
+
+### Defect fixed
+- [x] `ServerPerson.FirstName`, `ServerPerson.LastName`, and `ServerClaimLine.Units` were declared
+      nullable in the API model while `SatiDemo` has them `NOT NULL`. The database was the stricter
+      side, so the model was tightened and no schema was touched.
+
+### Validation and release evidence
+- [ ] Record the source release commit, Demo API deployment and health, contract revision parity,
+      and accepted Demo/Local installer hashes below before marking this release complete.
+- [ ] **Flaky test, identified by name at last:
+      `DatabaseActivityTests.PatienceStateAppearsOnlyAfterTheConfiguredContinuousDelay`.** It failed
+      once in ten runs across this release's gates and once during the 2026-08-30 persistence work,
+      always inside `EventuallyAsync`, which polls against a one-second wall-clock deadline. Under
+      concurrent build load that budget is too tight for the awaited state transition. It is a
+      timing artifact, not a defect in the code under test, and nothing in 1.2.32 touches
+      `DatabaseActivityViewModel`. Widen the deadline or make the transition awaited rather than
+      polled — deliberately, not inside a release commit to turn a gate green.
+- [ ] `SatiProduction` has not received `AddBillingExchangeHistory` or `AddRemittanceDeposits`. The
+      desktop applies them on its next direct connection, now from a relocated assembly.
+      `LocalDatabaseUpdate` takes a full backup first when the database holds records and names the
+      backup path on failure, so the bad case is a legible error rather than a half-applied database.
+      Watch that first launch.
+
 ## Release 1.2.31 — 2026-08-30
 
 Billing submission home, denial worklist, humanized adjustment reasons, and deposit reconciliation.

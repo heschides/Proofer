@@ -6,31 +6,30 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Billing submission home and remittance reconciliation";
+    public const string ReleaseName = "Database change handling and schema drift detection";
     public const string ReleaseDate = "August 30, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "A permanent home for outstanding submissions",
+            "Nothing changes in daily use",
             [
-                "Billing staff can filter the inclusive billing-month range used to generate separate 837P files.",
-                "The submission home groups event history into one batch row with claim count, charge value, clearinghouse-send time, latest status, and an outstanding filter.",
-                "Generated, transmitted, transport-failed, 999, and 277CA-style states remain visible as an append-only timeline source."
+                "This release is platform work. Caseloads, notes, scheduling, compliance, billing, and the provider directory behave exactly as they did in 1.2.31.",
+                "One defect was fixed that had not yet caused a visible failure: the server treated a consumer's first name, last name, and a claim line's units as optional while the database required them, which could have refused a save at the wrong moment."
             ]),
         new(
-            "Remittance outcomes that explain themselves",
+            "Sati can now report how its own database differs from what it expects",
             [
-                "A denial and unpaid worklist is filterable by claim reference, payer, date, status, and 30/60/90/120+ aging buckets.",
-                "Common CARC group codes are shown in plain language and grouped by provider responsibility (CO), patient responsibility (PR), and other adjustment (OA).",
-                "Deposit reconciliation makes the 835 amount, provider-level (PLB) adjustments, EFT amount, difference, and match state visible together. A batch is not considered tied out until the amounts match to the penny."
+                "An administrator can ask the server which tables and columns it expects but does not find, rather than discovering the gap as a failed screen.",
+                "The check reports in both directions, so objects the database carries that no current version knows about are visible too.",
+                "It reads only table and column names. It is a detector and changes nothing on its own."
             ]),
         new(
-            "Synthetic data stays visibly synthetic",
+            "Database updates no longer need a hole opened in the firewall",
             [
-                "Demo seed rows cover accepted, rejected, partial, denied, reversed, unmatched, needs-review, EFT mismatch, pending EFT, and PLB scenarios.",
-                "The synthetic exchange test consumes a test 837P and produces representative 999/277CA/835 responses without contacting a clearinghouse or payer.",
-                "This release does not claim live Office Ally transport, production acknowledgments, payer certification, or real remittance ingestion."
+                "Applying a schema change to the hosted Demo database used to mean temporarily granting a laptop direct access to it. That step is gone; the work now runs inside the hosted service, which already has the access it needs.",
+                "Each run reports what it would do before it is allowed to do anything, refuses when the database does not match what it expects, and records what it changed.",
+                "The Demo database's migration history had drifted from the record of changes applied to it, which is why every schema update had required its own hand-written script. That history has been reconciled."
             ]),
         new(
             "Still planned before commercial production",
