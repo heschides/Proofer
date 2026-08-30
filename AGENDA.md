@@ -22,11 +22,47 @@ Billing submission home, denial worklist, humanized adjustment reasons, and depo
 ### Validation and release evidence
 - [x] Apply the identity-validated Demo billing schema runner twice; both real runs found the three
       tables/indexes and migration-history rows already present and changed nothing.
-- [ ] Record the rollback-only dry-run output, source release commit, Demo API deployment/health,
-      and accepted Demo/Local installer hashes below before marking this release complete.
+- [x] Source release commit `f3f56cd`, pushed to `origin/master` without rewriting history.
+- [x] Full Release build of `Sati.slnx` succeeded. 834 desktop/domain tests passed with the one
+      documented opt-in local-AI test skipped, 244 API integration tests passed, 4 Carika tests
+      passed.
+- [x] Published the Demo API ZIP built from `f3f56cd` (9,230,215 bytes; SHA-256
+      `F5EECBE04C05CB3ACDB244817EADFCAA3485101FDC5F23FA6E949E0BAB095374`; no `appsettings*.json`,
+      credential, or private desktop configuration in the payload). OneDeploy deployment
+      `a140d7d5883f4a3b98b9b5401310b06a` succeeded 2026-08-30T01:40:34Z.
+- [x] `/health/live` live, `/health/ready` Healthy, `/health/version` reports release 1.2.31 and
+      contract revision `F929FEB01DEB`, which exactly matches the client's `ApiSurface.Revision`.
+      `SchemaDriftHealthCheck` returning Healthy is the deployed confirmation that the three
+      billing exchange tables are present in `SatiDemo`.
+- [x] `Test-DemoReadiness.ps1 -HealthOnly` gate passed. The authenticated extension was skipped:
+      no synthetic Demo credentials are configured in this Windows session.
+- [x] Generated and accepted `SatiDemoSetup-1.2.31.exe` (100,388,864 bytes; SHA-256
+      `707286DFACAEE6A35436EC808E365E3E2A60A6F85356DB23B0F097CAA6F717FE`): five responsive
+      launches, graceful closes, zero exit codes, version 1.2.31.0, isolated cleanup passed.
+- [x] Generated and accepted `SatiLocalSetup-1.2.31.exe` (202,454,794 bytes; SHA-256
+      `E383480A64E65C2F41E01F10CD995E0AD36BB54DDCA3FF4EE2D642D93BA49E34`): version 1.2.31.0,
+      integrated security confirmed, isolated cleanup passed. The embedded
+      `artifacts\Prerequisites\SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) carries a valid
+      Microsoft Corporation Authenticode signature.
+- [x] Published both installers and their `.sha256` files by verified copy-then-rename to
+      `…\SatiLogica - Documents\Sati Desktop` (Local) and
+      `…\SatiLogica - Documents\SatiLogica Demo Files` (Demo). No existing file was replaced.
+- [ ] The rollback-only dry run of `scripts/Apply-BillingExchangeMigrations.ps1` was not repeated in
+      this release pass. It reaches `SatiDemo` from the workstation, which needs a temporary
+      exact-IP SQL firewall rule that only the user may add and remove. The deployed readiness
+      check above already confirms the schema the release depends on.
 - [ ] Keep live Office Ally transport, real 999/TA1/277CA/835 ingestion, corrected claims, raw X12
       drill-through, payer certification, note-to-denial loop, auth/unit alerts, forecasting, and
       benchmarking as explicitly deferred work.
+
+### Follow-up
+- [ ] The `datt-workstation-temp` SQL firewall rule opened for the 1.2.30 release is still recorded
+      as unremoved. Nothing in 1.2.31 needed or used it. Removing it is the user's action; this
+      workflow never adds, alters, or deletes a firewall rule.
+- [ ] `SatiProduction` has not received `AddBillingExchangeHistory` or `AddRemittanceDeposits`. The
+      desktop applies them on its next direct connection; given that database's own history drift,
+      watch that first launch.
 
 ## Release 1.2.30 — 2026-08-28
 
