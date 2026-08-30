@@ -209,11 +209,23 @@ host now locks in nothing; hosting is a thin, swappable layer. Reasoning in `DEC
       Verified: it throws from a workstation without attempting a connection.
 - [x] Fail-safe default. Anything other than the exact app setting `SATI_RECONCILIATION_MODE=apply`
       is a rollback-only dry run. Manual trigger only; no `settings.job` schedule.
-- [ ] **Grant the App Service managed identity DDL rights on `SatiDemo`.** A security setting, made
-      by a person. No workflow, script, or agent performs it. Until then the job fails on connect
-      and changes nothing.
-- [ ] Publish the API to ship the job, then run the dry run, the real run, and the idempotency run
-      through it. Operator steps in `OPERATIONS.md`.
+- [x] Deployed 2026-08-30 from `89db2d8` (deployment `97da77ed76c140eaa7974fd1b42efc6e`, API ZIP
+      SHA-256 `81AB984D0BA35D52E164CAF20ECE2B9394BC58F454BEC800969A1FE40181E03E`). Health live and
+      Healthy, contract revision unchanged at `7C6F00E77F6E`. The job registers as
+      `demo-history-reconciliation` with `runCommand: run.ps1`. No firewall rule was opened.
+- [ ] ~~Grant the App Service managed identity DDL rights.~~ **Corrected: this job most likely needs
+      no new grant.** The reconciliation issues only `INSERT`/`DELETE` on
+      `dbo.__EFMigrationsHistory` plus catalog reads — no `CREATE`, `ALTER`, or `DROP` — which is
+      `db_datawriter`, already required to serve the API. `db_ddladmin` is owed when `Sati.Migrator`
+      applies real schema migrations, not before. Establish the answer by running the dry run, which
+      fails closed on a missing permission, rather than by granting speculatively. Any such grant
+      stays a security setting a person makes; no workflow, script, or agent performs it.
+- [ ] **Rehearse against a restored copy before the first live run.** The script says so in its own
+      notes and Phase 1 repeats it. `-WhatIfOnly` rolls back but still connects to the live database
+      and takes serializable locks, so the dry run is not free. Either rehearse on a copy, or record
+      the decision to accept that risk against synthetic Demo data.
+- [ ] Run the dry run, the real run, and the idempotency run through the job. Operator steps in
+      `OPERATIONS.md`.
 - [ ] Once that lands, rewrite `RELEASE_PLAYBOOK.md` section 6 so the migration step stops implying
       a workstation connection, and stop reporting the workstation's public address in preflight.
 

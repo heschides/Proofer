@@ -16,8 +16,14 @@
     change is a decision somebody makes, not something that happens on a timer.
 
 .NOTES
-    Requires the App Service managed identity to hold DDL rights on SatiDemo. That grant is a
-    security setting and is made by a human, not by this job or by any agent.
+    The reconciliation writes only to dbo.__EFMigrationsHistory and reads catalog views. It issues
+    no CREATE, ALTER, or DROP, so it needs db_datawriter rather than db_ddladmin, and the App
+    Service identity already holds datawriter in order to serve the API. This job most likely
+    requires no additional grant. If a permission is missing it fails on the write and changes
+    nothing, which is how to establish the answer rather than granting speculatively.
+
+    db_ddladmin becomes necessary when Sati.Migrator applies real schema migrations, not here. Any
+    such grant is a security setting made by a person, not by this job or by any agent.
 #>
 $ErrorActionPreference = 'Stop'
 

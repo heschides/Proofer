@@ -2128,6 +2128,15 @@ schema. That is accepted while `SatiDemo` holds only synthetic data, and `AGENDA
 the gate: before `SatiProduction` moves to the cloud, the runner moves to a Container Apps Job with
 its own identity, genuinely out of the API's reach.
 
+**That cost is not owed yet, and the first write-up said it was.** The reconciliation issues only
+`INSERT` and `DELETE` against `dbo.__EFMigrationsHistory` plus catalog reads — no `CREATE`, `ALTER`,
+or `DROP`. Writing rows is `db_datawriter`, which the identity already needs to serve the API, so
+this job most likely requires no new grant at all. `db_ddladmin` is owed when `Sati.Migrator`
+applies real schema migrations, and not before. The prerequisite was written down as DDL because
+that is what the *phase* eventually needs; stating it as the *job's* precondition would have widened
+a production-facing identity to solve a problem that may not exist. Least privilege is decided per
+operation, not per phase.
+
 Choosing the cheap host now costs almost nothing later, because the expensive work is already done.
 Phase 1.5 freed the migration chain from the WPF target, so what runs is host-agnostic; hosting is a
 thin, swappable layer. Doing the Container Apps Job first would have meant a Dockerfile, a registry,

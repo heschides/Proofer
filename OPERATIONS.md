@@ -107,15 +107,51 @@ so that step is not needed: it runs inside the App Service, from addresses alrea
 
 Publishing the API ships the job. Running it is separate and manual.
 
-### One-time prerequisite
+### What permission this job actually needs
 
-The App Service managed identity needs DDL rights on `SatiDemo`. **This is a security grant and a
-person makes it deliberately** — no release workflow, script, or agent may perform it. Until it is
-granted, the job fails on connect and changes nothing.
+Less than a migrator will. The reconciliation only runs `INSERT` and `DELETE` against
+`dbo.__EFMigrationsHistory` and reads `sys.*` catalog views for its proofs. It issues no `CREATE`,
+`ALTER`, or `DROP`. Writing rows to a table is `db_datawriter`, which the App Service identity
+already needs in order to serve the API at all, so this job most likely requires **no new grant**.
 
-While it holds that grant, a compromise of the public API could alter the Demo schema. That is an
-accepted, recorded trade while Demo holds only synthetic data. `AGENDA.md` Phase 3 records the gate:
-before `SatiProduction` moves to the cloud, the runner must move to its own identity.
+Find out by running the dry run rather than by granting first. It is rollback-only, and if the
+identity is short a permission it fails on the write with a clear error and changes nothing.
+Granting `db_ddladmin` speculatively widens a production-facing identity to solve a problem that may
+not exist.
+
+`db_ddladmin` becomes necessary when `Sati.Migrator` applies real schema migrations, not before. If
+it is needed, run this against `SatiDemo` as the server's Entra admin:
+
+```sql
+ALTER ROLE db_ddladmin ADD MEMBER [sati-demo-api-satilogica];
+```
+
+To see what it already holds:
+
+```sql
+SELECT r.name AS role_name
+FROM sys.database_role_members rm
+JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id
+JOIN sys.database_principals m ON rm.member_principal_id = m.principal_id
+WHERE m.name = 'sati-demo-api-satilogica';
+```
+
+Running either statement means connecting to `SatiDemo` yourself, which needs one temporary
+exact-IP firewall rule. That is the one remaining opening, and it is one-time rather than
+per-release.
+
+**Any such grant is a security setting a person makes deliberately.** No release workflow, script,
+or agent performs it. While the identity holds `db_ddladmin`, a compromise of the public API could
+alter the Demo schema — an accepted, recorded trade while Demo holds only synthetic data.
+`AGENDA.md` Phase 3 records the gate: before `SatiProduction` moves to the cloud, the runner moves
+to its own identity.
+
+### Rehearse before the first live run
+
+`Apply-DemoHistoryReconciliation.ps1` states in its own notes that it must first be rehearsed
+against a restored copy. `-WhatIfOnly` rolls its transaction back, but it still connects to the live
+database and takes serializable locks, so the dry run is not free. Restore a copy and rehearse
+there, or record the decision to accept that risk against synthetic Demo data.
 
 ### Running it
 
