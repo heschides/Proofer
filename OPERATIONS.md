@@ -165,35 +165,36 @@ alter the Demo schema — an accepted, recorded trade while Demo holds only synt
 `AGENDA.md` Phase 3 records the gate: before `SatiProduction` moves to the cloud, the runner moves
 to its own identity.
 
-### The Users.AgencyId default constraint job exists for a problem that did not exist
+### What the identity needs, and why it is not ALTER
 
-`demo-users-agencyid-default` was built on 2026-08-30 to add a constant default to
-`Users.AgencyId` that the reconciliation's proofs reported missing. **The constraint was never
-missing.** `DF__Users__AgencyId__57DD0BE4`, definition `((1))`, has been there since 2026-08-11. The
-proof could not see it: the managed identity held only `db_datareader` and `db_datawriter`, and
-neither carries `VIEW DEFINITION`, without which a principal sees a table and its columns but no rows
-for it in `sys.default_constraints`. `GRANT ALTER ON OBJECT::dbo.Users` implies `VIEW DEFINITION`,
-which is why the proof passed straight after the grant against an unchanged database.
+The proofs read constraint definitions out of `sys.default_constraints`. A principal holding only
+`db_datareader` and `db_datawriter` cannot see those rows — neither role carries `VIEW DEFINITION` —
+so the proof reports a constraint it cannot see as one that does not exist. That is what happened on
+2026-08-30, and it produced a whole corrective-DDL job for a constraint that had been in place since
+2026-08-11.
 
-The job is inert — run today it correctly reports `AlreadyPresent` and changes nothing — but it is a
-job with schema-change capability against a live database, kept for no current reason.
+So the standing grant is:
 
-**Two open decisions, both recorded in `AGENDA.md` Phase 3:**
+```sql
+GRANT VIEW DEFINITION ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
+```
 
-1. Remove the job and `scripts/Add-DemoUsersAgencyIdDefault.ps1`, or keep them for a future genuine
-   drift. Removing is the smaller surface.
-2. Narrow the grant. The proofs need `VIEW DEFINITION`, not `ALTER`:
+`ALTER` also implies `VIEW DEFINITION`, which is why granting `ALTER` made the proof pass — but
+`ALTER` lets the identity change the table, and nothing here needs that. If `ALTER` is present from
+the 2026-08-30 session, narrow it. **Grant `VIEW DEFINITION` before revoking `ALTER`**, or the proofs
+start failing again for the same invisible reason:
 
-   ```sql
-   REVOKE ALTER ON OBJECT::dbo.Users FROM [sati-demo-api-satilogica-46417];
-   GRANT VIEW DEFINITION ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
-   ```
+```sql
+GRANT VIEW DEFINITION ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
+REVOKE ALTER ON OBJECT::dbo.Users FROM [sati-demo-api-satilogica-46417];
+```
 
-   Do not revoke `ALTER` without granting `VIEW DEFINITION`, or the reconciliation's proofs will
-   start failing again for the same invisible reason. Like every grant here, a person makes it.
+Like every grant here, a person makes it; no job or agent does.
 
-If the job is kept: leave `SATI_AGENCYID_DEFAULT_MODE` unset for the dry run, read the log, set it to
-exactly `apply`, run, and clear it again.
+A `demo-users-agencyid-default` WebJob briefly existed to add that constraint. It was removed once
+the constraint turned out to be present all along: it could perform DDL against a live database and
+had no remaining reason to exist. If a genuine constraint divergence ever appears, write the
+corrective script then, rather than keeping a schema-change job idling against the possibility.
 
 ### Rehearse before the first live run
 

@@ -193,11 +193,17 @@ what was first written down.
 - [x] Rehearsal against a restored copy was skipped at Josh's explicit direction, against the
       script's own recommendation. Recorded rather than quietly omitted. Nothing was lost, but the
       run that misdiagnosed the constraint is a fair argument for rehearsing next time.
-- [ ] **Decide what happens to the constraint job and the `ALTER` grant.** Both were created for the
-      phantom finding. The job can perform DDL on a live database and now has no reason to exist;
-      the standing `ALTER` grant is wider than anything currently needs. The narrow replacement, if
-      the proofs are to keep working, is `GRANT VIEW DEFINITION ON OBJECT::dbo.Users`, which is what
-      they actually require. Removing the job and narrowing the grant is the least-surface option.
+- [x] **Constraint job removed 2026-08-30.** `Add-DemoUsersAgencyIdDefault.ps1`, the
+      `demo-users-agencyid-default` WebJob, and its packaging are gone; the API package now carries
+      only `demo-history-reconciliation`. A job able to perform DDL against a live database, kept
+      against a possibility, is a standing surface for no benefit. If a genuine constraint
+      divergence ever appears, write the corrective script then.
+- [ ] **Narrow the grant to `VIEW DEFINITION`.** The proofs read `sys.default_constraints`, which
+      `db_datareader`/`db_datawriter` cannot see; that is the whole reason `ALTER` appeared to be
+      needed. `ALTER` additionally lets the identity change the table, and with the constraint job
+      gone nothing requires it. Commands and ordering in `OPERATIONS.md` — grant `VIEW DEFINITION`
+      before revoking `ALTER`, or the proofs fail again for the same invisible reason. A person makes
+      the grant; no workflow, script, or agent does.
 - [x] Tighten the API model rather than the database for the three nullability findings. The
       database is the stricter side in all three, so the model was the loose one and the fix does not
       touch schema. `ServerPerson.FirstName` and `ServerPerson.LastName` were declared `string?` and
