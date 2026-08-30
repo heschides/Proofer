@@ -51,7 +51,14 @@ param(
     [switch]$UseManagedIdentity,
 
     # Reports the prospective history changes and rolls the transaction back.
-    [switch]$WhatIfOnly
+    [switch]$WhatIfOnly,
+
+    # Runs every schema proof, reports all of them that fail, and stops before any history change.
+    # The default path stops at the first failed proof, which is right when the goal is to refuse
+    # safely but wrong when the goal is to find out how far the database has drifted: fixing one
+    # assertion at a time across a proof of this size is slow and hides the shape of the problem.
+    # Implies -WhatIfOnly and never writes.
+    [switch]$ProofsOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -103,7 +110,9 @@ try {
     $command.CommandTimeout = 180
     $command.Parameters.AddWithValue('@expectedDatabase', $DatabaseName) | Out-Null
     $command.Parameters.AddWithValue('@expectedEnvironment', $expectedEnvironment) | Out-Null
-    $command.Parameters.AddWithValue('@whatIfOnly', [bool]$WhatIfOnly) | Out-Null
+    # -ProofsOnly implies -WhatIfOnly. Reporting drift must never be a path that can write.
+    $command.Parameters.AddWithValue('@whatIfOnly', [bool]($WhatIfOnly -or $ProofsOnly)) | Out-Null
+    $command.Parameters.AddWithValue('@proofsOnly', [bool]$ProofsOnly) | Out-Null
     $command.CommandText = @'
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -144,6 +153,16 @@ IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NULL
 DECLARE @historyRowsWritten int = 0;
 DECLARE @supersededRowsRemoved int = 0;
 DECLARE @semanticProofsVerified int = 0;
+
+-- Every failed schema proof, in the order the proofs run. The default path still stops at the
+-- first one, because refusing safely does not require enumerating the rest. -ProofsOnly collects
+-- all of them and writes nothing, so a drifted database can be assessed in one pass instead of
+-- one assertion per round trip.
+DECLARE @proofFailures TABLE
+(
+    Ordinal int IDENTITY(1, 1) NOT NULL,
+    Failure nvarchar(2048) NOT NULL
+);
 
 BEGIN TRY
     BEGIN TRANSACTION;
@@ -189,8 +208,10 @@ BEGIN TRY
         (N'History: ProductVersion is required nvarchar(32)',
          N'__EFMigrationsHistory', N'ProductVersion', N'nvarchar', 64, 0, 0);
 
-    DECLARE @failedProof nvarchar(200);
-    SELECT TOP (1) @failedProof = required.ProofName
+    -- Record every failing column proof rather than only the first. The predicate is written once:
+    -- a second copy of it for reporting would be a rule with two owners, and the two would drift.
+    INSERT @proofFailures (Failure)
+    SELECT CONCAT(N'Semantic proof failed: ', required.ProofName, N'.')
     FROM @requiredColumns AS required
     WHERE NOT EXISTS
     (
@@ -214,10 +235,13 @@ BEGIN TRY
     )
     ORDER BY required.ProofName;
 
-    IF @failedProof IS NOT NULL
+    -- Outside -ProofsOnly the default path is unchanged: any failed proof refuses here, so
+    -- execution never reaches a later block with failures already collected.
+    IF @proofsOnly = 0 AND EXISTS (SELECT 1 FROM @proofFailures)
     BEGIN
         DECLARE @columnFailure nvarchar(2048) =
-            CONCAT(N'Semantic proof failed: ', @failedProof, N'. Migration history was not changed.');
+            (SELECT TOP (1) CONCAT(Failure, N' Migration history was not changed.')
+             FROM @proofFailures ORDER BY Ordinal);
         THROW 51705, @columnFailure, 1;
     END;
 
@@ -232,7 +256,8 @@ BEGIN TRY
           AND CONVERT(bigint, identityColumn.seed_value) = 1
           AND CONVERT(bigint, identityColumn.increment_value) = 1
     )
-        THROW 51706, 'Semantic proof failed: Agencies.Id is not IDENTITY(1,1).', 1;
+        INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Agencies.Id is not IDENTITY(1,1).');
+        IF @proofsOnly = 0 THROW 51706, 'Semantic proof failed: Agencies.Id is not IDENTITY(1,1).', 1;
 
     IF NOT EXISTS
     (
@@ -255,7 +280,8 @@ BEGIN TRY
                WHERE allPrimaryColumns.object_id = primaryIndex.object_id
                  AND allPrimaryColumns.index_id = primaryIndex.index_id) = 1
     )
-        THROW 51707, 'Semantic proof failed: Agencies.Id is not the single-column primary key.', 1;
+        INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Agencies.Id is not the single-column primary key.');
+        IF @proofsOnly = 0 THROW 51707, 'Semantic proof failed: Agencies.Id is not the single-column primary key.', 1;
 
     IF NOT EXISTS
     (
@@ -270,7 +296,8 @@ BEGIN TRY
                   defaultObject.definition, N'(', N''), N')', N''), N' ', N''),
                   NCHAR(9), N''), NCHAR(13) + NCHAR(10), N'') = N'1'
     )
-        THROW 51708, 'Semantic proof failed: Users.AgencyId does not have a constant default of 1.', 1;
+        INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Users.AgencyId does not have a constant default of 1.');
+        IF @proofsOnly = 0 THROW 51708, 'Semantic proof failed: Users.AgencyId does not have a constant default of 1.', 1;
 
     -- Required indexes are matched by ordered key columns, uniqueness, filter, and enabled state.
     -- A same-named index with different keys (or a differently named equivalent index) is handled
@@ -298,8 +325,10 @@ BEGIN TRY
         (N'TenantScopeSettingsAndProviders: Providers is indexed by agency then name',
          N'Providers', 0, 2, N'AgencyId', N'Name');
 
-    SET @failedProof = NULL;
-    SELECT TOP (1) @failedProof = required.ProofName
+    -- Same shape as the column proof: collect every failure, refuse on the first outside
+    -- -ProofsOnly. @proofFailures is still empty here on the default path.
+    INSERT @proofFailures (Failure)
+    SELECT CONCAT(N'Semantic proof failed: ', required.ProofName, N'.')
     FROM @requiredIndexes AS required
     WHERE NOT EXISTS
     (
@@ -346,10 +375,11 @@ BEGIN TRY
     )
     ORDER BY required.ProofName;
 
-    IF @failedProof IS NOT NULL
+    IF @proofsOnly = 0 AND EXISTS (SELECT 1 FROM @proofFailures)
     BEGIN
         DECLARE @indexFailure nvarchar(2048) =
-            CONCAT(N'Semantic proof failed: ', @failedProof, N'. Migration history was not changed.');
+            (SELECT TOP (1) CONCAT(Failure, N' Migration history was not changed.')
+             FROM @proofFailures ORDER BY Ordinal);
         THROW 51709, @indexFailure, 1;
     END;
 
@@ -375,8 +405,10 @@ BEGIN TRY
         (N'TenantScopeSettingsAndProviders: Providers.AgencyId references Agencies.Id with NO ACTION',
          N'Providers', N'AgencyId');
 
-    SET @failedProof = NULL;
-    SELECT TOP (1) @failedProof = required.ProofName
+    -- Same shape as the column proof: collect every failure, refuse on the first outside
+    -- -ProofsOnly. @proofFailures is still empty here on the default path.
+    INSERT @proofFailures (Failure)
+    SELECT CONCAT(N'Semantic proof failed: ', required.ProofName, N'.')
     FROM @requiredForeignKeys AS required
     WHERE NOT EXISTS
     (
@@ -405,10 +437,11 @@ BEGIN TRY
     )
     ORDER BY required.ProofName;
 
-    IF @failedProof IS NOT NULL
+    IF @proofsOnly = 0 AND EXISTS (SELECT 1 FROM @proofFailures)
     BEGIN
         DECLARE @foreignKeyFailure nvarchar(2048) =
-            CONCAT(N'Semantic proof failed: ', @failedProof, N'. Migration history was not changed.');
+            (SELECT TOP (1) CONCAT(Failure, N' Migration history was not changed.')
+             FROM @proofFailures ORDER BY Ordinal);
         THROW 51710, @foreignKeyFailure, 1;
     END;
 
@@ -435,7 +468,24 @@ BEGIN TRY
                WHERE allPrimaryColumns.object_id = primaryIndex.object_id
                  AND allPrimaryColumns.index_id = primaryIndex.index_id) = 1
     )
-        THROW 51711, 'Semantic proof failed: migration history is not keyed by MigrationId.', 1;
+        INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: migration history is not keyed by MigrationId.');
+        IF @proofsOnly = 0 THROW 51711, 'Semantic proof failed: migration history is not keyed by MigrationId.', 1;
+
+    -- -ProofsOnly stops here, before anything is written, whether or not any proof failed. It is a
+    -- reporting mode: it must not be capable of changing history even on a database that passes.
+    IF @proofsOnly = 1
+    BEGIN
+        ROLLBACK TRANSACTION;
+        SELECT
+            DB_NAME() AS DatabaseName,
+            @actualEnvironment AS EnvironmentName,
+            CASE WHEN EXISTS (SELECT 1 FROM @proofFailures) THEN 0 ELSE 4 END AS SemanticProofsVerified,
+            0 AS SurvivingHistoryRowsWritten,
+            0 AS SupersededHistoryRowsRemoved,
+            CAST(1 AS bit) AS RolledBack;
+        SELECT Ordinal, Failure FROM @proofFailures ORDER BY Ordinal;
+        RETURN;
+    END;
 
     SET @semanticProofsVerified = 4;
 
@@ -523,7 +573,7 @@ SELECT
     if (-not $reader.Read()) {
         throw 'The Demo history reconciliation verification row was not returned.'
     }
-    [pscustomobject][ordered]@{
+    $summary = [pscustomobject][ordered]@{
         DatabaseName                   = $reader.GetString(0)
         EnvironmentName                = $reader.GetString(1)
         SemanticProofsVerified         = $reader.GetInt32(2)
@@ -531,7 +581,30 @@ SELECT
         SupersededHistoryRowsRemoved   = $reader.GetInt32(4)
         RolledBack                     = $reader.GetBoolean(5)
     }
+
+    # -ProofsOnly returns a second result set naming every proof that failed. It is read before the
+    # summary is emitted so the failures are still available if the caller stops at the first object.
+    $failures = @()
+    if ($ProofsOnly -and $reader.NextResult()) {
+        while ($reader.Read()) {
+            $failures += [pscustomobject][ordered]@{
+                Ordinal = $reader.GetInt32(0)
+                Failure = $reader.GetString(1)
+            }
+        }
+    }
     $reader.Close()
+
+    $summary
+    if ($ProofsOnly) {
+        if ($failures.Count -eq 0) {
+            Write-Output 'All schema proofs passed. No history change was attempted in -ProofsOnly.'
+        }
+        else {
+            Write-Output "$($failures.Count) schema proof(s) failed. No history change was attempted."
+            $failures | ForEach-Object { Write-Output ('  {0}. {1}' -f $_.Ordinal, $_.Failure) }
+        }
+    }
 }
 finally {
     $connection.Dispose()

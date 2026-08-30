@@ -38,16 +38,22 @@ if ([string]::IsNullOrWhiteSpace($sqlServer)) {
     $sqlServer = 'sati-demo-satilogica-central.database.windows.net'
 }
 
-# Anything other than the exact string "apply" is a dry run, including the setting being absent,
-# empty, or misspelled. Fail safe is the default, not the exception.
+# Exactly "apply" runs for real. Exactly "proofs" reports every failing schema proof and writes
+# nothing. Anything else — absent, empty, or misspelled — is the rollback-only dry run. Fail safe is
+# the default, not the exception.
 $mode = $env:SATI_RECONCILIATION_MODE
 $isApply = $mode -ceq 'apply'
+$isProofs = $mode -ceq 'proofs'
+
+$modeLabel = if ($isApply) { 'APPLY (history will change)' }
+             elseif ($isProofs) { 'proofs only (reports every failed proof, writes nothing)' }
+             else { 'dry run (transaction rolled back)' }
 
 Write-Output "SatiDemo history reconciliation"
 Write-Output "  server : $sqlServer"
-Write-Output "  mode   : $(if ($isApply) { 'APPLY (history will change)' } else { 'dry run (transaction rolled back)' })"
-if (-not $isApply -and -not [string]::IsNullOrWhiteSpace($mode)) {
-    Write-Output "  note   : SATI_RECONCILIATION_MODE is '$mode', which is not the exact string 'apply'."
+Write-Output "  mode   : $modeLabel"
+if (-not $isApply -and -not $isProofs -and -not [string]::IsNullOrWhiteSpace($mode)) {
+    Write-Output "  note   : SATI_RECONCILIATION_MODE is '$mode', which is neither 'apply' nor 'proofs'."
 }
 
 $arguments = @{
@@ -55,7 +61,8 @@ $arguments = @{
     SqlServer           = $sqlServer
     UseManagedIdentity  = $true
 }
-if (-not $isApply) { $arguments['WhatIfOnly'] = $true }
+if ($isProofs) { $arguments['ProofsOnly'] = $true }
+elseif (-not $isApply) { $arguments['WhatIfOnly'] = $true }
 
 # A triggered WebJob reports success or failure by exit code, and `&` on a script that throws does
 # not set $LASTEXITCODE. Set it explicitly so a failed reconciliation shows as a failed job rather
