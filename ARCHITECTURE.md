@@ -52,6 +52,27 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 - `dotnet ef migrations list` now resolves all 80 migrations from `Sati.Persistence`. The
   hand-authored `TenantScopeSettingsAndProviders` migration was given its missing context/id
   metadata; its DDL body was not changed.
+- **EF tooling now needs an explicit startup project.** The repository root *is* the desktop
+  project, so `dotnet ef` run from the root takes `Sati.csproj` as the startup project, loads its
+  build output, and finds `Sati.Data.SatiContext` twice — once from the stale desktop assembly and
+  once from `Sati.Persistence`. It reports `More than one DbContext named 'Sati.Data.SatiContext'
+  was found`, which reads like a duplicate type in source and is not:
+
+  ```
+  dotnet ef migrations list --project Sati.Persistence/Sati.Persistence.csproj \
+      --startup-project Sati.Persistence/Sati.Persistence.csproj --context Sati.Data.SatiContext
+  ```
+
+  Deleting a stale `bin/Debug` output makes the error go away for one session; passing
+  `--startup-project` is what makes it stay away. Use the same pair of arguments for
+  `migrations add`.
+- Seventeen migrations dated 2026-08-07 through 2026-08-16 are hand-authored: they carry
+  `[DbContext]` and `[Migration]` on the migration file itself and have no `.Designer.cs`, so they
+  have no per-migration target model. EF applies and lists them normally. What they cannot support
+  is `migrations remove` walking back through that range, or `migrations script --from` anchored
+  inside it. Reconstructing seventeen historical snapshots is not worth the risk of getting one
+  subtly wrong; the current-model snapshot in `SatiContextModelSnapshot.cs` is present and correct,
+  which is what `migrations add` actually diffs against.
 
 ### Billing exchange history and Demo contingency catalog (2026-08-29)
 

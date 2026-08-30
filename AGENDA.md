@@ -118,13 +118,22 @@ already there.
 | `20260416005941_AddingAgencyId` | `20260416011235_AddAgencyId` |
 | `20260825155740_AddConsumerEmail` | `20260825163103_AddConsumerEmail` |
 
-Two are in the chain with no history row on Demo, and their objects are already present:
+Two have no history row on Demo, and their objects are already present:
 
 - `20260812090000_TenantScopeSettingsAndProviders` adds `AgencyId` to `Settings` and `Providers`.
   `ApiDbContext` maps both as non-nullable `int` and the report shows nothing blocking, which proves
   the columns exist.
 - `20260816120000_AddNoteMinutesAndStartTime` is already written guarded, and says so in its own
   comment: a bare `AddColumn` would fail with SQL 2705 on databases that predate it.
+
+**Correction to the original reading of the first of those.** It was recorded here as "in the chain
+but not applied". It was not in the chain at all: the source file carried neither `[DbContext]` nor
+`[Migration]`, so EF never enumerated it regardless of a correct-looking filename. The original
+classification came from listing filenames rather than asking EF, and a filename is not membership.
+Both attributes were restored during the 2026-08-30 persistence move, and
+`PersistenceAssemblyBoundaryTests` now pins the discoverable count at 80 so the gap cannot silently
+reopen. The reconciliation still needs its history row; the reason it was missing is different from
+what was first written down.
 
 - [x] Write the `SatiDemo` reconciliation: insert history rows for
       `20260416011235_AddAgencyId`, `20260825163103_AddConsumerEmail`,
