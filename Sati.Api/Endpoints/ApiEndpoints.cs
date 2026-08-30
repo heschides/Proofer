@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Sati.Api.Data;
 using Sati.Api.Infrastructure;
@@ -3615,6 +3616,172 @@ internal static class ApiEndpoints
                     item.EftDepositAmount - item.RemittancePaymentAmount,
                     DepositReconciliationRules.Explain(status), item.IsSynthetic);
             }).ToList());
+        });
+
+        // Ingest a clearinghouse or payer response. This is the permanent path and it
+        // takes documents, so a real Office Ally response and a simulated one arrive the
+        // same way. It is not environment-gated: ingesting a genuine remittance is the
+        // actual feature, and whether the resulting rows are synthetic is decided by the
+        // document's own ISA15 usage indicator rather than by where the code is running.
+        api.MapPost("/billing/periods/{periodId:int}/responses", async Task<IResult> (
+            int periodId,
+            ClaimResponseIngestRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+            if (string.IsNullOrWhiteSpace(request.Document))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["document"] = ["A response document is required."]
+                });
+            }
+
+            // The period is resolved through its owning user's agency, so a caller cannot
+            // attach a response to another tenant's billing history by guessing an id.
+            var period = await (from candidate in db.BillingPeriods.AsNoTracking()
+                                join owner in db.Users.AsNoTracking() on candidate.UserId equals owner.Id
+                                where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
+                                select candidate).SingleOrDefaultAsync(cancellationToken);
+            if (period is null)
+                return Results.NotFound();
+
+            ClaimResponseIngestOutcome outcome;
+            try
+            {
+                outcome = await new ClaimResponseIngestion(db).IngestAsync(
+                    request.Document, actor.AgencyId, periodId, DateTime.UtcNow, cancellationToken);
+            }
+            catch (Exception failure) when (failure is InvalidOperationException or FormatException)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["document"] = [$"The response could not be read: {failure.Message}"]
+                });
+            }
+
+            if (outcome.Kind == ClaimResponseKind.Unrecognised)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["document"] = [outcome.Explanation]
+                });
+            }
+
+            auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(new ClaimResponseIngestResultDto(
+                outcome.Kind.ToString(),
+                outcome.IsSynthetic,
+                outcome.StageRecorded?.ToString(),
+                outcome.ClaimOutcomesRecorded,
+                outcome.DepositRecorded,
+                outcome.Explanation));
+        });
+
+        // Drive the mock clearinghouse. Scaffolding: it fabricates responses and then hands
+        // them to the same ingestion path above, rather than writing rows directly, so the
+        // permanent path is what gets exercised.
+        api.MapPost("/billing/periods/{periodId:int}/mock-clearinghouse", async Task<IResult> (
+            int periodId,
+            MockClearinghouseRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            IOptions<SatiApiOptions> options,
+            IHostEnvironment hostEnvironment,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            // Same gate as the Demo seed command, and NotFound rather than Forbid so the
+            // route is absent in effect on Production rather than merely denied.
+            var isValidatedDemo =
+                string.Equals(options.Value.ExpectedDatabaseName, "SatiDemo", StringComparison.Ordinal) &&
+                string.Equals(options.Value.ExpectedEnvironment, "Demo", StringComparison.Ordinal);
+            var isIsolatedTestHost =
+                hostEnvironment.IsEnvironment("Testing") &&
+                string.Equals(options.Value.ExpectedDatabaseName, "SatiApiTests", StringComparison.Ordinal) &&
+                string.Equals(options.Value.ExpectedEnvironment, "Testing", StringComparison.Ordinal);
+            if (!isValidatedDemo && !isIsolatedTestHost)
+                return Results.NotFound();
+
+            var period = await (from candidate in db.BillingPeriods.AsNoTracking().Include(value => value.Lines)
+                                join owner in db.Users.AsNoTracking() on candidate.UserId equals owner.Id
+                                where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
+                                select candidate).SingleOrDefaultAsync(cancellationToken);
+            if (period is null)
+                return Results.NotFound();
+            if (period.Lines.Count == 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["period"] = ["The billing period has no claim lines to submit."]
+                });
+            }
+
+            var receivedAt = DateTime.UtcNow;
+            MockClearinghouseDocuments documents;
+            try
+            {
+                // isTest is hard-coded rather than taken from the caller. The mock refuses
+                // production interchanges anyway, but a request field that could ask for
+                // one would be a lever worth removing rather than validating.
+                var controlNumber = receivedAt.Ticks.ToString(CultureInfo.InvariantCulture);
+                var edi837 = ServerEdiGenerator.Generate(
+                    period, isTest: true, receivedAt, controlNumber[^9..]);
+                documents = MockClearinghouse.Respond(edi837, request.Scenario, receivedAt);
+            }
+            catch (InvalidOperationException failure)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["period"] = [failure.Message]
+                });
+            }
+
+            var ingestion = new ClaimResponseIngestion(db);
+            var stages = new List<string>();
+            var claimOutcomes = 0;
+            var depositRecorded = false;
+
+            foreach (var document in new[]
+                     {
+                         documents.FunctionalAcknowledgement,
+                         documents.ClaimAcknowledgement,
+                         documents.RemittanceAdvice
+                     })
+            {
+                if (document is null)
+                    continue;
+
+                var outcome = await ingestion.IngestAsync(
+                    document, actor.AgencyId, periodId, receivedAt, cancellationToken);
+                if (outcome.StageRecorded is { } stage)
+                    stages.Add(stage.ToString());
+                claimOutcomes += outcome.ClaimOutcomesRecorded;
+                depositRecorded |= outcome.DepositRecorded;
+            }
+
+            auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(new MockClearinghouseResultDto(
+                request.Scenario.ToString(),
+                documents.FunctionalAcknowledgement,
+                documents.ClaimAcknowledgement,
+                documents.RemittanceAdvice,
+                stages,
+                claimOutcomes,
+                depositRecorded));
         });
 
         api.MapGet("/billing/candidates", async Task<IResult> (

@@ -39,6 +39,7 @@ public static class ApiSurface
         "future-note-reminder-v1",
         "billing-compliance-settings-v1",
         "billing-exchange-history-v2",
+        "claim-response-ingestion-v1",
         "schema-drift-report-v1",
         "admin-test-consumer-deletion-v1",
         "person-test-data-v1"
@@ -120,6 +121,8 @@ public static class ApiSurface
         "POST /api/v1/auth/renew",
         "POST /api/v1/billing/claim-lines",
         "POST /api/v1/billing/periods/{periodId:int}/edi",
+        "POST /api/v1/billing/periods/{periodId:int}/mock-clearinghouse",
+        "POST /api/v1/billing/periods/{periodId:int}/responses",
         "POST /api/v1/billing/periods/{periodId:int}/submit",
         "POST /api/v1/billing/periods/{year:int}/{month:int}",
         "POST /api/v1/exempt-dates",
