@@ -39,6 +39,7 @@ public static class ApiSurface
         "future-note-reminder-v1",
         "billing-compliance-settings-v1",
         "billing-exchange-history-v2",
+        "schema-drift-report-v1",
         "admin-test-consumer-deletion-v1",
         "person-test-data-v1"
     ];
@@ -62,6 +63,7 @@ public static class ApiSurface
         "GET /api/v1/admin/operations",
         "GET /api/v1/admin/overview",
         "GET /api/v1/admin/people",
+        "GET /api/v1/admin/schema-drift",
         "GET /api/v1/at-requests",
         "GET /api/v1/at-requests/{id:int}",
         "GET /api/v1/at-requests/{id:int}/snapshot",

@@ -75,73 +75,117 @@ exact-IP hole in the `SatiDemo` SQL firewall. That hole is the last link in a ch
 bespoke script, so a human must run it, so the firewall must open. There are ten such scripts in
 `scripts/`, each a fresh chance to get it wrong. Reconciling the history table dissolves the rest.
 
-### Phase 0 — Build the instrument
-- [ ] Extract the schema comparison into one owner shared by the health check, the migrator, and the
-      tests, the way `BillingRules` owns its rule. A second hand-written comparison is a defect.
-- [ ] Extend it past `SchemaDriftHealthCheck`'s current reach. That check is one-directional and
-      name-only — model-expects-but-database-lacks, columns only. It is blind to the drift that
-      actually breaks releases, namely objects the database has that the chain never recorded, and
-      to type and nullability mismatches, indexes, and foreign keys.
-- [ ] Report `__EFMigrationsHistory` rows with no objects, and objects with no history row.
-- [ ] Surface the detail on an Admin-only authenticated route. `/health/ready` stays a status word;
-      the check's description already never reaches the anonymous response writer.
-- Exit: the exact three-way disagreement can be printed for `SatiDemo` and `SatiProduction` on
-  demand. For Demo this runs inside the API, which already holds database access, so no firewall
-  rule is involved.
+### Phase 0 — Build the instrument (done 2026-08-30)
+- [x] `SchemaComparison` in `Sati.Contracts.V1` owns the rule for how two descriptions of a schema
+      differ, shared by the readiness check, the drift report, and later the migrator verify step.
+      It takes plain data, because `Sati.Contracts` carries no package references and must not
+      acquire EF Core.
+- [x] Report both directions. `SchemaDriftHealthCheck` was one-directional and name-only —
+      model-expects-but-database-lacks, columns only — and so was blind to the drift that actually
+      breaks releases: objects the database has that the chain never recorded.
+- [x] `SchemaSnapshotReader` extracts a snapshot from an EF model and from a live database, provider
+      aware so the SQLite-backed integration tests exercise it rather than leaving it to run for the
+      first time against Azure SQL.
+- [x] A partial model may report only what it needs. `ApiDbContext` maps just the tables the API
+      serves, so declaring it authoritative would report every desktop-only table as drift and bury
+      the real findings.
+- [x] `GET /api/v1/admin/schema-drift`, Admin only, returns the report. `/health/ready` still emits
+      only the status word, and its description still never reaches the anonymous response writer.
+- [x] Readiness still gates on `PreventsQueries` alone, which is the same set of failures it
+      reported before the rule was extracted. Widening the readiness gate is a release-blocking
+      decision and belongs in its own change.
+- [x] 12 comparison tests and 5 route tests. The Admin gate was confirmed to fail against ungated
+      code before the test was kept.
+- [ ] Store-type comparison is deliberately absent. EF reports `nvarchar(max)` where
+      `INFORMATION_SCHEMA` reports `nvarchar` with length -1, and `decimal(18,2)` as three separate
+      columns. Normalizing well enough to avoid false positives is real work, and a drift report
+      that cries wolf is worse than one with a documented gap.
 
 ### Phase 1 — Reconcile once, per environment
-- [ ] Classify every Phase 0 discrepancy: present-but-unrecorded inserts a history row,
-      recorded-but-absent gets corrective DDL, semantically different is decided one at a time.
+Blocked on running the Phase 0 report against the real databases, which is Josh's action: deploy the
+API and call `/admin/schema-drift` for Demo, and run the desktop equivalent for `SatiProduction`.
+The classification cannot be written in the abstract.
+- [ ] Classify every discrepancy: present-but-unrecorded inserts a history row, recorded-but-absent
+      gets corrective DDL, semantically different is decided one at a time.
 - [ ] One guarded reconciliation per environment with the discipline
       `Apply-ProviderDirectoryMigrations.ps1` already has: fail closed on `DB_NAME()` and
       `SatiDatabaseIdentity`, guard each statement on the actual schema, verify semantics rather
       than names, stay rerunnable.
 - [ ] Rehearse against a restored copy before touching either live database.
-- Exit: `--idempotent` runs clean twice against a restored copy of each database and the Phase 0
-  report is empty in both directions. This is the last release that opens the SQL firewall.
+- Exit: the idempotent script runs clean twice against a restored copy of each database and the
+  Phase 0 report is empty in both directions. This is the last release that opens the SQL firewall.
 
-### Phase 2 — `Sati.Migrator`
-- [ ] Console project over `ApiDbContext` with three modes: `plan` (default; prints pending
-      migration ids and the DDL, changes nothing), `apply` (requires a matching environment marker
-      and an explicit `--authorized-by`, fails closed otherwise), and `verify` (re-runs the Phase 0
-      comparison, non-zero exit on any drift).
+### Phase 1.5 — Free the migration chain from the desktop project
+Discovered while building Phase 0, and a hard prerequisite for Phase 2. All 79 migrations belong to
+`SatiContext` in `Sati.csproj`, which is `net10.0-windows` with `UseWPF`. A migrator that references
+it inherits WPF and can only ever run on Windows, which forecloses the Linux-container option in
+Phase 3 before it is chosen. `ApiDbContext` is a second, hand-maintained model over the same tables
+with no chain of its own, so it cannot substitute.
+- [ ] Move the entities and `SatiContext` behind a platform-neutral `net10.0` project that the
+      desktop, the API, and a migrator can all reference.
+- [ ] Keep the desktop `LocalDatabaseUpdate` path working unchanged; it migrates the live
+      `SatiProduction` at startup and is the highest-regression-risk part of this move.
+- Exit: `dotnet ef migrations list` resolves against a project with no WPF reference, and the
+  desktop still migrates a restored `SatiProduction` copy cleanly.
+
+### Phase 2 — Sati.Migrator
+- [ ] Console project with three modes: `plan` (default; prints pending migration ids and the DDL,
+      changes nothing), `apply` (requires a matching environment marker and an explicit
+      `--authorized-by`, fails closed otherwise), and `verify` (re-runs the Phase 0 comparison,
+      non-zero exit on any drift).
 - [ ] Write an `AuditEvent` on apply recording migration ids, authorizer, source commit, and the
       resulting schema fingerprint. This is the integrity evidence `REGULATORY_CONCERNS.md` wants.
-- Exit: `plan`/`apply`/`verify` reproduces Phase 1's end state on a restored copy from both an empty
-  and a current database, and a second `apply` is a no-op.
+- Exit: plan/apply/verify reproduces the Phase 1 end state on a restored copy from both an empty and
+  a current database, and a second apply is a no-op.
 
 ### Phase 3 — Run it where access already exists
-- [ ] **Open decision: Container Apps Job or triggered WebJob.** A WebJob needs no new
-      infrastructure but runs under the App Service's managed identity, so the internet-facing API
-      would gain permanent DDL rights on `SatiDemo`. That trades a temporary, human-supervised
-      firewall hole for a standing privilege escalation on the most exposed component, which is
-      worse than today. A Container Apps Job in `rg-sati-demo` carries its own identity with DDL
-      rights while the API identity stays read/write. Recommended, at the cost of new
-      infrastructure.
-- [ ] Invoke it from the release workflow and capture stdout as evidence.
-- Exit: a schema release completes end to end with `az sql server firewall-rule list` showing the
-  same three `sati-demo-api-outbound-*` rules before and after.
+**This must be in place before `SatiProduction` moves to the cloud, and it is a release gate rather
+than a preference.** While Demo holds only synthetic data the workstation hole is a proportionate
+risk and the cheaper option below is defensible. The moment a cloud database holds real consumer
+records, an identity that can alter schema is a different category of exposure and the enforced
+boundary stops being optional. A cloud Production deployment must not ship ahead of this phase.
+
+- [ ] **Open decision, to be made before cloud Production rather than now.**
+      - Triggered WebJob: no new infrastructure and already inside the SQL allow-list, but it runs
+        under the App Service managed identity. Identity is scoped to the resource, not the process,
+        so anything in that site can request a token for any identity assigned to it, which means
+        the internet-facing API would effectively hold DDL rights on `SatiDemo`. That is a standing
+        privilege escalation on the most exposed component, in exchange for removing a temporary,
+        human-supervised hole. Acceptable only while the data is synthetic.
+      - Container Apps Job: its own resource and therefore its own identity, genuinely out of reach
+        of the API. Recommended, and required once real records are involved.
+- [ ] `sati-demo-api-satilogica` runs on `asp-sati-demo-central-f1` — **F1 Free tier, Windows,
+      alwaysOn false**. Free tier has no VNet integration, so a private endpoint to SQL is not
+      available on the App Service path, and the F1 60-minute daily CPU quota plus site sleep make a
+      WebJob fragile for anything long-running. A tier change is part of the real cost of the WebJob
+      option.
+- [ ] Correct the earlier exit criterion recorded here: a Container Apps Job has its own egress and
+      would need a **fourth** permanent allow-list entry, or a VNet with a NAT gateway, or a private
+      endpoint. The gain is replacing a recurring, human-opened, workstation-scoped hole with one
+      standing rule for a non-interactive service — the same shape as the three App Service rules
+      already trusted. It is not the elimination of firewall rules.
+- Exit: a schema release completes end to end with no temporary rule added or removed, and the
+  allow-list holds only service-scoped entries.
 
 ### Phase 4 — Fold into DATT
 - [ ] `RELEASE_PLAYBOOK.md` section 6 becomes plan, show the DDL, obtain explicit authorization,
       apply, then verify against `/health/ready`. The human authorization gate does not move; only
       the network hole disappears.
-- Exit: the playbook contains no firewall instruction, and `AGENTS.md` item 5's carve-out is no
-  longer on the normal path.
+- Exit: the playbook contains no firewall instruction, and `AGENTS.md` item 5 carve-out is no longer
+  on the normal path.
 
-### Phase 5 — `SatiProduction`
+### Phase 5 — SatiProduction
 `SatiProduction` is local, not Azure: `LocalDatabaseUpdate` calls
 `SqlLocalDatabaseMaintenance.MigrateAsync`, which calls `Database.MigrateAsync()` at desktop
 startup. No firewall is involved, but the same history drift is, applied automatically to the live
 working tool with no plan step and no gate.
-- [ ] Reconcile it in Phase 1 alongside Demo.
+- [ ] Share `SchemaSnapshotReader` rather than writing a second one. It lives in `Sati.Api` today
+      because nothing else could hold it; `Sati.Contracts` cannot take EF Core. The Phase 1.5
+      platform-neutral project is the natural home. A second hand-written reader is a defect.
 - [ ] Run the Phase 0 comparison before `MigrateAsync` and refuse with a legible message naming the
       offending object when the pending chain would collide with drift, rather than failing partway
       through a multi-migration chain.
-- [ ] **Open decision: ordering.** This phase needs Phase 0's comparison but nothing else, and it
-      guards the live database; `AddBillingExchangeHistory` and `AddRemittanceDeposits` are already
-      queued against it. Running it immediately after Phase 0, ahead of the Demo work, is
-      defensible.
+- [ ] Reconcile it in Phase 1 alongside Demo.
 - Exit: a schema-adding release either applies cleanly at next launch or refuses with a reason.
   Never a half-applied database.
 

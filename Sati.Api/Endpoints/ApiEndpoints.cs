@@ -337,6 +337,35 @@ internal static class ApiEndpoints
                 oldestEdi));
         });
 
+        // Schema drift detail, for the reconciliation that has to classify each
+        // discrepancy before it can be fixed. `/health/ready` reports only a status
+        // word, and its description never reaches the anonymous response writer, so
+        // without this the drift is visible only in the API's own logs.
+        //
+        // The report names tables and columns, never row data, so it carries no
+        // consumer information. It is still Admin-gated: schema shape is
+        // operational detail about the deployment, not something every signed-in
+        // case manager needs.
+        api.MapGet("/admin/schema-drift", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            // The chain is passed empty on purpose. Every migration belongs to
+            // SatiContext in the desktop project; this model has no chain of its
+            // own, so it reports the applied ids as data and leaves the verdict to
+            // a caller that owns the chain.
+            return Results.Ok(SchemaComparison.Report(
+                SchemaSnapshotReader.FromModel(db.Model, "The API model", describesEveryTable: false),
+                await SchemaSnapshotReader.ReadDatabaseAsync(db, "the database", cancellationToken),
+                chainMigrationIds: [],
+                await SchemaSnapshotReader.ReadAppliedMigrationsAsync(db, cancellationToken)));
+        });
+
         api.MapGet("/admin/people", async Task<IResult> (
             ClaimsPrincipal principal,
             ApiDbContext db,
