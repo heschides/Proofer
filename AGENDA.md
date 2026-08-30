@@ -24,8 +24,40 @@ rule. No user-facing feature changes and no new migrations.
       side, so the model was tightened and no schema was touched.
 
 ### Validation and release evidence
-- [ ] Record the source release commit, Demo API deployment and health, contract revision parity,
-      and accepted Demo/Local installer hashes below before marking this release complete.
+- [x] Source release commit `afa59df`, pushed to `origin/master` without rewriting history.
+- [x] Full Release build of `Sati.slnx` succeeded. 847 desktop/domain tests passed with the one
+      documented opt-in local-AI skip, 250 API integration tests passed, 4 Carika tests passed. Two
+      pre-existing `CS8604` nullable warnings remain in provider test files; they are warnings, not
+      errors, and predate this change set.
+- [x] No schema change. The 80 migration ids are identical to those released in 1.2.31, so neither
+      the controlled Demo migration authorization nor a temporary firewall rule applied to this
+      release. Verified by comparing id sets, not counts.
+- [x] Published the Demo API ZIP built from `afa59df` (9,453,008 bytes; SHA-256
+      `8FCE069B21EB30B663DF68DCE4F5081E0ECB035FF4708F61C900D4BD06A5DFF1`; no `appsettings*.json`,
+      credential, or private desktop configuration in the payload; carries only the
+      `demo-history-reconciliation` WebJob). Deployment `4e65fda9c6a24ef88db74b52bfcc046e` succeeded.
+- [x] `/health/live` live, `/health/ready` Healthy, `/health/version` reports release 1.2.32 and
+      contract revision `7C6F00E77F6E`, which exactly matches the client's `ApiSurface.Revision`.
+      **This restores parity**: the published 1.2.31 installers expected `F929FEB01DEB` while the
+      deployed API already served `7C6F00E77F6E`, so a fresh Demo install showed the compatibility
+      banner until now.
+- [x] Full authenticated `Test-DemoReadiness.ps1` gate passed, not only the health-only form: Admin
+      role confirmed, agency 2, 15 users, 177 people, recent activity, `PolicyOnly` retention, 331
+      audit events. The 1.2.30 and 1.2.31 releases could only record this as skipped.
+- [x] Generated and accepted `SatiDemoSetup-1.2.32.exe` (100,421,632 bytes; SHA-256
+      `D6AC3024E6A4D965065EECAF6CC667349B2800815CCE2EE8EBC7F3E2DF4E3A94`): five responsive launches,
+      graceful closes, zero exit codes, version 1.2.32.0, isolated cleanup passed.
+- [x] Generated and accepted `SatiLocalSetup-1.2.32.exe` (202,474,762 bytes; SHA-256
+      `CA4E3FA08C43B9316F79A714D6052ED3C7D1322B6F59E470E8917BD7F06F4534`): version 1.2.32.0,
+      integrated security confirmed, isolated cleanup passed. The embedded
+      `artifacts\Prerequisites\SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) carries a valid Microsoft
+      Corporation Authenticode signature, verified before use.
+- [x] Published both installers and their `.sha256` files by verified copy-then-rename to
+      `…\SatiLogica - Documents\Sati Desktop` (Local) and
+      `…\SatiLogica - Documents\SatiLogica Demo Files` (Demo). No existing file was replaced.
+- [x] The SQL allow-list held exactly its three `sati-demo-api-outbound-*` rules throughout. No
+      temporary firewall rule was created or removed by this release.
 - [ ] **Flaky test, identified by name at last:
       `DatabaseActivityTests.PatienceStateAppearsOnlyAfterTheConfiguredContinuousDelay`.** It failed
       once in ten runs across this release's gates and once during the 2026-08-30 persistence work,
