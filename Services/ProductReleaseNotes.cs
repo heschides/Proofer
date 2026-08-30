@@ -6,30 +6,30 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Database change handling and schema drift detection";
+    public const string ReleaseName = "Sati repairs its own update record";
     public const string ReleaseDate = "August 30, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Nothing changes in daily use",
+            "Sati starts again on machines where 1.2.32 refused",
             [
-                "This release is platform work. Caseloads, notes, scheduling, compliance, billing, and the provider directory behave exactly as they did in 1.2.31.",
-                "One defect was fixed that had not yet caused a visible failure: the server treated a consumer's first name, last name, and a claim line's units as optional while the database required them, which could have refused a save at the wrong moment."
+                "Version 1.2.32 would not start on some machines, stopping with a message about a column name being specified more than once. Sati was right to stop: an earlier update had reached the database without leaving a record that it ran, so it was about to repeat work that was already done.",
+                "Sati now checks that before it changes anything. When every part of an update is already in place, it simply records that the update ran and carries on.",
+                "Nothing about your records changes. The repair writes a single line to Sati's own list of applied updates."
             ]),
         new(
-            "Sati can now report how its own database differs from what it expects",
+            "When it still stops, it says something you can act on",
             [
-                "An administrator can ask the server which tables and columns it expects but does not find, rather than discovering the gap as a failed screen.",
-                "The check reports in both directions, so objects the database carries that no current version knows about are visible too.",
-                "It reads only table and column names. It is a detector and changes nothing on its own."
+                "If only part of an update is present, Sati still refuses, because which part is missing decides what should happen and that needs a person.",
+                "The message now names the update involved and states plainly that nothing was changed, instead of reporting a database error.",
+                "A backup is still taken before any change, whenever the database holds records."
             ]),
         new(
-            "Database updates no longer need a hole opened in the firewall",
+            "Nothing else changes in daily use",
             [
-                "Applying a schema change to the hosted Demo database used to mean temporarily granting a laptop direct access to it. That step is gone; the work now runs inside the hosted service, which already has the access it needs.",
-                "Each run reports what it would do before it is allowed to do anything, refuses when the database does not match what it expects, and records what it changed.",
-                "The Demo database's migration history had drifted from the record of changes applied to it, which is why every schema update had required its own hand-written script. That history has been reconciled."
+                "Caseloads, notes, scheduling, compliance, billing, and the provider directory behave exactly as they did in 1.2.32.",
+                "This release adds no new database changes of its own."
             ]),
         new(
             "Still planned before commercial production",

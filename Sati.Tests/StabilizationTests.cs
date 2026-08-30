@@ -553,24 +553,25 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.32", version);
+        Assert.Equal("1.2.33", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Database change handling and schema drift detection", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Sati repairs its own update record", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
-        // A platform release must say plainly that daily use is unchanged, rather than dressing
-        // infrastructure work up as a feature the reader will go looking for.
+        // A release that fixes a refusal to start must name the version that refused, so a
+        // reader who hit it can tell that this is the one that addresses it.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Nothing changes in daily use" &&
-            section.Items.Any(item => item.Contains("platform work", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("1.2.31", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Sati starts again on machines where 1.2.32 refused" &&
+            section.Items.Any(item => item.Contains("1.2.32", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("records that the update ran", StringComparison.OrdinalIgnoreCase)));
+        // Self-repair must not be described as unconditional. The notes have to keep saying
+        // that the ambiguous case still stops, or they oversell what shipped.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Sati can now report how its own database differs from what it expects" &&
-            section.Items.Any(item => item.Contains("both directions", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("detector", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "When it still stops, it says something you can act on" &&
+            section.Items.Any(item => item.Contains("only part of an update", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("backup", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Database updates no longer need a hole opened in the firewall" &&
-            section.Items.Any(item => item.Contains("direct access", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("migration history", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Nothing else changes in daily use" &&
+            section.Items.Any(item => item.Contains("1.2.32", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&

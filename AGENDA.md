@@ -2,6 +2,49 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.33 — 2026-08-30
+
+Sati repairs the provable half of a migration history disagreement at startup, instead of refusing
+to start. No user-facing feature changes and no new migrations.
+
+### Why this release exists
+1.2.32 refused to start on three machines with SQL 2705, "Column name 'AgencyId' in table
+'Settings' is specified more than once". The refusal was correct — the startup guard backed up,
+stopped, and changed nothing — but the message was a provider error, and clearing it needed a
+person who could read it and a PowerShell script per machine.
+
+### Startup schema handling
+- [x] `MigrationEffectAnalyzer` in `Sati.Persistence` compares what each pending migration declares
+      against the live schema before anything is written. Columns, indexes, foreign keys, and
+      primary keys are matched by what they map rather than by name.
+- [x] Every effect present is recorded rather than applied — an insert into
+      `__EFMigrationsHistory` touching no schema and no consumer data. No effect present migrates
+      normally, unchanged.
+- [x] Only partly present, or a verdict the analyzer cannot reach, still refuses. That is the
+      judgement the startup path has always declined to make unattended, and it is unchanged.
+- [x] The refusal now names the migration and states that nothing was changed, rather than
+      surfacing the provider error.
+- [x] Raw SQL and data steps are reported as unverifiable and left out of the verdict. An
+      unrecognised operation type counts as unverifiable too, so an unfamiliar migration reports
+      `Indeterminate` rather than a confident wrong answer.
+- [x] The backup still happens first whenever the database holds records.
+
+### Validation
+- [x] Six new tests. The partial-drift guard was confirmed to fail against the ungated code before
+      being kept.
+- [x] Verified end to end against a real SQL Server database, not only with fakes: a scratch
+      database built from the chain, drifted by removing one history row, run through the real
+      updater, then dropped. Outcome `Applied`, drift recorded, nothing pending, second run
+      `AlreadyCurrent`.
+- [x] The analyzer was also run against a genuinely drifted `SatiProduction`, which was restored
+      afterwards.
+
+### Release evidence
+- [ ] Record the source release commit, Demo API deployment and health, contract revision parity,
+      and accepted Demo/Local installer hashes below before marking this release complete.
+- [ ] Once distributed, the remaining drifted machine can install this rather than run
+      `scripts/remote-repair`. That kit stays available for anyone on an older build.
+
 ## Release 1.2.32 — 2026-08-30
 
 Platform-neutral persistence, schema drift detection, and Demo schema changes without a firewall
