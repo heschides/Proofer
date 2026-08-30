@@ -271,28 +271,33 @@
       <stop offset="0" stop-color="#f3f7fa"/>
       <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
+    <clipPath id="g8-billing-inset">
+      <circle cx="335" cy="355" r="101"/>
+    </clipPath>
   </defs>
   <rect x="0" y="-1" width="960" height="541" fill="url(#g8-1)"/>
   <path d="M965 55 C965 -8.513 913.513 -60 850 -60 C786.487 -60 735 -8.513 735 55 C735 118.513 786.487 170 850 170 C913.513 170 965 118.513 965 55" fill="#f1fbfb"/>
   <path d="M910 460 C910 379.919 845.081 315 765 315 C684.919 315 620 379.919 620 460 C620 540.081 684.919 605 765 605 C845.081 605 910 540.081 910 460" fill="#eef7fe"/>
   <path d="M215 50 C215 -7.99 167.99 -55 110 -55 C52.01 -55 5 -7.99 5 50 C5 107.99 52.01 155 110 155 C167.99 155 215 107.99 215 50" fill="#f5f0fa"/>
   <path d="M979 320 C979 290.177 954.823 266 925 266 C895.177 266 871 290.177 871 320 C871 349.823 895.177 374 925 374 C954.823 374 979 349.823 979 320" fill="#fef8ef"/>
-  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#427a4a">METRICS CONNECTED TO DECISIONS</text>
+  <text x="44" y="44" font-family="'Segoe UI', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#566da8">BILLING GATE 3 / APPROVED NOTES</text>
   <path d="M44 51 L78 51" fill="none" stroke="#427a4a" stroke-width="2.5"/>
-  <text x="44" y="94" font-family="'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="700" fill="#13233d">What if you could see which lost units were lost visits?</text>
-  <text x="44" y="157.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Productivity history connects documentation to billable days, lost units, attainment, and incentive calculations across the reporting</text>
-  <text x="44" y="175.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">window you choose.</text>
-  <rect x="49" y="191" width="872" height="307" rx="14" fill="#13233d"/>
-  <image href="assets/img-27.jpg" x="44" y="185" width="872" height="307" preserveAspectRatio="none"/>
-  <path d="M58 492 L902 492 C909.739 492 916 485.739 916 478 L916 199 C916 191.261 909.739 185 902 185 L58 185 C50.261 185 44 191.261 44 199 L44 478 C44 485.739 50.261 492 58 492 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
-  <image href="assets/img-28.jpg" x="650" y="364" width="246" height="112" preserveAspectRatio="none"/>
-  <path d="M660 476 L886 476 C891.528 476 896 471.528 896 466 L896 374 C896 368.472 891.528 364 886 364 L660 364 C654.472 364 650 368.472 650 374 L650 466 C650 471.528 654.472 476 660 476 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
-  <rect x="60" y="396" width="250" height="82" rx="10" fill="#ffffff" stroke="#d8e1ea" stroke-width="0.8"/>
-  <text x="76" y="421" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="700" fill="#427a4a">THE NUMBERS HAVE A JOB</text>
-  <text x="76" y="443.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">Show where to act. Show why. Show what</text>
-  <text x="76" y="457.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#1c2a3f">changes next.</text>
+  <text x="44" y="94" font-family="'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="700" fill="#13233d">Approval opens the third billing gate.</text>
+  <text x="44" y="143.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Once a case note is approved, it enters a queue available only to staff with Billing permission.</text>
+  <text x="44" y="163.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="400" fill="#56657a">Ready items can be processed as an 837 record; blocked items name the information that must be corrected first.</text>
+  <rect x="49" y="204" width="872" height="271" rx="14" fill="#13233d"/>
+  <image href="assets/s08-billing-queue.png" x="44" y="198" width="872" height="271" preserveAspectRatio="none"/>
+  <path d="M58 469 L902 469 C909.739 469 916 462.739 916 455 L916 212 C916 204.261 909.739 198 902 198 L58 198 C50.261 198 44 204.261 44 212 L44 455 C44 462.739 50.261 469 58 469 Z" fill="none" stroke="#d8e1ea" stroke-width="0.8"/>
+
+  <!-- Magnify blocked rows and the compliance reasons that keep them from moving forward. -->
+  <circle cx="335" cy="355" r="108" fill="#ffffff" fill-opacity="0.94"/>
+  <image href="assets/s08-billing-queue.png" x="-233.93" y="48.65" width="1617.81" height="502.57" preserveAspectRatio="none" clip-path="url(#g8-billing-inset)"/>
+  <circle cx="335" cy="355" r="103" fill="none" stroke="#ffffff" stroke-width="7"/>
+  <circle cx="335" cy="355" r="103" fill="none" stroke="#566da8" stroke-width="3"/>
+  <rect x="226" y="462" width="218" height="24" rx="12" fill="#566da8"/>
+  <text x="335" y="477.5" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#ffffff">NON-COMPLIANT ITEMS EXPLAIN WHY</text>
   <path d="M44 518 L916 518" fill="none" stroke="#d8e1ea" stroke-width="0.6"/>
-  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / PRODUCTIVITY AND BILLABILITY</text>
+  <text x="44" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">SATI / BILLING GATE 3</text>
   <text x="907.3721" y="530.5" font-family="'Segoe UI', system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#7b8798">08</text>
 </svg>
 

@@ -6,6 +6,7 @@ using Sati.Services;
 using Sati.ViewModels;
 using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
+using Sati.Contracts.V1;
 using Xunit;
 
 namespace Sati.Tests;
@@ -463,6 +464,12 @@ public sealed class ConcurrencySafetyTests
         public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) => throw new NotSupportedException();
         public Task SubmitBillingPeriodAsync(int billingPeriodId) => throw new NotSupportedException();
         public Task SaveBillingConfigurationAsync(BillingConfiguration configuration) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+            Task.FromResult<IReadOnlyList<BillingSubmissionHistoryDto>>([]);
+        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+            Task.FromResult<IReadOnlyList<RemittanceClaimOutcomeDto>>([]);
+        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+            Task.FromResult<IReadOnlyList<RemittanceDepositDto>>([]);
     }
 
     private sealed class OutOfOrderIncentiveService : IIncentiveService

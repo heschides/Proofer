@@ -119,6 +119,9 @@ when acting as Supervisor, or any case manager in the agency when acting as Dire
 | Reports | `GET /reports/consumer-billing-loss` | Each person's assigned user and agency | Own caseload only. |
 | Billing | `POST /billing/periods/{year}/{month}` | Billing period user's `AgencyId` | Admin only; target user must be in actor agency. |
 | Billing | `GET /billing/periods` | Billing period user's `AgencyId` | Admin only; response joined to actor agency. |
+| Billing | `GET /billing/submissions` | Event `AgencyId` plus billing period user's `AgencyId` | Admin only; both ownership markers must equal actor agency. Synthetic provenance is explicit. |
+| Billing | `GET /billing/remittances` | Outcome `AgencyId` | Admin only; returns bounded claim-level outcomes for actor agency, without raw 835 or note narrative. |
+| Billing | `GET /billing/remittance-deposits` | Deposit `AgencyId` | Admin only; returns bounded 835/EFT reconciliation totals for actor agency. Provider-level (PLB) adjustments are explicit; no bank credentials are returned. |
 | Billing | `GET /billing/configuration` | Authenticated actor's `AgencyId` | Admin only; returns only the actor agency's payer/provider defaults. |
 | Billing | `PUT /billing/configuration` | Authenticated actor's `AgencyId` | Admin only; writes and audits only the actor agency's configuration. |
 | Billing | `GET /billing/candidates` | Note person's owning user's `AgencyId` | Admin only; candidates joined to actor agency. |

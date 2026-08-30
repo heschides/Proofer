@@ -38,6 +38,7 @@ public static class ApiSurface
         "person-representative-payee-v1",
         "future-note-reminder-v1",
         "billing-compliance-settings-v1",
+        "billing-exchange-history-v2",
         "admin-test-consumer-deletion-v1",
         "person-test-data-v1"
     ];
@@ -69,6 +70,9 @@ public static class ApiSurface
         "GET /api/v1/billing/claim-lines/draft",
         "GET /api/v1/billing/configuration",
         "GET /api/v1/billing/periods",
+        "GET /api/v1/billing/remittances",
+        "GET /api/v1/billing/remittance-deposits",
+        "GET /api/v1/billing/submissions",
         "GET /api/v1/caseload",
         "GET /api/v1/exempt-dates/{year:int}",
         "GET /api/v1/incentives/history",

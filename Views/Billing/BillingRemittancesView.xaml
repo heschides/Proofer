@@ -1,22 +1,70 @@
-<!-- BillingOverviewView.xaml -->
 <UserControl x:Class="Sati.Views.Billing.BillingRemittancesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
-    <StackPanel HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="500">
-        <TextBlock Text="REMITTANCES"
-                   FontSize="11"
-                   FontWeight="SemiBold"
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="835 REMITTANCE CLAIM OUTCOMES"
+                   FontSize="11" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+        <TextBlock Grid.Row="1" Margin="0,6,0,4" TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondaryBrush}"
-                   HorizontalAlignment="Center"
-                   Margin="0,0,0,8" />
-        <TextBlock Text="{Binding StubMessage}"
-                   FontSize="13"
-                   Foreground="{DynamicResource TextPrimaryBrush}"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center" />
-    </StackPanel>
+                   Text="Demo rows are visibly synthetic and cover paid, partial, denied, reversed, unmatched, and needs-review outcomes. No clearinghouse or payer is contacted." />
+        <TextBlock Grid.Row="2" Margin="0,0,0,12" Text="{Binding StatusMessage}"
+                   AutomationProperties.LiveSetting="Polite"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+
+        <TextBlock Grid.Row="3" Text="DEPOSIT RECONCILIATION — A batch is complete only when the 835 and EFT match to the penny. PLB adjustments are shown explicitly."
+                   TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+        <DataGrid Grid.Row="4" ItemsSource="{Binding Deposits}"
+                  AutomationProperties.Name="835 and EFT deposit reconciliation"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  HeadersVisibility="Column" SelectionMode="Single" MinHeight="130" Margin="0,0,0,14">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentReference}" Width="95" />
+                <DataGridTextColumn Header="PAYER" Binding="{Binding PayerName}" Width="105" />
+                <DataGridTextColumn Header="CLAIM PAYMENTS" Binding="{Binding ClaimPaymentAmount, StringFormat={}{0:C}}" Width="100" />
+                <DataGridTextColumn Header="PLB" Binding="{Binding ProviderLevelAdjustmentAmount, StringFormat={}{0:C}}" Width="70" />
+                <DataGridTextColumn Header="PLB DETAIL" Binding="{Binding ProviderLevelAdjustmentSummary}" Width="130" />
+                <DataGridTextColumn Header="835 TOTAL" Binding="{Binding RemittancePaymentAmount, StringFormat={}{0:C}}" Width="80" />
+                <DataGridTextColumn Header="EFT" Binding="{Binding EftDepositAmount, StringFormat={}{0:C}}" Width="80" />
+                <DataGridTextColumn Header="DIFFERENCE" Binding="{Binding Difference, StringFormat={}{0:C}}" Width="85" />
+                <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="120" />
+                <DataGridTextColumn Header="DETAIL" Binding="{Binding StatusExplanation}" Width="2*" />
+                <DataGridCheckBoxColumn Header="SYNTHETIC" Binding="{Binding IsSynthetic}" Width="75" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <DataGrid Grid.Row="5" ItemsSource="{Binding Outcomes}"
+                  AutomationProperties.Name="Remittance claim outcomes"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" HeadersVisibility="Column"
+                  SelectionMode="Single" MinHeight="200">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="RECEIVED (UTC)"
+                                    Binding="{Binding ReceivedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}"
+                                    Width="130" />
+                <DataGridTextColumn Header="CLAIM" Binding="{Binding ClaimReference}" Width="105" />
+                <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="105" />
+                <DataGridTextColumn Header="BILLED" Binding="{Binding BilledAmount, StringFormat={}{0:C}}" Width="75" />
+                <DataGridTextColumn Header="ALLOWED" Binding="{Binding AllowedAmount, StringFormat={}{0:C}}" Width="75" />
+                <DataGridTextColumn Header="PAID" Binding="{Binding PaidAmount, StringFormat={}{0:C}}" Width="75" />
+                <DataGridTextColumn Header="ADJUSTED" Binding="{Binding AdjustmentAmount, StringFormat={}{0:C}}" Width="80" />
+                <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientResponsibilityAmount, StringFormat={}{0:C}}" Width="75" />
+                <DataGridTextColumn Header="REASON" Binding="{Binding ReasonCode}" Width="65" />
+                <DataGridTextColumn Header="DETAIL" Binding="{Binding Explanation}" Width="2*" />
+                <DataGridCheckBoxColumn Header="SYNTHETIC" Binding="{Binding IsSynthetic}" Width="75" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
 </UserControl>

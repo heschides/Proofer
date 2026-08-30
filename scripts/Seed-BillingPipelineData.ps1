@@ -47,8 +47,8 @@ IF NOT EXISTS (SELECT 1 FROM dbo.SatiDatabaseIdentity WHERE EnvironmentName = N'
     THROW 51001, 'The selected database does not have the Demo identity marker.', 1;
 IF NOT EXISTS (
     SELECT 1 FROM dbo.__EFMigrationsHistory
-    WHERE MigrationId = N'20260813110000_AddBillingPipelineConfiguration')
-    THROW 51002, 'Apply the billing pipeline migration before seeding.', 1;
+    WHERE MigrationId = N'20260830001538_AddRemittanceDeposits')
+    THROW 51002, 'Apply the billing exchange history migration before seeding.', 1;
 IF NOT EXISTS (SELECT 1 FROM dbo.Agencies WHERE Id = @agencyId)
     THROW 51003, 'The selected Demo agency does not exist.', 1;
 IF NOT EXISTS (
@@ -189,6 +189,162 @@ SELECT N'Synthetic billing pipeline verification note. No real person or service
        @marker + N':' + scenario.Scenario, 1
 FROM @scenarios scenario
 JOIN @seedPeople seeded ON seeded.Scenario = scenario.Scenario;
+
+-- A separate synthetic consumer owns historical claims so the ten queue scenarios above remain
+-- exactly three ready and seven blocked. These rows exercise display and reconciliation states;
+-- they do not represent network activity and every exchange row carries IsSynthetic = 1.
+INSERT dbo.People(
+    FirstName, LastName, BirthDate, EffectiveDate, Bio, Waiver, UserId, AgencyId,
+    DiagnosisCode, MaineCareId, PlaceOfService, Gender, Address, DayProgramCount,
+    HasCommunitySupport1To1, HasCommunitySupportDayProgram,
+    HasCommunitySupportSelfDirected, HasEmploymentSpecialist, HasHomeSupport,
+    HasSelfDirectedHomeSupport, HasSharedLiving, HasWorkSupports, IsEmployed,
+    OpenWithVR, HasGuardian, Revision, BillingStreet, BillingCity, BillingState, BillingZip)
+VALUES (
+    N'Billing', N'History Scenarios', DATEFROMPARTS(1990, 2, 15), @cycleStart,
+    @marker + N':EXCHANGE_HISTORY', 1, @caseManagerUserId, @agencyId,
+    N'F89', N'DEMOHISTORY01', 11, 0, N'200 Synthetic Street, Augusta, ME 04330', 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    N'200 Synthetic Street', N'Augusta', N'ME', N'04330');
+DECLARE @historyPersonId int = SCOPE_IDENTITY();
+
+INSERT dbo.Forms(Type, DueDate, IsCompliant, PersonId, CompletedDate, OpenedDate)
+SELECT formType.Type, DATEFROMPARTS(YEAR(@today), 12, 31), 1, @historyPersonId,
+       DATEADD(day, 1, @cycleStart), NULL
+FROM @formTypes formType;
+
+DECLARE @claimSnapshot nvarchar(max) = (
+    SELECT 1 AS Version, @agencyId AS AgencyId, @historyPersonId AS PersonId,
+           N'Billing' AS SubscriberFirstName, N'History Scenarios' AS SubscriberLastName,
+           DATEFROMPARTS(1990, 2, 15) AS SubscriberBirthDate, N'U' AS SubscriberGenderCode,
+           N'DEMOHISTORY01' AS SubscriberMemberId, N'200 Synthetic Street' AS SubscriberStreet,
+           N'Augusta' AS SubscriberCity, N'ME' AS SubscriberState, N'04330' AS SubscriberZip,
+           N'Sandbox Mode' AS BillingProviderName, N'1999999984' AS BillingProviderNpi,
+           N'999999999' AS BillingProviderTaxId, N'1 Demo Way' AS BillingProviderStreet,
+           N'Augusta' AS BillingProviderCity, N'ME' AS BillingProviderState,
+           N'04330' AS BillingProviderZip, N'SATIDEMO2' AS SubmitterId,
+           N'Demo Billing Desk' AS SubmitterContactName, N'2075550100' AS SubmitterContactPhone,
+           N'MEDICAID MAINE' AS PayerName, N'MCDME' AS PayerId
+    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+
+DECLARE @history table (
+    ScenarioIndex int PRIMARY KEY,
+    PeriodId int NOT NULL,
+    ClaimId int NOT NULL,
+    ClaimReference nvarchar(80) NOT NULL,
+    Charge decimal(18,2) NOT NULL);
+DECLARE @historyIndex int = 1;
+WHILE @historyIndex <= 8
+BEGIN
+    DECLARE @historyMonth date = DATEADD(month, -@historyIndex, DATEFROMPARTS(YEAR(@today), MONTH(@today), 1));
+    DECLARE @historyServiceDate date = DATEADD(day, 9, @historyMonth);
+    DECLARE @periodStatus int = CASE
+        WHEN @historyIndex IN (5, 7) THEN 3
+        WHEN @historyIndex = 6 THEN 2
+        ELSE 1 END;
+    DECLARE @submittedAt datetime2 = DATEADD(day, 2, CAST(@historyServiceDate AS datetime2));
+
+    INSERT dbo.BillingPeriods(UserId, Month, Year, Status, SubmittedAt)
+    VALUES (@caseManagerUserId, MONTH(@historyMonth), YEAR(@historyMonth), @periodStatus, @submittedAt);
+    DECLARE @historyPeriodId int = SCOPE_IDENTITY();
+
+    INSERT dbo.Notes(
+        Narrative, Status, PersonId, EventDate, NoteType, AgencyId,
+        ApprovedAt, ApprovedById, ComplianceOverride, Minutes,
+        CaseManagerJustification, Revision)
+    VALUES (
+        N'Synthetic historical claim used only to demonstrate billing exchange states.',
+        6, @historyPersonId, @historyServiceDate, 1, @agencyId,
+        DATEADD(day, 1, CAST(@historyServiceDate AS datetime2)), @approverUserId, 0,
+        10 + @historyIndex, @marker + N':HISTORY_' + CONVERT(nvarchar(10), @historyIndex), 1);
+    DECLARE @historyNoteId int = SCOPE_IDENTITY();
+    DECLARE @charge decimal(18,2) = 25.00 * (1.00 + (@historyIndex / 10.0));
+
+    INSERT dbo.ClaimLines(
+        NoteId, BillingPeriodId, DateOfService, ProcedureCode, ProcedureModifier,
+        Units, ChargeAmount, ClientMaineCareId, RenderingProviderNpi,
+        DiagnosisCode, PlaceOfService, ClaimSnapshotJson,
+        IsComplianceException, ComplianceExceptionReason)
+    VALUES (
+        @historyNoteId, @historyPeriodId, @historyServiceDate, N'G9012', N'HI',
+        CAST(1.00 + (@historyIndex / 10.0) AS decimal(18,2)), @charge, N'DEMOHISTORY01',
+        N'1999999984', N'F89', 11, @claimSnapshot, 0, NULL);
+    DECLARE @historyClaimId int = SCOPE_IDENTITY();
+
+    INSERT @history VALUES (
+        @historyIndex, @historyPeriodId, @historyClaimId,
+        CONVERT(nvarchar(20), @historyPeriodId) + N'-' + CONVERT(nvarchar(20), @historyNoteId),
+        @charge);
+    SET @historyIndex += 1;
+END;
+
+INSERT dbo.BillingSubmissionEvents(
+    AgencyId, BillingPeriodId, OccurredAtUtc, Stage, Reference,
+    ResponseType, ResponseCode, Explanation, IsSynthetic)
+SELECT @agencyId, history.PeriodId,
+       DATEADD(hour, scenario.ScenarioIndex, DATEADD(day, 3, CAST(DATEFROMPARTS(
+           YEAR(DATEADD(month, -scenario.ScenarioIndex, @today)),
+           MONTH(DATEADD(month, -scenario.ScenarioIndex, @today)), 10) AS datetime2))),
+       scenario.ScenarioIndex - 1,
+       N'SYN-DEMO-' + RIGHT(N'00' + CONVERT(nvarchar(2), scenario.ScenarioIndex), 2),
+       CASE scenario.ScenarioIndex
+           WHEN 3 THEN N'Transport' WHEN 4 THEN N'999' WHEN 5 THEN N'999'
+           WHEN 6 THEN N'277CA' WHEN 7 THEN N'277CA' WHEN 8 THEN N'277CA' END,
+       CASE scenario.ScenarioIndex
+           WHEN 3 THEN N'TIMEOUT' WHEN 4 THEN N'A' WHEN 5 THEN N'R'
+           WHEN 6 THEN N'A1' WHEN 7 THEN N'A3' WHEN 8 THEN N'PARTIAL' END,
+       CASE scenario.ScenarioIndex
+           WHEN 1 THEN N'Test 837 generated and awaiting deliberate submission.'
+           WHEN 2 THEN N'Test transmission recorded; acknowledgment is still pending.'
+           WHEN 3 THEN N'Synthetic connection timeout; safe retry should reuse the same request identity.'
+           WHEN 4 THEN N'Synthetic 999 accepted the transaction structure.'
+           WHEN 5 THEN N'Synthetic 999 rejected the transaction structure for correction.'
+           WHEN 6 THEN N'Synthetic 277CA accepted every claim for adjudication.'
+           WHEN 7 THEN N'Synthetic 277CA rejected the claim before adjudication.'
+           WHEN 8 THEN N'Synthetic 277CA accepted some claims and rejected others.' END,
+       1
+FROM @history history
+JOIN (VALUES (1),(2),(3),(4),(5),(6),(7),(8)) scenario(ScenarioIndex)
+  ON scenario.ScenarioIndex = history.ScenarioIndex;
+
+DECLARE @paidPeriodId int, @paidClaimReference nvarchar(80), @paidCharge decimal(18,2);
+DECLARE @deniedPeriodId int, @deniedClaimReference nvarchar(80), @deniedCharge decimal(18,2);
+DECLARE @partialPeriodId int, @partialClaimReference nvarchar(80), @partialCharge decimal(18,2);
+SELECT @paidPeriodId = PeriodId, @paidClaimReference = ClaimReference, @paidCharge = Charge FROM @history WHERE ScenarioIndex = 6;
+SELECT @deniedPeriodId = PeriodId, @deniedClaimReference = ClaimReference, @deniedCharge = Charge FROM @history WHERE ScenarioIndex = 7;
+SELECT @partialPeriodId = PeriodId, @partialClaimReference = ClaimReference, @partialCharge = Charge FROM @history WHERE ScenarioIndex = 8;
+
+INSERT dbo.RemittanceClaimOutcomes(
+    AgencyId, BillingPeriodId, ClaimReference, PayerName, ReceivedAtUtc, PaymentDate,
+    Status, BilledAmount, AllowedAmount, PaidAmount, AdjustmentAmount,
+    PatientResponsibilityAmount, ReasonCode, Explanation, PaymentReference, IsSynthetic)
+VALUES
+    (@agencyId, @paidPeriodId, @paidClaimReference, N'SYNTHETIC PAYER', DATEADD(day,-2,SYSUTCDATETIME()), DATEADD(day,-3,@today),
+     0, @paidCharge, @paidCharge * 0.80, @paidCharge * 0.80, @paidCharge * 0.20, 0.00, N'DEMO-PAID', N'Paid in full at the synthetic allowed amount.', N'SYN-EFT-001', 1),
+    (@agencyId, @partialPeriodId, @partialClaimReference, N'SYNTHETIC PAYER', DATEADD(day,-35,SYSUTCDATETIME()), DATEADD(day,-35,@today),
+     1, @partialCharge, @partialCharge * 0.80, @partialCharge * 0.60, @partialCharge * 0.20, @partialCharge * 0.20, N'PR-1', N'Partial synthetic payment with deductible responsibility.', N'SYN-EFT-002', 1),
+    (@agencyId, @deniedPeriodId, @deniedClaimReference, N'SYNTHETIC PAYER', DATEADD(day,-65,SYSUTCDATETIME()), NULL,
+     2, @deniedCharge, 0.00, 0.00, @deniedCharge, 0.00, N'CO-16', N'Denied after synthetic adjudication because information was missing or invalid.', NULL, 1),
+    (@agencyId, @paidPeriodId, @paidClaimReference, N'SYNTHETIC PAYER', DATEADD(day,-95,SYSUTCDATETIME()), DATEADD(day,-95,@today),
+     3, @paidCharge, @paidCharge * -0.80, @paidCharge * -0.80, @paidCharge * -0.20, 0.00, N'CO-45', N'Synthetic reversal of a previously posted contractual payment.', N'SYN-REV-001', 1),
+    (@agencyId, NULL, N'SYN-UNKNOWN-CLAIM', N'SYNTHETIC PAYER', DATEADD(day,-125,SYSUTCDATETIME()), DATEADD(day,-125,@today),
+     4, 42.00, 33.60, 33.60, 8.40, 0.00, N'OA-23', N'Incoming synthetic claim reference does not match a Sati billing period.', N'SYN-EFT-003', 1),
+    (@agencyId, NULL, N'SYN-REVIEW-CLAIM', N'SYNTHETIC PAYER', DATEADD(day,-10,SYSUTCDATETIME()), DATEADD(day,-10,@today),
+     5, 80.00, 60.00, 50.00, 15.00, 0.00, N'CO-96', N'Synthetic amounts do not balance and require billing review.', N'SYN-EFT-004', 1);
+
+INSERT dbo.RemittanceDeposits(
+    AgencyId, PaymentReference, PayerName, ReceivedAtUtc, PaymentDate,
+    ClaimPaymentAmount, ProviderLevelAdjustmentAmount, ProviderLevelAdjustmentSummary,
+    RemittancePaymentAmount, EftDepositAmount, IsSynthetic)
+VALUES
+    (@agencyId, N'SYN-EFT-001', N'SYNTHETIC PAYER', DATEADD(day,-2,SYSUTCDATETIME()), DATEADD(day,-3,@today),
+     @paidCharge * 0.80, 0.00, N'No provider-level adjustment', @paidCharge * 0.80, @paidCharge * 0.80, 1),
+    (@agencyId, N'SYN-EFT-002', N'SYNTHETIC PAYER', DATEADD(day,-35,SYSUTCDATETIME()), DATEADD(day,-35,@today),
+     @partialCharge * 0.60, -5.00, N'WO — synthetic prior-overpayment takeback', (@partialCharge * 0.60) - 5.00, (@partialCharge * 0.60) - 5.50, 1),
+    (@agencyId, N'SYN-EFT-003', N'SYNTHETIC PAYER', DATEADD(day,-125,SYSUTCDATETIME()), DATEADD(day,-125,@today),
+     33.60, -8.40, N'WO — synthetic provider-level recoupment', 25.20, NULL, 1),
+    (@agencyId, N'SYN-EFT-004', N'SYNTHETIC PAYER', DATEADD(day,-10,SYSUTCDATETIME()), DATEADD(day,-10,@today),
+     50.00, -10.00, N'WO — synthetic takeback; intentionally unbalanced', 45.00, 45.00, 1);
 
 COMMIT TRANSACTION;
 

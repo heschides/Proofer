@@ -24,6 +24,39 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task BillingExchangeHistoryIsAdminOnlyAndTenantScoped()
+    {
+        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await caseManager.GetAsync("/api/v1/billing/submissions")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await caseManager.GetAsync("/api/v1/billing/remittances")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await caseManager.GetAsync("/api/v1/billing/remittance-deposits")).StatusCode);
+
+        var submissions = await admin.GetFromJsonAsync<List<BillingSubmissionHistoryDto>>(
+            "/api/v1/billing/submissions");
+        var remittances = await admin.GetFromJsonAsync<List<RemittanceClaimOutcomeDto>>(
+            "/api/v1/billing/remittances");
+        var deposits = await admin.GetFromJsonAsync<List<RemittanceDepositDto>>(
+            "/api/v1/billing/remittance-deposits");
+
+        var submission = Assert.Single(submissions!, item => item.Reference == "SYN-ONE");
+        var remittance = Assert.Single(remittances!);
+        Assert.Equal(1101, submission.BillingPeriodId);
+        Assert.Equal("SYN-ONE", submission.Reference);
+        Assert.DoesNotContain(submissions!, item => item.Reference == "SYN-TWO");
+        Assert.Equal(1101, remittance.BillingPeriodId);
+        Assert.Equal("1101-501", remittance.ClaimReference);
+        Assert.DoesNotContain(remittances!, item => item.ClaimReference == "1202-603");
+        var deposit = Assert.Single(deposits!);
+        Assert.Equal("SYN-EFT-ONE", deposit.PaymentReference);
+        Assert.Equal(nameof(DepositReconciliationStatus.Matched), deposit.Status);
+    }
+
+    [Fact]
     public async Task ActiveSessionCanRenewItsShortLivedAccessToken()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
@@ -80,7 +113,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.30", release["releaseVersion"]);
+        Assert.Equal("1.2.31", release["releaseVersion"]);
     }
 
     [Fact]
@@ -566,6 +599,7 @@ public sealed class TenantAuthorizationTests
         using var client = await _factory.CreateAuthenticatedClientAsync("admin-two");
         var key = Guid.NewGuid().ToString("N");
         var auditBefore = await _factory.GetAuditEventsAsync("billing-edi.generated");
+        var generatedEventsBefore = await _factory.GetGeneratedSubmissionEventCountAsync(1202);
 
         var firstResponse = await client.PostAsJsonAsync(
             "/api/v1/billing/periods/1202/edi",
@@ -597,6 +631,8 @@ public sealed class TenantAuthorizationTests
         var reusedError = await reusedResponse.Content.ReadFromJsonAsync<ApiErrorDto>();
         Assert.Equal("idempotency_key_reused", reusedError!.Code);
         Assert.Equal(1, await _factory.GetEdiGenerationCountAsync(key));
+        Assert.Equal(generatedEventsBefore + 1,
+            await _factory.GetGeneratedSubmissionEventCountAsync(1202));
         var auditAfter = await _factory.GetAuditEventsAsync("billing-edi.generated");
         Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
         Assert.Single(auditAfter, candidate => candidate.ResourceId == "1202");

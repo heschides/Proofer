@@ -36,6 +36,27 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 
 ## Session Changelog — 2026-08-22
 
+### Billing exchange history and Demo contingency catalog (2026-08-29)
+
+- `BillingSubmissionEvent` and `RemittanceClaimOutcome` are append-only, agency-owned financial
+  exchange history. They contain bounded operational explanations and amounts, not note narratives
+  or raw inbound X12. Read routes are Admin-only and tenant-scoped.
+- `RemittanceDeposit` is the deposit anchor for a remittance: claim payment total, signed provider-
+  level (PLB) adjustment, 835 payment amount, and optional EFT amount are retained together. The
+  shared `DepositReconciliationRules` owner exposes awaiting-EFT, penny-matched, EFT-mismatch, and
+  internally unbalanced remittance states; no batch is described as reconciled until the rule says so.
+- Successful 837 generation appends a `Generated` event in the same save as the retained idempotent
+  file. A retry replays the original generation without adding another event.
+- Submissions shows generated, transmitted, failed, 999, and 277CA activity. Remittances shows paid,
+  partial, denied, reversed, unmatched, and needs-review claim outcomes. Synthetic provenance is a
+  visible, non-color column in both grids.
+- `Seed-BillingPipelineData.ps1` remains hard-limited to a Demo identity and adds eight submission
+  stages plus six remittance and four deposit contingencies, all explicitly synthetic. A separate history consumer
+  keeps the established three-ready/seven-blocked queue examples intact.
+- This is a read model and scenario catalog, not transport or import. Real X12 parsing, validation,
+  matching, posting, reconciliation, corrections, retention decisions, and payer certification
+  remain outstanding.
+
 Representative-payee profile:
 
 - `Person` owns `CaseManagerIsRepPayee`, nullable monthly income, and bounded regular check-request
@@ -349,6 +370,9 @@ preflight procedures are reproducible through `scripts/Publish-Demo.ps1`,
 | `BillingPeriod` | `Sati.Models.Billing` | Monthly billing container. Has many `ClaimLine`s. |
 | `ClaimLine` | `Sati.Models.Billing` | One billable service note within a billing period. |
 | `EdiGeneration` | `Sati.Models.Billing` | Exact 837P response retained for tenant- and actor-scoped idempotent replay. |
+| `BillingSubmissionEvent` | `Sati.Models.Billing` | Append-only generated/transmitted/acknowledgment event with explicit synthetic provenance. |
+| `RemittanceClaimOutcome` | `Sati.Models.Billing` | Append-only claim-level payment/denial/reversal matching read model; raw 835 import is pending. |
+| `RemittanceDeposit` | `Sati.Models.Billing` | Append-only 835/EFT reconciliation anchor with explicit PLB adjustment and derived match state. |
 | `BillingValidationResult` | `Sati.Models.Billing` | Immutable result record from billing validation. |
 | `ComprehensiveAssessment` | `Sati.Models.Assessments` | Versioned assessment envelope: ownership, workflow, timestamps, and serialized document aggregate. |
 | `AssessmentDocument` | `Sati.Models.Assessments` | JSON aggregate containing contributors, keyed answers, dissent, support characteristics, and identified needs. |
@@ -1158,8 +1182,11 @@ identical autosaves are server-side no-ops.
 `BillingQueueViewModel`: sequential promotion (intentional — don't parallelize);
 `IsComplianceOverride` reads correctly (contrast supervisor queue's hardcoded false); profiling
 `Debug.WriteLine`s. `BillingSubmissionsViewModel`: role-gated scope; **`IsTestMode = true` by default
-— must be explicitly false for real submission**; `Process.Start("explorer.exe", ...)` Windows-only.
-Overview/Remittances/Alerts are stubs.
+— must be explicitly false for real submission**; inclusive billing-month range generation produces
+one retry-safe file per locked period; `Process.Start("explorer.exe", ...)` is Windows-only. Its
+history grid reads append-only exchange events. `BillingRemittancesViewModel` reads append-only
+ claim outcomes and deposit anchors. Overview is functional; the Alerts tab is now the denial/unpaid worklist with status,
+ aging, and fast-search filters.
 
 ---
 
@@ -1185,6 +1212,12 @@ concurrency token and treats a retry of an already-successful submission as the 
 HL hierarchy (20→22); subscriber and provider N3/N4; 2000B/2010BA/2010BB/2300/2400 nesting;
 per-subscriber `LX`; separate monetary charge and units; ST-through-SE segment count; `~`/`*`/`:`
 separators; one group per file. `isTest ? "T":"P"` in ISA15 flows from the UI and defaults to test.
+
+`SyntheticClaimExchangeTests` adds a deterministic in-memory boundary test: a generated test-mode
+837P receives representative accepted 999 and 277CA responses followed by a balanced synthetic 835,
+and the simulator refuses a production-mode interchange. It is deliberately test-only. It does not
+perform transport, validate full X12 conformance, import acknowledgments/remittances into Sati, post
+payments, or provide clearinghouse/payer certification; every pre-live checklist item above remains.
 
 ---
 

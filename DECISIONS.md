@@ -2040,3 +2040,44 @@ administrative queue and caused Demo and local Production to disagree about the 
 **Rejected:** silently choosing one of two current consumer links during merge. The two rows may
 carry different role, release, and date facts. Sati directs the case manager to end or correct one
 instead of destroying relationship history under an Admin curation command.
+
+## 2026-08-29 — Synthetic provenance is data, and exchange history is append-only
+
+Demo billing history uses the same bounded read contracts as future real exchange history, but every
+seeded row carries `IsSynthetic = true` and both grids expose that fact as a dedicated non-color
+column. A banner alone is not sufficient provenance: copied rows, screenshots, exports, and future
+consumers must not have to infer which environment produced a financial-looking outcome.
+
+Submission activity is an event stream rather than another mutable status column on
+`BillingPeriod`. Generated, transmitted, failed, 999, and 277CA facts occur at different times, and
+a later response must not erase an earlier failure or retry. Remittance claim outcomes are likewise
+append-only; reversal is a new outcome, not an edit to the original payment.
+
+The first slice stores bounded operational explanations and claim-level amounts, not raw inbound X12
+or note narratives. There is no inbound mutation route yet. Real 999/277CA/835 parsing, validation,
+matching, posting, reconciliation, retention, and legal-hold policy remain separate work, and the
+Demo catalog must not be described as clearinghouse connectivity or payer certification.
+
+**Rejected:** hard-coded WPF sample rows. That would make the distributed client invent financial
+facts and would exercise neither tenant authorization nor the API contract.
+
+**Rejected:** overloading `BillingPeriod.Status` with the latest external response. One value cannot
+preserve retries, transport failures, functional acknowledgments, claim acknowledgments, and later
+reversals without destroying chronology.
+
+## 2026-08-30 — Deposit reconciliation is a separate anchor, and PLB is never hidden
+
+An 835 can describe several claim payments plus provider-level adjustments that do not belong to
+one ClaimLine. `RemittanceDeposit` therefore stores the payment reference, claim-payment total,
+signed PLB amount and description, 835 payment amount, and optional EFT amount as one append-only
+reconciliation read model. `DepositReconciliationRules` is the single owner of the four states:
+awaiting EFT, matched to the penny, EFT mismatch, and internally unbalanced remittance.
+
+The desktop displays these values together and never calls a deposit reconciled merely because an
+835 was received. A future EFT or 835 importer must append a new immutable observation and retain
+the prior one; it must not overwrite an original remittance. The current Demo rows are synthetic
+and intentionally cover a takeback, a missing EFT, an EFT mismatch, and a remittance arithmetic
+mismatch.
+
+**Rejected:** repeating an EFT total on every claim outcome. That makes the same deposit drift when
+one claim is corrected and hides provider-level adjustments that have no claim reference.

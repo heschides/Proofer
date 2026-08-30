@@ -346,6 +346,64 @@ namespace Sati.Services.Billing
             await context.SaveChangesAsync();
         }
 
+        public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync()
+        {
+            var actor = CurrentBillingAdministrator();
+            await using var context = _contextFactory.CreateDbContext();
+            return await (from item in context.BillingSubmissionEvents.AsNoTracking()
+                          join period in context.BillingPeriods.AsNoTracking() on item.BillingPeriodId equals period.Id
+                          join owner in context.Users.AsNoTracking() on period.UserId equals owner.Id
+                          where item.AgencyId == actor.AgencyId && owner.AgencyId == actor.AgencyId
+                          orderby item.OccurredAtUtc descending
+                          select new BillingSubmissionHistoryDto(
+                              item.Id, period.Id, period.Year, period.Month, owner.DisplayName,
+                              period.Lines.Count, item.OccurredAtUtc, item.Stage.ToString(),
+                              item.Reference, item.ResponseType, item.ResponseCode,
+                              item.Explanation, item.IsSynthetic)).ToListAsync();
+        }
+
+        public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync()
+        {
+            var actor = CurrentBillingAdministrator();
+            await using var context = _contextFactory.CreateDbContext();
+            return await context.RemittanceClaimOutcomes.AsNoTracking()
+                .Where(item => item.AgencyId == actor.AgencyId)
+                .OrderByDescending(item => item.ReceivedAtUtc)
+                .Select(item => new RemittanceClaimOutcomeDto(
+                    item.Id, item.BillingPeriodId, item.ClaimReference, item.PayerName,
+                    item.ReceivedAtUtc, item.PaymentDate, item.Status.ToString(),
+                    item.BilledAmount, item.AllowedAmount, item.PaidAmount,
+                    item.AdjustmentAmount, item.PatientResponsibilityAmount,
+                    item.ReasonCode, item.Explanation, item.PaymentReference,
+                    item.IsSynthetic))
+                .ToListAsync();
+        }
+
+        public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync()
+        {
+            var actor = CurrentBillingAdministrator();
+            await using var context = _contextFactory.CreateDbContext();
+            var deposits = await context.RemittanceDeposits.AsNoTracking()
+                .Where(item => item.AgencyId == actor.AgencyId)
+                .OrderByDescending(item => item.ReceivedAtUtc)
+                .ToListAsync();
+            return deposits.Select(ToDepositDto).ToList();
+        }
+
+        private static RemittanceDepositDto ToDepositDto(RemittanceDeposit item)
+        {
+            var status = DepositReconciliationRules.GetStatus(
+                item.ClaimPaymentAmount, item.ProviderLevelAdjustmentAmount,
+                item.RemittancePaymentAmount, item.EftDepositAmount);
+            return new RemittanceDepositDto(
+                item.Id, item.PaymentReference, item.PayerName, item.ReceivedAtUtc,
+                item.PaymentDate, item.ClaimPaymentAmount, item.ProviderLevelAdjustmentAmount,
+                item.ProviderLevelAdjustmentSummary, item.RemittancePaymentAmount,
+                item.EftDepositAmount, status.ToString(),
+                item.EftDepositAmount - item.RemittancePaymentAmount,
+                DepositReconciliationRules.Explain(status), item.IsSynthetic);
+        }
+
         private static BillingConfiguration ToBillingConfiguration(Agency agency) => new(
             agency.BillingProcedureCode ?? string.Empty,
             agency.BillingModifier,

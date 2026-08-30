@@ -11,6 +11,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -28,6 +30,7 @@
                        Style="{StaticResource LabelStyle}" />
             <ComboBox AutomationProperties.Name="Billing period" ItemsSource="{Binding BillingPeriods}"
                       SelectedItem="{Binding SelectedPeriod}"
+                      IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
                       Width="300"
                       HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
@@ -45,37 +48,63 @@
             </ComboBox>
         </StackPanel>
 
-        <!-- Test mode toggle -->
-        <CheckBox Grid.Row="2"
-                  Content="Test mode (OATEST in filename — safe to upload to Office Ally)"
-                  IsChecked="{Binding IsTestMode}"
-                  FontSize="12"
-                  Foreground="{DynamicResource TextPrimaryBrush}"
-                  VerticalAlignment="Center"
-                  Margin="0,0,0,16" />
+        <!-- Inclusive billing-month range. A locked monthly period is never split. -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,16">
+            <TextBlock Text="837 GENERATION RANGE" Style="{StaticResource LabelStyle}" />
+            <StackPanel Orientation="Horizontal">
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="From billing month" FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <DatePicker SelectedDate="{Binding RangeStart}"
+                                AutomationProperties.Name="837 beginning billing month"
+                                IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
+                                Width="160" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Through billing month" FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <DatePicker SelectedDate="{Binding RangeEnd}"
+                                AutomationProperties.Name="837 ending billing month"
+                                IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
+                                Width="160" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="{Binding RangeSummary}" Margin="0,6,0,0" FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+            <TextBlock Text="Each matching locked monthly period is generated as its own 837P file; a period is not split by individual service day."
+                       Margin="0,3,0,0" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
 
         <!-- Lock and generate actions -->
         <StackPanel Grid.Row="3"
-                    Orientation="Horizontal"
                     Margin="0,0,0,16">
-            <Button Content="Submit &amp; Lock Period"
-                    Style="{StaticResource PrimaryButton}"
-                    Width="180"
-                    Command="{Binding SubmitPeriodCommand}"
-                    IsEnabled="{Binding CanSubmitPeriod}"
-                    Margin="0,0,12,0" />
-            <Button Content="Generate 837P File"
-                    Style="{StaticResource PrimaryButton}"
-                    Width="180"
-                    Command="{Binding GenerateEdiCommand}"
-                    IsEnabled="{Binding CanGenerateEdi}"
-                    Margin="0,0,12,0" />
-            <Button Content="Open Output Folder"
-                    Style="{StaticResource SmallButton}"
-                    Width="150"
-                    Command="{Binding OpenOutputFolderCommand}"
-                    IsEnabled="{Binding HasGeneratedFile}"
-                    VerticalAlignment="Center" />
+            <CheckBox Content="Test mode (OATEST in filename — safe to upload to Office Ally)"
+                      IsChecked="{Binding IsTestMode}"
+                      IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
+                      AutomationProperties.Name="Generate test 837P files"
+                      FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}"
+                      Margin="0,0,0,12" />
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Submit &amp; Lock Selected Period"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="220"
+                        Command="{Binding SubmitPeriodCommand}"
+                        IsEnabled="{Binding CanSubmitPeriod}"
+                        Margin="0,0,12,0" />
+                <Button Content="Generate 837P Files for Range"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="220"
+                        Command="{Binding GenerateEdiCommand}"
+                        IsEnabled="{Binding CanGenerateEdi}"
+                        Margin="0,0,12,0" />
+                <Button Content="Open Output Folder"
+                        Style="{StaticResource SmallButton}"
+                        Width="150"
+                        Command="{Binding OpenOutputFolderCommand}"
+                        IsEnabled="{Binding HasGeneratedFile}"
+                        VerticalAlignment="Center" />
+            </StackPanel>
         </StackPanel>
 
         <!-- Status message -->
@@ -84,7 +113,54 @@
                    AutomationProperties.LiveSetting="Polite"
                    FontSize="12"
                    Foreground="{DynamicResource TextPrimaryBrush}"
-                   TextWrapping="Wrap" />
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,18" />
+
+        <StackPanel Grid.Row="5" Margin="0,0,0,8">
+            <TextBlock Text="SUBMISSION HOME" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="Demo rows are explicitly marked synthetic. They exercise generated, transmitted, failed, accepted, rejected, and partial-acceptance states without contacting a clearinghouse."
+                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,4,0,0" />
+            <WrapPanel Margin="0,8,0,0">
+                <TextBox Text="{Binding SubmissionSearchText, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Search billing submissions"
+                         ToolTip="Search by case manager, month, control/reference, or status"
+                         Width="240" Margin="0,0,12,0" />
+                <ComboBox ItemsSource="{Binding SubmissionStatusFilters}"
+                          SelectedItem="{Binding SelectedSubmissionStatus}"
+                          AutomationProperties.Name="Submission status filter"
+                          Width="155" Margin="0,0,12,0" />
+                <CheckBox Content="Outstanding only" IsChecked="{Binding OutstandingOnly}"
+                          AutomationProperties.Name="Show outstanding submissions only"
+                          VerticalAlignment="Center" />
+            </WrapPanel>
+        </StackPanel>
+
+        <DataGrid Grid.Row="6"
+                  ItemsSource="{Binding SubmissionBatches}"
+                  AutomationProperties.Name="Billing submission batches and current status"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  SelectionMode="Single"
+                  HeadersVisibility="Column"
+                  MinHeight="160">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="YEAR" Binding="{Binding Year}" Width="55" />
+                <DataGridTextColumn Header="MONTH" Binding="{Binding Month}" Width="55" />
+                <DataGridTextColumn Header="CASE MANAGER" Binding="{Binding CaseManagerName}" Width="125" />
+                <DataGridTextColumn Header="CLAIMS" Binding="{Binding ClaimCount}" Width="55" />
+                <DataGridTextColumn Header="VALUE" Binding="{Binding DollarValue, StringFormat={}{0:C}}" Width="80" />
+                <DataGridTextColumn Header="SENT TO CLEARINGHOUSE (UTC)"
+                                    Binding="{Binding SentAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}"
+                                    Width="130" />
+                <DataGridTextColumn Header="CURRENT STATUS" Binding="{Binding CurrentStatus}" Width="120" />
+                <DataGridTextColumn Header="RESPONSE" Binding="{Binding ResponseType}" Width="70" />
+                <DataGridTextColumn Header="DETAIL" Binding="{Binding Explanation}" Width="2*" />
+                <DataGridCheckBoxColumn Header="OUTSTANDING" Binding="{Binding IsOutstanding}" Width="85" />
+                <DataGridCheckBoxColumn Header="SYNTHETIC" Binding="{Binding IsSynthetic}" Width="75" />
+            </DataGrid.Columns>
+        </DataGrid>
 
     </Grid>
 </UserControl>

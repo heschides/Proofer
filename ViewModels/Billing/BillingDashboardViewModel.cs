@@ -70,12 +70,20 @@ namespace Sati.ViewModels.Billing
         }
 
         [RelayCommand]
-        private void NavigateToRemittances() =>
+        private async Task NavigateToRemittances()
+        {
             CurrentSubView = _remittancesViewModel;
+            if (!_remittancesViewModel.HasLoaded)
+                await _remittancesViewModel.LoadAsync();
+        }
 
         [RelayCommand]
-        private void NavigateToAlerts() =>
+        private async Task NavigateToAlerts()
+        {
             CurrentSubView = _alertsViewModel;
+            if (!_alertsViewModel.HasLoaded)
+                await _alertsViewModel.LoadAsync();
+        }
 
         public Task InitializeAsync() => Task.CompletedTask;
     }

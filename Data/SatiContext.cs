@@ -20,6 +20,9 @@ namespace Sati.Data
         public DbSet<BillingPeriod> BillingPeriods { get; set; }
         public DbSet<ClaimLine> ClaimLines { get; set; }
         public DbSet<EdiGeneration> EdiGenerations { get; set; }
+        public DbSet<BillingSubmissionEvent> BillingSubmissionEvents { get; set; }
+        public DbSet<RemittanceClaimOutcome> RemittanceClaimOutcomes { get; set; }
+        public DbSet<RemittanceDeposit> RemittanceDeposits { get; set; }
         public DbSet<ExemptDate> ExemptDates { get; set; }
         public DbSet<ReviewItem> ReviewItems { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
@@ -58,9 +61,15 @@ namespace Sati.Data
             if (ChangeTracker.Entries<AuditEvent>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<PersonVersion>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<BillingSubmissionEvent>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<RemittanceClaimOutcome>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<RemittanceDeposit>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
             {
-                throw new InvalidOperationException("Audit and Person history records are append-only.");
+                throw new InvalidOperationException("Audit, Person history, and billing exchange records are append-only.");
             }
         }
 
@@ -593,6 +602,53 @@ namespace Sati.Data
                       .WithMany()
                       .HasForeignKey(generation => generation.BillingPeriodId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<BillingSubmissionEvent>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.HasIndex(item => new { item.AgencyId, item.OccurredAtUtc });
+                entity.Property(item => item.Reference).HasMaxLength(80);
+                entity.Property(item => item.ResponseType).HasMaxLength(20);
+                entity.Property(item => item.ResponseCode).HasMaxLength(30);
+                entity.Property(item => item.Explanation).HasMaxLength(500);
+                entity.HasOne(item => item.BillingPeriod)
+                      .WithMany()
+                      .HasForeignKey(item => item.BillingPeriodId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<RemittanceClaimOutcome>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.HasIndex(item => new { item.AgencyId, item.ReceivedAtUtc });
+                entity.Property(item => item.ClaimReference).IsRequired().HasMaxLength(80);
+                entity.Property(item => item.PayerName).IsRequired().HasMaxLength(100);
+                entity.Property(item => item.ReasonCode).HasMaxLength(30);
+                entity.Property(item => item.Explanation).HasMaxLength(500);
+                entity.Property(item => item.PaymentReference).HasMaxLength(80);
+                entity.Property(item => item.BilledAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.AllowedAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.PaidAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.AdjustmentAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.PatientResponsibilityAmount).HasColumnType("decimal(18,2)");
+                entity.HasOne(item => item.BillingPeriod)
+                      .WithMany()
+                      .HasForeignKey(item => item.BillingPeriodId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<RemittanceDeposit>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.HasIndex(item => new { item.AgencyId, item.ReceivedAtUtc });
+                entity.Property(item => item.PaymentReference).IsRequired().HasMaxLength(80);
+                entity.Property(item => item.PayerName).IsRequired().HasMaxLength(100);
+                entity.Property(item => item.ProviderLevelAdjustmentSummary).HasMaxLength(500);
+                entity.Property(item => item.ClaimPaymentAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.ProviderLevelAdjustmentAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.RemittancePaymentAmount).HasColumnType("decimal(18,2)");
+                entity.Property(item => item.EftDepositAmount).HasColumnType("decimal(18,2)");
             });
 
             modelBuilder.Entity<IncidentGroup>(entity =>

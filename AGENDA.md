@@ -2,6 +2,32 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.31 — 2026-08-30
+
+Billing submission home, denial worklist, humanized adjustment reasons, and deposit reconciliation.
+
+### Billing exchange operations
+- [x] Add inclusive billing-month range filters and keep each locked monthly period as its own
+      retry-safe 837P generation request.
+- [x] Add an API-authoritative submission home that groups append-only exchange events into current
+      batch rows with claim count, charge value, send time, current status, search, and outstanding
+      filters. Synthetic provenance remains a dedicated field.
+- [x] Add a denial/unpaid worklist with status and 30/60/90/120+ aging filters, fast claim/payer/date
+      search, and a shared CARC group-code explanation catalog for CO/PR/OA.
+- [x] Add an explicit 835/EFT deposit model whose shared arithmetic exposes claim payments, PLB
+      provider-level adjustments, EFT difference, pending EFT, mismatch, and penny-match states.
+- [x] Extend the Demo-only synthetic seed and test exchange with accepted, rejected, partial, denied,
+      reversed, unmatched, needs-review, PLB, pending-EFT, and EFT-mismatch contingencies.
+
+### Validation and release evidence
+- [x] Apply the identity-validated Demo billing schema runner twice; both real runs found the three
+      tables/indexes and migration-history rows already present and changed nothing.
+- [ ] Record the rollback-only dry-run output, source release commit, Demo API deployment/health,
+      and accepted Demo/Local installer hashes below before marking this release complete.
+- [ ] Keep live Office Ally transport, real 999/TA1/277CA/835 ingestion, corrected claims, raw X12
+      drill-through, payer certification, note-to-denial loop, auth/unit alerts, forecasting, and
+      benchmarking as explicitly deferred work.
+
 ## Release 1.2.30 — 2026-08-28
 
 Medical provider directory and consumer provider lists. Includes the Admin test-data deletion
@@ -757,6 +783,13 @@ A WPF MVVM case-management desktop app built with EF Core, CommunityToolkit MVVM
       synthetic rows only in Demo.
 - [x] Apply the additive migration and the same ten-row seed to Azure `SatiDemo`, verify 3 ready / 7
       blocked through the real service, deploy the matching Demo API, and remove temporary firewall rules.
+- [x] Add a test-only synthetic claim exchange that consumes Sati's test 837P, correlates accepted
+      representative 999/277CA responses, produces a balanced synthetic 835, and refuses production
+      interchanges. This is an internal workflow test, not transport, import, or payer certification.
+- [x] Add append-only tenant-owned submission-event and remittance-claim-outcome read models,
+      Admin-only local/cloud grids, retry-safe Generated event recording, and a deterministic
+      Demo-only catalog covering eight submission and six remittance contingencies. Every seeded
+      exchange row is visibly synthetic and the seed remains hard-limited to `SatiDemo`.
 - [ ] Obtain the agency's authoritative fee/code configuration and payer enrollment identifiers,
       then pass clearinghouse test-file validation and payer-specific acceptance. Generated 837P
       structure is tested, but Sati is not yet certified for live claims.

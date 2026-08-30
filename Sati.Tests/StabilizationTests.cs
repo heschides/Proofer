@@ -553,24 +553,25 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.30", version);
+        Assert.Equal("1.2.31", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Medical provider directory and consumer provider lists", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Billing submission home and remittance reconciliation", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "The provider directory now describes practices and networks" &&
-            section.Items.Any(item => item.Contains("network", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("affiliat", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A permanent home for outstanding submissions" &&
+            section.Items.Any(item => item.Contains("claim count", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("outstanding", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A consumer's medical providers, with the practice and network filled in" &&
-            section.Items.Any(item => item.Contains("primary care", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("directory", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Remittance outcomes that explain themselves" &&
+            section.Items.Any(item => item.Contains("aging", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("PLB", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A shared agency directory with room to keep it tidy" &&
-            section.Items.Any(item => item.Contains("Admin", StringComparison.Ordinal)));
+            section.Title == "Synthetic data stays visibly synthetic" &&
+            section.Items.Any(item => item.Contains("clearinghouse", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
-            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)));
+            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("corrected claim", StringComparison.OrdinalIgnoreCase)));
 
         var loginView = File.ReadAllText(Path.Combine(
             directory!.FullName,
@@ -1320,21 +1321,73 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void BillingExchangeHistoryIsAppendOnlyAndTheDemoSeedCoversContingencies()
+    {
+        var options = new DbContextOptionsBuilder<SatiContext>()
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=SatiBillingExchangeValidation;Trusted_Connection=True;Encrypt=False;")
+            .Options;
+        using var context = new SatiContext(options);
+        var migrations = context.GetService<
+            Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>();
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRootFromSource(), "scripts", "Seed-BillingPipelineData.ps1"));
+
+        Assert.NotNull(context.Model.FindEntityType(typeof(BillingSubmissionEvent)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(RemittanceClaimOutcome)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(RemittanceDeposit)));
+        Assert.Contains("20260829231646_AddBillingExchangeHistory", migrations.Migrations.Keys);
+        Assert.Contains("20260830001538_AddRemittanceDeposits", migrations.Migrations.Keys);
+        Assert.Contains("DB_NAME() <> N'SatiDemo'", script);
+        Assert.Contains("IsSynthetic = 1", script);
+        Assert.Contains("Synthetic connection timeout", script);
+        Assert.Contains("Synthetic 999 rejected", script);
+        Assert.Contains("Synthetic 277CA accepted some claims and rejected others", script);
+        Assert.Contains("Synthetic reversal", script);
+        Assert.Contains("does not match a Sati billing period", script);
+        Assert.Contains("require billing review", script);
+
+        context.Update(new BillingSubmissionEvent { Id = 1 });
+        Assert.Throws<InvalidOperationException>(() => context.SaveChanges());
+    }
+
+    [Fact]
+    public void DepositReconciliationAndAdjustmentCatalogUseExplicitSharedRules()
+    {
+        Assert.Equal(DepositReconciliationStatus.Matched,
+            DepositReconciliationRules.GetStatus(100m, -10m, 90m, 90m));
+        Assert.Equal(DepositReconciliationStatus.AwaitingEft,
+            DepositReconciliationRules.GetStatus(100m, -10m, 90m, null));
+        Assert.Equal(DepositReconciliationStatus.EftMismatch,
+            DepositReconciliationRules.GetStatus(100m, -10m, 90m, 89.99m));
+        Assert.Equal(DepositReconciliationStatus.RemittanceMismatch,
+            DepositReconciliationRules.GetStatus(100m, -10m, 91m, 91m));
+        Assert.Contains("contractual write-off", ClaimAdjustmentReasonCatalog.Humanize("co-45"));
+        Assert.Contains("current payer guidance", ClaimAdjustmentReasonCatalog.Humanize("CARC-UNKNOWN"));
+    }
+
+    [Fact]
     public async Task DesktopKeepsTheSameEdiRetryKeyUntilGenerationSucceeds()
     {
         var edi = new RetryRecordingEdiService();
-        var viewModel = new BillingSubmissionsViewModel(
-            new StubBillingService(),
-            edi,
-            new SessionService())
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var period = new BillingPeriod
         {
-            SelectedPeriod = new BillingPeriod
-            {
-                Id = 99,
-                Status = BillingStatus.Submitted,
-                Lines = [new ClaimLine { Id = 1 }]
-            }
+            Id = 99,
+            UserId = 12,
+            Month = 7,
+            Year = 2026,
+            Status = BillingStatus.Submitted,
+            SubmittedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc),
+            Lines = [new ClaimLine { Id = 1 }]
         };
+        var viewModel = new BillingSubmissionsViewModel(
+            new StubBillingService([period]),
+            edi,
+            session);
+
+        await viewModel.LoadAsync();
 
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
@@ -1344,6 +1397,80 @@ public sealed class StabilizationTests
         Assert.Equal(edi.Keys[0], edi.Keys[1]);
         Assert.NotEqual(edi.Keys[1], edi.Keys[2]);
         Assert.All(edi.Keys, key => Assert.True(Guid.TryParse(key, out _)));
+    }
+
+    [Fact]
+    public async Task BillingSubmissionRangeIncludesOnlySubmittedMonthsAndKeepsHistoryVisible()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var periods = new[]
+        {
+            new BillingPeriod
+            {
+                Id = 1, UserId = 10, Month = 6, Year = 2026,
+                Status = BillingStatus.Submitted,
+                SubmittedAt = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc),
+                Lines = [new ClaimLine { Id = 1 }]
+            },
+            new BillingPeriod
+            {
+                Id = 2, UserId = 11, Month = 7, Year = 2026,
+                Status = BillingStatus.Submitted,
+                SubmittedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc),
+                Lines = [new ClaimLine { Id = 2 }]
+            },
+            new BillingPeriod
+            {
+                Id = 3, UserId = 11, Month = 7, Year = 2026,
+                Status = BillingStatus.Draft,
+                Lines = [new ClaimLine { Id = 3 }]
+            },
+            new BillingPeriod
+            {
+                Id = 4, UserId = 12, Month = 5, Year = 2026,
+                Status = BillingStatus.Rejected,
+                SubmittedAt = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc),
+                Lines = [new ClaimLine { Id = 4 }]
+            }
+        };
+        var viewModel = new BillingSubmissionsViewModel(
+            new StubBillingService(periods), new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+        viewModel.RangeStart = new DateTime(2026, 7, 20);
+        viewModel.RangeEnd = new DateTime(2026, 7, 2);
+
+        Assert.Equal([2], viewModel.GenerationPeriods.Select(period => period.Id));
+        Assert.Equal(3, viewModel.SubmissionHistory.Count);
+        Assert.All(viewModel.SubmissionHistory, item => Assert.True(item.IsSynthetic));
+        Assert.True(viewModel.CanGenerateEdi);
+    }
+
+    [Fact]
+    public async Task RemittanceViewLoadsSyntheticContingenciesWithoutChangingTheirProvenance()
+    {
+        var outcomes = new[]
+        {
+            new RemittanceClaimOutcomeDto(
+                1, 10, "10-20", "Synthetic Payer", DateTime.UtcNow, DateTime.Today,
+                nameof(RemittanceClaimStatus.PartiallyPaid), 100m, 80m, 60m, 20m, 20m,
+                "DEMO-PART", "Synthetic partial payment.", "SYN-EFT", true),
+            new RemittanceClaimOutcomeDto(
+                2, null, "UNKNOWN", "Synthetic Payer", DateTime.UtcNow, null,
+                nameof(RemittanceClaimStatus.Unmatched), 50m, null, 0m, 0m, 0m,
+                "DEMO-UNMATCH", "Synthetic unmatched claim.", null, true)
+        };
+        var viewModel = new BillingRemittancesViewModel(
+            new StubBillingService(outcomes: outcomes));
+
+        await viewModel.LoadAsync();
+
+        Assert.True(viewModel.HasLoaded);
+        Assert.Equal(2, viewModel.Outcomes.Count);
+        Assert.All(viewModel.Outcomes, item => Assert.True(item.IsSynthetic));
+        Assert.Contains(viewModel.Outcomes, item => item.Status == nameof(RemittanceClaimStatus.Unmatched));
     }
 
     [Fact]
@@ -1463,14 +1590,19 @@ public sealed class StabilizationTests
         }
     }
 
-    private sealed class StubBillingService : IBillingService
+    private sealed class StubBillingService(
+        IEnumerable<BillingPeriod>? periods = null,
+        IReadOnlyList<RemittanceClaimOutcomeDto>? outcomes = null) : IBillingService
     {
+        private readonly IReadOnlyList<BillingPeriod> _periods = periods?.ToList() ?? [];
+        private readonly IReadOnlyList<RemittanceClaimOutcomeDto> _outcomes = outcomes ?? [];
+
         public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year) =>
             throw new NotSupportedException();
         public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId) =>
             throw new NotSupportedException();
         public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync() =>
-            throw new NotSupportedException();
+            Task.FromResult<IEnumerable<BillingPeriod>>(_periods);
         public Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false,
             string? complianceExceptionReason = null) => throw new NotSupportedException();
         public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) =>
@@ -1480,5 +1612,17 @@ public sealed class StabilizationTests
         public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
         public Task<BillingConfiguration> GetBillingConfigurationAsync() => throw new NotSupportedException();
         public Task SaveBillingConfigurationAsync(BillingConfiguration configuration) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+            Task.FromResult<IReadOnlyList<BillingSubmissionHistoryDto>>(_periods
+                .Where(period => period.Status != BillingStatus.Draft)
+                .Select(period => new BillingSubmissionHistoryDto(
+                    period.Id, period.Id, period.Year, period.Month, $"User {period.UserId}",
+                    period.Lines.Count, period.SubmittedAt ?? DateTime.UtcNow,
+                    period.Status.ToString(), null, null, null, null, true))
+                .ToList());
+        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+            Task.FromResult(_outcomes);
+        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+            Task.FromResult<IReadOnlyList<RemittanceDepositDto>>([]);
     }
 }

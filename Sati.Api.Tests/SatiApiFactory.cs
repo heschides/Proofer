@@ -235,6 +235,16 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             .CountAsync(candidate => candidate.IdempotencyKey == normalizedKey);
     }
 
+    public async Task<int> GetGeneratedSubmissionEventCountAsync(int billingPeriodId)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        return await db.BillingSubmissionEvents.AsNoTracking().CountAsync(candidate =>
+            candidate.BillingPeriodId == billingPeriodId &&
+            candidate.Stage == BillingSubmissionStage.Generated);
+    }
+
     public async Task TryToModifyFirstAuditEventAsync()
     {
         await EnsureSeededAsync();
@@ -481,6 +491,69 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                             ClaimSnapshotJson = ClaimSnapshot(2, 201, "Person", "Two", "222222", "20 Test Street", "Bangor", "04401", "SATITEST2", "Agency Two", "222222222", "2 Second Street", "Bangor", "04401", "2075550102")
                         }
                     ]
+                });
+            db.BillingSubmissionEvents.AddRange(
+                new ServerBillingSubmissionEvent
+                {
+                    Id = 1501, AgencyId = 1, BillingPeriodId = 1101,
+                    OccurredAtUtc = new DateTime(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc),
+                    Stage = BillingSubmissionStage.TransportFailed,
+                    Reference = "SYN-ONE", ResponseType = "Transport", ResponseCode = "TIMEOUT",
+                    Explanation = "Synthetic agency-one failure.", IsSynthetic = true
+                },
+                new ServerBillingSubmissionEvent
+                {
+                    Id = 1502, AgencyId = 2, BillingPeriodId = 1202,
+                    OccurredAtUtc = new DateTime(2026, 8, 14, 13, 0, 0, DateTimeKind.Utc),
+                    Stage = BillingSubmissionStage.ClaimAccepted,
+                    Reference = "SYN-TWO", ResponseType = "277CA", ResponseCode = "A1",
+                    Explanation = "Synthetic agency-two acceptance.", IsSynthetic = true
+                });
+            db.RemittanceClaimOutcomes.AddRange(
+                new ServerRemittanceClaimOutcome
+                {
+                    Id = 1601, AgencyId = 1, BillingPeriodId = 1101,
+                    ClaimReference = "1101-501", PayerName = "Synthetic Payer",
+                    ReceivedAtUtc = new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc),
+                    PaymentDate = new DateTime(2026, 8, 15), Status = RemittanceClaimStatus.Denied,
+                    BilledAmount = 100m, AllowedAmount = 0m, PaidAmount = 0m,
+                    AdjustmentAmount = 100m, PatientResponsibilityAmount = 0m,
+                    ReasonCode = "DEMO-DENY", Explanation = "Synthetic agency-one denial.",
+                    IsSynthetic = true
+                },
+                new ServerRemittanceClaimOutcome
+                {
+                    Id = 1602, AgencyId = 2, BillingPeriodId = 1202,
+                    ClaimReference = "1202-603", PayerName = "Synthetic Payer",
+                    ReceivedAtUtc = new DateTime(2026, 8, 15, 13, 0, 0, DateTimeKind.Utc),
+                    PaymentDate = new DateTime(2026, 8, 15), Status = RemittanceClaimStatus.Paid,
+                    BilledAmount = 33.25m, AllowedAmount = 26.60m, PaidAmount = 26.60m,
+                    AdjustmentAmount = 6.65m, PatientResponsibilityAmount = 0m,
+                    PaymentReference = "SYN-EFT-TWO", Explanation = "Synthetic agency-two payment.",
+                    IsSynthetic = true
+                });
+            db.RemittanceDeposits.AddRange(
+                new ServerRemittanceDeposit
+                {
+                    Id = 1701, AgencyId = 1, PaymentReference = "SYN-EFT-ONE",
+                    PayerName = "Synthetic Payer",
+                    ReceivedAtUtc = new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc),
+                    PaymentDate = new DateTime(2026, 8, 15), ClaimPaymentAmount = 26.60m,
+                    ProviderLevelAdjustmentAmount = 0m,
+                    ProviderLevelAdjustmentSummary = "No provider-level adjustment",
+                    RemittancePaymentAmount = 26.60m, EftDepositAmount = 26.60m,
+                    IsSynthetic = true
+                },
+                new ServerRemittanceDeposit
+                {
+                    Id = 1702, AgencyId = 2, PaymentReference = "SYN-EFT-TWO",
+                    PayerName = "Synthetic Payer",
+                    ReceivedAtUtc = new DateTime(2026, 8, 15, 13, 0, 0, DateTimeKind.Utc),
+                    PaymentDate = new DateTime(2026, 8, 15), ClaimPaymentAmount = 26.60m,
+                    ProviderLevelAdjustmentAmount = -1m,
+                    ProviderLevelAdjustmentSummary = "Synthetic takeback",
+                    RemittancePaymentAmount = 25.60m, EftDepositAmount = 25.50m,
+                    IsSynthetic = true
                 });
             await db.SaveChangesAsync();
             _seeded = true;

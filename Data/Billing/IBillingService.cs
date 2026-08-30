@@ -1,5 +1,6 @@
 ﻿using Sati.Models;
 using Sati.Models.Billing;
+using Sati.Contracts.V1;
 
 namespace Sati.Data.Billing
 {
@@ -15,5 +16,8 @@ namespace Sati.Data.Billing
         BillingValidationResult ValidateNoteForBilling(Note note);
         Task<BillingConfiguration> GetBillingConfigurationAsync();
         Task SaveBillingConfigurationAsync(BillingConfiguration configuration);
+        Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync();
+        Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync();
+        Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync();
     }
 }

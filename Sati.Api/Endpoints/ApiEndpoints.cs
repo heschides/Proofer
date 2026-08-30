@@ -3515,6 +3515,79 @@ internal static class ApiEndpoints
                 .ToList());
         });
 
+        api.MapGet("/billing/submissions", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var rows = await (from item in db.BillingSubmissionEvents.AsNoTracking()
+                              join period in db.BillingPeriods.AsNoTracking() on item.BillingPeriodId equals period.Id
+                              join owner in db.Users.AsNoTracking() on period.UserId equals owner.Id
+                              where item.AgencyId == actor.AgencyId && owner.AgencyId == actor.AgencyId
+                              orderby item.OccurredAtUtc descending
+                              select new BillingSubmissionHistoryDto(
+                                  item.Id, period.Id, period.Year, period.Month, owner.DisplayName,
+                                  period.Lines.Count, item.OccurredAtUtc, item.Stage.ToString(),
+                                  item.Reference, item.ResponseType, item.ResponseCode,
+                                  item.Explanation, item.IsSynthetic)).ToListAsync(cancellationToken);
+            return Results.Ok(rows);
+        });
+
+        api.MapGet("/billing/remittances", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var rows = await db.RemittanceClaimOutcomes.AsNoTracking()
+                .Where(item => item.AgencyId == actor.AgencyId)
+                .OrderByDescending(item => item.ReceivedAtUtc)
+                .Select(item => new RemittanceClaimOutcomeDto(
+                    item.Id, item.BillingPeriodId, item.ClaimReference, item.PayerName,
+                    item.ReceivedAtUtc, item.PaymentDate, item.Status.ToString(),
+                    item.BilledAmount, item.AllowedAmount, item.PaidAmount,
+                    item.AdjustmentAmount, item.PatientResponsibilityAmount,
+                    item.ReasonCode, item.Explanation, item.PaymentReference,
+                    item.IsSynthetic))
+                .ToListAsync(cancellationToken);
+            return Results.Ok(rows);
+        });
+
+        api.MapGet("/billing/remittance-deposits", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (actor.Role != "Admin")
+                return Results.Forbid();
+
+            var deposits = await db.RemittanceDeposits.AsNoTracking()
+                .Where(item => item.AgencyId == actor.AgencyId)
+                .OrderByDescending(item => item.ReceivedAtUtc)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(deposits.Select(item =>
+            {
+                var status = DepositReconciliationRules.GetStatus(
+                    item.ClaimPaymentAmount, item.ProviderLevelAdjustmentAmount,
+                    item.RemittancePaymentAmount, item.EftDepositAmount);
+                return new RemittanceDepositDto(
+                    item.Id, item.PaymentReference, item.PayerName, item.ReceivedAtUtc,
+                    item.PaymentDate, item.ClaimPaymentAmount, item.ProviderLevelAdjustmentAmount,
+                    item.ProviderLevelAdjustmentSummary, item.RemittancePaymentAmount,
+                    item.EftDepositAmount, status.ToString(),
+                    item.EftDepositAmount - item.RemittancePaymentAmount,
+                    DepositReconciliationRules.Explain(status), item.IsSynthetic);
+            }).ToList());
+        });
+
         api.MapGet("/billing/candidates", async Task<IResult> (
             ClaimsPrincipal principal,
             ApiDbContext db,
@@ -3779,6 +3852,18 @@ internal static class ApiEndpoints
                 FileName = file.FileName,
                 Content = file.Content,
                 CreatedAtUtc = DateTime.UtcNow
+            });
+            db.BillingSubmissionEvents.Add(new ServerBillingSubmissionEvent
+            {
+                AgencyId = actor.AgencyId,
+                BillingPeriodId = periodId,
+                OccurredAtUtc = DateTime.UtcNow,
+                Stage = BillingSubmissionStage.Generated,
+                Reference = file.FileName,
+                Explanation = request.IsTest
+                    ? "Test 837P generated; no external transmission is implied."
+                    : "Production 837P generated; transmission status has not been recorded.",
+                IsSynthetic = false
             });
             auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
             try

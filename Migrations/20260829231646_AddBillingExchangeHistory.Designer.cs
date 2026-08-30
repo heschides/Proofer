@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sati.Data;
 
@@ -11,9 +12,11 @@ using Sati.Data;
 namespace Sati.Migrations
 {
     [DbContext(typeof(SatiContext))]
-    partial class SatiContextModelSnapshot : ModelSnapshot
+    [Migration("20260829231646_AddBillingExchangeHistory")]
+    partial class AddBillingExchangeHistory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -615,59 +618,6 @@ namespace Sati.Migrations
                     b.HasIndex("AgencyId", "ReceivedAtUtc");
 
                     b.ToTable("RemittanceClaimOutcomes");
-                });
-
-            modelBuilder.Entity("Sati.Models.Billing.RemittanceDeposit", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<int>("AgencyId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("ClaimPaymentAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("EftDepositAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsSynthetic")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PayerName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("PaymentDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("PaymentReference")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<decimal>("ProviderLevelAdjustmentAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("ProviderLevelAdjustmentSummary")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("ReceivedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("RemittancePaymentAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AgencyId", "ReceivedAtUtc");
-
-                    b.ToTable("RemittanceDeposits");
                 });
 
             modelBuilder.Entity("Sati.Models.ExemptDate", b =>

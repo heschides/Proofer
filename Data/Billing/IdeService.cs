@@ -82,6 +82,18 @@ namespace Sati.Edi
                 Content = ediContent,
                 CreatedAtUtc = DateTime.UtcNow
             });
+            context.BillingSubmissionEvents.Add(new BillingSubmissionEvent
+            {
+                AgencyId = actor.AgencyId,
+                BillingPeriodId = billingPeriodId,
+                OccurredAtUtc = DateTime.UtcNow,
+                Stage = Sati.Contracts.V1.BillingSubmissionStage.Generated,
+                Reference = fileName,
+                Explanation = isTest
+                    ? "Test 837P generated; no external transmission is implied."
+                    : "Production 837P generated; transmission status has not been recorded.",
+                IsSynthetic = false
+            });
             LocalAuditTrail.Record(context, actor, LocalAuditActions.BillingEdiGenerated,
                 "BillingPeriod", billingPeriodId);
             try

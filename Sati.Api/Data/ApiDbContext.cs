@@ -21,6 +21,9 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerBillingPeriod> BillingPeriods => Set<ServerBillingPeriod>();
     public DbSet<ServerClaimLine> ClaimLines => Set<ServerClaimLine>();
     public DbSet<ServerEdiGeneration> EdiGenerations => Set<ServerEdiGeneration>();
+    public DbSet<ServerBillingSubmissionEvent> BillingSubmissionEvents => Set<ServerBillingSubmissionEvent>();
+    public DbSet<ServerRemittanceClaimOutcome> RemittanceClaimOutcomes => Set<ServerRemittanceClaimOutcome>();
+    public DbSet<ServerRemittanceDeposit> RemittanceDeposits => Set<ServerRemittanceDeposit>();
     public DbSet<ServerReviewItem> ReviewItems => Set<ServerReviewItem>();
     public DbSet<ServerAppointment> Appointments => Set<ServerAppointment>();
     public DbSet<ServerComprehensiveAssessment> ComprehensiveAssessments => Set<ServerComprehensiveAssessment>();
@@ -213,6 +216,56 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<ServerBillingSubmissionEvent>(entity =>
+        {
+            entity.ToTable("BillingSubmissionEvents");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.AgencyId, item.OccurredAtUtc });
+            entity.Property(item => item.Reference).HasMaxLength(80);
+            entity.Property(item => item.ResponseType).HasMaxLength(20);
+            entity.Property(item => item.ResponseCode).HasMaxLength(30);
+            entity.Property(item => item.Explanation).HasMaxLength(500);
+            entity.HasOne<ServerBillingPeriod>()
+                .WithMany()
+                .HasForeignKey(item => item.BillingPeriodId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ServerRemittanceClaimOutcome>(entity =>
+        {
+            entity.ToTable("RemittanceClaimOutcomes");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.AgencyId, item.ReceivedAtUtc });
+            entity.Property(item => item.ClaimReference).HasMaxLength(80);
+            entity.Property(item => item.PayerName).HasMaxLength(100);
+            entity.Property(item => item.ReasonCode).HasMaxLength(30);
+            entity.Property(item => item.Explanation).HasMaxLength(500);
+            entity.Property(item => item.PaymentReference).HasMaxLength(80);
+            entity.Property(item => item.BilledAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.AllowedAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.PaidAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.AdjustmentAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.PatientResponsibilityAmount).HasColumnType("decimal(18,2)");
+            entity.HasOne<ServerBillingPeriod>()
+                .WithMany()
+                .HasForeignKey(item => item.BillingPeriodId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ServerRemittanceDeposit>(entity =>
+        {
+            entity.ToTable("RemittanceDeposits");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.AgencyId, item.ReceivedAtUtc });
+            entity.Property(item => item.PaymentReference).IsRequired().HasMaxLength(80);
+            entity.Property(item => item.PayerName).IsRequired().HasMaxLength(100);
+            entity.Property(item => item.ProviderLevelAdjustmentSummary).HasMaxLength(500);
+            entity.Property(item => item.ClaimPaymentAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.ProviderLevelAdjustmentAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.RemittancePaymentAmount).HasColumnType("decimal(18,2)");
+            entity.Property(item => item.EftDepositAmount).HasColumnType("decimal(18,2)");
+        });
+
         modelBuilder.Entity<ServerReviewItem>(entity =>
         {
             entity.ToTable("ReviewItems");
@@ -351,9 +404,15 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         if (ChangeTracker.Entries<ServerAuditEvent>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerPersonVersion>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerBillingSubmissionEvent>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerRemittanceClaimOutcome>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerRemittanceDeposit>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
         {
-            throw new InvalidOperationException("Audit events are append-only.");
+            throw new InvalidOperationException("Audit, Person history, and billing exchange records are append-only.");
         }
     }
 }
@@ -685,6 +744,57 @@ internal sealed class ServerEdiGeneration
     public string FileName { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+internal sealed class ServerBillingSubmissionEvent
+{
+    public long Id { get; set; }
+    public int AgencyId { get; set; }
+    public int BillingPeriodId { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public BillingSubmissionStage Stage { get; set; }
+    public string? Reference { get; set; }
+    public string? ResponseType { get; set; }
+    public string? ResponseCode { get; set; }
+    public string? Explanation { get; set; }
+    public bool IsSynthetic { get; set; }
+}
+
+internal sealed class ServerRemittanceClaimOutcome
+{
+    public long Id { get; set; }
+    public int AgencyId { get; set; }
+    public int? BillingPeriodId { get; set; }
+    public string ClaimReference { get; set; } = string.Empty;
+    public string PayerName { get; set; } = string.Empty;
+    public DateTime ReceivedAtUtc { get; set; }
+    public DateTime? PaymentDate { get; set; }
+    public RemittanceClaimStatus Status { get; set; }
+    public decimal BilledAmount { get; set; }
+    public decimal? AllowedAmount { get; set; }
+    public decimal PaidAmount { get; set; }
+    public decimal AdjustmentAmount { get; set; }
+    public decimal PatientResponsibilityAmount { get; set; }
+    public string? ReasonCode { get; set; }
+    public string? Explanation { get; set; }
+    public string? PaymentReference { get; set; }
+    public bool IsSynthetic { get; set; }
+}
+
+internal sealed class ServerRemittanceDeposit
+{
+    public long Id { get; set; }
+    public int AgencyId { get; set; }
+    public string PaymentReference { get; set; } = string.Empty;
+    public string PayerName { get; set; } = string.Empty;
+    public DateTime ReceivedAtUtc { get; set; }
+    public DateTime? PaymentDate { get; set; }
+    public decimal ClaimPaymentAmount { get; set; }
+    public decimal ProviderLevelAdjustmentAmount { get; set; }
+    public string? ProviderLevelAdjustmentSummary { get; set; }
+    public decimal RemittancePaymentAmount { get; set; }
+    public decimal? EftDepositAmount { get; set; }
+    public bool IsSynthetic { get; set; }
 }
 
 internal sealed class ServerReviewItem

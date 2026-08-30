@@ -529,6 +529,15 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
                 configuration.PayerId,
                 configuration.ContactName,
                 configuration.ContactPhone));
+
+    public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+        await api.GetAsync<List<BillingSubmissionHistoryDto>>("/api/v1/billing/submissions");
+
+    public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+        await api.GetAsync<List<RemittanceClaimOutcomeDto>>("/api/v1/billing/remittances");
+
+    public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+        await api.GetAsync<List<RemittanceDepositDto>>("/api/v1/billing/remittance-deposits");
 }
 
 public sealed class CloudEdiService(CloudApiClient api) : IEdiService
