@@ -57,12 +57,93 @@ Billing submission home, denial worklist, humanized adjustment reasons, and depo
       benchmarking as explicitly deferred work.
 
 ### Follow-up
-- [ ] The `datt-workstation-temp` SQL firewall rule opened for the 1.2.30 release is still recorded
-      as unremoved. Nothing in 1.2.31 needed or used it. Removing it is the user's action; this
-      workflow never adds, alters, or deletes a firewall rule.
+- [x] The `datt-workstation-temp` SQL firewall rule from the 1.2.30 release is gone. Verified
+      2026-08-30 against `sati-demo-satilogica-central`: the allow-list holds only the three
+      `sati-demo-api-outbound-*` App Service addresses. The box had simply never been ticked;
+      nothing in 1.2.31 needed or used the rule.
 - [ ] `SatiProduction` has not received `AddBillingExchangeHistory` or `AddRemittanceDeposits`. The
       desktop applies them on its next direct connection; given that database's own history drift,
       watch that first launch.
+
+## Controlled migration deployment — 2026-08-30
+
+`CLAUDE.md` lists controlled migration deployment as outstanding cloud-platform foundation. Today a
+schema release needs a hand-written `Apply-*.ps1` run from a workstation, which needs a temporary
+exact-IP hole in the `SatiDemo` SQL firewall. That hole is the last link in a chain, not the first:
+`__EFMigrationsHistory` disagrees with the real schema in both directions, so
+`dotnet ef migrations script --idempotent` fails with SQL 2705, so every migration gets its own
+bespoke script, so a human must run it, so the firewall must open. There are ten such scripts in
+`scripts/`, each a fresh chance to get it wrong. Reconciling the history table dissolves the rest.
+
+### Phase 0 — Build the instrument
+- [ ] Extract the schema comparison into one owner shared by the health check, the migrator, and the
+      tests, the way `BillingRules` owns its rule. A second hand-written comparison is a defect.
+- [ ] Extend it past `SchemaDriftHealthCheck`'s current reach. That check is one-directional and
+      name-only — model-expects-but-database-lacks, columns only. It is blind to the drift that
+      actually breaks releases, namely objects the database has that the chain never recorded, and
+      to type and nullability mismatches, indexes, and foreign keys.
+- [ ] Report `__EFMigrationsHistory` rows with no objects, and objects with no history row.
+- [ ] Surface the detail on an Admin-only authenticated route. `/health/ready` stays a status word;
+      the check's description already never reaches the anonymous response writer.
+- Exit: the exact three-way disagreement can be printed for `SatiDemo` and `SatiProduction` on
+  demand. For Demo this runs inside the API, which already holds database access, so no firewall
+  rule is involved.
+
+### Phase 1 — Reconcile once, per environment
+- [ ] Classify every Phase 0 discrepancy: present-but-unrecorded inserts a history row,
+      recorded-but-absent gets corrective DDL, semantically different is decided one at a time.
+- [ ] One guarded reconciliation per environment with the discipline
+      `Apply-ProviderDirectoryMigrations.ps1` already has: fail closed on `DB_NAME()` and
+      `SatiDatabaseIdentity`, guard each statement on the actual schema, verify semantics rather
+      than names, stay rerunnable.
+- [ ] Rehearse against a restored copy before touching either live database.
+- Exit: `--idempotent` runs clean twice against a restored copy of each database and the Phase 0
+  report is empty in both directions. This is the last release that opens the SQL firewall.
+
+### Phase 2 — `Sati.Migrator`
+- [ ] Console project over `ApiDbContext` with three modes: `plan` (default; prints pending
+      migration ids and the DDL, changes nothing), `apply` (requires a matching environment marker
+      and an explicit `--authorized-by`, fails closed otherwise), and `verify` (re-runs the Phase 0
+      comparison, non-zero exit on any drift).
+- [ ] Write an `AuditEvent` on apply recording migration ids, authorizer, source commit, and the
+      resulting schema fingerprint. This is the integrity evidence `REGULATORY_CONCERNS.md` wants.
+- Exit: `plan`/`apply`/`verify` reproduces Phase 1's end state on a restored copy from both an empty
+  and a current database, and a second `apply` is a no-op.
+
+### Phase 3 — Run it where access already exists
+- [ ] **Open decision: Container Apps Job or triggered WebJob.** A WebJob needs no new
+      infrastructure but runs under the App Service's managed identity, so the internet-facing API
+      would gain permanent DDL rights on `SatiDemo`. That trades a temporary, human-supervised
+      firewall hole for a standing privilege escalation on the most exposed component, which is
+      worse than today. A Container Apps Job in `rg-sati-demo` carries its own identity with DDL
+      rights while the API identity stays read/write. Recommended, at the cost of new
+      infrastructure.
+- [ ] Invoke it from the release workflow and capture stdout as evidence.
+- Exit: a schema release completes end to end with `az sql server firewall-rule list` showing the
+  same three `sati-demo-api-outbound-*` rules before and after.
+
+### Phase 4 — Fold into DATT
+- [ ] `RELEASE_PLAYBOOK.md` section 6 becomes plan, show the DDL, obtain explicit authorization,
+      apply, then verify against `/health/ready`. The human authorization gate does not move; only
+      the network hole disappears.
+- Exit: the playbook contains no firewall instruction, and `AGENTS.md` item 5's carve-out is no
+  longer on the normal path.
+
+### Phase 5 — `SatiProduction`
+`SatiProduction` is local, not Azure: `LocalDatabaseUpdate` calls
+`SqlLocalDatabaseMaintenance.MigrateAsync`, which calls `Database.MigrateAsync()` at desktop
+startup. No firewall is involved, but the same history drift is, applied automatically to the live
+working tool with no plan step and no gate.
+- [ ] Reconcile it in Phase 1 alongside Demo.
+- [ ] Run the Phase 0 comparison before `MigrateAsync` and refuse with a legible message naming the
+      offending object when the pending chain would collide with drift, rather than failing partway
+      through a multi-migration chain.
+- [ ] **Open decision: ordering.** This phase needs Phase 0's comparison but nothing else, and it
+      guards the live database; `AddBillingExchangeHistory` and `AddRemittanceDeposits` are already
+      queued against it. Running it immediately after Phase 0, ahead of the Demo work, is
+      defensible.
+- Exit: a schema-adding release either applies cleanly at next launch or refuses with a reason.
+  Never a half-applied database.
 
 ## Release 1.2.30 — 2026-08-28
 
@@ -143,7 +224,9 @@ work tracked as "Unreleased" below, which shipped in this release.
       configured in this Windows session. All required public release checks passed.
 
 ### Follow-up
-- [ ] Remove the temporary `datt-workstation-temp` firewall rule on `sati-demo-api-satilogica`.
+- [x] Removed the temporary `datt-workstation-temp` firewall rule. Verified absent 2026-08-30 on
+      the SQL server `sati-demo-satilogica-central` (the rule lives on the SQL logical server, not
+      on the `sati-demo-api-satilogica` App Service named in the original note).
 - [ ] `SatiProduction` has not received these four migrations. The desktop applies them on its
       next direct connection; given that database's own history drift, watch that first launch.
 
