@@ -151,6 +151,142 @@ public sealed class LocalDatabaseUpdaterTests
         Assert.Empty(result.FailureMessage());
     }
 
+    private const string Drifted = "20260812090000_TenantScopeSettingsAndProviders";
+
+    private static MigrationEffectFinding Finding(
+        string id, MigrationEffectState state, string[]? present = null, string[]? missing = null) =>
+        new(id, state, present ?? [], missing ?? [], []);
+
+    /// <summary>
+    /// The case that stopped Sati starting on three machines. Every effect the pending
+    /// migration declares is already in the database, so applying it fails with SQL
+    /// 2705. Recording that it ran is an insert into the history table and nothing
+    /// else, which is why it is safe to do without a person present.
+    /// </summary>
+    [Fact]
+    public async Task AMigrationWhoseEffectsAreAllPresentIsRecordedRatherThanApplied()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = [Drifted],
+            HasRecords = true,
+            Findings = [Finding(Drifted, MigrationEffectState.AlreadyPresent, present: ["Settings.AgencyId"])]
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
+        Assert.Equal([Drifted], db.Recorded);
+        Assert.Equal(["backup", "record", "migrate"], db.Order);
+    }
+
+    /// <summary>
+    /// The one case that still stops. Which half is missing decides what should
+    /// happen, and guessing at that unattended against consumer records is exactly
+    /// what this path has always refused to do.
+    /// </summary>
+    [Fact]
+    public async Task APartiallyPresentMigrationStopsAndWritesNothing()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = [Drifted],
+            HasRecords = true,
+            Findings =
+            [
+                Finding(Drifted, MigrationEffectState.PartiallyPresent,
+                    present: ["Settings.AgencyId"], missing: ["Providers.AgencyId"])
+            ]
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.NeedsRepair, result.Outcome);
+        Assert.Empty(db.Recorded);
+        Assert.Empty(db.Order);
+        Assert.Null(result.BackupPath);
+    }
+
+    [Fact]
+    public async Task ThePartialRefusalNamesTheMigrationAndSaysNothingWasChanged()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = [Drifted],
+            HasRecords = true,
+            Findings = [Finding(Drifted, MigrationEffectState.PartiallyPresent,
+                present: ["Settings.AgencyId"], missing: ["Providers.AgencyId"])]
+        };
+
+        var message = (await new LocalDatabaseUpdater(db).UpdateAsync()).FailureMessage();
+
+        Assert.Contains(Drifted, message, StringComparison.Ordinal);
+        Assert.Contains("nothing was changed", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("some of its changes are present", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// An ordinary pending migration must not be diverted by any of this. Nothing is
+    /// recorded, and the original back-up-then-migrate order is unchanged.
+    /// </summary>
+    [Fact]
+    public async Task AnOrdinaryPendingMigrationIsStillJustApplied()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = ["20260830001538_AddRemittanceDeposits"],
+            HasRecords = true,
+            Findings = [Finding("20260830001538_AddRemittanceDeposits", MigrationEffectState.NotApplied,
+                missing: ["table RemittanceDeposits"])]
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
+        Assert.Empty(db.Recorded);
+        Assert.Equal(["backup", "migrate"], db.Order);
+    }
+
+    /// <summary>
+    /// A diagnosis that cannot be produced is not a reason to refuse an update that
+    /// might be perfectly ordinary. It falls through to the path that backs up first
+    /// and reports honestly if it fails.
+    /// </summary>
+    [Fact]
+    public async Task AnalysisFailureDoesNotBlockAnOtherwiseOrdinaryUpdate()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = ["20260830001538_AddRemittanceDeposits"],
+            HasRecords = true,
+            AnalyzeThrows = new InvalidOperationException("catalog unreadable")
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
+        Assert.Equal(["backup", "migrate"], db.Order);
+    }
+
+    /// <summary>A failed repair must not be followed by a migration that will now fail.</summary>
+    [Fact]
+    public async Task AFailedRepairStopsBeforeMigrating()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = [Drifted],
+            HasRecords = true,
+            Findings = [Finding(Drifted, MigrationEffectState.AlreadyPresent, present: ["Settings.AgencyId"])],
+            RecordThrows = new InvalidOperationException("history table is read-only")
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Failed, result.Outcome);
+        Assert.False(db.Migrated);
+        Assert.Equal(FakeMaintenance.BackupFile, result.BackupPath);
+    }
+
     private sealed class FakeMaintenance : ILocalDatabaseMaintenance
     {
         public const string BackupFile = @"C:\Users\Test\AppData\Local\Sati\schema-backups\SatiProduction.bak";
@@ -160,13 +296,36 @@ public sealed class LocalDatabaseUpdaterTests
         public Exception? PendingThrows { get; set; }
         public Exception? BackupThrows { get; set; }
         public Exception? MigrateThrows { get; set; }
+        public Exception? AnalyzeThrows { get; set; }
+        public Exception? RecordThrows { get; set; }
+        public IReadOnlyList<MigrationEffectFinding> Findings { get; set; } = [];
 
         public List<string> Order { get; } = [];
+        public List<string> Recorded { get; } = [];
         public bool BackedUp => Order.Contains("backup");
         public bool Migrated => Order.Contains("migrate");
 
         public Task<IReadOnlyList<string>> PendingMigrationsAsync(CancellationToken cancellationToken = default) =>
             PendingThrows is not null ? Task.FromException<IReadOnlyList<string>>(PendingThrows) : Task.FromResult(Pending);
+
+        public Task<IReadOnlyList<MigrationEffectFinding>> AnalyzePendingAsync(
+            IReadOnlyList<string> pendingMigrationIds, CancellationToken cancellationToken = default) =>
+            AnalyzeThrows is not null
+                ? Task.FromException<IReadOnlyList<MigrationEffectFinding>>(AnalyzeThrows)
+                : Task.FromResult(Findings);
+
+        public Task<int> RecordMigrationsAsync(
+            IReadOnlyList<string> migrationIds, CancellationToken cancellationToken = default)
+        {
+            if (RecordThrows is not null)
+                return Task.FromException<int>(RecordThrows);
+            if (migrationIds.Count > 0)
+            {
+                Order.Add("record");
+                Recorded.AddRange(migrationIds);
+            }
+            return Task.FromResult(migrationIds.Count);
+        }
 
         public Task<bool> HasRecordsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(HasRecords);

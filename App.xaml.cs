@@ -280,7 +280,12 @@ namespace Sati
                             scope.ServiceProvider.GetRequiredService<SatiContext>()));
                     var update = await updater.UpdateAsync();
 
-                    if (update.Outcome == LocalDatabaseUpdateOutcome.Failed)
+                    // NeedsRepair is as much a stop as Failed: the schema is not what
+                    // this build expects and starting anyway would run against a
+                    // database it does not understand. It carries a different message
+                    // because the reader can actually act on this one.
+                    if (update.Outcome is LocalDatabaseUpdateOutcome.Failed
+                                       or LocalDatabaseUpdateOutcome.NeedsRepair)
                     {
                         MessageBox.Show(
                             update.FailureMessage(),

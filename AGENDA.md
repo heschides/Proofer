@@ -268,6 +268,17 @@ what was first written down.
       only `demo-history-reconciliation`. A job able to perform DDL against a live database, kept
       against a possibility, is a standing surface for no benefit. If a genuine constraint
       divergence ever appears, write the corrective script then.
+- [x] **Phase 5 shipped 2026-08-30 (A and B).** `MigrationEffectAnalyzer` in `Sati.Persistence`
+      classifies each pending migration against the live schema before anything is written.
+      `LocalDatabaseUpdater` records the provable case, still refuses the ambiguous one, and now
+      names the migration instead of surfacing SQL 2705. Verified end to end against a real SQL
+      Server database, not only with fakes. Reasoning and what was rejected in `DECISIONS.md`.
+- [ ] **The migration chain does not replay on an empty database.** A migration reads
+      `dbo.SatiDatabaseIdentity`, which is created outside the chain, so `MigrateAsync` against a
+      fresh database fails with `Invalid object name`. Real installs create that table first, so
+      nothing is broken today, but the chain alone cannot reconstruct a database and the
+      rehearsal harness had to work around it. The unmerged `second-machine-setup` branch carries
+      a commit named for exactly this; worth reviewing rather than solving twice.
 - [ ] **Narrow the grant to `VIEW DEFINITION`.** The proofs read `sys.default_constraints`, which
       `db_datareader`/`db_datawriter` cannot see; that is the whole reason `ALTER` appeared to be
       needed. `ALTER` additionally lets the identity change the table, and with the constraint job

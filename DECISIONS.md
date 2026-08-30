@@ -2219,3 +2219,54 @@ attributes is not in the chain, and a database can therefore carry a migration's
 record that it ran.** Neither `dotnet ef migrations list` nor a history-table comparison will show
 it, because both work from what EF enumerates. The only thing that catches it is comparing declared
 effects against the actual schema.
+
+## 2026-08-30 — Startup repairs the provable half of a history disagreement
+
+`LocalDatabaseUpdater` used to refuse every disagreement between migration history and
+schema, and said why in its own comment: it needs judgement about which side is right, and
+guessing on a database full of consumer records is not something a startup path should do
+unattended. That reasoning was right and is why nothing was damaged when this finally
+happened for real on three machines in one evening.
+
+It was also doing more work than the argument required. "Which side is right" is a
+judgement only when the two sides actually disagree about something. When every effect a
+pending migration declares is already present in the schema — every column, index,
+foreign key and primary key, each checked by what it maps rather than by its name — the
+schema has already answered. Recording that the migration ran is then a statement of fact,
+and the recording is an insert into `__EFMigrationsHistory` that touches no schema and no
+consumer data.
+
+So the startup path now repairs exactly that case and nothing else.
+`MigrationEffectAnalyzer` classifies each pending migration before anything is written:
+every effect present is `AlreadyPresent` and is recorded; no effect present is
+`NotApplied` and is migrated normally; anything else is `PartiallyPresent` or
+`Indeterminate` and still stops, now naming the migration instead of surfacing SQL 2705
+about a duplicate column.
+
+**What the analyzer will not claim.** Raw SQL steps and data changes cannot be inspected,
+so they are reported as unverifiable and left out of the verdict rather than assumed in
+either direction. `TenantScopeSettingsAndProviders` — the migration that caused all of
+this — contains such a step, a backfill. Its structural evidence happens to settle the
+question anyway, because the migration alters both columns to `NOT NULL` afterwards and a
+column cannot be made `NOT NULL` while nulls remain. That is a property of this migration,
+not a general guarantee, which is why the unverifiable steps are still reported. An
+operation type the analyzer does not recognise counts as unverifiable too, so an
+unfamiliar migration reports `Indeterminate` rather than a confident wrong answer.
+
+**Rejected:** repairing `PartiallyPresent`. Which half is missing decides what should
+happen, and no amount of care makes an unattended guess about that acceptable against
+consumer records. Also rejected: requiring zero unverifiable steps before repairing, which
+sounds stricter but would have excluded the only case that actually occurs and left the
+feature useless.
+
+Verified end to end against a real SQL Server database rather than only with fakes: a
+scratch database built from the chain, drifted by removing one history row, then run
+through the real updater — `Applied`, drift recorded, nothing pending, and a second run
+reporting `AlreadyCurrent`.
+
+**Noticed while building the rehearsal:** the migration chain does not replay on an empty
+database. A migration reads `dbo.SatiDatabaseIdentity`, which is created outside the chain,
+so `MigrateAsync` against a fresh database fails on `Invalid object name`. Real installs
+create that table first, so nothing is broken today, but it means the chain alone cannot
+reconstruct a database. The unmerged `second-machine-setup` branch carries a commit named
+for exactly this. Tracked in AGENDA.md.

@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Sati.Data;
 
@@ -27,6 +29,41 @@ public sealed class SqlLocalDatabaseMaintenance(SatiContext context) : ILocalDat
     public async Task<IReadOnlyList<string>> PendingMigrationsAsync(
         CancellationToken cancellationToken = default) =>
         [.. await context.Database.GetPendingMigrationsAsync(cancellationToken)];
+
+    public Task<IReadOnlyList<MigrationEffectFinding>> AnalyzePendingAsync(
+        IReadOnlyList<string> pendingMigrationIds,
+        CancellationToken cancellationToken = default) =>
+        MigrationEffectAnalyzer.AnalyzeAsync(context, pendingMigrationIds, cancellationToken);
+
+    /// <summary>
+    /// Records that a migration ran, without running it. Only ever an insert into the
+    /// history table: no schema and no consumer data is touched, which is what makes
+    /// this safe to do unattended when the effects have been proven present.
+    ///
+    /// The insert is built by EF's own history repository rather than hand-written, so
+    /// the row matches what EF would have written itself, product version included.
+    /// </summary>
+    public async Task<int> RecordMigrationsAsync(
+        IReadOnlyList<string> migrationIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(migrationIds);
+        if (migrationIds.Count == 0)
+            return 0;
+
+        var history = context.GetService<IHistoryRepository>();
+        var productVersion = ProductInfo.GetVersion();
+        var written = 0;
+
+        foreach (var migrationId in migrationIds)
+        {
+            var script = history.GetInsertScript(new HistoryRow(migrationId, productVersion));
+            await context.Database.ExecuteSqlRawAsync(script, cancellationToken);
+            written++;
+        }
+
+        return written;
+    }
 
     /// <summary>
     /// Consumer records are the thing worth protecting, so their presence is what

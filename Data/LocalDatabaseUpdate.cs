@@ -11,6 +11,14 @@ public enum LocalDatabaseUpdateOutcome
 
     /// <summary>The migration failed. The database is unchanged or restorable from the backup.</summary>
     Failed,
+
+    /// <summary>
+    /// A pending migration's effects are already in the database, so applying it would
+    /// fail. Nothing was attempted and nothing was backed up, because nothing was going
+    /// to be written. Needs a one-time repair by someone who can judge which side is
+    /// right — see <see cref="LocalDatabaseUpdateResult.Findings"/>.
+    /// </summary>
+    NeedsRepair,
 }
 
 /// <param name="Outcome">What happened.</param>
@@ -21,7 +29,8 @@ public sealed record LocalDatabaseUpdateResult(
     LocalDatabaseUpdateOutcome Outcome,
     IReadOnlyList<string> Migrations,
     string? BackupPath,
-    Exception? Failure)
+    Exception? Failure,
+    IReadOnlyList<MigrationEffectFinding>? Findings = null)
 {
     public static LocalDatabaseUpdateResult Current { get; } =
         new(LocalDatabaseUpdateOutcome.AlreadyCurrent, [], null, null);
@@ -33,6 +42,9 @@ public sealed record LocalDatabaseUpdateResult(
     /// </summary>
     public string FailureMessage()
     {
+        if (Outcome == LocalDatabaseUpdateOutcome.NeedsRepair)
+            return RepairMessage();
+
         if (Outcome != LocalDatabaseUpdateOutcome.Failed)
             return string.Empty;
 
@@ -48,6 +60,42 @@ public sealed record LocalDatabaseUpdateResult(
             "or running an older version.\n\n" +
             $"Technical detail: {Failure?.Message}";
     }
+
+    /// <summary>
+    /// The message for the case the old code could only report as a provider error. It
+    /// names the update whose changes are already present, because that name is the
+    /// whole repair: someone has to record that it ran. Saying "column specified more
+    /// than once" told the reader nothing they could act on and told whoever they sent
+    /// it to almost as little.
+    /// </summary>
+    private string RepairMessage()
+    {
+        var blocked = (Findings ?? [])
+            .Where(finding => finding.State is MigrationEffectState.AlreadyPresent
+                                            or MigrationEffectState.PartiallyPresent)
+            .ToList();
+
+        var detail = string.Join("\n", blocked.Select(finding =>
+            $"  - {finding.MigrationId} ({(finding.State == MigrationEffectState.AlreadyPresent
+                ? "all of its changes are already present"
+                : "some of its changes are present and some are not")})"));
+
+        var partial = blocked.Any(finding => finding.State == MigrationEffectState.PartiallyPresent)
+            ? "\n\nOne of these is only partly present, which needs care. Do not reinstall or run " +
+              "an older version until Josh has looked at it."
+            : string.Empty;
+
+        return
+            "Sati stopped before updating its database, because part of the update it was " +
+            "about to apply is already there.\n\n" +
+            "Nothing was attempted and nothing was changed. Your records are exactly as you " +
+            "left them, and no backup was needed because nothing was going to be written.\n\n" +
+            "This is a one-time repair Josh can do in a couple of minutes. Send him this " +
+            "message.\n\n" +
+            "Update(s) already present:\n" +
+            detail +
+            partial;
+    }
 }
 
 /// <summary>
@@ -61,6 +109,24 @@ public sealed record LocalDatabaseUpdateResult(
 public interface ILocalDatabaseMaintenance
 {
     Task<IReadOnlyList<string>> PendingMigrationsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// For each pending migration, whether the database already contains what it
+    /// declares. Answered before anything is written, so a migration that cannot
+    /// succeed is refused with a diagnosis rather than a provider error halfway
+    /// through.
+    /// </summary>
+    Task<IReadOnlyList<MigrationEffectFinding>> AnalyzePendingAsync(
+        IReadOnlyList<string> pendingMigrationIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records that a migration ran, without running it. An insert into the history
+    /// table only — no schema and no consumer data.
+    /// </summary>
+    Task<int> RecordMigrationsAsync(
+        IReadOnlyList<string> migrationIds,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Whether this database holds consumer records, which decides whether a backup is warranted.</summary>
     Task<bool> HasRecordsAsync(CancellationToken cancellationToken = default);
@@ -87,10 +153,22 @@ public interface ILocalDatabaseMaintenance
 /// rather than throwing before the splash screen and leaving an app that will not
 /// start and says nothing about why.
 ///
-/// It deliberately does NOT try to repair a database whose migration history
-/// disagrees with its schema. That has happened to SatiProduction before, it needs
-/// judgement about which side is right, and guessing on a database full of consumer
-/// records is not a thing a startup path should do unattended. It stops and says so.
+/// It used to refuse outright to repair a database whose migration history disagreed
+/// with its schema, on the grounds that it needs judgement about which side is right
+/// and guessing on a database full of consumer records is not a thing a startup path
+/// should do unattended. That reasoning still holds, and one case still stops for it.
+///
+/// What changed on 2026-08-30 is that one shape of disagreement stopped requiring
+/// judgement. <see cref="MigrationEffectAnalyzer"/> compares what a pending migration
+/// declares against what the schema has, before anything is written. When every
+/// declared effect is already present, recording that the migration ran is not a guess
+/// about which side is right — the schema has already answered — and the repair is an
+/// insert into the history table that touches no schema and no consumer data.
+///
+/// When effects are only partly present, or the analysis cannot reach a verdict, it
+/// still stops, and now says which migration and why rather than surfacing a provider
+/// error about a duplicate column name. That refusal is the part the original comment
+/// was protecting and it is unchanged.
 /// </summary>
 public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
 {
@@ -113,7 +191,37 @@ public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
         if (pending.Count == 0)
             return LocalDatabaseUpdateResult.Current;
 
+        // Ask what the schema already says about these before writing anything. A
+        // migration whose effects are all present cannot be applied, and finding that
+        // out by attempting it costs a backup and produces an error nobody outside
+        // this codebase can act on.
+        IReadOnlyList<MigrationEffectFinding> findings;
+        try
+        {
+            findings = await maintenance.AnalyzePendingAsync(pending, cancellationToken);
+        }
+        catch
+        {
+            // A diagnosis that cannot be produced is not a reason to refuse an update
+            // that might be perfectly ordinary. Fall through to the path that backs up
+            // first and reports honestly if it fails, which is where this started.
+            findings = [];
+        }
+
+        // A migration that is only half present is the one case that still stops. Which
+        // half is missing decides what should happen, that needs a person, and no
+        // amount of care makes an unattended guess about it acceptable.
+        if (findings.Any(finding => finding.State == MigrationEffectState.PartiallyPresent))
+        {
+            return new LocalDatabaseUpdateResult(
+                LocalDatabaseUpdateOutcome.NeedsRepair, pending, null, null, findings);
+        }
+
         string? backupPath = null;
+        var repairable = findings
+            .Where(finding => finding.State == MigrationEffectState.AlreadyPresent)
+            .Select(finding => finding.MigrationId)
+            .ToList();
         try
         {
             // A database with no records has nothing worth the time or the disk. The
@@ -130,6 +238,22 @@ public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
                 LocalDatabaseUpdateOutcome.Failed, pending, null, failure);
         }
 
+        // Record the migrations whose every declared effect was found, so EF stops
+        // trying to apply changes the database already has. This writes history rows
+        // and nothing else — no schema, no consumer data — which is what makes it a
+        // defensible thing to do without asking. The backup above was taken first
+        // regardless, because a database that holds records gets backed up before Sati
+        // writes to it at all, not merely before it writes something risky.
+        try
+        {
+            await maintenance.RecordMigrationsAsync(repairable, cancellationToken);
+        }
+        catch (Exception failure)
+        {
+            return new LocalDatabaseUpdateResult(
+                LocalDatabaseUpdateOutcome.Failed, pending, backupPath, failure, findings);
+        }
+
         try
         {
             await maintenance.MigrateAsync(cancellationToken);
@@ -137,10 +261,10 @@ public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
         catch (Exception failure)
         {
             return new LocalDatabaseUpdateResult(
-                LocalDatabaseUpdateOutcome.Failed, pending, backupPath, failure);
+                LocalDatabaseUpdateOutcome.Failed, pending, backupPath, failure, findings);
         }
 
         return new LocalDatabaseUpdateResult(
-            LocalDatabaseUpdateOutcome.Applied, pending, backupPath, null);
+            LocalDatabaseUpdateOutcome.Applied, pending, backupPath, null, findings);
     }
 }
