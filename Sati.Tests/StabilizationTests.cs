@@ -1453,6 +1453,53 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public async Task BillingSubmissionsIncludesClaimBearingDraftPeriodsWithoutEvents()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var period = new BillingPeriod
+        {
+            Id = 31,
+            UserId = 12,
+            Month = 7,
+            Year = 2026,
+            Status = BillingStatus.Draft,
+            Lines =
+            [
+                new ClaimLine
+                {
+                    Id = 1,
+                    DateOfService = new DateTime(2026, 7, 18),
+                    ChargeAmount = 125m
+                },
+                new ClaimLine
+                {
+                    Id = 2,
+                    DateOfService = new DateTime(2026, 7, 3),
+                    ChargeAmount = 75m
+                }
+            ]
+        };
+        var viewModel = new BillingSubmissionsViewModel(
+            new StubBillingService([period]), new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+
+        var row = Assert.Single(viewModel.SubmissionBatches);
+        Assert.Equal(period.Id, row.BillingPeriodId);
+        Assert.Equal(BillingSubmissionProgress.NotSubmitted, row.Progress);
+        Assert.Equal("Not submitted", row.CurrentStatus);
+        Assert.Equal("Oldest service date", row.ActivityLabel);
+        Assert.Equal(new DateTime(2026, 7, 3), row.ActivityLocal.Date);
+        Assert.Equal(2, row.ClaimCount);
+        Assert.Equal(200m, row.DollarValue);
+        Assert.Equal(1, viewModel.NotSubmittedCount);
+        Assert.Equal("1 not submitted · 0 need attention · 0 awaiting payer · 0 settled",
+            viewModel.SubmissionSummary);
+    }
+
+    [Fact]
     public async Task RemittanceViewLoadsSyntheticContingenciesWithoutChangingTheirProvenance()
     {
         var outcomes = new[]

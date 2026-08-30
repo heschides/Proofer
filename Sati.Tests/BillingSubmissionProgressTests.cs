@@ -13,6 +13,24 @@ namespace Sati.Tests;
 /// </summary>
 public sealed class BillingSubmissionProgressTests
 {
+    /// <summary>
+    /// A period holding claim lines but no submission events is not a failed submission.
+    /// It needs its own state, created by the submissions view model from the absence of
+    /// events rather than returned by stage classification.
+    /// </summary>
+    [Fact]
+    public void NotSubmittedExistsAboveEveryEventBasedStateButNoStageClassifiesToIt()
+    {
+        Assert.True(Enum.TryParse("NotSubmitted", out BillingSubmissionProgress notSubmitted));
+        Assert.Equal(0, BillingSubmissionProgressRules.SortOrder(notSubmitted));
+        Assert.Equal("Not submitted", BillingSubmissionProgressRules.Describe(notSubmitted));
+        Assert.Equal("Oldest service date", BillingSubmissionProgressRules.DescribeActivity(notSubmitted));
+        Assert.True(BillingSubmissionProgressRules.OldestFirst(notSubmitted));
+
+        Assert.All(Enum.GetValues<BillingSubmissionStage>(), stage =>
+            Assert.NotEqual(notSubmitted, BillingSubmissionProgressRules.Classify(stage)));
+    }
+
     [Theory]
     [InlineData(BillingSubmissionStage.TransportFailed)]
     [InlineData(BillingSubmissionStage.FunctionalRejected)]
@@ -79,9 +97,8 @@ public sealed class BillingSubmissionProgressTests
             BillingSubmissionProgressRules.Classify(nameof(BillingSubmissionStage.Paid)));
 
     /// <summary>
-    /// Work sorts above waiting, and waiting above done. This is the ordering the list
-    /// relies on, so it is pinned rather than left to the order the enum happens to be
-    /// declared in.
+    /// Unsubmitted work sorts above failed work, waiting, and done. This is the ordering
+    /// the list relies on, so it is pinned rather than left to enum declaration order.
     /// </summary>
     [Fact]
     public void WorkSortsAboveWaitingAndWaitingAboveDone()
@@ -90,6 +107,7 @@ public sealed class BillingSubmissionProgressTests
             {
                 BillingSubmissionProgress.Settled,
                 BillingSubmissionProgress.NeedsAttention,
+                BillingSubmissionProgress.NotSubmitted,
                 BillingSubmissionProgress.AwaitingPayer
             }
             .OrderBy(BillingSubmissionProgressRules.SortOrder)
@@ -97,6 +115,7 @@ public sealed class BillingSubmissionProgressTests
 
         Assert.Equal(
             [
+                BillingSubmissionProgress.NotSubmitted,
                 BillingSubmissionProgress.NeedsAttention,
                 BillingSubmissionProgress.AwaitingPayer,
                 BillingSubmissionProgress.Settled
@@ -111,6 +130,7 @@ public sealed class BillingSubmissionProgressTests
     [Fact]
     public void OldestFirstEverywhereExceptSettled()
     {
+        Assert.True(BillingSubmissionProgressRules.OldestFirst(BillingSubmissionProgress.NotSubmitted));
         Assert.True(BillingSubmissionProgressRules.OldestFirst(BillingSubmissionProgress.NeedsAttention));
         Assert.True(BillingSubmissionProgressRules.OldestFirst(BillingSubmissionProgress.AwaitingPayer));
         Assert.False(BillingSubmissionProgressRules.OldestFirst(BillingSubmissionProgress.Settled));
@@ -122,6 +142,8 @@ public sealed class BillingSubmissionProgressTests
     [Fact]
     public void EachStateNamesWhatItsActivityDateMeans()
     {
+        Assert.Equal("Oldest service date",
+            BillingSubmissionProgressRules.DescribeActivity(BillingSubmissionProgress.NotSubmitted));
         Assert.Equal("Waiting since",
             BillingSubmissionProgressRules.DescribeActivity(BillingSubmissionProgress.NeedsAttention));
         Assert.Equal("Sent",

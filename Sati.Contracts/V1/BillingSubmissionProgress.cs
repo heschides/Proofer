@@ -6,6 +6,12 @@ namespace Sati.Contracts.V1;
 public enum BillingSubmissionProgress
 {
     /// <summary>
+    /// Claim lines have been promoted into a billing period, but that period has no
+    /// submission activity yet. The period still needs to be submitted and sent.
+    /// </summary>
+    NotSubmitted,
+
+    /// <summary>
     /// Something went wrong and a person has to act: the file failed to send, the
     /// clearinghouse rejected its syntax, or the payer rejected some or all of the claims.
     /// </summary>
@@ -33,10 +39,10 @@ public enum BillingSubmissionProgress
 /// screen showed a distinction that did not exist.
 /// </para>
 /// <para>
-/// Three states rather than two, because "not finished" covers two situations a biller
-/// treats completely differently: a rejection that needs work today, and an accepted claim
-/// that needs nothing but patience. Sorting those together is what makes a queue
-/// ambiguous.
+/// Four states rather than a finished/unfinished flag, because "not finished" covers
+/// three situations a biller treats differently: work that has not been submitted, a
+/// rejection that needs correction, and an accepted claim that needs only patience.
+/// Sorting those together is what makes a queue ambiguous.
 /// </para>
 /// <para>
 /// <c>Reconciled</c> is included in <see cref="BillingSubmissionProgress.Settled"/> for
@@ -74,6 +80,7 @@ public static class BillingSubmissionProgressRules
     /// <summary>The heading a group of batches sits under.</summary>
     public static string Describe(BillingSubmissionProgress progress) => progress switch
     {
+        BillingSubmissionProgress.NotSubmitted => "Not submitted",
         BillingSubmissionProgress.NeedsAttention => "Needs attention",
         BillingSubmissionProgress.AwaitingPayer => "Awaiting payer",
         _ => "Settled"
@@ -85,19 +92,22 @@ public static class BillingSubmissionProgressRules
     /// </summary>
     public static string DescribeActivity(BillingSubmissionProgress progress) => progress switch
     {
+        BillingSubmissionProgress.NotSubmitted => "Oldest service date",
         BillingSubmissionProgress.NeedsAttention => "Waiting since",
         BillingSubmissionProgress.AwaitingPayer => "Sent",
         _ => "Paid"
     };
 
     /// <summary>
-    /// Sort weight. Work first, then what is merely waiting, then what is done.
+    /// Sort weight. Work not yet submitted first, then failed work, then what is merely
+    /// waiting, then what is done.
     /// </summary>
     public static int SortOrder(BillingSubmissionProgress progress) => progress switch
     {
-        BillingSubmissionProgress.NeedsAttention => 0,
-        BillingSubmissionProgress.AwaitingPayer => 1,
-        _ => 2
+        BillingSubmissionProgress.NotSubmitted => 0,
+        BillingSubmissionProgress.NeedsAttention => 1,
+        BillingSubmissionProgress.AwaitingPayer => 2,
+        _ => 3
     };
 
     /// <summary>

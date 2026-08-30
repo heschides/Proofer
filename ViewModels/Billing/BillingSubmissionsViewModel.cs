@@ -40,6 +40,9 @@ namespace Sati.ViewModels.Billing
         /// filtered list rather than everything, so the header never disagrees with the
         /// rows underneath it.
         /// </summary>
+        public int NotSubmittedCount =>
+            SubmissionBatches.Count(item => item.Progress == BillingSubmissionProgress.NotSubmitted);
+
         public int NeedsAttentionCount =>
             SubmissionBatches.Count(item => item.Progress == BillingSubmissionProgress.NeedsAttention);
 
@@ -51,7 +54,8 @@ namespace Sati.ViewModels.Billing
 
         /// <summary>One line stating what the list currently holds, in that order.</summary>
         public string SubmissionSummary =>
-            $"{NeedsAttentionCount} need attention · {AwaitingPayerCount} awaiting payer · {SettledCount} settled";
+            $"{NotSubmittedCount} not submitted · {NeedsAttentionCount} need attention · " +
+            $"{AwaitingPayerCount} awaiting payer · {SettledCount} settled";
         public ObservableCollection<string> SubmissionStatusFilters { get; } = ["All statuses"];
         private readonly List<BillingSubmissionBatchRow> _allSubmissionBatches = [];
 
@@ -270,6 +274,9 @@ namespace Sati.ViewModels.Billing
         private void RebuildSubmissionBatches()
         {
             _allSubmissionBatches.Clear();
+            var periodsWithSubmissionEvents = SubmissionHistory
+                .Select(item => item.BillingPeriodId)
+                .ToHashSet();
             foreach (var group in SubmissionHistory.GroupBy(item => item.BillingPeriodId))
             {
                 var ordered = group.OrderBy(item => item.OccurredAtUtc).ToList();
@@ -282,6 +289,25 @@ namespace Sati.ViewModels.Billing
                     transmitted?.OccurredAtUtc, latest.OccurredAtUtc, latest.Stage,
                     latest.Reference, latest.ResponseType, latest.Explanation, latest.IsSynthetic,
                     BillingSubmissionProgressRules.Classify(latest.Stage)));
+            }
+
+            // A claim line leaves the billing queue as soon as it enters a period. Until
+            // that period produces its first submission event, this derived read-model
+            // row is the only place the unsubmitted work remains visible. Its age comes
+            // from service delivery because timely-filing limits run from that date.
+            foreach (var period in BillingPeriods.Where(period =>
+                         period.Lines.Count > 0 && !periodsWithSubmissionEvents.Contains(period.Id)))
+            {
+                var oldestServiceDate = period.Lines.Min(line => line.DateOfService).Date;
+                var oldestServiceDateUtc = DateTime.SpecifyKind(
+                    oldestServiceDate, DateTimeKind.Local).ToUniversalTime();
+                _allSubmissionBatches.Add(new BillingSubmissionBatchRow(
+                    period.Id, period.Year, period.Month,
+                    period.User?.DisplayName ?? $"User {period.UserId}",
+                    period.Lines.Count, period.Lines.Sum(line => line.ChargeAmount),
+                    null, oldestServiceDateUtc,
+                    BillingSubmissionProgressRules.Describe(BillingSubmissionProgress.NotSubmitted),
+                    null, null, null, false, BillingSubmissionProgress.NotSubmitted));
             }
 
             SubmissionStatusFilters.Clear();
@@ -322,6 +348,7 @@ namespace Sati.ViewModels.Billing
             SubmissionBatches.Clear();
             foreach (var item in ordered)
                 SubmissionBatches.Add(item);
+            OnPropertyChanged(nameof(NotSubmittedCount));
             OnPropertyChanged(nameof(NeedsAttentionCount));
             OnPropertyChanged(nameof(AwaitingPayerCount));
             OnPropertyChanged(nameof(SettledCount));
@@ -362,7 +389,7 @@ namespace Sati.ViewModels.Billing
         bool IsSynthetic,
         BillingSubmissionProgress Progress)
     {
-        /// <summary>The heading this batch sits under: needs attention, awaiting payer, or settled.</summary>
+        /// <summary>The heading this batch sits under: not submitted, needs attention, awaiting payer, or settled.</summary>
         public string ProgressName => BillingSubmissionProgressRules.Describe(Progress);
 
         /// <summary>
