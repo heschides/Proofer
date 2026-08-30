@@ -68,12 +68,17 @@ elseif (-not $isApply) { $arguments['WhatIfOnly'] = $true }
 # not set $LASTEXITCODE. Set it explicitly so a failed reconciliation shows as a failed job rather
 # than a green one with an error buried in the log.
 try {
-    & $reconciliation @arguments
+    $result = & $reconciliation @arguments
+    if ($null -ne $result) { ($result | Format-List | Out-String).TrimEnd() | Write-Output }
 }
 catch {
     Write-Output "Reconciliation FAILED: $($_.Exception.Message)"
+    [Console]::Out.Flush()
+    Start-Sleep -Milliseconds 750
     exit 1
 }
 
 Write-Output 'Reconciliation job completed.'
+[Console]::Out.Flush()
+Start-Sleep -Milliseconds 750
 exit 0

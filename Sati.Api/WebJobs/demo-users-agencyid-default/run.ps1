@@ -54,13 +54,24 @@ if (-not $isApply) { $arguments['WhatIfOnly'] = $true }
 
 # A triggered WebJob reports success or failure by exit code, and `&` on a script that throws does
 # not set $LASTEXITCODE.
+#
+# The result is rendered explicitly rather than left to the host's formatter, and the process is
+# given a moment before exit. A short run that writes little can otherwise call exit before the
+# redirected output stream reaches output_log.txt, which reports a green job with an empty log —
+# the failure mode this job hit on its first run.
 try {
-    & $addDefault @arguments
+    $result = & $addDefault @arguments
+    if ($null -ne $result) { ($result | Format-List | Out-String).TrimEnd() | Write-Output }
+    else { Write-Output 'The script returned no result object.' }
 }
 catch {
     Write-Output "Default constraint FAILED: $($_.Exception.Message)"
+    [Console]::Out.Flush()
+    Start-Sleep -Milliseconds 750
     exit 1
 }
 
 Write-Output 'Default constraint job completed.'
+[Console]::Out.Flush()
+Start-Sleep -Milliseconds 750
 exit 0
