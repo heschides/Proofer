@@ -45,5 +45,13 @@
              Link="App_Data\jobs\triggered\demo-history-reconciliation\Apply-DemoHistoryReconciliation.ps1"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="WebJobs\demo-users-agencyid-default\run.ps1"
+             Link="App_Data\jobs\triggered\demo-users-agencyid-default\run.ps1"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\scripts\Add-DemoUsersAgencyIdDefault.ps1"
+             Link="App_Data\jobs\triggered\demo-users-agencyid-default\Add-DemoUsersAgencyIdDefault.ps1"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

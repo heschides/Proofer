@@ -146,6 +146,33 @@ alter the Demo schema — an accepted, recorded trade while Demo holds only synt
 `AGENDA.md` Phase 3 records the gate: before `SatiProduction` moves to the cloud, the runner moves
 to its own identity.
 
+### The Users.AgencyId default constraint
+
+`20260416011235_AddAgencyId` declares `defaultValue: 1` for `Users.AgencyId`. `SatiDemo` has the
+column but not the constraint, which is the one divergence the reconciliation's proofs found on
+2026-08-30 and the reason it refuses. The `demo-users-agencyid-default` job adds it.
+
+It is a separate job from `demo-history-reconciliation` because it performs a schema change, and the
+reconciliation's contract is that it changes history only. Keeping them apart keeps each job's
+documentation true and each trigger a distinct decision.
+
+Adding a default constraint does not read, modify, or rewrite existing rows. It affects only future
+inserts that omit the column, and EF always supplies `AgencyId`, so nothing observable changes at run
+time. The point is to make the schema say what the chain says it says.
+
+**Prerequisite.** `ALTER` on `dbo.Users`. Grant the narrow form rather than `db_ddladmin`:
+
+```sql
+GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica];
+```
+
+Without it the job fails on the `ALTER` and changes nothing. Like every grant here, a person makes
+it; no job or agent does.
+
+Then, mirroring the reconciliation: leave `SATI_AGENCYID_DEFAULT_MODE` unset for the dry run, read
+the log, set it to exactly `apply`, run, and clear it again. Run the reconciliation in `proofs` mode
+afterwards to confirm the proof now passes.
+
 ### Rehearse before the first live run
 
 `Apply-DemoHistoryReconciliation.ps1` states in its own notes that it must first be rehearsed

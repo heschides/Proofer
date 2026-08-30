@@ -256,8 +256,10 @@ BEGIN TRY
           AND CONVERT(bigint, identityColumn.seed_value) = 1
           AND CONVERT(bigint, identityColumn.increment_value) = 1
     )
+    BEGIN
         INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Agencies.Id is not IDENTITY(1,1).');
         IF @proofsOnly = 0 THROW 51706, 'Semantic proof failed: Agencies.Id is not IDENTITY(1,1).', 1;
+    END;
 
     IF NOT EXISTS
     (
@@ -280,8 +282,10 @@ BEGIN TRY
                WHERE allPrimaryColumns.object_id = primaryIndex.object_id
                  AND allPrimaryColumns.index_id = primaryIndex.index_id) = 1
     )
+    BEGIN
         INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Agencies.Id is not the single-column primary key.');
         IF @proofsOnly = 0 THROW 51707, 'Semantic proof failed: Agencies.Id is not the single-column primary key.', 1;
+    END;
 
     IF NOT EXISTS
     (
@@ -296,8 +300,10 @@ BEGIN TRY
                   defaultObject.definition, N'(', N''), N')', N''), N' ', N''),
                   NCHAR(9), N''), NCHAR(13) + NCHAR(10), N'') = N'1'
     )
+    BEGIN
         INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: Users.AgencyId does not have a constant default of 1.');
         IF @proofsOnly = 0 THROW 51708, 'Semantic proof failed: Users.AgencyId does not have a constant default of 1.', 1;
+    END;
 
     -- Required indexes are matched by ordered key columns, uniqueness, filter, and enabled state.
     -- A same-named index with different keys (or a differently named equivalent index) is handled
@@ -468,8 +474,10 @@ BEGIN TRY
                WHERE allPrimaryColumns.object_id = primaryIndex.object_id
                  AND allPrimaryColumns.index_id = primaryIndex.index_id) = 1
     )
+    BEGIN
         INSERT @proofFailures (Failure) VALUES (N'Semantic proof failed: migration history is not keyed by MigrationId.');
         IF @proofsOnly = 0 THROW 51711, 'Semantic proof failed: migration history is not keyed by MigrationId.', 1;
+    END;
 
     -- -ProofsOnly stops here, before anything is written, whether or not any proof failed. It is a
     -- reporting mode: it must not be capable of changing history even on a database that passes.
