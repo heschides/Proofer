@@ -209,6 +209,45 @@ Billing submission home, denial worklist, humanized adjustment reasons, and depo
       desktop applies them on its next direct connection; given that database's own history drift,
       watch that first launch.
 
+
+## Permissions per user, not a user type — 2026-08-30
+
+`Role` is a plain string on the user, and the API gates on it 27 times as
+`actor.Role != "Admin"`. All eleven billing routes are among those. So granting someone
+billing access today means making them a full Admin, which also carries user management,
+test-data deletion, audit export, operations, and the schema drift report. That is a live
+least-privilege violation, and the model cannot express "bills but does not manage users"
+or "case manager who also bills" at all.
+
+Replace the single role with a per-user permission set: billing, case manager, supervisor,
+admin. Someone with the billing permission sees and uses the billing dashboard without
+being an Admin.
+
+- [ ] One owner in `Sati.Contracts.V1`, beside `BillingComplianceGate` and `BillingRules`,
+      so the desktop and the API cannot answer "can this person bill?" differently. A
+      `[Flags]` set with `HasBillingPermission`-style predicates rather than four loose
+      booleans: call sites stay readable and the set stays extensible.
+- [ ] Resolve permissions in `ValidatedActorFilter`, which already re-confirms identity,
+      role, and agency against the database per request. Not from a token claim — revoking
+      billing access should take effect immediately rather than at the next 30-minute token
+      expiry.
+- [ ] Domain services take the actor as an explicit parameter rather than reading ambient
+      login state. **The value stays server-derived.** A signature that accepts an actor is
+      good design; a route that reads a user id from the request body is a tenant-isolation
+      hole, and the rule that caller-supplied `userId`/`agencyId` is never trusted does not
+      relax here.
+- [ ] `PlatformOperator` stays orthogonal. It is a separate cross-tenant identity for
+      incident telemetry, not a bundle of agency permissions.
+- [ ] Deny by default. `!= "Admin" → Forbid` becomes `!HasBilling → Forbid`, never "no
+      permission matched, so allow".
+- [ ] Migration backfills existing roles to permission sets.
+- [ ] **Land it in one change.** 27 gates, a role-keyed route inventory in
+      `API_AUTHORIZATION.md`, and a test per route. A half-migrated model where some routes
+      check roles and others check permissions is worse than either end state, because the
+      gap is invisible until somebody finds it.
+- [ ] UI visibility follows the permission, but the API enforces independently. Showing the
+      dashboard is not what grants access.
+
 ## Controlled migration deployment — 2026-08-30
 
 `CLAUDE.md` lists controlled migration deployment as outstanding cloud-platform foundation. Today a
