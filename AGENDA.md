@@ -40,8 +40,39 @@ person who could read it and a PowerShell script per machine.
       afterwards.
 
 ### Release evidence
-- [ ] Record the source release commit, Demo API deployment and health, contract revision parity,
-      and accepted Demo/Local installer hashes below before marking this release complete.
+- [x] Source release commit `d5c640a`, pushed to `origin/master` without rewriting history.
+- [x] Full Release build of `Sati.slnx` succeeded. 853 desktop/domain tests passed with the one
+      documented opt-in local-AI skip, 250 API integration tests passed, 4 Carika tests passed.
+- [x] No schema change. The 80 migration ids are identical to those released in 1.2.32, and the
+      contract surface is unchanged, so neither a controlled Demo migration nor a temporary
+      firewall rule applied. Verified by comparing id sets, not counts.
+- [x] Published the Demo API ZIP built from `d5c640a` (9,462,028 bytes; SHA-256
+      `7F6FC2A0850977DE663BB01BF2BAA86C81CE18C03E962F01F6137F27C0F542F3`; no `appsettings*.json`,
+      credential, or private desktop configuration in the payload; carries only the
+      `demo-history-reconciliation` WebJob). Deployment `8db52990075c479db5870f51629ea1a6`
+      succeeded.
+- [x] `/health/live` live, `/health/ready` Healthy, `/health/version` reports release 1.2.33 and
+      contract revision `7C6F00E77F6E`, matching the client's `ApiSurface.Revision`.
+- [x] Full authenticated `Test-DemoReadiness.ps1` gate passed: Admin role, agency 2, 15 users, 177
+      people, recent activity, `PolicyOnly` retention, 332 audit events.
+- [x] Generated and accepted `SatiDemoSetup-1.2.33.exe` (100,417,536 bytes; SHA-256
+      `B80CA22A82532F23B85B30DA583F3D6AB119F9A70B619DF635F5B9478A322DCB`): five responsive
+      launches, graceful closes, zero exit codes, version 1.2.33.0, isolated cleanup passed.
+- [x] Generated and accepted `SatiLocalSetup-1.2.33.exe` (202,486,026 bytes; SHA-256
+      `56C6940794408C194BD0585D9757BF8B772B1EB600250767CE9D3ADA34555B4C`): version 1.2.33.0,
+      integrated security confirmed, isolated cleanup passed. The embedded
+      `artifacts\Prerequisites\SqlLocalDB.msi` carries a valid Microsoft Corporation Authenticode
+      signature, verified before use.
+- [x] Published both installers and their `.sha256` files by verified copy-then-rename to
+      `…\SatiLogica - Documents\Sati Desktop` (Local) and
+      `…\SatiLogica - Documents\SatiLogica Demo Files` (Demo). No existing file was replaced.
+- [x] The SQL allow-list held exactly its three `sati-demo-api-outbound-*` rules throughout. No
+      temporary firewall rule was created or removed by this release.
+- [ ] **Not yet proven on a machine that still has the drift.** Every database reachable from here
+      was repaired before this shipped, so the self-repair has been verified against recreated and
+      scratch drift rather than against an untouched drifted machine. The one remaining is the
+      colleague's. Installing 1.2.33 there rather than running `scripts/remote-repair` would be the
+      first real-world exercise of it; note that if that is the chosen route.
 - [ ] Once distributed, the remaining drifted machine can install this rather than run
       `scripts/remote-repair`. That kit stays available for anyone on an older build.
 
