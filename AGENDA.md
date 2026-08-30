@@ -102,21 +102,53 @@ bespoke script, so a human must run it, so the firewall must open. There are ten
       that cries wolf is worse than one with a documented gap.
 
 ### Phase 1 — Reconcile once, per environment
-Blocked on running the Phase 0 report against the real databases, which is Josh's action: deploy the
-API and call `/admin/schema-drift` for Demo, and run the desktop equivalent for `SatiProduction`.
-The classification cannot be written in the abstract.
-- [ ] Classify every discrepancy: present-but-unrecorded inserts a history row, recorded-but-absent
-      gets corrective DDL, semantically different is decided one at a time.
-- [ ] One guarded reconciliation per environment with the discipline
-      `Apply-ProviderDirectoryMigrations.ps1` already has: fail closed on `DB_NAME()` and
-      `SatiDatabaseIdentity`, guard each statement on the actual schema, verify semantics rather
-      than names, stay rerunnable.
-- [ ] Rehearse against a restored copy before touching either live database.
+The `SatiDemo` report was taken 2026-08-30 from `GET /api/v1/admin/schema-drift` against deployment
+`5ff1a9d9a9c44f8088863badb6761c1a` (contract revision `7C6F00E77F6E`), with no firewall rule opened.
+Result: **0 blocking differences, 3 nullability findings, and 4 migration-history discrepancies.**
+Every one is the history being wrong rather than the database being wrong, which makes the
+reconciliation history-row surgery rather than corrective DDL — the best case the plan allowed for.
+
+Two ids were applied under a timestamp that was later regenerated, so the objects exist while the
+history row points at an id no longer in the chain. This is the documented SQL 2705 cause: EF
+believes the surviving id never ran and an idempotent script tries to recreate columns that are
+already there.
+
+| Applied to SatiDemo | Superseded by, in the chain |
+|---|---|
+| `20260416005941_AddingAgencyId` | `20260416011235_AddAgencyId` |
+| `20260825155740_AddConsumerEmail` | `20260825163103_AddConsumerEmail` |
+
+Two are in the chain with no history row on Demo, and their objects are already present:
+
+- `20260812090000_TenantScopeSettingsAndProviders` adds `AgencyId` to `Settings` and `Providers`.
+  `ApiDbContext` maps both as non-nullable `int` and the report shows nothing blocking, which proves
+  the columns exist.
+- `20260816120000_AddNoteMinutesAndStartTime` is already written guarded, and says so in its own
+  comment: a bare `AddColumn` would fail with SQL 2705 on databases that predate it.
+
+- [ ] Write the `SatiDemo` reconciliation: insert history rows for
+      `20260416011235_AddAgencyId`, `20260825163103_AddConsumerEmail`,
+      `20260812090000_TenantScopeSettingsAndProviders`, and
+      `20260816120000_AddNoteMinutesAndStartTime`, and remove the two superseded rows only after
+      confirming each surviving id's objects match the expected semantics rather than merely the
+      expected name. Keep the discipline `Apply-ProviderDirectoryMigrations.ps1` already has: fail
+      closed on `DB_NAME()` and `SatiDatabaseIdentity`, guard every statement on the actual schema,
+      stay rerunnable.
+- [ ] Rehearse against a restored copy before touching the live database.
+- [ ] Tighten the API model rather than the database for the three nullability findings. The
+      database is the stricter side in all three, so the model is the loose one and the fix does not
+      touch schema. `ServerPerson.FirstName` and `ServerPerson.LastName` are declared `string?` and
+      `ServerClaimLine.Units` is `decimal?`, while `SatiDemo` has all three `NOT NULL`. Until they
+      agree, the API can attempt a null write and take a constraint violation at run time. This is
+      drift between the two hand-maintained models over one database, which is the third axis
+      Phase 0 was extended to expose, and it found instances on its first real run.
+- [ ] Run the same report against `SatiProduction`. It needs the desktop-side reader from Phase 5;
+      the API route covers Demo only.
 - Exit: the idempotent script runs clean twice against a restored copy of each database and the
   Phase 0 report is empty in both directions. This is the last release that opens the SQL firewall.
 
 ### Phase 1.5 — Free the migration chain from the desktop project
-Discovered while building Phase 0, and a hard prerequisite for Phase 2. All 79 migrations belong to
+Discovered while building Phase 0, and a hard prerequisite for Phase 2. All 80 migrations belong to
 `SatiContext` in `Sati.csproj`, which is `net10.0-windows` with `UseWPF`. A migrator that references
 it inherits WPF and can only ever run on Windows, which forecloses the Linux-container option in
 Phase 3 before it is chosen. `ApiDbContext` is a second, hand-maintained model over the same tables
