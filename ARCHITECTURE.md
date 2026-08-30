@@ -1226,9 +1226,11 @@ identical autosaves are server-side no-ops.
 `Debug.WriteLine`s. `BillingSubmissionsViewModel`: role-gated scope; **`IsTestMode = true` by default
 — must be explicitly false for real submission**; inclusive billing-month range generation produces
 one retry-safe file per locked period; `Process.Start("explorer.exe", ...)` is Windows-only. Its
-history grid reads append-only exchange events. `BillingRemittancesViewModel` reads append-only
- claim outcomes and deposit anchors. Overview is functional; the Alerts tab is now the denial/unpaid worklist with status,
- aging, and fast-search filters.
+history grid reads append-only exchange events and derives a `Not submitted` row for every
+claim-bearing period that has none, aged from its oldest service date.
+`BillingRemittancesViewModel` reads append-only claim outcomes and deposit anchors. Overview is
+functional; the Alerts tab is now the denial/unpaid worklist with status, aging, and fast-search
+filters.
 
 ---
 

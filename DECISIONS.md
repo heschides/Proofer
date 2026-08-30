@@ -2270,3 +2270,25 @@ so `MigrateAsync` against a fresh database fails on `Invalid object name`. Real 
 create that table first, so nothing is broken today, but it means the chain alone cannot
 reconstruct a database. The unmerged `second-machine-setup` branch carries a commit named
 for exactly this. Tracked in AGENDA.md.
+
+## 2026-08-30 — A claim remains visible from promotion through payment
+
+The billing queue owns approved notes that have not become claim lines. The submissions home owns
+every billing period that contains claim lines, including a draft with no submission events. This
+makes promotion a move between two visible lists rather than the point where unbilled work can
+disappear.
+
+`BillingSubmissionProgress.NotSubmitted` represents that eventless interval. It is constructed
+from a period's claim lines by `BillingSubmissionsViewModel`; it is deliberately never returned by
+`BillingSubmissionProgressRules.Classify`, because no submission stage means "not submitted." Once
+the first event exists, the append-only event stream supplies the batch's progress as before.
+
+The date shown for an unsubmitted period is its oldest `ClaimLine.DateOfService`. Timely-filing risk
+runs from service delivery, so this is the age a biller needs to see. A billing-period creation
+timestamp would measure when Sati grouped the work rather than how old the work is, and adding one
+would require a migration without improving this decision. No `CreatedAt` column or migration was
+added.
+
+**Rejected:** leaving draft periods on the Queue after claim-line promotion. That would make the
+same note appear to be both awaiting promotion and already promoted, and it would give two screens
+authority over one lifecycle state.
