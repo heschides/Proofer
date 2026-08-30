@@ -130,10 +130,22 @@
                           SelectedItem="{Binding SelectedSubmissionStatus}"
                           AutomationProperties.Name="Submission status filter"
                           Width="155" Margin="0,0,12,0" />
-                <CheckBox Content="Outstanding only" IsChecked="{Binding OutstandingOnly}"
-                          AutomationProperties.Name="Show outstanding submissions only"
+                <CheckBox Content="Hide settled" IsChecked="{Binding OutstandingOnly}"
+                          AutomationProperties.Name="Hide settled submissions"
+                          ToolTip="Hides batches that have been paid, leaving what needs work and what is still awaiting the payer"
                           VerticalAlignment="Center" />
             </WrapPanel>
+            <!--
+                Counts describe the filtered list, so the header can never disagree with the
+                rows beneath it. Announced assertively because the numbers change under the
+                reader when a filter is applied.
+            -->
+            <TextBlock Text="{Binding SubmissionSummary}"
+                       AutomationProperties.LiveSetting="Assertive"
+                       AutomationProperties.Name="Submission counts by stage"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,8,0,0" />
         </StackPanel>
 
         <DataGrid Grid.Row="6"
@@ -146,18 +158,36 @@
                   HeadersVisibility="Column"
                   MinHeight="160">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="YEAR" Binding="{Binding Year}" Width="55" />
-                <DataGridTextColumn Header="MONTH" Binding="{Binding Month}" Width="55" />
+                <!--
+                    Stage first, because the list is ordered by it: everything needing work,
+                    then everything merely waiting, then everything done. The old OUTSTANDING
+                    column is gone; it was true on every row, because it meant "not
+                    Reconciled" and nothing has ever set Reconciled.
+                -->
+                <DataGridTextColumn Header="STAGE" Binding="{Binding ProgressName}" Width="115" />
+                <!-- One column rather than YEAR and MONTH, which said the same thing twice. -->
+                <DataGridTextColumn Header="BILLING MONTH" Binding="{Binding BillingMonth}" Width="100" />
                 <DataGridTextColumn Header="CASE MANAGER" Binding="{Binding CaseManagerName}" Width="125" />
                 <DataGridTextColumn Header="CLAIMS" Binding="{Binding ClaimCount}" Width="55" />
                 <DataGridTextColumn Header="VALUE" Binding="{Binding DollarValue, StringFormat={}{0:C}}" Width="80" />
-                <DataGridTextColumn Header="SENT TO CLEARINGHOUSE (UTC)"
-                                    Binding="{Binding SentAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}"
-                                    Width="130" />
-                <DataGridTextColumn Header="CURRENT STATUS" Binding="{Binding CurrentStatus}" Width="120" />
+                <!-- Local time. A biller reads these against a calendar, not against UTC. -->
+                <DataGridTextColumn Header="SENT" Width="95"
+                                    Binding="{Binding SentAtUtc, StringFormat={}{0:yyyy-MM-dd},
+                                              ConverterCulture=en-US}" />
+                <DataGridTextColumn Header="LAST ACTIVITY" Width="105"
+                                    Binding="{Binding ActivityLocal, StringFormat={}{0:yyyy-MM-dd HH:mm}}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <!-- What that timestamp means differs by stage, so each row says so. -->
+                            <Setter Property="ToolTip" Value="{Binding ActivityLabel}" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <!-- Age is what makes a stuck batch visible; the timestamp alone does not. -->
+                <DataGridTextColumn Header="DAYS" Binding="{Binding DaysSinceActivity}" Width="55" />
+                <DataGridTextColumn Header="STATUS" Binding="{Binding CurrentStatus}" Width="120" />
                 <DataGridTextColumn Header="RESPONSE" Binding="{Binding ResponseType}" Width="70" />
                 <DataGridTextColumn Header="DETAIL" Binding="{Binding Explanation}" Width="2*" />
-                <DataGridCheckBoxColumn Header="OUTSTANDING" Binding="{Binding IsOutstanding}" Width="85" />
                 <DataGridCheckBoxColumn Header="SYNTHETIC" Binding="{Binding IsSynthetic}" Width="75" />
             </DataGrid.Columns>
         </DataGrid>

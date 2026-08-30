@@ -34,6 +34,24 @@ namespace Sati.ViewModels.Billing
         public ObservableCollection<BillingPeriod> GenerationPeriods { get; } = [];
         public ObservableCollection<BillingSubmissionHistoryDto> SubmissionHistory { get; } = [];
         public ObservableCollection<BillingSubmissionBatchRow> SubmissionBatches { get; } = [];
+
+        /// <summary>
+        /// Counts of what is shown, by what a biller would do about it. These describe the
+        /// filtered list rather than everything, so the header never disagrees with the
+        /// rows underneath it.
+        /// </summary>
+        public int NeedsAttentionCount =>
+            SubmissionBatches.Count(item => item.Progress == BillingSubmissionProgress.NeedsAttention);
+
+        public int AwaitingPayerCount =>
+            SubmissionBatches.Count(item => item.Progress == BillingSubmissionProgress.AwaitingPayer);
+
+        public int SettledCount =>
+            SubmissionBatches.Count(item => item.Progress == BillingSubmissionProgress.Settled);
+
+        /// <summary>One line stating what the list currently holds, in that order.</summary>
+        public string SubmissionSummary =>
+            $"{NeedsAttentionCount} need attention · {AwaitingPayerCount} awaiting payer · {SettledCount} settled";
         public ObservableCollection<string> SubmissionStatusFilters { get; } = ["All statuses"];
         private readonly List<BillingSubmissionBatchRow> _allSubmissionBatches = [];
 
@@ -263,7 +281,7 @@ namespace Sati.ViewModels.Billing
                     latest.ClaimCount, period?.Lines.Sum(line => line.ChargeAmount) ?? 0m,
                     transmitted?.OccurredAtUtc, latest.OccurredAtUtc, latest.Stage,
                     latest.Reference, latest.ResponseType, latest.Explanation, latest.IsSynthetic,
-                    latest.Stage != BillingSubmissionStage.Reconciled.ToString()));
+                    BillingSubmissionProgressRules.Classify(latest.Stage)));
             }
 
             SubmissionStatusFilters.Clear();
@@ -286,11 +304,28 @@ namespace Sati.ViewModels.Billing
                     (item.Reference?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     item.CurrentStatus.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                     $"{item.Year:D4}-{item.Month:D2}".Contains(search, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(item => item.LastActivityAtUtc)
                 .ToList();
+
+            // Work first, then what is merely waiting, then what is done — and within each
+            // group, oldest first where age means urgency. Sorting the whole list by one
+            // timestamp put a rejection from three weeks ago below a payment from an hour
+            // ago, which is the ambiguity this list existed to remove.
+            var ordered = filtered
+                .GroupBy(item => item.Progress)
+                .OrderBy(group => BillingSubmissionProgressRules.SortOrder(group.Key))
+                .SelectMany(group => BillingSubmissionProgressRules.OldestFirst(group.Key)
+                    ? group.OrderBy(item => item.LastActivityAtUtc)
+                           .ThenBy(item => item.BillingPeriodId)
+                    : group.OrderByDescending(item => item.LastActivityAtUtc)
+                           .ThenBy(item => item.BillingPeriodId));
+
             SubmissionBatches.Clear();
-            foreach (var item in filtered)
+            foreach (var item in ordered)
                 SubmissionBatches.Add(item);
+            OnPropertyChanged(nameof(NeedsAttentionCount));
+            OnPropertyChanged(nameof(AwaitingPayerCount));
+            OnPropertyChanged(nameof(SettledCount));
+            OnPropertyChanged(nameof(SubmissionSummary));
         }
 
         private static DateTime MonthStart(DateTime value) => new(value.Year, value.Month, 1);
@@ -325,5 +360,29 @@ namespace Sati.ViewModels.Billing
         string? ResponseType,
         string? Explanation,
         bool IsSynthetic,
-        bool IsOutstanding);
+        BillingSubmissionProgress Progress)
+    {
+        /// <summary>The heading this batch sits under: needs attention, awaiting payer, or settled.</summary>
+        public string ProgressName => BillingSubmissionProgressRules.Describe(Progress);
+
+        /// <summary>
+        /// What <see cref="LastActivityAtUtc"/> means for this batch. A single timestamp
+        /// column whose meaning changes by row is worse than no column; naming it per row
+        /// is what makes it readable.
+        /// </summary>
+        public string ActivityLabel => BillingSubmissionProgressRules.DescribeActivity(Progress);
+
+        /// <summary>Local-time activity date, which is the one a biller is reading against a calendar.</summary>
+        public DateTime ActivityLocal => LastActivityAtUtc.ToLocalTime();
+
+        /// <summary>The billing month this batch covers, distinct from when anything happened to it.</summary>
+        public string BillingMonth => $"{Year:D4}-{Month:D2}";
+
+        /// <summary>Days since the last thing happened, which is the age a stuck batch is judged by.</summary>
+        public int DaysSinceActivity =>
+            Math.Max(0, (DateTime.Now.Date - LastActivityAtUtc.ToLocalTime().Date).Days);
+
+        /// <summary>Still needs something from somebody, whether work or patience.</summary>
+        public bool IsOutstanding => Progress != BillingSubmissionProgress.Settled;
+    }
 }

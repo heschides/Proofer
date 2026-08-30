@@ -68,7 +68,14 @@ public partial class BillingAlertsViewModel(IBillingService billingService) : Ob
                 (item.ReasonCode?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 item.HumanReason.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 item.ReceivedAtUtc.ToString("yyyy-MM-dd").Contains(search, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(item => item.AgeDays).ThenBy(item => item.ReceivedAtUtc).ToList();
+            // Oldest first, which is the same ordering the previous
+            // "AgeDays descending, then ReceivedAtUtc ascending" produced — AgeDays is
+            // computed from ReceivedAtUtc, so the second key only ever broke ties the first
+            // key had already created within a single day. Saying it once is clearer, and
+            // Id keeps the order stable when two outcomes arrive in the same second.
+            .OrderBy(item => item.ReceivedAtUtc)
+            .ThenBy(item => item.Id)
+            .ToList();
         Items.Clear();
         foreach (var item in filtered) Items.Add(item);
     }
