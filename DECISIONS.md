@@ -2185,3 +2185,37 @@ correct and the constraint genuinely matters to what `AddAgencyId` means; the pr
 principal's sight, not the standard. Also rejected: leaving the diagnosis at "the schema diverged"
 once the constraint's `create_date` showed it predated every run that evening. A finding that cannot
 survive its own timestamps is not a finding.
+
+## SatiProduction migration-history reconciliation — 2026-08-30
+
+Sati 1.2.32 refused to start against `SatiProduction` with SQL 2705, "Column name 'AgencyId' in
+table 'Settings' is specified more than once". The startup guard did what it exists for: it took a
+backup first, refused rather than half-applying, named the offending object, and left the records
+unchanged.
+
+**The cause was not the 1.2.32 change set.** `20260812090000_TenantScopeSettingsAndProviders` was
+authored without its `[Migration]` and `[DbContext]` attributes, so EF never enumerated it and never
+recorded it, while its effects reached the database by another route. Restoring those attributes
+during the persistence move made EF see the migration for the first time, and the first thing it did
+was try to apply one whose columns already existed. The drift had been latent for eighteen days; the
+attribute repair is what surfaced it.
+
+`scripts/Apply-ProductionHistoryReconciliation.ps1` writes the one missing history row after proving
+the migration's whole end state is present — both `AgencyId` columns as required `int`, both indexes
+by key column and ordinal, both foreign keys by the columns they map rather than by constraint name.
+It creates, alters, and drops nothing.
+
+Six other migrations also lacked history rows on the rehearsal database and were deliberately left
+alone: their objects are genuinely absent, so they are pending rather than drifted and EF must apply
+them normally. Writing history rows for those would tell EF work had been done that had not been,
+which is how this class of problem starts.
+
+Rehearsed against this machine's own `SatiProduction`, which carried the identical drift: dry run
+clean, one row applied, second run wrote zero. The live database went from 78 to 79 history rows,
+leaving one genuinely pending migration for the desktop to apply with its own backup and guard.
+
+**The general lesson, alongside the catalog-visibility one above: a migration file without its
+attributes is not in the chain, and a database can therefore carry a migration's effects with no
+record that it ran.** Neither `dotnet ef migrations list` nor a history-table comparison will show
+it, because both work from what EF enumerates. The only thing that catches it is comparing declared
+effects against the actual schema.
