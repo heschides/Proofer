@@ -123,7 +123,7 @@ not exist.
 it is needed, run this against `SatiDemo` as the server's Entra admin:
 
 ```sql
-ALTER ROLE db_ddladmin ADD MEMBER [sati-demo-api-satilogica];
+ALTER ROLE db_ddladmin ADD MEMBER [sati-demo-api-satilogica-46417];
 ```
 
 To see what it already holds:
@@ -133,8 +133,27 @@ SELECT r.name AS role_name
 FROM sys.database_role_members rm
 JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id
 JOIN sys.database_principals m ON rm.member_principal_id = m.principal_id
-WHERE m.name = 'sati-demo-api-satilogica';
+WHERE m.name = 'sati-demo-api-satilogica-46417';
 ```
+
+### The database user is not named after the App Service
+
+The App Service is `sati-demo-api-satilogica`. Its contained database user in `SatiDemo` is
+**`sati-demo-api-satilogica-46417`** — same identity, different name, and the suffix is not
+guessable. Any `GRANT` or `ALTER ROLE` written against the resource name fails with "Cannot find the
+user", which reads like a permissions problem and is not one.
+
+Confirmed 2026-08-30: type `EXTERNAL_USER`, holding `db_datareader, db_datawriter`. It is a user
+rather than a group, so grants to it widen nothing beyond the API. To re-derive the name if it ever
+changes:
+
+```sql
+SELECT name, type_desc FROM sys.database_principals WHERE type IN ('E','X') ORDER BY name;
+```
+
+The connection carries no credentials — `ConnectionStrings__SatiDemo` uses
+`Authentication=Active Directory Default` with no user or password, so the App Service managed
+identity is the only thing authenticating.
 
 Running either statement means connecting to `SatiDemo` yourself, which needs one temporary
 exact-IP firewall rule. That is the one remaining opening, and it is one-time rather than
@@ -163,7 +182,7 @@ time. The point is to make the schema say what the chain says it says.
 **Prerequisite.** `ALTER` on `dbo.Users`. Grant the narrow form rather than `db_ddladmin`:
 
 ```sql
-GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica];
+GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
 ```
 
 Without it the job fails on the `ALTER` and changes nothing. Like every grant here, a person makes

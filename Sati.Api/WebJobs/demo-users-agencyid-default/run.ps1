@@ -17,7 +17,7 @@
 
 .NOTES
     Requires ALTER on dbo.Users. The least-privilege grant is
-    GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica];
+    GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
     which is narrower than db_ddladmin. That grant is a security setting a person makes; no job or
     agent performs it. Without it this job fails on the ALTER and changes nothing.
 #>
