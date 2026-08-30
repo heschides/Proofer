@@ -126,20 +126,21 @@ Two are in the chain with no history row on Demo, and their objects are already 
 - `20260816120000_AddNoteMinutesAndStartTime` is already written guarded, and says so in its own
   comment: a bare `AddColumn` would fail with SQL 2705 on databases that predate it.
 
-- [ ] Write the `SatiDemo` reconciliation: insert history rows for
+- [x] Write the `SatiDemo` reconciliation: insert history rows for
       `20260416011235_AddAgencyId`, `20260825163103_AddConsumerEmail`,
       `20260812090000_TenantScopeSettingsAndProviders`, and
       `20260816120000_AddNoteMinutesAndStartTime`, and remove the two superseded rows only after
       confirming each surviving id's objects match the expected semantics rather than merely the
       expected name. Keep the discipline `Apply-ProviderDirectoryMigrations.ps1` already has: fail
       closed on `DB_NAME()` and `SatiDatabaseIdentity`, guard every statement on the actual schema,
-      stay rerunnable.
+      stay rerunnable. Drafted as `scripts/Apply-DemoHistoryReconciliation.ps1`; its PowerShell
+      parser is clean, but it has deliberately not been run against any database.
 - [ ] Rehearse against a restored copy before touching the live database.
-- [ ] Tighten the API model rather than the database for the three nullability findings. The
-      database is the stricter side in all three, so the model is the loose one and the fix does not
-      touch schema. `ServerPerson.FirstName` and `ServerPerson.LastName` are declared `string?` and
-      `ServerClaimLine.Units` is `decimal?`, while `SatiDemo` has all three `NOT NULL`. Until they
-      agree, the API can attempt a null write and take a constraint violation at run time. This is
+- [x] Tighten the API model rather than the database for the three nullability findings. The
+      database is the stricter side in all three, so the model was the loose one and the fix does not
+      touch schema. `ServerPerson.FirstName` and `ServerPerson.LastName` were declared `string?` and
+      `ServerClaimLine.Units` was `decimal?`, while `SatiDemo` has all three `NOT NULL`. Before they
+      agreed, the API could attempt a null write and take a constraint violation at run time. This is
       drift between the two hand-maintained models over one database, which is the third axis
       Phase 0 was extended to expose, and it found instances on its first real run.
 - [ ] Run the same report against `SatiProduction`. It needs the desktop-side reader from Phase 5;
@@ -153,10 +154,17 @@ Discovered while building Phase 0, and a hard prerequisite for Phase 2. All 80 m
 it inherits WPF and can only ever run on Windows, which forecloses the Linux-container option in
 Phase 3 before it is chosen. `ApiDbContext` is a second, hand-maintained model over the same tables
 with no chain of its own, so it cannot substitute.
-- [ ] Move the entities and `SatiContext` behind a platform-neutral `net10.0` project that the
+- [x] Move the entities and `SatiContext` behind a platform-neutral `net10.0` project that the
       desktop, the API, and a migrator can all reference.
-- [ ] Keep the desktop `LocalDatabaseUpdate` path working unchanged; it migrates the live
+- [x] Keep the desktop `LocalDatabaseUpdate` path working unchanged; it migrates the live
       `SatiProduction` at startup and is the highest-regression-risk part of this move.
+- [x] Make all 80 migration ids discoverable from `Sati.Persistence`. The hand-authored
+      `20260812090000_TenantScopeSettingsAndProviders` source lacked its migration/context
+      attributes and was therefore invisible to EF despite being described as part of the chain;
+      only that metadata was added.
+- [ ] Rehearse the unchanged desktop migration path against a restored `SatiProduction` copy. The
+      assembly boundary, EF discovery, full build, and sequence tests are local evidence; they do
+      not substitute for the restored-copy exit check.
 - Exit: `dotnet ef migrations list` resolves against a project with no WPF reference, and the
   desktop still migrates a restored `SatiProduction` copy cleanly.
 

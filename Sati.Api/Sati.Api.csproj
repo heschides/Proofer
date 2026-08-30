@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sati.Contracts\Sati.Contracts.csproj" />
     <ProjectReference Include="..\Sati.Forms\Sati.Forms.csproj" />
+    <ProjectReference Include="..\Sati.Persistence\Sati.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

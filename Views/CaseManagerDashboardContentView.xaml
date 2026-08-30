@@ -1,9 +1,9 @@
 <UserControl x:Class="Sati.Views.CaseManagerDashboardContentView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:sati="clr-namespace:Sati"
+             xmlns:sati="clr-namespace:Sati;assembly=Sati.Persistence"
              xmlns:vm="clr-namespace:Sati.ViewModels"
-             xmlns:models="clr-namespace:Sati.Models"
+             xmlns:models="clr-namespace:Sati.Models;assembly=Sati.Persistence"
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
 

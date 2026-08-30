@@ -2081,3 +2081,28 @@ mismatch.
 
 **Rejected:** repeating an EFT total on every claim outcome. That makes the same deposit drift when
 one claim is corrected and hides provider-level adjustments that have no claim reference.
+
+## 2026-08-30 — The migration chain belongs to a platform-neutral persistence assembly
+
+`Sati.Persistence` targets plain `net10.0` and owns the entity model, `SatiContext`, its design-time
+factory, and the migration source and snapshot. The WPF client and API may reference it without
+pulling in `UseWPF` or a Windows target, so a future migrator is not forced onto Windows before its
+hosting decision is made. The WPF-only `WorkdayTile` remains in the desktop; placing an
+`ObservableObject` in the persistence project would reverse the boundary this move establishes.
+
+The desktop's local EF services and guarded startup update remain in the WPF project. They receive
+the same `SatiContext` type from the new assembly, so backup-before-migrate ordering and Local
+Production behavior do not change. The API continues to use `ApiDbContext` for requests. Referencing
+`Sati.Persistence` gives shared schema tooling a cross-platform home; it does not silently replace
+the API's deliberately scoped model.
+
+The migration files moved physically with their assembly owner so the next ordinary
+`dotnet ef migrations add` lands beside the existing chain. A hand-authored migration without
+`MigrationAttribute` is not part of EF's chain even if its filename looks correct. The missing
+metadata on `TenantScopeSettingsAndProviders` was therefore repaired, and a boundary test now
+requires all 80 ids to be discoverable without any WPF assembly reference.
+
+**Rejected:** leaving the files compiled by the WPF project and creating a Windows migrator. That
+would make the Phase 3 hosting decision implicitly and permanently. Also rejected: switching API
+requests wholesale to `SatiContext` during this move; that is a much larger authorization and query-
+shape change than extracting migration ownership requires.

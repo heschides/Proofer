@@ -69,8 +69,8 @@ A DATT release is complete only when all applicable conditions are true:
 5. Identify the releasable change set. If there are no new releasable changes, report that result
    and stop without incrementing a version, committing, deploying, or packaging.
 6. Determine during preflight whether the change set adds or alters database schema, by checking
-   for new `Migrations/` entries and for API contracts that read columns or tables the deployed
-   Demo database may lack. Schema work makes the release dependent on two things the release
+   for new `Sati.Persistence/Migrations/` entries and for API contracts that read columns or tables
+   the deployed Demo database may lack. Schema work makes the release dependent on two things the release
    itself cannot supply, so establish both before building anything:
    - explicit authorization for the controlled Demo migration; and
    - network access to `SatiDemo`, whose SQL firewall admits only `sati-demo-api-satilogica`'s

@@ -47,6 +47,7 @@
     <Compile Remove="Sati.Tests\**\*.cs" />
     <Compile Remove="Sati.Contracts\**\*.cs" />
     <Compile Remove="Sati.Forms\**\*.cs" />
+    <Compile Remove="Sati.Persistence\**\*.cs" />
     <Compile Remove="Carika\**\*.cs" />
     <Compile Remove="Carika.Tests\**\*.cs" />
     <Compile Remove="installer\Sati.LocalBootstrap\**\*.cs" />
@@ -57,6 +58,7 @@
     <EmbeddedResource Remove="Sati.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Contracts\**\*" />
     <EmbeddedResource Remove="Sati.Forms\**\*" />
+    <EmbeddedResource Remove="Sati.Persistence\**\*" />
     <EmbeddedResource Remove="Carika\**\*" />
     <EmbeddedResource Remove="Carika.Tests\**\*" />
     <EmbeddedResource Remove="installer\Sati.LocalBootstrap\**\*" />
@@ -67,6 +69,7 @@
     <None Remove="Sati.Tests\**\*" />
     <None Remove="Sati.Contracts\**\*" />
     <None Remove="Sati.Forms\**\*" />
+    <None Remove="Sati.Persistence\**\*" />
     <None Remove="Carika\**\*" />
     <None Remove="Carika.Tests\**\*" />
     <None Remove="installer\Sati.LocalBootstrap\**\*" />
@@ -77,6 +80,7 @@
   <ItemGroup>
     <ProjectReference Include="Sati.Contracts\Sati.Contracts.csproj" />
     <ProjectReference Include="Sati.Forms\Sati.Forms.csproj" />
+    <ProjectReference Include="Sati.Persistence\Sati.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

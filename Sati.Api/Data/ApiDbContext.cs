@@ -49,6 +49,12 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("People");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.Property(x => x.FirstName)
+                .IsRequired()
+                .HasMaxLength(PersonSaveRules.FirstNameMaxLength);
+            entity.Property(x => x.LastName)
+                .IsRequired()
+                .HasMaxLength(PersonSaveRules.LastNameMaxLength);
             // Lengths match the shadow declarations in SatiContext, which owns the
             // schema; a mismatch here surfaces as drift rather than as a silent
             // truncation of a key identifier.
@@ -194,7 +200,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("ClaimLines");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.NoteId).IsUnique();
-            entity.Property(x => x.Units).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.Units).IsRequired().HasColumnType("decimal(18,2)");
             entity.Property(x => x.ChargeAmount).HasColumnType("decimal(18,2)");
             entity.HasOne<ServerBillingPeriod>()
                 .WithMany(x => x.Lines)
@@ -436,8 +442,8 @@ internal sealed class ServerPerson
     public int Id { get; set; }
     public int UserId { get; set; }
     public int Revision { get; set; } = 1;
-    public string? FirstName { get; set; }
-    public string? LastName { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
     public DateTime BirthDate { get; set; }
     public int Gender { get; set; }
     public DateTime? EffectiveDate { get; set; }
@@ -722,7 +728,7 @@ internal sealed class ServerClaimLine
     public DateTime DateOfService { get; set; }
     public string ProcedureCode { get; set; } = string.Empty;
     public string? ProcedureModifier { get; set; }
-    public decimal? Units { get; set; }
+    public decimal Units { get; set; }
     public decimal ChargeAmount { get; set; }
     public string ClientMaineCareId { get; set; } = string.Empty;
     public string RenderingProviderNpi { get; set; } = string.Empty;

@@ -8,7 +8,7 @@
 # Notes.StartTime sat in that blind spot on every working database while no migration
 # created them.
 param(
-    [string]$SnapshotPath = (Join-Path $PSScriptRoot '..\Migrations\SatiContextModelSnapshot.cs'),
+    [string]$SnapshotPath = (Join-Path $PSScriptRoot '..\Sati.Persistence\Migrations\SatiContextModelSnapshot.cs'),
     [string]$ConnectionString = 'Server=(localdb)\MSSQLLocalDB;Database=SatiSchemaCheck;Trusted_Connection=True;TrustServerCertificate=True'
 )
 

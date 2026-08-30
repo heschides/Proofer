@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Sati.Data;
 
 #nullable disable
 
 namespace Sati.Migrations;
 
+[DbContext(typeof(SatiContext))]
+[Migration("20260812090000_TenantScopeSettingsAndProviders")]
 public partial class TenantScopeSettingsAndProviders : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

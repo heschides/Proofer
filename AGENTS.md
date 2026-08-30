@@ -12,8 +12,10 @@ agencies, supervisors, billing staff, reviewers, and eventually state-facing wor
 
 The current client targets .NET 10 and uses WPF, CommunityToolkit.Mvvm, EF Core, SQL Server, and
 Microsoft.Extensions.Hosting. The solution now contains the root WPF project, `Sati.Api`,
-`Sati.Contracts`, desktop/domain tests, and cross-platform API integration tests. The WPF project
-still owns local EF implementations during the transition; that is not the intended cloud boundary.
+`Sati.Contracts`, `Sati.Persistence`, desktop/domain tests, and cross-platform API integration
+tests. `Sati.Persistence` owns the platform-neutral entity model, `SatiContext`, and migration
+chain. The WPF project still owns transitional local EF service implementations; that is not the
+intended cloud boundary.
 
 ## Product direction
 
@@ -62,7 +64,8 @@ management for clients; do not present one as the other.
 
 Most persistence operations are behind interfaces in `Data/`, with implementations that create a
 short-lived `SatiContext` from `IDbContextFactory<SatiContext>` per method. This is useful as a
-transition seam.
+transition seam. The `SatiContext` type and migration chain live in the platform-neutral
+`Sati.Persistence` assembly; the local service implementations remain in the desktop project.
 
 The target transition is:
 

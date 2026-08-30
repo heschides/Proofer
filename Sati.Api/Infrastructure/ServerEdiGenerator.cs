@@ -65,7 +65,7 @@ internal static class ServerEdiGenerator
             foreach (var row in group)
             {
                 var line = row.Line;
-                var units = BillingRules.FormatDecimal(line.Units ?? 0m);
+                var units = BillingRules.FormatDecimal(line.Units);
                 var charge = BillingRules.FormatDecimal(line.ChargeAmount);
                 var procedure = $"HC{SubSep}{line.ProcedureCode}" +
                     (string.IsNullOrWhiteSpace(line.ProcedureModifier) ? string.Empty : $"{SubSep}{line.ProcedureModifier}");
@@ -124,7 +124,7 @@ internal static class ServerEdiGenerator
             if (!BillingRules.IsValidProcedureCode(line.ProcedureCode) ||
                 !BillingRules.IsValidModifier(line.ProcedureModifier) ||
                 !BillingRules.IsValidDiagnosisCode(line.DiagnosisCode) ||
-                line.PlaceOfService is < 1 or > 99 || line.Units is null or <= 0 || line.ChargeAmount <= 0)
+                line.PlaceOfService is < 1 or > 99 || line.Units <= 0 || line.ChargeAmount <= 0)
                 throw new InvalidOperationException($"Claim line {line.Id} is incomplete or invalid for EDI generation.");
         }
     }

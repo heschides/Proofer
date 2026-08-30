@@ -36,6 +36,23 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 
 ## Session Changelog — 2026-08-22
 
+### Platform-neutral persistence boundary (2026-08-30)
+
+- `Sati.Persistence` targets plain `net10.0` and owns the entity model, `SatiContext`, its
+  design-time factory, the two pure helpers required by entities, and all 80 migrations. It has no
+  WPF reference. `WorkdayTile` remains in the desktop because it is an `ObservableObject`, not an
+  entity.
+- The WPF client references that assembly while retaining its transitional local EF services. Its
+  startup path is still `LocalDatabaseUpdater` -> `SqlLocalDatabaseMaintenance` ->
+  `Database.MigrateAsync()`; assembly ownership changed, sequencing and safeguards did not.
+- `Sati.Api` references the persistence assembly so schema tooling and a future migrator have one
+  cross-platform owner. The API still uses its separately scoped `ApiDbContext` at runtime; this
+  move does not make the desktop context the cloud request context or erase the documented model-
+  parity obligation.
+- `dotnet ef migrations list` now resolves all 80 migrations from `Sati.Persistence`. The
+  hand-authored `TenantScopeSettingsAndProviders` migration was given its missing context/id
+  metadata; its DDL body was not changed.
+
 ### Billing exchange history and Demo contingency catalog (2026-08-29)
 
 - `BillingSubmissionEvent` and `RemittanceClaimOutcome` are append-only, agency-owned financial
@@ -117,7 +134,7 @@ Agency release workflow:
 
 First functional Comprehensive Assessment slice:
 
-- Added `Models/Assessments/ComprehensiveAssessment.cs`. Relational columns own identity,
+- Added `Sati.Persistence/Models/Assessments/ComprehensiveAssessment.cs`. Relational columns own identity,
   person/author, workflow status, version, and timestamps. `DocumentJson` owns the draft's
   contributor, answer, support, dissent, and identified-need aggregate.
 - Added `IComprehensiveAssessmentService` / `ComprehensiveAssessmentService`, following the
@@ -274,10 +291,14 @@ justify them; they will consume the same API rather than inventing separate busi
 
 ### Current solution boundaries
 
-- `Sati.csproj` is the existing WPF client and still contains local models, EF persistence,
-  presentation, and local-development workflows.
+- `Sati.csproj` is the existing WPF client. It retains presentation, local EF service
+  implementations, and local-development workflows, but no longer owns the entity assembly or
+  migration chain.
 - `Sati.Api` is the ASP.NET Core server boundary for cloud workflows.
 - `Sati.Contracts` contains versioned network DTOs and has no WPF or EF dependency.
+- `Sati.Persistence` is the cross-platform EF/domain assembly containing the entities,
+  `SatiContext`, and the complete migration chain. It does not make `SatiContext` the API's
+  request context; `ApiDbContext` remains the current server model.
 - `Sati.Tests` covers desktop/domain behavior and migration-model consistency.
 - `Sati.Api.Tests` is cross-platform and drives the real HTTP/JWT pipeline against an isolated
   relational test database. It must not reference the WPF project.
