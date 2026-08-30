@@ -98,6 +98,51 @@ expectations. A dashboard without notification routing is visibility, not an ale
 4. Confirm the recent activity list adds **Exported audit activity**.
 5. Do not present policy-only retention as automated deletion or legal-hold enforcement.
 
+## Demo schema changes without a firewall rule
+
+`SatiDemo`'s SQL allow-list admits only `sati-demo-api-satilogica`'s three outbound addresses. A
+migration run from a workstation therefore needs a temporary exact-IP rule, which is a security
+setting nobody but the operator may add. The `demo-history-reconciliation` triggered WebJob exists
+so that step is not needed: it runs inside the App Service, from addresses already on the list.
+
+Publishing the API ships the job. Running it is separate and manual.
+
+### One-time prerequisite
+
+The App Service managed identity needs DDL rights on `SatiDemo`. **This is a security grant and a
+person makes it deliberately** — no release workflow, script, or agent may perform it. Until it is
+granted, the job fails on connect and changes nothing.
+
+While it holds that grant, a compromise of the public API could alter the Demo schema. That is an
+accepted, recorded trade while Demo holds only synthetic data. `AGENDA.md` Phase 3 records the gate:
+before `SatiProduction` moves to the cloud, the runner must move to its own identity.
+
+### Running it
+
+1. Confirm the mode. The job reads the app setting `SATI_RECONCILIATION_MODE`. Anything other than
+   the exact string `apply` — including absent, empty, or misspelled — is a rollback-only dry run.
+2. Trigger the dry run and read the log:
+
+   ```powershell
+   az webapp webjob triggered run --name sati-demo-api-satilogica `
+       --resource-group rg-sati-demo --webjob-name demo-history-reconciliation
+   az webapp log deployment show --name sati-demo-api-satilogica --resource-group rg-sati-demo
+   ```
+
+3. Only if the dry run is correct, set `SATI_RECONCILIATION_MODE=apply`, trigger again, then **set
+   it back immediately**. Leaving it on `apply` turns an accidental trigger into a history change.
+4. Trigger once more, still on `apply`, to prove idempotency, then clear the setting.
+5. Confirm `/health/ready` is still `Healthy` and `GET /api/v1/admin/schema-drift` reports what you
+   expect.
+6. Confirm the allow-list is unchanged — three `sati-demo-api-outbound-*` rules, nothing else:
+
+   ```powershell
+   az sql server firewall-rule list --server sati-demo-satilogica-central --resource-group rg-sati-demo --output table
+   ```
+
+The job is manual-only and carries no `settings.job` schedule. A migration-history change is a
+decision somebody makes, not something that happens on a timer.
+
 ## Developer workstation rules
 
 Sati is developed on the same laptops that hold real client records, which makes the

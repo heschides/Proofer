@@ -45,12 +45,45 @@ param(
 
     [string]$AccessToken,
 
+    # Acquires the SQL access token from the host's managed identity instead of a workstation
+    # sign-in. Valid only inside the App Service WebJob host, which reaches SatiDemo through the
+    # outbound addresses already on the SQL allow-list, so no temporary firewall rule is involved.
+    [switch]$UseManagedIdentity,
+
     # Reports the prospective history changes and rolls the transaction back.
     [switch]$WhatIfOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $expectedEnvironment = 'Demo'
+
+function Get-ManagedIdentityAccessToken {
+    # App Service exposes the identity endpoint through these two variables. Their absence means
+    # this is not running under a managed identity, which is a hard error rather than a silent
+    # fallback: falling back to integrated security here would connect as the workstation user and
+    # defeat the point of the switch.
+    $endpoint = $env:IDENTITY_ENDPOINT
+    $header = $env:IDENTITY_HEADER
+    if ([string]::IsNullOrWhiteSpace($endpoint) -or [string]::IsNullOrWhiteSpace($header)) {
+        throw '-UseManagedIdentity requires the App Service identity endpoint; it is only valid inside the WebJob host.'
+    }
+
+    $uri = '{0}?resource=https%3A%2F%2Fdatabase.windows.net%2F&api-version=2019-08-01' -f $endpoint
+    $response = Invoke-RestMethod -Uri $uri -Headers @{ 'X-IDENTITY-HEADER' = $header } -Method Get -TimeoutSec 60
+    if ([string]::IsNullOrWhiteSpace($response.access_token)) {
+        throw 'The managed-identity endpoint returned no access token for https://database.windows.net/.'
+    }
+
+    return $response.access_token
+}
+
+if ($UseManagedIdentity) {
+    if (-not [string]::IsNullOrWhiteSpace($AccessToken)) {
+        throw 'Pass either -AccessToken or -UseManagedIdentity, not both.'
+    }
+    # The token is never written to output, a file, or a command line.
+    $AccessToken = Get-ManagedIdentityAccessToken
+}
 
 $connectionString = if ([string]::IsNullOrWhiteSpace($AccessToken)) {
     "Server=$SqlServer;Database=$DatabaseName;Integrated Security=true;Encrypt=false;Connect Timeout=15;"

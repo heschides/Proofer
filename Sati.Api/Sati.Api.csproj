@@ -27,4 +27,23 @@
     <InternalsVisibleTo Include="Sati.Tests" />
     <InternalsVisibleTo Include="Sati.Api.Tests" />
   </ItemGroup>
+
+  <!--
+    Ships the triggered WebJob inside the API package, at the App_Data path App Service scans.
+    Co-located, not merged: the job is a separate process with its own trigger and its own
+    fail-safe gate, and the API host never invokes it. The API still does not migrate.
+
+    Packaging it here rather than deploying it through Kudu keeps it versioned with the API and
+    avoids handling publishing credentials. `Link` sets the path inside the publish output.
+  -->
+  <ItemGroup>
+    <Content Include="WebJobs\demo-history-reconciliation\run.ps1"
+             Link="App_Data\jobs\triggered\demo-history-reconciliation\run.ps1"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\scripts\Apply-DemoHistoryReconciliation.ps1"
+             Link="App_Data\jobs\triggered\demo-history-reconciliation\Apply-DemoHistoryReconciliation.ps1"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

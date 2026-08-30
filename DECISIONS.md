@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-28.*
+sections at the bottom. Last updated: 2026-08-30.*
 
 ---
 
@@ -2106,3 +2106,42 @@ requires all 80 ids to be discoverable without any WPF assembly reference.
 would make the Phase 3 hosting decision implicitly and permanently. Also rejected: switching API
 requests wholesale to `SatiContext` during this move; that is a much larger authorization and query-
 shape change than extracting migration ownership requires.
+
+## 2026-08-30 — Demo schema changes run from inside the App Service, not from a workstation
+
+The temporary SQL firewall rule was never about publishing the API. `az webapp deploy` pushes a zip
+to App Service and never touches SQL; two Demo publications this week opened no rule at all. The
+rule exists only because *applying* a migration meant connecting to `SatiDemo` from a workstation,
+and no workstation has standing access. The release playbook put that step inside its "Demo API
+publication" section, which made the two read as one thing.
+
+Reading drift stopped needing the rule when the comparison moved into the API. Applying a change
+stops needing it when the thing that applies it runs somewhere already on the allow-list. That is
+what `demo-history-reconciliation` is: a triggered WebJob, shipped inside the API package at
+`App_Data/jobs/triggered/`, running from the same three outbound addresses the SQL server already
+admits.
+
+**The cost is honest and bounded.** A WebJob runs under the App Service's managed identity, and
+identity is scoped to the resource rather than the process, so granting it DDL rights means the
+internet-facing API effectively holds them too. A compromise of the API could then alter the Demo
+schema. That is accepted while `SatiDemo` holds only synthetic data, and `AGENDA.md` Phase 3 records
+the gate: before `SatiProduction` moves to the cloud, the runner moves to a Container Apps Job with
+its own identity, genuinely out of the API's reach.
+
+Choosing the cheap host now costs almost nothing later, because the expensive work is already done.
+Phase 1.5 freed the migration chain from the WPF target, so what runs is host-agnostic; hosting is a
+thin, swappable layer. Doing the Container Apps Job first would have meant a Dockerfile, a registry,
+an environment, and a fourth standing allow-list entry for its egress, to migrate a synthetic
+database a few times a month.
+
+Two safety properties are deliberate. The job defaults to the rollback-only dry run and requires the
+app setting `SATI_RECONCILIATION_MODE` to be exactly `apply` before it will change anything, so
+triggering it by accident is inert. And `-UseManagedIdentity` throws when the App Service identity
+endpoint is absent rather than falling back to integrated security, which off-host would silently
+connect as the signed-in developer and defeat the point.
+
+**Rejected:** migrating on API startup. Every instance would race, there is no plan step, no
+authorization gate, and a bad migration takes the service down with it. `SchemaDriftHealthCheck`
+already says the API does not migrate, and co-locating a separately triggered process in the same
+package does not change that. Also rejected: an Admin API route that applies migrations. It keeps
+the same DDL grant as the WebJob and adds network reachability, which is strictly worse.

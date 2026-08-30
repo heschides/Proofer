@@ -194,7 +194,30 @@ risk and the cheaper option below is defensible. The moment a cloud database hol
 records, an identity that can alter schema is a different category of exposure and the enforced
 boundary stops being optional. A cloud Production deployment must not ship ahead of this phase.
 
-- [ ] **Open decision, to be made before cloud Production rather than now.**
+**Decided 2026-08-30: triggered WebJob now, Container Apps Job before cloud Production.** The
+original recommendation deferred this phase entirely on cost grounds, which optimised for
+proportionate security spend rather than for removing the recurring firewall step — and removing
+that step is the actual goal. Because Phase 1.5 made the runner host-agnostic, choosing the cheap
+host now locks in nothing; hosting is a thin, swappable layer. Reasoning in `DECISIONS.md`.
+
+- [x] `Sati.Api/WebJobs/demo-history-reconciliation/run.ps1`, packaged by `Sati.Api.csproj` to
+      `App_Data/jobs/triggered/demo-history-reconciliation/` alongside the reconciliation script.
+      Verified present in the publish output.
+- [x] `-UseManagedIdentity` on `Apply-DemoHistoryReconciliation.ps1` acquires the SQL token from the
+      App Service identity endpoint, and throws when that endpoint is absent rather than falling
+      back to integrated security — off-host that would silently connect as the signed-in developer.
+      Verified: it throws from a workstation without attempting a connection.
+- [x] Fail-safe default. Anything other than the exact app setting `SATI_RECONCILIATION_MODE=apply`
+      is a rollback-only dry run. Manual trigger only; no `settings.job` schedule.
+- [ ] **Grant the App Service managed identity DDL rights on `SatiDemo`.** A security setting, made
+      by a person. No workflow, script, or agent performs it. Until then the job fails on connect
+      and changes nothing.
+- [ ] Publish the API to ship the job, then run the dry run, the real run, and the idempotency run
+      through it. Operator steps in `OPERATIONS.md`.
+- [ ] Once that lands, rewrite `RELEASE_PLAYBOOK.md` section 6 so the migration step stops implying
+      a workstation connection, and stop reporting the workstation's public address in preflight.
+
+- [ ] Superseded, kept for the reasoning: the open decision as originally framed.
       - Triggered WebJob: no new infrastructure and already inside the SQL allow-list, but it runs
         under the App Service managed identity. Identity is scoped to the resource, not the process,
         so anything in that site can request a token for any identity assigned to it, which means
