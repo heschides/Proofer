@@ -1,0 +1,28 @@
+Sati will not start: "Column name 'AgencyId' in table 'Settings' is specified more than once"
+============================================================================================
+
+Your records are safe. Sati took a backup and stopped rather than change a database
+it did not understand. Nothing has been altered.
+
+What happened: an earlier update reached your database without leaving a record that
+it ran. The newest version notices the mismatch and stops. The fix writes that one
+missing record. It does not touch any consumer information.
+
+WHAT TO DO
+----------
+1. Copy all four files in this folder to your Desktop, or anywhere on your own
+   computer. Running them straight from the shared folder can be blocked.
+
+2. Double-click "Step 1 - CHECK ONLY". It changes nothing. It saves a small text
+   file to your Desktop called Sati-database-check.txt.
+
+3. Send that file to Josh and wait for him to tell you to continue.
+
+4. When Josh says so, double-click "Step 2 - APPLY FIX" and type YES when asked.
+
+5. Start Sati. It will back up your database, finish updating, and open normally.
+
+IF ANYTHING LOOKS WRONG
+-----------------------
+Stop and send Josh whatever is on screen. Both steps refuse to run unless the
+database is exactly the one they expect, so a refusal is safe, not a failure.
