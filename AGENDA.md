@@ -100,6 +100,13 @@ bespoke script, so a human must run it, so the firewall must open. There are ten
       `INFORMATION_SCHEMA` reports `nvarchar` with length -1, and `decimal(18,2)` as three separate
       columns. Normalizing well enough to avoid false positives is real work, and a drift report
       that cries wolf is worse than one with a documented gap.
+- [ ] **Defaults, indexes, and foreign keys are not compared either, and that gap has already cost
+      something.** The 2026-08-30 report came back with only three nullability findings, while
+      `SatiDemo` was missing a DEFAULT constraint the chain declares — found later by the
+      reconciliation's own proofs. A clean report means "no table or column is missing or
+      differently nullable", not "the schema matches the chain", and it should not be read as the
+      latter. Extending the comparison to constraints is the obvious next increment; until then the
+      proofs in `Apply-DemoHistoryReconciliation.ps1` are the more thorough instrument.
 
 ### Phase 1 — Reconcile once, per environment
 The `SatiDemo` report was taken 2026-08-30 from `GET /api/v1/admin/schema-drift` against deployment
@@ -107,6 +114,17 @@ The `SatiDemo` report was taken 2026-08-30 from `GET /api/v1/admin/schema-drift`
 Result: **0 blocking differences, 3 nullability findings, and 4 migration-history discrepancies.**
 Every one is the history being wrong rather than the database being wrong, which makes the
 reconciliation history-row surgery rather than corrective DDL — the best case the plan allowed for.
+
+**That last sentence is wrong, and the 2026-08-30 proofs run disproved it.** `Users.AgencyId` is
+missing the constant default `AddAgencyId` declares, which is a genuine schema divergence needing
+corrective DDL, not a history row. See the proofs-run entry below.
+
+The reason the drift report missed it is a limitation of the instrument, recorded here because it
+will mislead again otherwise: **`SchemaComparison` compares tables, columns, and nullability, and
+nothing else.** It does not compare default constraints, indexes, foreign keys, or store types. So a
+clean report means "no table or column is missing or differently nullable", not "the schema matches
+the chain". The reconciliation's own proofs are materially more thorough than the Phase 0 report,
+and on their first live run they found something the report could not see.
 
 Two ids were applied under a timestamp that was later regenerated, so the objects exist while the
 history row points at an id no longer in the chain. This is the documented SQL 2705 cause: EF
@@ -144,6 +162,25 @@ what was first written down.
       closed on `DB_NAME()` and `SatiDatabaseIdentity`, guard every statement on the actual schema,
       stay rerunnable. Drafted as `scripts/Apply-DemoHistoryReconciliation.ps1`; its PowerShell
       parser is clean, but it has deliberately not been run against any database.
+- [x] Ran against live `SatiDemo` 2026-08-30 through the WebJob, at Josh's direction and without the
+      restored-copy rehearsal. The dry run refused on the first failed proof; a second run in
+      `-ProofsOnly` enumerated the full set. **Exactly one proof fails.**
+- [ ] **`Users.AgencyId` has no constant default of 1.** `20260416011235_AddAgencyId` declares
+      `defaultValue: 1`, so a database that ran it carries a DEFAULT constraint. `SatiDemo` does not.
+      The column itself is present and a required `int`; every other proof passes — all column,
+      index, foreign-key, identity, and primary-key proofs, and the history table's own key. The
+      script correctly refused: writing a row claiming `AddAgencyId` had been applied would make EF
+      believe that migration ran and leave the missing default permanently unreconciled.
+
+      Nothing at run time depends on it — EF always supplies `AgencyId` on insert for a mapped
+      required property — so the choice is between adding the constraint and judging it immaterial:
+
+      1. Add the default to `SatiDemo`. That is corrective DDL on a cloud database: it needs explicit
+         authorization and probably the `db_ddladmin` grant, and it is a schema change, not history.
+      2. Judge the constraint not part of what the migration means here, and narrow that one
+         assertion with the reasoning written down. Narrowed because the judgement was made, never
+         loosened to make the run pass.
+
 - [ ] Rehearse against a restored copy before touching the live database.
 - [x] Tighten the API model rather than the database for the three nullability findings. The
       database is the stricter side in all three, so the model was the loose one and the fix does not
@@ -224,7 +261,17 @@ host now locks in nothing; hosting is a thin, swappable layer. Reasoning in `DEC
       notes and Phase 1 repeats it. `-WhatIfOnly` rolls back but still connects to the live database
       and takes serializable locks, so the dry run is not free. Either rehearse on a copy, or record
       the decision to accept that risk against synthetic Demo data.
-- [ ] Run the dry run, the real run, and the idempotency run through the job. Operator steps in
+- [x] **The mechanism is proven.** On 2026-08-30 the job ran inside App Service, the managed
+      identity authenticated to `SatiDemo` and executed the full proof phase, dry-run mode was
+      selected from the absent app setting, and it failed closed with exit code 1 on the one failing
+      proof. A second run in `proofs` mode completed and reported. The allow-list held exactly its
+      three `sati-demo-api-outbound-*` rules before, during, and after: **no temporary firewall rule
+      was opened at any point.** That is the phase's whole proposition, demonstrated end to end.
+- [x] The permission question is partly answered. The identity connected and read schema with no new
+      grant, so `db_ddladmin` was not needed to get this far. Neither run reached the write phase, so
+      `INSERT`/`DELETE` on `__EFMigrationsHistory` remains unproven.
+- [ ] Run the real run and the idempotency run through the job, once the `Users.AgencyId` default is
+      resolved. Operator steps in
       `OPERATIONS.md`.
 - [ ] Once that lands, rewrite `RELEASE_PLAYBOOK.md` section 6 so the migration step stops implying
       a workstation connection, and stop reporting the workstation's public address in preflight.
