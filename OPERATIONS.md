@@ -165,32 +165,35 @@ alter the Demo schema — an accepted, recorded trade while Demo holds only synt
 `AGENDA.md` Phase 3 records the gate: before `SatiProduction` moves to the cloud, the runner moves
 to its own identity.
 
-### The Users.AgencyId default constraint
+### The Users.AgencyId default constraint job exists for a problem that did not exist
 
-`20260416011235_AddAgencyId` declares `defaultValue: 1` for `Users.AgencyId`. `SatiDemo` has the
-column but not the constraint, which is the one divergence the reconciliation's proofs found on
-2026-08-30 and the reason it refuses. The `demo-users-agencyid-default` job adds it.
+`demo-users-agencyid-default` was built on 2026-08-30 to add a constant default to
+`Users.AgencyId` that the reconciliation's proofs reported missing. **The constraint was never
+missing.** `DF__Users__AgencyId__57DD0BE4`, definition `((1))`, has been there since 2026-08-11. The
+proof could not see it: the managed identity held only `db_datareader` and `db_datawriter`, and
+neither carries `VIEW DEFINITION`, without which a principal sees a table and its columns but no rows
+for it in `sys.default_constraints`. `GRANT ALTER ON OBJECT::dbo.Users` implies `VIEW DEFINITION`,
+which is why the proof passed straight after the grant against an unchanged database.
 
-It is a separate job from `demo-history-reconciliation` because it performs a schema change, and the
-reconciliation's contract is that it changes history only. Keeping them apart keeps each job's
-documentation true and each trigger a distinct decision.
+The job is inert — run today it correctly reports `AlreadyPresent` and changes nothing — but it is a
+job with schema-change capability against a live database, kept for no current reason.
 
-Adding a default constraint does not read, modify, or rewrite existing rows. It affects only future
-inserts that omit the column, and EF always supplies `AgencyId`, so nothing observable changes at run
-time. The point is to make the schema say what the chain says it says.
+**Two open decisions, both recorded in `AGENDA.md` Phase 3:**
 
-**Prerequisite.** `ALTER` on `dbo.Users`. Grant the narrow form rather than `db_ddladmin`:
+1. Remove the job and `scripts/Add-DemoUsersAgencyIdDefault.ps1`, or keep them for a future genuine
+   drift. Removing is the smaller surface.
+2. Narrow the grant. The proofs need `VIEW DEFINITION`, not `ALTER`:
 
-```sql
-GRANT ALTER ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
-```
+   ```sql
+   REVOKE ALTER ON OBJECT::dbo.Users FROM [sati-demo-api-satilogica-46417];
+   GRANT VIEW DEFINITION ON OBJECT::dbo.Users TO [sati-demo-api-satilogica-46417];
+   ```
 
-Without it the job fails on the `ALTER` and changes nothing. Like every grant here, a person makes
-it; no job or agent does.
+   Do not revoke `ALTER` without granting `VIEW DEFINITION`, or the reconciliation's proofs will
+   start failing again for the same invisible reason. Like every grant here, a person makes it.
 
-Then, mirroring the reconciliation: leave `SATI_AGENCYID_DEFAULT_MODE` unset for the dry run, read
-the log, set it to exactly `apply`, run, and clear it again. Run the reconciliation in `proofs` mode
-afterwards to confirm the proof now passes.
+If the job is kept: leave `SATI_AGENCYID_DEFAULT_MODE` unset for the dry run, read the log, set it to
+exactly `apply`, run, and clear it again.
 
 ### Rehearse before the first live run
 

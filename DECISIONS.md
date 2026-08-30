@@ -2154,3 +2154,34 @@ authorization gate, and a bad migration takes the service down with it. `SchemaD
 already says the API does not migrate, and co-locating a separately triggered process in the same
 package does not change that. Also rejected: an Admin API route that applies migrations. It keeps
 the same DDL grant as the WebJob and adds network reachability, which is strictly worse.
+
+## 2026-08-30 — A catalog proof cannot tell "absent" from "invisible"
+
+`Apply-DemoHistoryReconciliation.ps1` refused for most of an evening because it reported that
+`dbo.Users.AgencyId` had no constant default of 1. It did have one. `DF__Users__AgencyId__57DD0BE4`,
+definition `((1))`, created 2026-08-11 and untouched since.
+
+The App Service managed identity held `db_datareader` and `db_datawriter`. Neither carries
+`VIEW DEFINITION`, and without it a principal reads a table and its columns but sees no rows for that
+table in `sys.default_constraints`. The proof's `IF NOT EXISTS` was therefore true, and it reported a
+permission boundary as schema drift. `GRANT ALTER ON OBJECT::dbo.Users` implies `VIEW DEFINITION`;
+the same proof passed minutes later against a database nobody had changed.
+
+**The rule this establishes: any assertion read through `sys.*` must either run as a principal with
+`VIEW DEFINITION` on what it inspects, or first prove it can see the class of object it is about to
+judge.** An `IF NOT EXISTS` over a catalog view answers "I cannot see one", and that is not the same
+proposition as "there is not one". Failing closed on invisibility is safe in the narrow sense that
+nothing was written — but it is not harmless, because a false diagnosis is acted upon. This one
+produced a corrective DDL script, a second WebJob with schema-change capability, and a standing
+`ALTER` grant, all for a problem that did not exist.
+
+The reconciliation's proofs were otherwise vindicated. Every other assertion — columns, indexes,
+foreign keys, identity, primary keys, the history table's own key — was correct, and the refusal to
+write a history row it could not justify was exactly right. The defect is in what the proof concludes
+from a negative catalog read, not in its insistence on proving semantics rather than names.
+
+**Rejected:** relaxing the default-constraint assertion so the run would pass. The assertion is
+correct and the constraint genuinely matters to what `AddAgencyId` means; the problem was the
+principal's sight, not the standard. Also rejected: leaving the diagnosis at "the schema diverged"
+once the constraint's `create_date` showed it predated every run that evening. A finding that cannot
+survive its own timestamps is not a finding.

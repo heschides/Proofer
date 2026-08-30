@@ -115,16 +115,25 @@ Result: **0 blocking differences, 3 nullability findings, and 4 migration-histor
 Every one is the history being wrong rather than the database being wrong, which makes the
 reconciliation history-row surgery rather than corrective DDL — the best case the plan allowed for.
 
-**That last sentence is wrong, and the 2026-08-30 proofs run disproved it.** `Users.AgencyId` is
-missing the constant default `AddAgencyId` declares, which is a genuine schema divergence needing
-corrective DDL, not a history row. See the proofs-run entry below.
+That sentence was retracted on 2026-08-30 and then reinstated the same evening. The retraction
+claimed `Users.AgencyId` was missing the constant default `AddAgencyId` declares, and therefore that
+the reconciliation needed corrective DDL. **That was wrong. The original sentence stands: the
+findings were history being wrong, not the database.**
 
-The reason the drift report missed it is a limitation of the instrument, recorded here because it
-will mislead again otherwise: **`SchemaComparison` compares tables, columns, and nullability, and
-nothing else.** It does not compare default constraints, indexes, foreign keys, or store types. So a
-clean report means "no table or column is missing or differently nullable", not "the schema matches
-the chain". The reconciliation's own proofs are materially more thorough than the Phase 0 report,
-and on their first live run they found something the report could not see.
+The default constraint `DF__Users__AgencyId__57DD0BE4`, definition `((1))`, has existed since
+2026-08-11. The proof reported it absent because the App Service managed identity held only
+`db_datareader` and `db_datawriter`, and neither carries `VIEW DEFINITION`. Without that permission
+a principal sees the table and its columns but not its constraint rows in `sys.default_constraints`.
+Granting `ALTER` on `dbo.Users` implies `VIEW DEFINITION`, and the same proof passed immediately
+afterwards against an unchanged database.
+
+The lesson is a real one and worth more than the wasted evening: **a proof that reads catalog views
+cannot distinguish "the object is absent" from "the object is invisible to me", and this one
+reported the second as the first.** Anything asserting on schema through `sys.*` needs either a
+principal with `VIEW DEFINITION` or an explicit check that it can see what it is about to judge.
+`SchemaComparison` still does not compare default constraints, indexes, foreign keys, or store
+types, so a clean Phase 0 report still means "no table or column is missing or differently nullable"
+rather than "the schema matches the chain" — but nothing was found hiding behind that gap.
 
 Two ids were applied under a timestamp that was later regenerated, so the objects exist while the
 history row points at an id no longer in the chain. This is the documented SQL 2705 cause: EF
@@ -165,23 +174,30 @@ what was first written down.
 - [x] Ran against live `SatiDemo` 2026-08-30 through the WebJob, at Josh's direction and without the
       restored-copy rehearsal. The dry run refused on the first failed proof; a second run in
       `-ProofsOnly` enumerated the full set. **Exactly one proof fails.**
-- [ ] **`Users.AgencyId` has no constant default of 1.** `20260416011235_AddAgencyId` declares
-      `defaultValue: 1`, so a database that ran it carries a DEFAULT constraint. `SatiDemo` does not.
-      The column itself is present and a required `int`; every other proof passes — all column,
-      index, foreign-key, identity, and primary-key proofs, and the history table's own key. The
-      script correctly refused: writing a row claiming `AddAgencyId` had been applied would make EF
-      believe that migration ran and leave the missing default permanently unreconciled.
+- [x] ~~`Users.AgencyId` has no constant default of 1.~~ **Retracted. The constraint was never
+      missing.** `DF__Users__AgencyId__57DD0BE4`, definition `((1))`, created 2026-08-11. The proof
+      reported it absent because the managed identity held only `db_datareader`/`db_datawriter` and
+      neither carries `VIEW DEFINITION`, without which constraint rows do not appear in
+      `sys.default_constraints`. `GRANT ALTER ON OBJECT::dbo.Users` implies `VIEW DEFINITION`, and
+      the proof passed immediately afterwards against an unchanged database. Verified by reading the
+      constraint's `create_date` directly and by the history row count never moving from 80.
 
-      Nothing at run time depends on it — EF always supplies `AgencyId` on insert for a mapped
-      required property — so the choice is between adding the constraint and judging it immaterial:
-
-      1. Add the default to `SatiDemo`. That is corrective DDL on a cloud database: it needs explicit
-         authorization and probably the `db_ddladmin` grant, and it is a schema change, not history.
-      2. Judge the constraint not part of what the migration means here, and narrow that one
-         assertion with the reasoning written down. Narrowed because the judgement was made, never
-         loosened to make the run pass.
-
-- [ ] Rehearse against a restored copy before touching the live database.
+      Cost of the misdiagnosis: `Add-DemoUsersAgencyIdDefault.ps1`, the
+      `demo-users-agencyid-default` WebJob, and the `ALTER` grant all exist to fix a problem that did
+      not exist. See the open item below on whether to keep them.
+- [x] **Reconciliation applied 2026-08-30.** Four semantic proofs verified, 2 surviving history rows
+      written, 2 superseded rows removed, committed. A second run wrote 0 and removed 0, proving
+      idempotency. Direct query confirms 80 rows with all four surviving ids present and both
+      superseded ids gone. `/health/ready` Healthy afterwards. Run entirely through the WebJob: **no
+      firewall rule was opened for any part of it.**
+- [x] Rehearsal against a restored copy was skipped at Josh's explicit direction, against the
+      script's own recommendation. Recorded rather than quietly omitted. Nothing was lost, but the
+      run that misdiagnosed the constraint is a fair argument for rehearsing next time.
+- [ ] **Decide what happens to the constraint job and the `ALTER` grant.** Both were created for the
+      phantom finding. The job can perform DDL on a live database and now has no reason to exist;
+      the standing `ALTER` grant is wider than anything currently needs. The narrow replacement, if
+      the proofs are to keep working, is `GRANT VIEW DEFINITION ON OBJECT::dbo.Users`, which is what
+      they actually require. Removing the job and narrowing the grant is the least-surface option.
 - [x] Tighten the API model rather than the database for the three nullability findings. The
       database is the stricter side in all three, so the model was the loose one and the fix does not
       touch schema. `ServerPerson.FirstName` and `ServerPerson.LastName` were declared `string?` and
@@ -270,9 +286,10 @@ host now locks in nothing; hosting is a thin, swappable layer. Reasoning in `DEC
 - [x] The permission question is partly answered. The identity connected and read schema with no new
       grant, so `db_ddladmin` was not needed to get this far. Neither run reached the write phase, so
       `INSERT`/`DELETE` on `__EFMigrationsHistory` remains unproven.
-- [ ] Run the real run and the idempotency run through the job, once the `Users.AgencyId` default is
-      resolved. Operator steps in
-      `OPERATIONS.md`.
+- [x] Real run and idempotency run completed 2026-08-30 through the job, no firewall rule opened.
+      Details in the Phase 1 entries above. The permission question is fully answered: the identity
+      needed no grant beyond the `db_datawriter` it already held to write history, and the `ALTER`
+      grant that was made turned out to matter only for catalog visibility.
 - [ ] Once that lands, rewrite `RELEASE_PLAYBOOK.md` section 6 so the migration step stops implying
       a workstation connection, and stop reporting the workstation's public address in preflight.
 
