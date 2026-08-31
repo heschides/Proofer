@@ -30,13 +30,22 @@ namespace Sati.ViewModels
         [ObservableProperty] private Agency? assignedAgency;
         [ObservableProperty] private bool hasCaseManagerPermissions = true;
         [ObservableProperty] private bool hasSupervisorPermissions;
+        [ObservableProperty] private bool hasAgencyWideSupervision;
         [ObservableProperty] private bool hasAdminPermissions;
         [ObservableProperty] private bool hasBillingPermissions;
 
         public ObservableCollection<User> Supervisors { get; } = [];
         public User? CreatedUser { get; private set; }
+
+        // Presentation only. The same rule is enforced inside UserService.CreateAsync,
+        // which is what actually stops a supervisor granting more than they hold — this
+        // just avoids offering a control that would be refused.
         public bool CanAssignExpandedPermissions =>
             _sessionService.CurrentUser?.HasAdminPermissions == true;
+
+        private AgencyActor CurrentActor() =>
+            _sessionService.CurrentUser?.ToAgencyActor()
+            ?? throw new UnauthorizedAccessException("A signed-in user is required to create users.");
 
         public async Task InitializeAsync()
         {
@@ -74,6 +83,7 @@ namespace Sati.ViewModels
             {
                 if (HasCaseManagerPermissions) permissions |= UserPermissions.CaseManagement;
                 if (HasSupervisorPermissions) permissions |= UserPermissions.Supervision;
+                if (HasAgencyWideSupervision) permissions |= UserPermissions.AgencyWideSupervision;
                 if (HasAdminPermissions) permissions |= UserPermissions.Administration;
                 if (HasBillingPermissions) permissions |= UserPermissions.Billing;
             }
@@ -96,7 +106,7 @@ namespace Sati.ViewModels
             user.Permissions = permissions;
             user.Role = Enum.Parse<UserRole>(UserPermissionRules.LegacyLabel(permissions));
 
-            CreatedUser = await _userService.CreateAsync(user, PasswordInit);
+            CreatedUser = await _userService.CreateAsync(CurrentActor(), user, PasswordInit);
 
             PasswordInit.Dispose();
             PasswordConfirm.Dispose();

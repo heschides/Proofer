@@ -1,3 +1,4 @@
+using Sati.Contracts.V1;
 using System.Security;
 using Sati.Data;
 using Sati.Models;
@@ -39,11 +40,12 @@ public sealed class AccountSwitchTests
         public Task<List<User>> GetAllAsync() =>
             throw new UnauthorizedAccessException("Directory enumeration forbidden.");
 
-        public Task<User> CreateAsync(User user, SecureString initialPassword) => throw new NotSupportedException();
+        public Task<User> CreateAsync(AgencyActor actor, User user, SecureString initialPassword) => throw new NotSupportedException();
         public Task<bool> AnyAdministratorExistsAsync() => Task.FromResult(true);
         public Task<User> CreateFirstAdministratorAsync(User user, SecureString initialPassword) => throw new NotSupportedException();
-        public Task UpdateAsync(User user) => throw new NotSupportedException();
-        public Task ResetPasswordAsync(User user, SecureString newPassword) => throw new NotSupportedException();
+        public Task UpdateAsync(AgencyActor actor, User user) => throw new NotSupportedException();
+        public Task UpdateOwnContactDetailsAsync(AgencyActor actor, User user) => throw new NotSupportedException();
+        public Task ResetPasswordAsync(AgencyActor actor, User user, SecureString newPassword) => throw new NotSupportedException();
         public Task ChangePasswordAsync(User user, SecureString currentPassword, SecureString newPassword) => throw new NotSupportedException();
         public Task<List<User>> GetSuperviseesAsync(int supervisorId) => throw new NotSupportedException();
     }

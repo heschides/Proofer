@@ -133,7 +133,7 @@ namespace Sati.ViewModels
             {
                 CurrentUser.Email = Email;
                 CurrentUser.Phone = Phone;
-                await _userService.UpdateAsync(CurrentUser);
+                await _userService.UpdateOwnContactDetailsAsync(CurrentUser.ToAgencyActor(), CurrentUser);
 
                 IsEditing = false;
                 ProfileMessage = "Saved.";

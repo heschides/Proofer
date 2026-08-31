@@ -137,7 +137,7 @@ public sealed class SupervisorService(
         _ = allSupervisees;
         var actor = CurrentReviewer(supervisorId);
         await using var context = contextFactory.CreateDbContext();
-        var canReviewAgency = actor.HasAdminPermissions;
+        var canReviewAgency = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
         var caseManagerIds = await context.Users.AsNoTracking()
             .Where(user => user.AgencyId == actor.AgencyId &&
                 (user.Permissions & UserPermissions.CaseManagement) != 0 &&
@@ -160,7 +160,7 @@ public sealed class SupervisorService(
         User actor,
         int noteId)
     {
-        var canReviewAgency = actor.HasAdminPermissions;
+        var canReviewAgency = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
         return context.Notes
             .Include(note => note.Person)
                 .ThenInclude(person => person.Forms)

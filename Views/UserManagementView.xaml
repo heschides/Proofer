@@ -127,6 +127,12 @@
                               IsEnabled="{Binding CanAssignExpandedPermissions}"
                               IsChecked="{Binding SelectedUser.HasSupervisorPermissions}"
                               Margin="0,0,0,6" />
+                    <CheckBox Content="Agency-wide supervision"
+                              AutomationProperties.Name="Agency-wide supervision permission"
+                              AutomationProperties.HelpText="Review every case manager in the agency, not only assigned ones. Does not grant administration."
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
+                              IsChecked="{Binding SelectedUser.HasAgencyWideSupervision}"
+                              Margin="0,0,0,6" />
                     <CheckBox Content="Administration"
                               AutomationProperties.Name="Administration permission"
                               IsEnabled="{Binding CanAssignExpandedPermissions}"

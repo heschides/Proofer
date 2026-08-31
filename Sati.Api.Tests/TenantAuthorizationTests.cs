@@ -119,6 +119,67 @@ public sealed class TenantAuthorizationTests
     private static HttpRequestMessage JsonRequest<T>(HttpMethod method, string uri, T body) =>
         new(method, uri) { Content = JsonContent.Create(body) };
 
+    // The AddUserPermissions backfill mapped the legacy Director label to administration.
+    // Under the old role string every administration gate read Role != "Admin", which denied
+    // Director outright, so that mapping handed every existing Director the audit trail, the
+    // CSV export, destructive test-data deletion, settings writes, and provider merge on
+    // upgrade. Director now backfills to agency-wide supervision instead.
+    [Theory]
+    [InlineData("/api/v1/admin/overview")]
+    [InlineData("/api/v1/admin/operations")]
+    [InlineData("/api/v1/admin/people")]
+    [InlineData("/api/v1/admin/activity")]
+    [InlineData("/api/v1/admin/schema-drift")]
+    [InlineData("/api/v1/audit-events")]
+    [InlineData("/api/v1/admin/incidents")]
+    public async Task TheLegacyDirectorLabelDoesNotReachTheAdministrationRoutes(string path)
+    {
+        using var director = await _factory.CreateAuthenticatedClientAsync("director-one");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await director.GetAsync(path)).StatusCode);
+    }
+
+    [Fact]
+    public async Task TheLegacyDirectorLabelCannotCreateAnAdministrator()
+    {
+        using var director = await _factory.CreateAuthenticatedClientAsync("director-one");
+
+        // Without administration the actor may write only a case-management-only user
+        // assigned to themself, which is what stops supervision becoming administration.
+        var escalation = new CreateUserRequest(
+            "minted-admin", "Minted Admin", UserPermissions.AllAgencyPermissions, null,
+            1, null, null, "correct-horse-battery-staple");
+        using var created = await director.PostAsJsonAsync("/api/v1/users", escalation);
+        Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+
+        // Nor may they quietly add administration to an existing supervisee.
+        var promotion = new SaveUserRequest(
+            "case-manager-one", "Case Manager One",
+            UserPermissions.CaseManagement | UserPermissions.Administration, 17,
+            1, null, null);
+        using var promoted = await director.PutAsJsonAsync("/api/v1/users/12", promotion);
+        Assert.Contains(
+            promoted.StatusCode,
+            new[] { HttpStatusCode.BadRequest, HttpStatusCode.Forbidden });
+    }
+
+    // The other half of the split: narrowing Director must not cost them the reach they
+    // actually had. Case manager 12 reports to supervisor 13, not to the director, so this
+    // passes only through agency-wide supervision.
+    [Fact]
+    public async Task TheLegacyDirectorLabelKeepsAgencyWideSupervisoryReach()
+    {
+        using var director = await _factory.CreateAuthenticatedClientAsync("director-one");
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await director.GetAsync("/api/v1/caseload?userId=12")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await director.GetAsync(
+                "/api/v1/supervisor/notes?compliant=true&allSupervisees=true")).StatusCode);
+    }
+
     [Fact]
     public async Task ActiveSessionCanRenewItsShortLivedAccessToken()
     {
@@ -1070,7 +1131,7 @@ public sealed class TenantAuthorizationTests
         Assert.NotNull(overview);
         Assert.Equal(1, overview.AgencyId);
         Assert.Equal("Agency One", overview.AgencyName);
-        Assert.Equal(6, overview.UserCount);
+        Assert.Equal(7, overview.UserCount);
         Assert.Equal(2, overview.PersonCount);
         Assert.Equal(1, overview.NotesThisMonth);
         Assert.NotEmpty(people!);

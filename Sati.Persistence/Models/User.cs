@@ -87,6 +87,19 @@ namespace Sati.Models
             set => SetPermission(UserPermissions.Billing, value);
         }
 
+        // Raw flag, deliberately not the implication. Administration implies agency-wide
+        // supervisory reach for authorization (UserPermissionRules), but this property is
+        // what a permission checkbox binds to, and a getter that stayed true after the box
+        // was cleared would be a lie about the stored set. Authorization must call
+        // UserPermissionRules.HasAgencyWideSupervisionPermissions, not this.
+        [NotMapped]
+        public bool HasAgencyWideSupervision
+        {
+            get => UserPermissionRules.IsSupported(Permissions) &&
+                   Permissions.HasFlag(UserPermissions.AgencyWideSupervision);
+            set => SetPermission(UserPermissions.AgencyWideSupervision, value);
+        }
+
         [NotMapped]
         public string PermissionSummary => UserPermissionRules.Describe(Permissions);
 

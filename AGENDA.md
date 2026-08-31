@@ -243,7 +243,36 @@ being an Admin.
       check roles and others check permissions is worse than either end state, because the
       gap is invisible until somebody finds it.
 - [x] UI visibility follows the permission, but the API enforces independently. Showing the
-      dashboard is not what grants access.
+      dashboard is not what grants access. **Was not true on local Production**, where no API sits
+      behind `UserService` — closed 2026-08-31, finding 5 below.
+
+### Line-by-line review — 2026-08-31
+
+The conversion shipped with an explicit caveat: it had not verified that each gate got the right
+permission, that no route lost a tenant check, or that the new tests fail against ungated code.
+That pass is done and recorded in `API_SECURITY_AUDIT.md` (third pass plus resolution). Tenant
+scoping survived intact and the route inventory matches the code exactly. Three findings blocked
+release and are fixed; what remains:
+
+- [ ] **Denial tests for the supervision and case-management gates.** Mutation testing showed all
+      278 API tests passing with every supervisor gate disabled, and again with every
+      case-management gate disabled. Most sit above separately data-scoped queries so removing one
+      usually yields an empty result rather than a leak — but `POST /users` is the exception, and
+      "untested" should not be discovered a second time.
+- [ ] **Denial tests for `GET /admin/incidents`, `PUT /admin/incidents/{id}/status`, and
+      `ProviderDirectoryRules.CanCreateOrEdit`.** The only administration and provider gates with
+      no covering test.
+- [ ] **Finding 6: four caseload routes scope by owning `UserId` with no agency predicate.**
+      `GET /people/{personId}/journal`, `PUT /people/{personId}`,
+      `PUT /people/{personId}/contacts/{contactId}`, `DELETE /contacts/{contactId}`. Pre-existing,
+      same class as the accepted `POST /at-requests` item. They also silently miss the
+      case-management clause `OwnsPersonAsync` gained in the conversion.
+- [ ] **Finding 7: the validated-permissions claim is shadowable by construction.** Safe today
+      because `TokenIssuer` never emits it; prefer `HttpContext.Items` over mutating the principal.
+- [ ] **No API route for self-service profile editing.** `UpdateOwnContactDetailsAsync` has to go
+      through `PUT /api/v1/users/{id}`, which requires supervision or administration, so against a
+      hosted database an ordinary case manager cannot change their own email or phone. Unchanged
+      behaviour, newly visible now the operation has its own name.
 
 ## Controlled migration deployment — 2026-08-30
 

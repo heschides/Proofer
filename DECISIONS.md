@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-30.*
+sections at the bottom. Last updated: 2026-08-31.*
 
 ---
 
@@ -2324,3 +2324,57 @@ follows the same predicates while remaining only a presentation aid.
 scattered rules; permissions in the token, because revocation would wait for expiry; passing the
 full logged-in `User`, because it couples services to persistence and ambient UI state; and a
 general role/claim framework, which adds machinery the four known capabilities do not require.
+
+## 2026-08-31 — Agency-wide supervision is its own capability, and user management is enforced in the service
+
+Three findings from the line-by-line review of the per-user permissions conversion
+(`API_SECURITY_AUDIT.md`, third pass). All three are fixed here.
+
+**Director backfills to agency-wide supervision, not administration.** The permission model
+conflated two different powers under `Administration`: reaching every case manager in the agency,
+and holding the audit export, settings, destructive test-data deletion, and provider merge. The
+legacy `Director` label held the first without the second — under the old role string every
+administration gate read `Role != "Admin"`, which denied Director outright. Mapping Director to
+administration therefore granted, on upgrade, roughly twenty-five gates it never had. The fix is
+a fifth capability, `AgencyWideSupervision`, carrying the supervisory reach; `Director` maps to
+case management + supervision + agency-wide supervision, and `Admin` to all five. Administration
+implies agency-wide supervision, because an administrator who can export the whole agency's audit
+trail is not meaningfully restrained from reading its notes. `canReviewAgency` and the two other
+broadening sites now read the capability rather than administration.
+
+This is the fifth bit the original entry said the four known capabilities did not require. It
+earns its place because a concrete backfill could not be expressed without it, not because the
+model wanted generality.
+
+**The correction ships as a second migration, not an edit.** `AddUserPermissions` is left exactly
+as written. Editing the body of a migration already recorded in `__EFMigrationsHistory` is skipped
+on upgraded databases and applied on fresh ones, which is precisely how fresh and upgraded
+deployments diverge — the failure mode this project already has reconciliation tooling for.
+`SeparateAgencyWideSupervision` corrects Director 7→19 and Admin 15→31, scoped to rows still
+carrying the exact value the first migration wrote, so a deliberate edit made in between survives.
+
+**There is deliberately no "you may not grant what you do not hold" rule.** It looks like an
+escalation control and is not one: whoever may create a user also chooses that user's initial
+password, so an administrator without billing can already mint a billing user and sign in as it.
+The subset test would have blocked an administrator from creating an ordinary case manager while
+stopping nothing. Administration is the root capability by design. The rule that does carry weight
+is the non-administrator branch — anyone without administration may write only a
+case-management-only user assigned to themself — which is the real successor to the old ladder's
+"only an administrator may create or assign an administrator", and which the Director remap now
+puts Directors back underneath.
+
+**Desktop user management is authorized in `UserService`, not the view model.** `CreateAsync` and
+`UpdateAsync` previously took a `User` and wrote it with no actor, no permission gate, and no
+agency scoping. That was survivable only while `NewUserViewModel` hard-coded `UserRole.CaseManager`;
+once the conversion let it assemble an arbitrary permission set from checkboxes, the only restraint
+on local Production — where no API sits behind the service — was `CanAssignExpandedPermissions`, a
+view-model boolean. Both methods now take an `AgencyActor`, re-confirm it against the database the
+way `ValidateBillingActorAsync` does, and delegate the decision to
+`Sati.Contracts.V1.UserManagementRules`, shared with `Sati.Api` so the two cannot drift. Self-service
+profile editing moved to `UpdateOwnContactDetailsAsync`, which takes the two fields a user may
+change about themselves and cannot express a permission, agency, supervisor, or label change at all.
+
+**Rejected:** re-adding a Director-specific special case in the validator, because the ladder it
+belonged to is gone and the permission set can express the same thing structurally; and narrowing
+Director to plain supervision, which removes the escalation but silently costs every existing
+Director the agency-wide review they actually had.

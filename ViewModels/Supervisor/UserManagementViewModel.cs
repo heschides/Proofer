@@ -62,8 +62,15 @@ namespace Sati.ViewModels.Supervisor
         // -------------------------------------------------------------------------
 
         public bool HasSelectedUser => SelectedUser is not null;
+
+        // Presentation only. UserService enforces the same rule against the database, so
+        // this decides what to offer rather than what is allowed.
         public bool CanAssignExpandedPermissions =>
             _sessionService.CurrentUser?.HasAdminPermissions == true;
+
+        private Sati.Contracts.V1.AgencyActor CurrentActor() =>
+            _sessionService.CurrentUser?.ToAgencyActor()
+            ?? throw new UnauthorizedAccessException("A signed-in user is required to manage users.");
         public string SelectedSupervisorName => SelectedSupervisor?.DisplayName ??
             (SelectedUser?.SupervisorId is null ? "Not assigned" : "Supervisor unavailable");
 
@@ -113,18 +120,13 @@ namespace Sati.ViewModels.Supervisor
 
             try
             {
+                // The rule itself is enforced in UserService.UpdateAsync against the database.
+                // This only steers the supervisor case toward the assignment that will be
+                // accepted, so the refusal is rare rather than the primary control.
                 if (!CanAssignExpandedPermissions)
-                {
-                    var actor = _sessionService.CurrentUser
-                        ?? throw new UnauthorizedAccessException("A signed-in supervisor is required.");
-                    if (SelectedUser.SupervisorId != actor.Id ||
-                        SelectedUser.Permissions != Sati.Contracts.V1.UserPermissions.CaseManagement)
-                        throw new UnauthorizedAccessException(
-                            "Supervisors may manage only their assigned case managers.");
-                    SelectedSupervisor = actor;
-                }
+                    SelectedSupervisor = _sessionService.CurrentUser;
                 SelectedUser.SupervisorId = SelectedSupervisor?.Id;
-                await _userService.UpdateAsync(SelectedUser);
+                await _userService.UpdateAsync(CurrentActor(), SelectedUser);
                 StatusMessage = "Changes saved.";
                 await RefreshAsync();
                 UsersChanged?.Invoke();
@@ -156,7 +158,7 @@ namespace Sati.ViewModels.Supervisor
                     return;
                 }
 
-                await _userService.ResetPasswordAsync(SelectedUser, ResetPasswordValue);
+                await _userService.ResetPasswordAsync(CurrentActor(), SelectedUser, ResetPasswordValue);
                 StatusMessage = $"Password reset for {SelectedUser.DisplayName}.";
                 ClearResetPasswordInputs();
             }

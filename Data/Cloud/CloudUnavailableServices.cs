@@ -32,7 +32,7 @@ public sealed class CloudUserService(CloudApiClient api) : IUserService
             "First-run administrator setup is not available against a hosted database. " +
             "Provision the first administrator with scripts/Provision-DemoGlobalAdmin.ps1.");
 
-    public async Task<User> CreateAsync(User user, SecureString initialPassword)
+    public async Task<User> CreateAsync(AgencyActor actor, User user, SecureString initialPassword)
     {
         var plainText = ToPlainText(initialPassword);
         try
@@ -64,8 +64,16 @@ public sealed class CloudUserService(CloudApiClient api) : IUserService
             throw new SessionExpiredException(ex);
         }
     }
-    public Task UpdateAsync(User user) => api.PutAsync($"/api/v1/users/{user.Id}", ToRequest(user));
-    public async Task ResetPasswordAsync(User user, SecureString newPassword)
+    public Task UpdateAsync(AgencyActor actor, User user) =>
+        api.PutAsync($"/api/v1/users/{user.Id}", ToRequest(user));
+
+    // The API has no dedicated self-profile route, so this goes through the same user
+    // route it always has. Unchanged behaviour: against a hosted database a user without
+    // supervision or administration is refused, which is a gap in the API surface rather
+    // than in this client. Tracked in AGENDA.md.
+    public Task UpdateOwnContactDetailsAsync(AgencyActor actor, User user) =>
+        api.PutAsync($"/api/v1/users/{user.Id}", ToRequest(user));
+    public async Task ResetPasswordAsync(AgencyActor actor, User user, SecureString newPassword)
     {
         var plainText = ToPlainText(newPassword);
         try

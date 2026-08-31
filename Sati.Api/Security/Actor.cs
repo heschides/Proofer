@@ -49,4 +49,8 @@ internal readonly record struct Actor(
         UserPermissionRules.HasAdminPermissions(Permissions);
     public bool HasBillingPermissions =>
         UserPermissionRules.HasBillingPermissions(Permissions);
+    public bool HasAgencyWideSupervisionPermissions =>
+        UserPermissionRules.HasAgencyWideSupervisionPermissions(Permissions);
+
+    public AgencyActor ToAgencyActor() => new(UserId, AgencyId, Permissions);
 }

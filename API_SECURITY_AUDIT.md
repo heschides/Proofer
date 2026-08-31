@@ -1,4 +1,4 @@
-# API security audit — 2026-08-14
+# API security audit — 2026-08-14, 2026-08-15, 2026-08-30, 2026-08-31
 
 Scope: the authorization surface of `Sati.Api`, the sensitive-data boundary between the server and
 distributed clients, and the artifacts the platform hands to a reviewer. Driven by the two risks
@@ -172,3 +172,252 @@ credentials on the machine, and local services are scoped by convention rather t
 tenancy, on the reasoning that anyone who can reach the database directly has already won.
 That reasoning holds for a single-operator install and stops holding the moment a local
 database is shared between workstations.
+
+---
+
+## Third pass — 2026-08-30: the per-user permissions conversion
+
+Scope: commit `2bf5187` ("Replace the single role string with per-user permissions"), 56 files.
+That commit shipped with an explicit caveat — it verified completeness, deny-by-default, the
+resolution point, `PlatformOperator` orthogonality, and the backfill, but **not** that each gate
+received the right permission, that no route lost a tenant check, or that the new tests fail
+against ungated code. This pass closes exactly those three questions and extends them to the
+desktop-local services.
+
+Method: the route inventory was diffed mechanically against `ApiEndpoints.cs` rather than read;
+gate coverage was established by **mutation** — each class of gate was replaced with a constant and
+the suites re-run, so "covered" below means a test actually failed when the gate was removed.
+Baselines: 278 API tests, 907 desktop tests, all green before and after. The worktree was restored
+after every mutation.
+
+### Answers to the three open questions
+
+**Did any route lose tenant scoping during the conversion? No.** Every removed line in the commit is
+a gate expression or a role comparison; no `AgencyId` predicate and no `TenantAccess` call was
+dropped. The nine removed lines that mention `AgencyId` are all paired halves of gate substitutions
+and were re-added with the predicate intact. The filter's `IsCurrentActorAsync` call was replaced by
+an equivalent inline query on the same three fields.
+
+**Does the route inventory still match the code? The set does; the count sentence does not.**
+`API_AUTHORIZATION.md` and `ApiEndpoints.cs` agree on all 114 protected routes with zero differences
+in either direction. The prose still said "112 protected routes" in two places. Corrected below.
+
+**Do the new tests fail against ungated code? The billing ones do. Most of the rest do not.** See
+the coverage table.
+
+**`Actor.From` still derives from the token alone.** `TokenIssuer` never emits
+`sati_validated_permissions`; the only writer is `ValidatedActorFilter`, from the database row. No
+caller-supplied value reaches an actor field on any route.
+
+### Gate coverage, established by mutation
+
+| Gate class | Sites | Mutation result |
+|---|---|---|
+| Billing (API) | 14 | **Covered.** 3 tests fail, including `EveryBillingRouteDeniesAnAdministratorWithoutBillingPermission`, which pins all 14. |
+| Administration (API) | 23 | **Partial.** 12 tests fail. Uncovered: `GET /admin/incidents`, `PUT /admin/incidents/{id}/status`, and the escalation guards in `PUT /users/{userId}`, `PUT /users/{userId}/password`, and `ValidateUserRequestAsync`. |
+| Supervision (API) | 9 | **Uncovered.** All 278 tests pass with every supervisor gate disabled. |
+| Case management (API) | 3 plus the new `TenantAccess` clauses | **Uncovered.** All 278 pass with them disabled. |
+| `ProviderDirectoryRules.CanDeleteOrMerge` | 4 | **Covered.** 2 tests fail. |
+| `ProviderDirectoryRules.CanCreateOrEdit` | 7 | **Uncovered.** |
+| Desktop billing actor validation | 1 | **Covered.** `BillingUsesTheCurrentPermissionInsteadOfTheRoleLabel` fails. |
+| Desktop `SettingsAccessPolicy` | 1 | **Covered.** 4 cases fail. |
+| Desktop reviewer gate (`SupervisorService` / `LocalTenantAccess.IsReviewer`) | 3 | **Covered.** `ReviewIsRefusedAcrossAssignmentAndAcrossAgency` fails. |
+| Desktop `AdminService`, `PersonService`, `ComprehensiveAssessmentService`, `LocalTenantAccess` self-access | 4 | **Uncovered.** All 907 pass with all four disabled. |
+
+`Sati.Tests/UserPermissionTests.cs` tests the rule helpers and the migration SQL, not the gates. It
+passes whether or not any route is gated, which is correct for what it is but does not discharge the
+project rule.
+
+Important qualifier on the supervision result: removing those nine gates does not by itself open a
+hole on most routes, because the queries beneath them are separately data-scoped
+(`SupervisorId == actor.UserId`, `owner.AgencyId == actor.AgencyId`), so a case manager sees an
+empty result rather than someone else's. The exception is `POST /users`, where the gate is the only
+thing standing between a case manager and creating users. "Untested" and "vulnerable" are different
+claims, and only the first is established for the other eight.
+
+### Findings
+
+#### 3. The Director backfill is a privilege increase, not a preservation — FIXED 2026-08-31
+
+`Director` maps to `7` (case management, supervision, **administration**). Before this commit every
+administration gate read `actor.Role != "Admin"`, which denied Director;
+`ProviderDirectoryRules.CanDeleteOrMerge` was `role is "Admin"`, which denied Director; and the
+desktop `SettingsAccessPolicy` was `role == UserRole.Admin`, which denied Director. After it, every
+existing Director passes all of them.
+
+Concretely, on upgrade a Director gains: the agency audit trail and the audit CSV export; the admin
+overview, operations, activity, people, and schema-drift reports; destructive test-data deletion;
+the Demo SSN seed; both admin incident routes; agency settings writes; person history and its PDF;
+provider deletion and merge; and the ability to create people carrying the test-data marker.
+
+The commit message says "The backfill maps existing roles to their current access rather than to a
+narrower set. Nobody loses anything on upgrade." Both sentences are true and neither is the issue —
+nothing records that Director *gains* twenty-five gates. `DECISIONS.md` states the mapping
+("Director adds administration") without characterising it as an increase.
+
+This needs a decision, not a patch: either accept it explicitly in `DECISIONS.md` with the list
+above, or map Director to `CaseManagement | Supervision` and let agencies grant administration
+deliberately. It should not ship as an unremarked side effect of a backfill.
+
+#### 4. "Only an administrator may create or assign an administrator" was dropped — FIXED 2026-08-31
+
+The old `ValidateUserRequestAsync` carried two rules. The Supervisor rule survived the conversion;
+the second did not:
+
+    - if (actor.Role == "Director" && request.Role == "Admin")
+    -     errors["role"] = ["Only an administrator may create or assign an administrator."];
+
+There is no equivalent in the new code. Combined with finding 3, every former Director can now mint
+full administrators and grant billing permission.
+
+The general form is worse than the Director case. `PUT /users/{userId}` resolves the target as any
+user in the actor's agency, including the actor, and the only remaining guard is skipped outright
+for anyone holding administration. An administration-only user may therefore edit their own record
+and self-grant `Billing`. The separation this whole change exists to create — billing access that
+does not carry administrative access, and vice versa — is enforced in one direction only. No test
+covers any of this.
+
+#### 5. Desktop-local user management is enforced in the view model — FIXED 2026-08-31
+
+`UserService.CreateAsync` and `UserService.UpdateAsync` take a `User`, write it, and check nothing:
+no actor parameter, no permission gate, no agency scoping. `UpdateAsync` copies all scalar values
+through `CurrentValues.SetValues`, `Permissions` and `Role` included.
+
+Before this commit that was tolerable, because `NewUserViewModel` hard-coded `UserRole.CaseManager`
+into `User.Create(...)` — the desktop path could not express anything else. It now assembles an
+arbitrary permission set from four checkboxes, and the only restraint is
+`CanAssignExpandedPermissions`, a view-model boolean. `UserManagementViewModel.SaveAsync` likewise
+holds the supervisor restriction in the view model.
+
+On local Production there is no API behind these, so this is the whole enforcement. It contradicts
+the engineering rule "Do not use UI visibility as security", the class comment on `LocalTenantAccess`
+("local services must not assume the API is their only caller"), and the AGENDA item checked off in
+this same commit: "UI visibility follows the permission, but the API enforces independently."
+
+The fix is the one the billing services already took in this commit: `CreateAsync` and `UpdateAsync`
+should accept an `AgencyActor` and re-confirm it, mirroring `ValidateUserRequestAsync`.
+
+#### 6. Four caseload routes scope by owner without an agency predicate — pre-existing, open
+
+`GET /people/{personId}/journal`, `PUT /people/{personId}`,
+`PUT /people/{personId}/contacts/{contactId}`, and `DELETE /contacts/{contactId}` filter on
+`person.UserId == actor.UserId` instead of calling `TenantAccess.OwnsPersonAsync`. They therefore
+omit `person.AgencyId == actor.AgencyId` and, now, the new `actor.HasCaseManagerPermissions` clause
+that `OwnsPersonAsync` gained in this commit.
+
+**Not a conversion regression** — the commit does not touch those lines. Same class as the
+`POST /at-requests` item already accepted above, and not exploitable while a person's agency agrees
+with its owner's. Recorded here because the conversion added a case-management requirement to
+`OwnsPersonAsync` that these four routes silently do not inherit.
+
+#### 7. The validated-permissions claim is shadowable by construction — low, open
+
+`ValidatedActorFilter` appends `sati_validated_permissions` to the existing `ClaimsIdentity`, and
+`Actor.From` reads it with `FindFirstValue`, which returns the *first* match. Today this is safe:
+`TokenIssuer` never emits that claim and the JWT is server-signed, so the filter is the only writer.
+It is one issued claim away from a token value silently outranking the database value. Prefer
+`HttpContext.Items`, or assert the claim is absent before adding it.
+
+### Also corrected in this pass
+
+- `API_AUTHORIZATION.md`: the two "112 routes" statements are now 114. The table itself was already
+  complete and correct.
+- `API_AUTHORIZATION.md`: the `POST /people` row did not mention the case-management permission the
+  conversion added.
+
+### Noted, no change
+
+- **Signed documents freeze a derived label.** `SignedByRole = actor.Role` on AT attestations and the
+  agency-release PDF now stamp `LegacyLabel(permissions)`, which collapses to
+  Admin/Supervisor/CaseManager. A billing-only signer is stamped "CaseManager". These are regulatory
+  artifacts and the label no longer describes the signer's authority. Consider
+  `UserPermissionRules.Describe(...)`.
+- **Desktop billing actors are session-bound by convention.** `ValidateBillingActorAsync` confirms
+  the supplied actor matches a real user row on id, agency, and permissions, but not that it is the
+  signed-in user; `BillingService` no longer takes `ISessionService`. Every call site passes
+  `sessionService.CurrentUser`. Within one desktop process this is not a boundary, but the binding
+  moved from enforced-by-construction to enforced-by-convention.
+- **The Supervisor rows in `API_AUTHORIZATION.md` say administration "broadens" supervisory scope.**
+  True only for someone who already holds supervision; an administration-only user is refused
+  outright. The wording is defensible and the behaviour deliberate, but it is worth knowing.
+
+### Found sound
+
+- All 14 billing routes deny without billing permission; verified by mutation, not by reading.
+- Deny-by-default holds throughout. `IsSupported` rejects unknown bits, and the filter refuses a user
+  whose persisted set is unsupported.
+- `PlatformOperator` remains orthogonal and unmintable: `LegacyLabel` cannot return it, so no user
+  management path can produce one, and the allow-list still fails closed.
+- Permission changes that cross a legacy-label boundary invalidate outstanding tokens, because the
+  filter matches on `Role`. Changes within a label take effect on the next request; test-verified by
+  `BillingPermissionRevocationTakesEffectBeforeTheTokenExpires`.
+
+### Outstanding before this ships
+
+1. ~~Decide the Director mapping (finding 3) and record it either way.~~ Done 2026-08-31.
+2. ~~Restore an administration-assignment rule (finding 4), with a test that fails without it.~~
+   Done 2026-08-31, structurally rather than as a special case.
+3. ~~Move desktop user create/update enforcement out of the view models (finding 5).~~
+   Done 2026-08-31.
+4. Add denial tests for the supervision and case-management gates, and for the two admin incident
+   routes. The bar is the project's own: confirm each fails against the ungated code. **Still
+   outstanding.**
+
+Items 1, 2, and 3 are the ones that should block a release. The commit's own caveat — "Do not
+include this in a release until it has had one" — is discharged as to scope by this pass, and the
+answer is that three things need fixing first. See the resolution section below; item 4 remains.
+
+---
+
+## Resolution of findings 3, 4, and 5 — 2026-08-31
+
+All three release blockers are fixed. Design rationale is in `DECISIONS.md`, 2026-08-31; this
+records what changed and, more importantly, what proves it.
+
+### What changed
+
+| Finding | Fix |
+|---|---|
+| 3 — Director gained ~25 gates | New `UserPermissions.AgencyWideSupervision` capability. `Director` backfills to case management + supervision + agency-wide supervision; `Admin` to all five. Administration implies agency-wide supervision. The six sites where administration was standing in for supervisory reach (`canReviewAgency` ×3, `LoadReviewableNoteAsync`, `TenantAccess.CanAccessUserAsync`, `LocalTenantAccess`) now read the capability. Corrected by a second migration, `SeparateAgencyWideSupervision`, rather than an edit to the applied one. |
+| 4 — assignment rule dropped | Resolved structurally rather than by re-adding a special case. Director no longer holds administration, so it falls into the non-administrator branch and may write only a case-management-only user assigned to itself — it cannot mint an administrator. The subset "may not grant what you do not hold" rule was considered and deliberately rejected; see `DECISIONS.md` for why it is not a boundary. |
+| 5 — desktop enforced in the view model | `UserService.CreateAsync` / `UpdateAsync` / `ResetPasswordAsync` now take an `AgencyActor`, re-confirm it against the database, and delegate to the shared `Sati.Contracts.V1.UserManagementRules`. Agency and the legacy label are assigned server-side rather than accepted. Self-service profile editing moved to `UpdateOwnContactDetailsAsync`, which cannot express a permission change. The view-model booleans remain, demoted to presentation. |
+
+### What proves it
+
+Each new test was run against the unfixed code and confirmed to fail, per the project rule.
+Baselines: 287 API tests, 930 desktop tests, green before and after.
+
+| Mutation applied to the fixed code | Result |
+|---|---|
+| `FromLegacyRole("Director")` reverted to include `Administration` | **8 tests fail** — all seven `TheLegacyDirectorLabelDoesNotReachTheAdministrationRoutes` cases plus `TheLegacyDirectorLabelCannotCreateAnAdministrator`. |
+| The three broadening sites reverted to `HasAdminPermissions` | **1 test fails** — `TheLegacyDirectorLabelKeepsAgencyWideSupervisoryReach`, which is the half that proves the narrowing cost Directors nothing. |
+| Desktop `Refuse(...)` and `RequireManageable(...)` neutralized | **9 of 16 `LocalUserManagementAuthorizationTests` fail.** |
+| Desktop actor re-confirmation weakened *and* the caller-supplied permission set trusted | **`AFabricatedActorPermissionSetIsRefused` fails.** |
+
+One honest note on the last two rows. Weakening `ValidateActorAsync` alone changed nothing,
+because it returns the database row and every downstream decision authorizes off that row rather
+than the supplied values. `ACaseManagerCannotCreateUsersAtAll` likewise survives either single
+mutation, because the precheck and `DescribeGrantRefusal` each independently refuse it. That is
+defense in depth working, not weak tests — but it does mean those two gates are individually
+non-load-bearing, and a future edit could remove one without any test noticing.
+
+### Still open from the third pass
+
+Findings 6 (four caseload routes scoped by owner without an agency predicate — pre-existing) and
+7 (the validated-permissions claim is shadowable by construction — low) are unchanged. The
+coverage gaps in the mutation table also remain: the nine supervision gates and the
+case-management gates are still largely untested, as are `GET /admin/incidents`,
+`PUT /admin/incidents/{id}/status`, and `ProviderDirectoryRules.CanCreateOrEdit`.
+
+### Found while fixing, unrelated to the audit
+
+- **A month-end bug in `NotePipelineTests.ASubmittedPeriodAcceptsNoFurtherClaimLines`.** The test
+  seeded its second note at `BillableDate.AddDays(1)` where `BillableDate` is `DateTime.Today`.
+  A billing period is keyed by the service date's month and year, so on the last day of a month
+  the second note opens a fresh September draft period and the submitted-period guard never fires.
+  The suite failed on 2026-08-31 for this reason and would fail on the last day of any month.
+  Fixed by keeping both notes in the same period. Pre-existing; nothing to do with permissions.
+- **No API route for self-service profile editing.** `CloudUserService.UpdateOwnContactDetailsAsync`
+  goes through `PUT /api/v1/users/{id}`, which requires supervision or administration, so against a
+  hosted database an ordinary case manager cannot change their own email or phone. Unchanged
+  behaviour, surfaced by giving the operation its own name. Tracked in `AGENDA.md`.

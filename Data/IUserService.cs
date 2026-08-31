@@ -1,11 +1,12 @@
-﻿using Sati.Models;
+﻿using Sati.Contracts.V1;
+using Sati.Models;
 using System.Security;
 
 namespace Sati.Data
 {
     public interface IUserService
     {
-        Task<User> CreateAsync(User user, SecureString initialPassword);
+        Task<User> CreateAsync(AgencyActor actor, User user, SecureString initialPassword);
 
         // True when the installation already has somebody who can administer it.
         // Used to decide whether to OFFER first-run setup; it is not the guard.
@@ -25,8 +26,12 @@ namespace Sati.Data
         Task<User> CreateFirstAdministratorAsync(User user, SecureString initialPassword);
 
         Task<List<User>> GetAllAsync();
-        Task UpdateAsync(User user);
-        Task ResetPasswordAsync(User user, SecureString newPassword);
+        Task UpdateAsync(AgencyActor actor, User user);
+
+        // Self-service profile edit. Cannot express a permission, agency, supervisor, or
+        // label change, so it needs none of the user-management rules.
+        Task UpdateOwnContactDetailsAsync(AgencyActor actor, User user);
+        Task ResetPasswordAsync(AgencyActor actor, User user, SecureString newPassword);
 
         // Self-service password change. Distinct from ResetPasswordAsync: the
         // current password must be verified before the replacement is persisted.

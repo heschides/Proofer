@@ -45,6 +45,18 @@ public sealed class AdministratorBootstrapTests : IDisposable
 
     private UserService NewService() => new(_factory, new PasswordHasher());
 
+    // Seeds directly rather than through UserService.CreateAsync, which now requires an
+    // authorizing actor. These tests are about whether an administrator EXISTS and which
+    // agency the first one joins — not about who may create users. An installation with no
+    // administrator has nobody who could authorize a create in the first place, which is
+    // the whole premise of first-run setup.
+    private async Task SeedAsync(User user)
+    {
+        await using var context = _factory.CreateDbContext();
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+    }
+
     private static SecureString Secure(string value)
     {
         var secure = new SecureString();
@@ -74,9 +86,8 @@ public sealed class AdministratorBootstrapTests : IDisposable
         // Exactly the situation that prompted this: a real installation, real
         // work in it, and nobody who can create a supervisor.
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 1),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 1));
 
         Assert.False(await service.AnyAdministratorExistsAsync());
     }
@@ -85,9 +96,8 @@ public sealed class AdministratorBootstrapTests : IDisposable
     public async Task ASupervisorDoesNotCountAsAnAdministrator()
     {
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "sup", "Supervisor", string.Empty, string.Empty, UserRole.Supervisor, null, 1),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "sup", "Supervisor", string.Empty, string.Empty, UserRole.Supervisor, null, 1));
 
         Assert.False(await service.AnyAdministratorExistsAsync());
     }
@@ -98,10 +108,9 @@ public sealed class AdministratorBootstrapTests : IDisposable
         // PlatformOperator is Sati's own cross-tenant telemetry identity. Its
         // presence must not convince an agency it has an administrator.
         var service = NewService();
-        await service.CreateAsync(
+        await SeedAsync(
             User.Create(0, "operator", "Platform Operator", string.Empty, string.Empty,
-                UserRole.PlatformOperator, null, 1),
-            Secure(StrongPassword));
+                UserRole.PlatformOperator, null, 1));
 
         Assert.False(await service.AnyAdministratorExistsAsync());
         Assert.False(AdministratorBootstrap.IsAdministrator(User.Create(
@@ -165,9 +174,8 @@ public sealed class AdministratorBootstrapTests : IDisposable
         // created through the ordinary path — or by the provisioning script —
         // closes the bootstrap just the same.
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "existing", "Existing Admin", string.Empty, string.Empty, UserRole.Admin, null, 1),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "existing", "Existing Admin", string.Empty, string.Empty, UserRole.Admin, null, 1));
 
         await Assert.ThrowsAsync<AdministratorAlreadyExistsException>(
             () => service.CreateFirstAdministratorAsync(NewAdmin(), Secure(StrongPassword)));
@@ -177,9 +185,8 @@ public sealed class AdministratorBootstrapTests : IDisposable
     public async Task ADuplicateUsernameIsRefused()
     {
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "admin", "Someone Else", string.Empty, string.Empty, UserRole.CaseManager, null, 1),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "admin", "Someone Else", string.Empty, string.Empty, UserRole.CaseManager, null, 1));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CreateFirstAdministratorAsync(NewAdmin("admin"), Secure(StrongPassword)));
@@ -191,9 +198,8 @@ public sealed class AdministratorBootstrapTests : IDisposable
         // The point of the resolution rule: an administrator exists to administer
         // the agency that holds the work. Agency 2 here, not the seeded default.
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 2),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 2));
 
         var created = await service.CreateFirstAdministratorAsync(NewAdmin(), Secure(StrongPassword));
 
@@ -214,12 +220,10 @@ public sealed class AdministratorBootstrapTests : IDisposable
     public async Task UsersSpreadAcrossAgenciesAreReportedRatherThanGuessedAt()
     {
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "one", "One", string.Empty, string.Empty, UserRole.CaseManager, null, 1),
-            Secure(StrongPassword));
-        await service.CreateAsync(
-            User.Create(0, "two", "Two", string.Empty, string.Empty, UserRole.CaseManager, null, 2),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "one", "One", string.Empty, string.Empty, UserRole.CaseManager, null, 1));
+        await SeedAsync(
+            User.Create(0, "two", "Two", string.Empty, string.Empty, UserRole.CaseManager, null, 2));
 
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CreateFirstAdministratorAsync(NewAdmin(), Secure(StrongPassword)));
@@ -232,12 +236,10 @@ public sealed class AdministratorBootstrapTests : IDisposable
     {
         // The cross-tenant identity must not drag the agency answer around.
         var service = NewService();
-        await service.CreateAsync(
-            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 2),
-            Secure(StrongPassword));
-        await service.CreateAsync(
-            User.Create(0, "operator", "Operator", string.Empty, string.Empty, UserRole.PlatformOperator, null, 1),
-            Secure(StrongPassword));
+        await SeedAsync(
+            User.Create(0, "cm", "Case Manager", string.Empty, string.Empty, UserRole.CaseManager, null, 2));
+        await SeedAsync(
+            User.Create(0, "operator", "Operator", string.Empty, string.Empty, UserRole.PlatformOperator, null, 1));
 
         var created = await service.CreateFirstAdministratorAsync(NewAdmin(), Secure(StrongPassword));
 

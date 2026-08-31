@@ -963,7 +963,7 @@ internal static class ApiEndpoints
             if (!actor.HasSupervisorPermissions)
                 return Results.Forbid();
 
-            var canReviewAgency = actor.HasAdminPermissions;
+            var canReviewAgency = actor.HasAgencyWideSupervisionPermissions;
             var caseManagerIds = await db.Users.AsNoTracking()
                 .Where(user => user.AgencyId == actor.AgencyId &&
                                (user.Permissions & UserPermissions.CaseManagement) != 0 &&
@@ -4332,7 +4332,7 @@ internal static class ApiEndpoints
                       where note.Id == noteId && owner.AgencyId == actor.AgencyId &&
                             person.AgencyId == actor.AgencyId &&
                             (owner.Permissions & UserPermissions.CaseManagement) != 0 &&
-                            (actor.HasAdminPermissions ||
+                            (actor.HasAgencyWideSupervisionPermissions ||
                              owner.SupervisorId == actor.UserId)
                       select new ReviewableNote(note, person)).SingleOrDefaultAsync(cancellationToken);
     }
@@ -4821,16 +4821,15 @@ internal static class ApiEndpoints
         var displayName = request.DisplayName?.Trim() ?? string.Empty;
         if (username.Length is < 1 or > 50) errors["username"] = ["Username is required and must not exceed 50 characters."];
         if (displayName.Length is < 1 or > 150) errors["displayName"] = ["Display name is required and must not exceed 150 characters."];
-        if (request.Permissions == UserPermissions.None ||
-            !UserPermissionRules.IsSupported(request.Permissions))
-            errors["permissions"] = ["Choose at least one supported agency permission."];
-        if (request.AgencyId != actor.AgencyId) errors["agencyId"] = ["Users must belong to your agency."];
         if (request.Email?.Length > 254) errors["email"] = ["Email must not exceed 254 characters."];
         if (request.Phone?.Length > 30) errors["phone"] = ["Phone must not exceed 30 characters."];
-        if (!actor.HasAdminPermissions &&
-            (request.Permissions != UserPermissions.CaseManagement ||
-             request.SupervisorId != actor.UserId))
-            errors["permissions"] = ["Supervisors may manage only their assigned case managers."];
+        // Empty/unsupported set, foreign agency, and the non-administrator scope all live in
+        // Sati.Contracts.V1 so the desktop-local UserService enforces the identical rule
+        // rather than a second hand-written copy of it.
+        if (UserManagementRules.DescribeGrantRefusal(
+                actor.ToAgencyActor(), request.Permissions, request.SupervisorId, request.AgencyId)
+            is { } refusal)
+            errors[refusal.Field] = [refusal.Message];
         if (!string.IsNullOrWhiteSpace(username) && await db.Users.AsNoTracking().AnyAsync(
                 x => x.Username == username && x.Id != currentUserId, cancellationToken))
             errors["username"] = ["A user with that username already exists."];

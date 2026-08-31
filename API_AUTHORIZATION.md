@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-08-30, covering all 112 protected routes. Every route added,
+*Route inventory current as of 2026-08-30, covering all 114 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -22,7 +22,13 @@ Every protected route has two layers of protection:
 “Own user” means the authenticated user. “Own caseload” means a person assigned to that user and
 the same agency. “Accessible case manager” means the actor themself when they have case-management
 permission, an assigned case manager when they have supervision permission, or any case manager in
-the agency when they also have administration permission.
+the agency when they also have agency-wide supervision.
+
+Agency-wide supervision is a capability in its own right, distinct from administration, and
+administration implies it. The two were briefly conflated: the legacy `Director` label held
+agency-wide review WITHOUT any administration route, so a backfill that mapped it to
+administration handed every existing Director the audit export, settings writes, destructive
+test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 
 | Feature | Protected route | Authoritative tenant owner | Access rule |
 |---|---|---|---|
@@ -43,7 +49,7 @@ the agency when they also have administration permission.
 | Users | `PUT /users/{userId}/password` | Target user's `AgencyId` | Same rule as user update. |
 | Users | `PUT /users/me/password` | User's `AgencyId` | Own user plus current-password verification. |
 | Supervisor | `GET /supervisor/supervisees` | Case manager user's `AgencyId` | Supervision permission sees assigned users with case-management permission; the current route returns directly assigned users. |
-| Supervisor | `GET /supervisor/notes` | Note person's own and owning user's `AgencyId` | Supervision permission sees assigned case managers; administration permission broadens that to agency case managers. |
+| Supervisor | `GET /supervisor/notes` | Note person's own and owning user's `AgencyId` | Supervision permission sees assigned case managers; agency-wide supervision broadens that to every case manager in the agency. Administration implies agency-wide supervision but does not on its own substitute for supervision. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve` | Note person's own and owning user's `AgencyId` | Same supervisory scope; server owns approval transition and requires the caller's expected Note revision. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve-override` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records approver. |
 | Supervisor | `POST /supervisor/notes/{noteId}/return` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records returner. |
@@ -51,7 +57,7 @@ the agency when they also have administration permission.
 | Caseload | `GET /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `PUT /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `POST /people/{personId}/journal/entries` | Person's assigned user and agency | Own caseload only; same gate as the journal `PUT`. Server prepends the stamped entry and stamps from `ApiClock`, so the caller supplies only the text. |
-| People | `POST /people` | Actor's user and agency | Creates only in the actor's own caseload and agency. `IsTestData=true` is accepted only from a validated Admin and is otherwise rejected. |
+| People | `POST /people` | Actor's user and agency | Case-management permission; creates only in the actor's own caseload and agency. `IsTestData=true` additionally requires administration permission and is otherwise rejected. |
 | People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. The creation-time test-data classification is immutable, including for Admins. |
 | SSN | `GET /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Returns the mask and an on-file flag; no route anywhere returns a plaintext SSN. Response is not cacheable. |
 | SSN | `PUT /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Shape-checked before encryption; audited as `person.ssn-updated` without the value. Null or empty clears every stored part including the last four. |
@@ -159,6 +165,14 @@ It additionally covers two properties that are invisible in the table above and 
 - **The audit export is inert in a spreadsheet** (`AuditExportNeutralizesSpreadsheetFormulas`),
   with the underlying rule covered in `Sati.Tests/AuditCsvTests.cs`.
 
-The table was reconciled against the routes registered in `ApiEndpoints.cs` on 2026-08-30 and
-matched exactly at 112 routes. Re-run that comparison when routes change; a route inventory that
+The gate coverage behind this table is uneven, and the 2026-08-30 permissions audit measured it by
+mutation rather than by reading. The billing, provider delete/merge, settings, user-management, and
+Director-scope gates fail their tests when removed. The remaining supervision and case-management
+gates still do not — no test in either suite notices when those are disabled, though most sit above
+separately data-scoped queries, so removing one usually yields an empty result rather than a leak.
+See `API_SECURITY_AUDIT.md`, third pass, before relying on a green suite as evidence for those rows.
+
+The table was reconciled against the routes registered in `ApiEndpoints.cs` on 2026-08-30, and
+re-checked mechanically during the permissions audit the same day: the two sets match exactly at
+114 routes, in both directions. Re-run that comparison when routes change; a route inventory that
 silently falls behind the code is worse than no inventory.

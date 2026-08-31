@@ -621,8 +621,16 @@ public sealed class NotePipelineTests
         var billing = fixture.BillingAs(fixture.AdminOne);
         var first = await fixture.SeedNoteAsync(
             fixture.PersonOneId, NoteStatus.Approved, fixture.BillableDate);
+        // Both notes must land in the SAME billing period, because that is what the guard
+        // is about. A period is keyed by the service date's month and year, so a blind
+        // AddDays(1) opens a fresh draft period whenever BillableDate (DateTime.Today) is
+        // the last day of a month, and the test then passes for the wrong reason — it fails
+        // outright, as it did on 2026-08-31.
+        var secondDate = fixture.BillableDate.Day == 1
+            ? fixture.BillableDate.AddDays(1)
+            : fixture.BillableDate.AddDays(-1);
         var second = await fixture.SeedNoteAsync(
-            fixture.PersonOneId, NoteStatus.Approved, fixture.BillableDate.AddDays(1));
+            fixture.PersonOneId, NoteStatus.Approved, secondDate);
 
         var line = await billing.CreateClaimLineAsync(first);
         await billing.SubmitBillingPeriodAsync(line.BillingPeriodId);

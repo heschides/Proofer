@@ -36,7 +36,7 @@ internal static class TenantAccess
             user => user.Id == targetUserId &&
                     user.AgencyId == actor.AgencyId &&
                     (user.Permissions & Sati.Contracts.V1.UserPermissions.CaseManagement) != 0 &&
-                    (actor.HasAdminPermissions ||
+                    (actor.HasAgencyWideSupervisionPermissions ||
                      user.SupervisorId == actor.UserId),
             cancellationToken);
     }

@@ -28,7 +28,7 @@ internal static class LocalTenantAccess
         if (!IsReviewer(actor.Permissions))
             return false;
 
-        var canReviewAgency = actor.HasAdminPermissions;
+        var canReviewAgency = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
         return await context.Users.AsNoTracking().AnyAsync(user =>
             user.Id == targetUserId &&
             user.AgencyId == actor.AgencyId &&

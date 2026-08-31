@@ -327,6 +327,9 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                     permissions: UserPermissions.Billing),
                 CreateUser(verifier, 16, "admin-without-billing-one", "Admin", 1,
                     permissions: UserPermissions.Administration),
+                // Legacy Director: agency-wide supervisory reach, no administration. Seeded
+                // through FromLegacyRole so the fixture cannot drift from the backfill.
+                CreateUser(verifier, 17, "director-one", "Director", 1),
                 CreateUser(verifier, 21, "admin-two", "Admin", 2),
                 CreateUser(verifier, 22, "case-manager-two", "CaseManager", 2, 23),
                 CreateUser(verifier, 23, "supervisor-two", "Supervisor", 2),
