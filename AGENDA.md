@@ -76,17 +76,41 @@ database on every machine, migrated by the desktop at its next launch.
       the three `sati-demo-api-outbound-*` entries. The release workflow never created, altered,
       or deleted a firewall rule.
 
-### Local Production machines — still open
-- [ ] **Not yet enumerated, and this section is not closed.** `SatiDemo` is one database, migrated
-      deliberately above. Local `SatiProduction` is a separate database on *every* machine,
-      migrated by the desktop at its next launch, so a machine that has not been opened since
-      1.2.33 has not received `AddUserPermissions` or `SeparateAgencyWideSupervision`. List each
-      known machine by name and the release it is on, including any believed to be behind.
-- [ ] Two facts already recorded elsewhere in this file bear on what those machines will attempt:
-      one machine is believed to still carry unreconciled migration-history drift, and
-      `SatiProduction` has not received `AddBillingExchangeHistory` or `AddRemittanceDeposits`.
-- [ ] `scripts/Apply-UserPermissionsMigrations.ps1` accepts `-DatabaseName SatiProduction` and is
-      the manual path for a machine that needs it applied outside the desktop's startup migration.
+### Local Production machines
+Both machines were on 1.2.33 before this release, per Josh. `SatiDemo` is one database and was
+migrated deliberately above; `SatiProduction` is a separate database on each of these machines,
+migrated by the desktop at its next launch.
+
+- [x] **This workstation (development machine).** Sati is run from source here, so the release it
+      is "on" is the working tree, which was 1.2.33 before this change. Its `SatiProduction` is
+      already at **82 migrations** with the permissions backfill applied — its single Admin account
+      carries 31 — so the schema half is satisfied on this machine. It was migrated by a
+      development build at startup rather than by an installed release: the
+      `SeparateAgencyWideSupervision` migration was authored during the 1.2.34 release session, so
+      whatever applied it ran from current source the same day.
+
+      Recorded because it is confusing otherwise: the *installed packages* on this machine are
+      stale and not the thing being used. The Windows uninstall registry and the on-disk file
+      versions both report `Sati (LocalDB) 1.2.23` and `Sati Demo 1.2.27`. A future reader
+      comparing installed versions against this record will find them ten releases apart and
+      should not conclude the machine was missed.
+
+- [ ] **Colleague's laptop — 1.2.33, has NOT received either migration.** It needs
+      `SatiLocalSetup-1.2.34.exe` from `...\SatiLogica - Documents\Sati Desktop`; the desktop will
+      apply `AddUserPermissions` and `SeparateAgencyWideSupervision` to its `SatiProduction` at
+      first launch, taking a backup first as it does for any change.
+
+      Two things make this the machine to watch. It is the one `AGENDA.md` records as possibly
+      still carrying unreconciled migration-history drift, and `SatiProduction` there has not
+      received `AddBillingExchangeHistory` or `AddRemittanceDeposits` either. So its first 1.2.34
+      launch attempts more than the two migrations named here, against the database most likely to
+      disagree with its own history. If it refuses to start, that refusal is correct and
+      `scripts/remote-repair` or `scripts/Apply-UserPermissionsMigrations.ps1 -DatabaseName
+      SatiProduction` is the path, not a retry.
+
+- [x] Nothing was assumed to have caught up. The one machine reachable from here was inspected
+      directly rather than taken on trust; the other is recorded as outstanding rather than
+      presumed done.
 
 ## Release 1.2.33 — 2026-08-30
 
