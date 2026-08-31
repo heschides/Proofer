@@ -2,6 +2,60 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.34 — 2026-08-31
+
+Per-user permissions, the line-by-line audit that followed, and the claim-response half of the
+billing exchange. Eleven commits since the 1.2.33 evidence commit `6704c17`.
+
+**This is a schema-changing release.** Two migrations, and the first adds a column
+`ValidatedActorFilter` reads on every authenticated request, so the Demo migration must land
+BEFORE the dependent API is published. Both halves are recorded below, per the rule added in
+`9cbcf0e`: Demo is one database migrated deliberately; Local `SatiProduction` is a separate
+database on every machine, migrated by the desktop at its next launch.
+
+| Migration | Effect |
+|---|---|
+| `20260830224423_AddUserPermissions` | `Users.Permissions` int NOT NULL default 0, plus the legacy-role backfill |
+| `20260830231500_SeparateAgencyWideSupervision` | Director 7 → 19, Admin 15 → 31 |
+
+### Validation
+- [x] Release build clean: 0 errors, 7 warnings.
+- [x] 1,221 tests pass across all three projects — 930 desktop, 287 API, 4 Carika. One skip:
+      `LocalAiModelCompetenceTests`, whose documented prerequisite `SATI_RUN_LOCAL_AI_MODEL_EVAL=1`
+      is genuinely absent.
+- [x] `scripts/Apply-UserPermissionsMigrations.ps1` written and rehearsed against a throwaway
+      `SatiDemo` in an isolated LocalDB instance, never against a real database. Dry run rolled
+      back with nothing left behind; real run applied; third pass reported every count and proof
+      at 0. Two further scenarios exercised: the column-present-without-history drift case that
+      makes EF's generated script fail with SQL 2705 (skipped the backfill rather than clobbering
+      it, applied only the correction, reconciled history), and both fail-closed guards
+      (correction recorded without its base migration; environment identity mismatch).
+- [x] Resulting values match `UserPermissionRules.FromLegacyRole`: CaseManager 1, Supervisor 3,
+      Director 19, Admin 31, PlatformOperator 0.
+
+### Deployment evidence — pending
+- [ ] Demo migration applied to `SatiDemo` with the three-pass sequence, against the real database.
+- [ ] API ZIP hash, deployment identifier.
+- [ ] `/health/live`, `/health/ready`, `/health/version` reporting release 1.2.34, and contract
+      revision parity.
+- [ ] `SatiDemoSetup-1.2.34.exe` generated, accepted, size and SHA-256 recorded.
+- [ ] `SatiLocalSetup-1.2.34.exe` generated, accepted, size and SHA-256 recorded.
+- [ ] Both installers and checksums published to their distribution folders.
+
+### Local Production machines — pending
+- [ ] **Not yet enumerated.** The desktop applies pending migrations at launch, so a machine that
+      has not been opened since 1.2.33 has not received this. List every known machine by name and
+      the release it is on, including any believed to be behind, before this section is closed. A
+      machine nobody has thought about is the one that breaks.
+- [ ] `AGENDA.md` already records one machine believed to be carrying unreconciled history drift,
+      and that `SatiProduction` has not received `AddBillingExchangeHistory` or
+      `AddRemittanceDeposits`. Both are relevant to what this release will attempt at next launch.
+
+### Blocked on
+- [ ] Temporary exact-IP rule on the `SatiDemo` SQL firewall for the release workstation
+      (`72.95.106.10`), added and removed by the user. The release workflow never touches a
+      firewall rule. The Demo migration itself is authorized.
+
 ## Release 1.2.33 — 2026-08-30
 
 Sati repairs the provable half of a migration history disagreement at startup, instead of refusing

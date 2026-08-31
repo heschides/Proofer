@@ -553,25 +553,28 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.33", version);
+        Assert.Equal("1.2.34", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Sati repairs its own update record", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Permissions you grant one at a time", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
-        // A release that fixes a refusal to start must name the version that refused, so a
-        // reader who hit it can tell that this is the one that addresses it.
+        // The release exists to separate billing from administration. The notes have to name
+        // both halves, or a reader cannot tell what actually changed about who can do what.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Sati starts again on machines where 1.2.32 refused" &&
-            section.Items.Any(item => item.Contains("1.2.32", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("records that the update ran", StringComparison.OrdinalIgnoreCase)));
-        // Self-repair must not be described as unconditional. The notes have to keep saying
-        // that the ambiguous case still stops, or they oversell what shipped.
+            section.Title == "Billing access no longer means administrator access" &&
+            section.Items.Any(item => item.Contains("billing", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("administrator", StringComparison.OrdinalIgnoreCase)));
+        // An upgrade that silently widens somebody's access is the failure mode this release
+        // was audited for. The notes must keep saying that Director does not gain admin tools,
+        // because that is the specific promise the backfill makes.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "When it still stops, it says something you can act on" &&
-            section.Items.Any(item => item.Contains("only part of an update", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("backup", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Your existing accounts keep what they had" &&
+            section.Items.Any(item => item.Contains("Director", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("agency-wide", StringComparison.OrdinalIgnoreCase)));
+        // A schema-changing release must say so plainly rather than bury it.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Nothing else changes in daily use" &&
-            section.Items.Any(item => item.Contains("1.2.32", StringComparison.OrdinalIgnoreCase)));
+            section.Items.Any(item => item.Contains("1.2.33", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("backup", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
