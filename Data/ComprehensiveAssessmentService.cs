@@ -150,7 +150,7 @@ public sealed class ComprehensiveAssessmentService(
     {
         var actor = sessionService.CurrentUser
             ?? throw new UnauthorizedAccessException("A signed-in case manager is required.");
-        if (actor.Role != UserRole.CaseManager || actor.Id != requestedAuthorUserId)
+        if (!actor.HasCaseManagerPermissions || actor.Id != requestedAuthorUserId)
             throw new UnauthorizedAccessException("Only the signed-in case manager may author an assessment.");
         return actor;
     }

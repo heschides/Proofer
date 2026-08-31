@@ -100,6 +100,6 @@ namespace Sati.Services
         /// administrator, and its presence must not convince an agency that it has
         /// an administrator of its own.
         /// </summary>
-        public static bool IsAdministrator(UserRole role) => role == UserRole.Admin;
+        public static bool IsAdministrator(User user) => user.HasAdminPermissions;
     }
 }

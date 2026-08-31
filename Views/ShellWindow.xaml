@@ -120,7 +120,9 @@
                             Style="{StaticResource NavTabButton}"
                             AutomationProperties.Name="Case Management"
                             views:NavTab.IsActive="{Binding IsCaseManagementActive}"
-                            Command="{Binding NavigateToCaseManagementCommand}" />
+                            Command="{Binding NavigateToCaseManagementCommand}"
+                            Visibility="{Binding IsCaseManagementAvailable,
+                                Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Content="Supervisor"
                             Style="{StaticResource NavTabButton}"
                             AutomationProperties.Name="Supervisor"

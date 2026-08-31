@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Sati.Views"
         mc:Ignorable="d"
         Title="Create Account"
-        Height="640"
+        Height="760"
         Width="360"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
@@ -131,10 +131,33 @@
             <TextBlock Text="SUPERVISOR"
                        Style="{StaticResource LabelStyle}" />
             <ComboBox AutomationProperties.Name="Supervisor" Style="{StaticResource InputStyle}"
+                      IsEnabled="{Binding CanAssignExpandedPermissions}"
                       ItemsSource="{Binding Supervisors}"
                       SelectedItem="{Binding SelectedSupervisor}"
                       DisplayMemberPath="DisplayName"
                       VerticalContentAlignment="Center" />
+
+            <TextBlock Text="PERMISSIONS"
+                       Style="{StaticResource LabelStyle}" />
+            <WrapPanel Margin="0,0,0,16"
+                       IsEnabled="{Binding CanAssignExpandedPermissions}">
+                <CheckBox Content="Case management"
+                          AutomationProperties.Name="Case management permission"
+                          IsChecked="{Binding HasCaseManagerPermissions}"
+                          Margin="0,0,12,6" />
+                <CheckBox Content="Supervision"
+                          AutomationProperties.Name="Supervision permission"
+                          IsChecked="{Binding HasSupervisorPermissions}"
+                          Margin="0,0,12,6" />
+                <CheckBox Content="Administration"
+                          AutomationProperties.Name="Administration permission"
+                          IsChecked="{Binding HasAdminPermissions}"
+                          Margin="0,0,12,6" />
+                <CheckBox Content="Billing"
+                          AutomationProperties.Name="Billing permission"
+                          IsChecked="{Binding HasBillingPermissions}"
+                          Margin="0,0,12,6" />
+            </WrapPanel>
 
             <Button Content="Create Account"
                     Style="{StaticResource PrimaryButton}"

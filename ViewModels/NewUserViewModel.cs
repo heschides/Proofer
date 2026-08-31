@@ -5,6 +5,7 @@ using Sati.Models;
 using System.Collections.ObjectModel;
 using System.Security;
 using System.Runtime.InteropServices;
+using Sati.Contracts.V1;
 
 namespace Sati.ViewModels
 {
@@ -27,16 +28,24 @@ namespace Sati.ViewModels
         [ObservableProperty] private SecureString? passwordConfirm;
         [ObservableProperty] private User? selectedSupervisor;
         [ObservableProperty] private Agency? assignedAgency;
+        [ObservableProperty] private bool hasCaseManagerPermissions = true;
+        [ObservableProperty] private bool hasSupervisorPermissions;
+        [ObservableProperty] private bool hasAdminPermissions;
+        [ObservableProperty] private bool hasBillingPermissions;
 
         public ObservableCollection<User> Supervisors { get; } = [];
         public User? CreatedUser { get; private set; }
+        public bool CanAssignExpandedPermissions =>
+            _sessionService.CurrentUser?.HasAdminPermissions == true;
 
         public async Task InitializeAsync()
         {
             var all = await _userService.GetAllAsync();
             Supervisors.Clear();
-            foreach (var u in all.Where(u => u.Role == UserRole.Supervisor))
+            foreach (var u in all.Where(u => u.HasSupervisorPermissions))
                 Supervisors.Add(u);
+            if (!CanAssignExpandedPermissions)
+                SelectedSupervisor = _sessionService.CurrentUser;
         }
 
         [RelayCommand]
@@ -60,6 +69,21 @@ namespace Sati.ViewModels
 
             var agencyId = AssignedAgency?.Id ?? SelectedSupervisor?.AgencyId ?? _sessionService.CurrentUser?.AgencyId
                 ?? throw new InvalidOperationException("An agency assignment is required.");
+            var permissions = UserPermissions.None;
+            if (CanAssignExpandedPermissions)
+            {
+                if (HasCaseManagerPermissions) permissions |= UserPermissions.CaseManagement;
+                if (HasSupervisorPermissions) permissions |= UserPermissions.Supervision;
+                if (HasAdminPermissions) permissions |= UserPermissions.Administration;
+                if (HasBillingPermissions) permissions |= UserPermissions.Billing;
+            }
+            else
+            {
+                permissions = UserPermissions.CaseManagement;
+                SelectedSupervisor = _sessionService.CurrentUser;
+            }
+            if (permissions == UserPermissions.None)
+                throw new InvalidOperationException("Choose at least one permission.");
             var user = User.Create(
                 0,
                 Username!,
@@ -69,6 +93,8 @@ namespace Sati.ViewModels
                 UserRole.CaseManager,
                 SelectedSupervisor?.Id,
                 agencyId);
+            user.Permissions = permissions;
+            user.Role = Enum.Parse<UserRole>(UserPermissionRules.LegacyLabel(permissions));
 
             CreatedUser = await _userService.CreateAsync(user, PasswordInit);
 

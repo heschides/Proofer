@@ -56,7 +56,7 @@ namespace Sati.ViewModels.Children
         public bool HasNoticeMessage => NoticeMessage.Length > 0;
         public bool CanMergeProviders =>
             CurrentEditor?.Provider.Id > 0 &&
-            _sessionService?.CurrentUser?.Role == UserRole.Admin;
+            _sessionService?.CurrentUser?.HasAdminPermissions == true;
         public bool HasMergeSelection => CanMergeProviders && MergeProvider is not null;
         public string ContactEditorHeader =>
             SelectedProviderContact is null ? "ADD CONTACT" : "EDIT CONTACT";

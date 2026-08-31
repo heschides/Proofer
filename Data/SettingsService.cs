@@ -71,7 +71,8 @@ namespace Sati.Data
 
         public async Task SaveAsync(Settings settings)
         {
-            if (!SettingsAccessPolicy.CanManageAgencySettings(_sessionService.CurrentUser?.Role))
+            if (!SettingsAccessPolicy.CanManageAgencySettings(
+                    _sessionService.CurrentUser?.Permissions ?? Sati.Contracts.V1.UserPermissions.None))
                 throw new SettingsSaveException(
                     "Only an agency administrator can change operational settings.",
                     new UnauthorizedAccessException());

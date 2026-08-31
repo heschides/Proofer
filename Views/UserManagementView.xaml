@@ -58,7 +58,7 @@
                                     <TextBlock Text="{Binding DisplayName}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding Role}"
+                                    <TextBlock Text="{Binding PermissionSummary}"
                                                FontSize="10"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                 </StackPanel>
@@ -114,11 +114,28 @@
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="0,0,0,20" />
 
-                    <!-- Role -->
-                    <TextBlock Text="ROLE"
+                    <!-- Permissions -->
+                    <TextBlock Text="PERMISSIONS"
                                Style="{StaticResource LabelStyle}" />
-                    <ComboBox AutomationProperties.Name="Role" ItemsSource="{Binding Roles}"
-                              SelectedItem="{Binding SelectedRole}"
+                    <CheckBox Content="Case management"
+                              AutomationProperties.Name="Case management permission"
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
+                              IsChecked="{Binding SelectedUser.HasCaseManagerPermissions}"
+                              Margin="0,4,0,6" />
+                    <CheckBox Content="Supervision"
+                              AutomationProperties.Name="Supervision permission"
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
+                              IsChecked="{Binding SelectedUser.HasSupervisorPermissions}"
+                              Margin="0,0,0,6" />
+                    <CheckBox Content="Administration"
+                              AutomationProperties.Name="Administration permission"
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
+                              IsChecked="{Binding SelectedUser.HasAdminPermissions}"
+                              Margin="0,0,0,6" />
+                    <CheckBox Content="Billing"
+                              AutomationProperties.Name="Billing permission"
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
+                              IsChecked="{Binding SelectedUser.HasBillingPermissions}"
                               Margin="0,0,0,16" />
 
                     <!-- Supervisor -->
@@ -131,6 +148,7 @@
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,0,0,8" />
                     <ComboBox AutomationProperties.Name="Supervisor" ItemsSource="{Binding Supervisors}"
+                              IsEnabled="{Binding CanAssignExpandedPermissions}"
                               SelectedItem="{Binding SelectedSupervisor}"
                               DisplayMemberPath="DisplayName"
                               Margin="0,0,0,24" />

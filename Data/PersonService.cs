@@ -26,7 +26,7 @@ namespace Sati.Data
         public async Task<Person> AddPersonAsync(Person person)
         {
             var actor = CurrentActor();
-            if (person.UserId != actor.Id)
+            if (!actor.HasCaseManagerPermissions || person.UserId != actor.Id)
             {
                 throw new PersonValidationException(new Dictionary<string, string[]>
                 {
@@ -40,7 +40,7 @@ namespace Sati.Data
             {
                 var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(candidate =>
                     candidate.Id == actor.Id && candidate.AgencyId == actor.AgencyId &&
-                    candidate.Role == UserRole.Admin);
+                    (candidate.Permissions & UserPermissions.Administration) != 0);
                 if (!actorIsCurrentAdmin)
                 {
                     throw new PersonValidationException(new Dictionary<string, string[]>

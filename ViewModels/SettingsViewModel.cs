@@ -59,7 +59,8 @@ namespace Sati.ViewModels
         public DatabaseActivityViewModel DatabaseActivity { get; }
         public IReadOnlyList<ThemeOption> ThemeOptions => _themeService.Themes;
         public bool CanManageAgencySettings =>
-            SettingsAccessPolicy.CanManageAgencySettings(_sessionService.CurrentUser?.Role);
+            SettingsAccessPolicy.CanManageAgencySettings(
+                _sessionService.CurrentUser?.Permissions ?? Sati.Contracts.V1.UserPermissions.None);
         public string ReleaseVersion => $"Version {typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3)}";
         public string ReleaseName => ProductReleaseNotes.ReleaseName;
         public string ReleaseDate => ProductReleaseNotes.ReleaseDate;

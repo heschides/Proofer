@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Sati.Models;
+using Sati.Contracts.V1;
 using System.Security;
 
 namespace Sati.Data
@@ -28,7 +29,8 @@ namespace Sati.Data
         public async Task<bool> AnyAdministratorExistsAsync()
         {
             await using var context = _contextFactory.CreateDbContext();
-            return await context.Users.AnyAsync(user => user.Role == UserRole.Admin);
+            return await context.Users.AnyAsync(user =>
+                (user.Permissions & UserPermissions.Administration) != 0);
         }
 
         // The bootstrap window, and the thing that closes it.
@@ -47,7 +49,8 @@ namespace Sati.Data
             ArgumentNullException.ThrowIfNull(user);
 
             await using var context = _contextFactory.CreateDbContext();
-            if (await context.Users.AnyAsync(candidate => candidate.Role == UserRole.Admin))
+            if (await context.Users.AnyAsync(candidate =>
+                    (candidate.Permissions & UserPermissions.Administration) != 0))
                 throw new AdministratorAlreadyExistsException();
 
             if (await context.Users.AnyAsync(candidate => candidate.Username == user.Username))
@@ -61,6 +64,7 @@ namespace Sati.Data
             // the state of having no administrator, and anything else would leave
             // that state intact with the window still open.
             user.Role = UserRole.Admin;
+            user.Permissions = UserPermissions.AllAgencyPermissions;
             context.Users.Add(user);
             await context.SaveChangesAsync();
             return user;
@@ -168,7 +172,8 @@ namespace Sati.Data
         {
             await using var context = _contextFactory.CreateDbContext();
             return await context.Users
-                .Where(u => u.SupervisorId == supervisorId && u.Role == UserRole.CaseManager)
+                .Where(u => u.SupervisorId == supervisorId &&
+                    (u.Permissions & UserPermissions.CaseManagement) != 0)
                 .ToListAsync();
         }
     }

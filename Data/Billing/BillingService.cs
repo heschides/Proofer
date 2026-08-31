@@ -10,22 +10,20 @@ namespace Sati.Services.Billing
     public class BillingService : IBillingService
     {
         private readonly IDbContextFactory<SatiContext> _contextFactory;
-        private readonly ISessionService _sessionService;
         private BillingComplianceRequirements _complianceRequirements =
             BillingComplianceGate.DefaultRequirements;
 
-        public BillingService(IDbContextFactory<SatiContext> contextFactory, ISessionService sessionService)
+        public BillingService(IDbContextFactory<SatiContext> contextFactory)
         {
             _contextFactory = contextFactory;
-            _sessionService = sessionService;
         }
 
-        public async Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year)
+        public async Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor suppliedActor, int userId, int month, int year)
         {
-            var actor = CurrentBillingAdministrator();
             if (month is < 1 or > 12 || year is < 2000 or > 2200)
                 throw new ArgumentOutOfRangeException(nameof(month), "The billing period is invalid.");
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             if (!await context.Users.AnyAsync(user => user.Id == userId && user.AgencyId == actor.AgencyId))
                 throw new InvalidOperationException("The billing user was not found in your agency.");
             var period = await context.BillingPeriods
@@ -62,10 +60,10 @@ namespace Sati.Services.Billing
             }
         }
 
-        public async Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId)
+        public async Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(AgencyActor suppliedActor, int userId)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             return await context.BillingPeriods
                 .Where(period => period.UserId == userId &&
                     context.Users.Any(user => user.Id == period.UserId && user.AgencyId == actor.AgencyId))
@@ -75,10 +73,10 @@ namespace Sati.Services.Billing
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync()
+        public async Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             return await context.BillingPeriods
                 .Where(period => context.Users.Any(user =>
                     user.Id == period.UserId && user.AgencyId == actor.AgencyId))
@@ -88,10 +86,10 @@ namespace Sati.Services.Billing
                 .ToListAsync();
         }
 
-        public async Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false, string? complianceExceptionReason = null)
+        public async Task<ClaimLine> CreateClaimLineAsync(AgencyActor suppliedActor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
 
             var note = await context.Notes
                 .Include(n => n.Person)
@@ -180,10 +178,10 @@ namespace Sati.Services.Billing
             }
         }
 
-        public async Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId)
+        public async Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor suppliedActor, int userId)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             return await context.ClaimLines
                 .Include(c => c.BillingPeriod)
                 .Where(c => c.BillingPeriod.UserId == userId
@@ -194,10 +192,10 @@ namespace Sati.Services.Billing
                 .ToListAsync();
         }
 
-        public async Task SubmitBillingPeriodAsync(int billingPeriodId)
+        public async Task SubmitBillingPeriodAsync(AgencyActor suppliedActor, int billingPeriodId)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             var period = await context.BillingPeriods.Include(candidate => candidate.Lines)
                 .SingleOrDefaultAsync(candidate => candidate.Id == billingPeriodId &&
                     context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId))
@@ -231,10 +229,10 @@ namespace Sati.Services.Billing
             }
         }
 
-        public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync()
+        public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             _complianceRequirements = await LoadComplianceRequirementsAsync(
                 context, actor.AgencyId);
             return await context.Notes
@@ -306,10 +304,10 @@ namespace Sati.Services.Billing
                 Errors: errors);
         }
 
-        public async Task<BillingConfiguration> GetBillingConfigurationAsync()
+        public async Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             var agency = await context.Agencies.AsNoTracking()
                 .SingleAsync(candidate => candidate.Id == actor.AgencyId);
             return ToBillingConfiguration(agency);
@@ -323,15 +321,15 @@ namespace Sati.Services.Billing
                 .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
                 .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
 
-        public async Task SaveBillingConfigurationAsync(BillingConfiguration configuration)
+        public async Task SaveBillingConfigurationAsync(AgencyActor suppliedActor, BillingConfiguration configuration)
         {
-            var actor = CurrentBillingAdministrator();
             var normalized = NormalizeBillingConfiguration(configuration);
             var errors = ValidateBillingConfiguration(normalized);
             if (errors.Count > 0)
                 throw new ArgumentException(string.Join(" ", errors), nameof(configuration));
 
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             var agency = await context.Agencies.SingleAsync(candidate => candidate.Id == actor.AgencyId);
             agency.BillingProcedureCode = normalized.ProcedureCode;
             agency.BillingModifier = normalized.Modifier;
@@ -346,10 +344,10 @@ namespace Sati.Services.Billing
             await context.SaveChangesAsync();
         }
 
-        public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync()
+        public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             return await (from item in context.BillingSubmissionEvents.AsNoTracking()
                           join period in context.BillingPeriods.AsNoTracking() on item.BillingPeriodId equals period.Id
                           join owner in context.Users.AsNoTracking() on period.UserId equals owner.Id
@@ -362,10 +360,10 @@ namespace Sati.Services.Billing
                               item.Explanation, item.IsSynthetic)).ToListAsync();
         }
 
-        public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync()
+        public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             return await context.RemittanceClaimOutcomes.AsNoTracking()
                 .Where(item => item.AgencyId == actor.AgencyId)
                 .OrderByDescending(item => item.ReceivedAtUtc)
@@ -379,10 +377,10 @@ namespace Sati.Services.Billing
                 .ToListAsync();
         }
 
-        public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync()
+        public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor suppliedActor)
         {
-            var actor = CurrentBillingAdministrator();
             await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
             var deposits = await context.RemittanceDeposits.AsNoTracking()
                 .Where(item => item.AgencyId == actor.AgencyId)
                 .OrderByDescending(item => item.ReceivedAtUtc)
@@ -495,13 +493,20 @@ namespace Sati.Services.Billing
             agency.EdiPayerName!,
             agency.EdiPayerId!);
 
-        private User CurrentBillingAdministrator()
+        private static async Task<User> ValidateBillingActorAsync(
+            SatiContext context,
+            AgencyActor suppliedActor)
         {
-            var actor = _sessionService.CurrentUser
-                ?? throw new UnauthorizedAccessException("A signed-in billing administrator is required.");
-            if (actor.Role != UserRole.Admin)
-                throw new UnauthorizedAccessException("Only an administrator may manage billing.");
-            return actor;
+            if (!UserPermissionRules.IsSupported(suppliedActor.Permissions) ||
+                !UserPermissionRules.HasBillingPermissions(suppliedActor.Permissions))
+                throw new UnauthorizedAccessException("Billing permission is required.");
+
+            return await context.Users.SingleOrDefaultAsync(user =>
+                       user.Id == suppliedActor.UserId &&
+                       user.AgencyId == suppliedActor.AgencyId &&
+                       user.Permissions == suppliedActor.Permissions)
+                   ?? throw new UnauthorizedAccessException(
+                       "The billing actor no longer matches the current user record.");
         }
     }
 }

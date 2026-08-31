@@ -28,7 +28,8 @@ public sealed class AdminService(
         var userCount = await context.Users.AsNoTracking()
             .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role != UserRole.PlatformOperator, cancellationToken);
         var caseManagerCount = await context.Users.AsNoTracking()
-            .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role == UserRole.CaseManager, cancellationToken);
+            .CountAsync(user => user.AgencyId == actor.AgencyId &&
+                (user.Permissions & UserPermissions.CaseManagement) != 0, cancellationToken);
         var personCount = await context.People.AsNoTracking()
             .CountAsync(person => person.AgencyId == actor.AgencyId &&
                 context.Users.Any(user => user.Id == person.UserId && user.AgencyId == actor.AgencyId),
@@ -262,7 +263,7 @@ public sealed class AdminService(
 
         var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(candidate =>
             candidate.Id == actor.Id && candidate.AgencyId == actor.AgencyId &&
-            candidate.Role == UserRole.Admin,
+            (candidate.Permissions & UserPermissions.Administration) != 0,
             cancellationToken);
         if (!actorIsCurrentAdmin)
             throw new UnauthorizedAccessException("Only a current Admin can delete test consumer data.");
@@ -488,7 +489,7 @@ public sealed class AdminService(
     {
         var actor = sessionService.CurrentUser
             ?? throw new InvalidOperationException("A signed-in user is required.");
-        if (actor.Role != UserRole.Admin)
+        if (!actor.HasAdminPermissions)
             throw new UnauthorizedAccessException("Only an Admin can open this dashboard.");
         return actor;
     }

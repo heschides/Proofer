@@ -92,7 +92,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             var window = days ?? 30;
@@ -125,7 +125,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
             if (request.Status is not ("Open" or "Investigating" or "Resolved"))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Status must be Open, Investigating, or Resolved."] });
@@ -198,7 +198,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             var start = from?.ToUniversalTime() ?? DateTime.UtcNow.AddDays(-30);
@@ -246,7 +246,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             var now = DateTime.UtcNow;
@@ -260,7 +260,8 @@ internal static class ApiEndpoints
             var userCount = await db.Users.AsNoTracking()
                 .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role != "PlatformOperator", cancellationToken);
             var caseManagerCount = await db.Users.AsNoTracking()
-                .CountAsync(user => user.AgencyId == actor.AgencyId && user.Role == "CaseManager", cancellationToken);
+                .CountAsync(user => user.AgencyId == actor.AgencyId &&
+                    (user.Permissions & UserPermissions.CaseManagement) != 0, cancellationToken);
             var personCount = await db.People.AsNoTracking()
                 .CountAsync(person => person.AgencyId == actor.AgencyId &&
                     db.Users.Any(user => user.Id == person.UserId && user.AgencyId == actor.AgencyId),
@@ -307,7 +308,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             PreventSensitiveResponseCaching(httpContext);
@@ -353,7 +354,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             // The chain is passed empty on purpose. Every migration belongs to
@@ -373,7 +374,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             var people = await (
@@ -402,7 +403,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
             if (personId <= 0 || request.ExpectedRevision <= 0)
             {
@@ -565,7 +566,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             // DatabaseIdentityHostedService validates these configured expectations
@@ -612,7 +613,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             var windowDays = days ?? 30;
@@ -655,7 +656,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
             PreventSensitiveResponseCaching(httpContext);
@@ -759,7 +760,8 @@ internal static class ApiEndpoints
             }
 
             attemptGuard.Reset(username);
-            var actor = new Actor(user.Id, user.AgencyId, user.Role, user.DisplayName);
+            var actor = new Actor(
+                user.Id, user.AgencyId, user.Role, user.DisplayName, user.Permissions);
             auditTrail.Record(actor, AuditActions.AuthenticationSucceeded, "User", user.Id);
             await db.SaveChangesAsync(cancellationToken);
             var issued = tokenIssuer.Issue(user);
@@ -836,9 +838,9 @@ internal static class ApiEndpoints
             PasswordVerifier passwordVerifier, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
+            if (!actor.HasSupervisorPermissions && !actor.HasAdminPermissions) return Results.Forbid();
             var profile = new SaveUserRequest(
-                request.Username, request.DisplayName, request.Role, request.SupervisorId,
+                request.Username, request.DisplayName, request.Permissions, request.SupervisorId,
                 request.AgencyId, request.Email, request.Phone);
             var errors = await ValidateUserRequestAsync(db, actor, profile, null, cancellationToken);
             if (!ValidPassword(request.InitialPassword))
@@ -848,7 +850,9 @@ internal static class ApiEndpoints
             var user = new ServerUser
             {
                 Username = request.Username.Trim(), DisplayName = request.DisplayName.Trim(),
-                Role = request.Role, SupervisorId = request.SupervisorId, AgencyId = actor.AgencyId,
+                Role = UserPermissionRules.LegacyLabel(request.Permissions),
+                Permissions = request.Permissions,
+                SupervisorId = request.SupervisorId, AgencyId = actor.AgencyId,
                 Email = Normalize(request.Email), Phone = Normalize(request.Phone),
                 PasswordHash = credential.Hash, Salt = credential.Salt
             };
@@ -863,16 +867,19 @@ internal static class ApiEndpoints
             AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
+            if (!actor.HasSupervisorPermissions && !actor.HasAdminPermissions) return Results.Forbid();
             var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.AgencyId == actor.AgencyId, cancellationToken);
             if (user is null) return Results.NotFound();
             if (user.Role == "PlatformOperator") return Results.NotFound();
-            if (actor.Role == "Supervisor" && (user.Role != "CaseManager" || user.SupervisorId != actor.UserId)) return Results.Forbid();
+            if (!actor.HasAdminPermissions &&
+                (!UserPermissionRules.HasCaseManagerPermissions(user.Permissions) ||
+                 user.SupervisorId != actor.UserId)) return Results.Forbid();
             var errors = await ValidateUserRequestAsync(db, actor, request, userId, cancellationToken);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             user.Username = request.Username.Trim();
             user.DisplayName = request.DisplayName.Trim();
-            user.Role = request.Role;
+            user.Permissions = request.Permissions;
+            user.Role = UserPermissionRules.LegacyLabel(request.Permissions);
             user.SupervisorId = request.SupervisorId;
             user.Email = Normalize(request.Email);
             user.Phone = Normalize(request.Phone);
@@ -886,13 +893,15 @@ internal static class ApiEndpoints
             PasswordVerifier passwordVerifier, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role is not ("Supervisor" or "Director" or "Admin")) return Results.Forbid();
+            if (!actor.HasSupervisorPermissions && !actor.HasAdminPermissions) return Results.Forbid();
             if (!ValidPassword(request.NewPassword)) return Results.ValidationProblem(
                 new Dictionary<string, string[]> { ["password"] = ["The new password must be between 8 and 128 characters."] });
             var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.AgencyId == actor.AgencyId, cancellationToken);
             if (user is null) return Results.NotFound();
             if (user.Role == "PlatformOperator") return Results.NotFound();
-            if (actor.Role == "Supervisor" && (user.Role != "CaseManager" || user.SupervisorId != actor.UserId)) return Results.Forbid();
+            if (!actor.HasAdminPermissions &&
+                (!UserPermissionRules.HasCaseManagerPermissions(user.Permissions) ||
+                 user.SupervisorId != actor.UserId)) return Results.Forbid();
             var credential = passwordVerifier.Hash(request.NewPassword);
             user.PasswordHash = credential.Hash;
             user.Salt = credential.Salt;
@@ -930,13 +939,13 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role is not ("Supervisor" or "Director" or "Admin"))
+            if (!actor.HasSupervisorPermissions)
                 return Results.Forbid();
 
             var supervisees = await db.Users.AsNoTracking()
                 .Where(x => x.SupervisorId == actor.UserId &&
                             x.AgencyId == actor.AgencyId &&
-                            x.Role == "CaseManager")
+                            (x.Permissions & UserPermissions.CaseManagement) != 0)
                 .OrderBy(x => x.DisplayName)
                 .ToListAsync(cancellationToken);
             return Results.Ok(supervisees.Select(ContractMapper.ToProfile).ToList());
@@ -951,13 +960,13 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!TenantAccess.IsSupervisorRole(actor.Role))
+            if (!actor.HasSupervisorPermissions)
                 return Results.Forbid();
 
-            var canReviewAgency = actor.Role == "Director" || actor.Role == "Admin";
+            var canReviewAgency = actor.HasAdminPermissions;
             var caseManagerIds = await db.Users.AsNoTracking()
                 .Where(user => user.AgencyId == actor.AgencyId &&
-                               user.Role == "CaseManager" &&
+                               (user.Permissions & UserPermissions.CaseManagement) != 0 &&
                                (canReviewAgency || user.SupervisorId == actor.UserId))
                 .Select(user => user.Id)
                 .ToListAsync(cancellationToken);
@@ -1014,7 +1023,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return actor.HasSupervisorPermissions ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
             if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Approved))
@@ -1070,7 +1079,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return actor.HasSupervisorPermissions ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
             if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Approved))
@@ -1117,7 +1126,7 @@ internal static class ApiEndpoints
             var actor = Actor.From(principal);
             var row = await LoadReviewableNoteAsync(db, actor, noteId, cancellationToken);
             if (row is null)
-                return TenantAccess.IsSupervisorRole(actor.Role) ? Results.NotFound() : Results.Forbid();
+                return actor.HasSupervisorPermissions ? Results.NotFound() : Results.Forbid();
             if (request.ExpectedRevision != row.Note.Revision)
                 return StaleNoteConflict();
             if (!NoteWorkflow.CanSupervisorTransition(row.Note.Status, NoteWorkflow.Returned))
@@ -1292,7 +1301,9 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(validation);
 
             var actor = Actor.From(principal);
-            if (request.IsTestData && actor.Role != "Admin")
+            if (!actor.HasCaseManagerPermissions)
+                return Results.Forbid();
+            if (request.IsTestData && !actor.HasAdminPermissions)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
@@ -1406,7 +1417,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
             var person = await LoadAuditablePersonAsync(db, actor, personId, cancellationToken);
             if (person is null)
@@ -1434,7 +1445,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasAdminPermissions)
                 return Results.Forbid();
             var person = await LoadAuditablePersonAsync(db, actor, personId, cancellationToken);
             if (person is null)
@@ -2196,7 +2207,7 @@ internal static class ApiEndpoints
             // if the person on the phone with a new specialist can record them straight away.
             // Removing and merging stay Admin-only, below.
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Permissions)) return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
             var affiliationErrors = await ValidateProviderAffiliationAsync(db, actor.AgencyId, request, 0, cancellationToken);
             if (affiliationErrors.Count > 0) return Results.ValidationProblem(affiliationErrors);
@@ -2208,7 +2219,7 @@ internal static class ApiEndpoints
         api.MapPut("/providers/{id:int}", async Task<IResult> (int id, SaveProviderRequest request, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Permissions)) return Results.Forbid();
             var errors = ValidateProvider(request); if (errors.Count > 0) return Results.ValidationProblem(errors);
             var affiliationErrors = await ValidateProviderAffiliationAsync(db, actor.AgencyId, request, id, cancellationToken);
             if (affiliationErrors.Count > 0) return Results.ValidationProblem(affiliationErrors);
@@ -2222,7 +2233,7 @@ internal static class ApiEndpoints
         api.MapDelete("/providers/{id:int}", async Task<IResult> (int id, ClaimsPrincipal principal, ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Permissions)) return Results.Forbid();
             var provider = await db.Providers.SingleOrDefaultAsync(x => x.Id == id && x.AgencyId == actor.AgencyId, cancellationToken); if (provider is null) return Results.NotFound();
             // Refused before the settings default is cleared, so a rejected delete leaves
             // nothing changed. Restrict would raise a foreign-key error anyway; this names
@@ -2278,7 +2289,7 @@ internal static class ApiEndpoints
             ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Permissions)) return Results.Forbid();
             var errors = ProviderDirectoryRules.ValidateContact(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
@@ -2300,7 +2311,7 @@ internal static class ApiEndpoints
             ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Permissions)) return Results.Forbid();
             var errors = ProviderDirectoryRules.ValidateContact(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
@@ -2324,7 +2335,7 @@ internal static class ApiEndpoints
             ApiDbContext db, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanCreateOrEdit(actor.Permissions)) return Results.Forbid();
             if (!await ProviderIsInAgencyAsync(db, actor.AgencyId, providerId, cancellationToken))
                 return Results.NotFound();
 
@@ -2348,7 +2359,7 @@ internal static class ApiEndpoints
             ApiDbContext db, AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role)) return Results.Forbid();
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Permissions)) return Results.Forbid();
 
             await using var transaction = await db.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable,
@@ -2991,7 +3002,7 @@ internal static class ApiEndpoints
             AuditTrail auditTrail, CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin") return Results.Forbid();
+            if (!actor.HasAdminPermissions) return Results.Forbid();
             if (request.AbandonedAfterDays < 0 || request.ProductivityThreshold < 0 ||
                 request.BaseIncentive < 0 || request.PerUnitIncentive < 0 ||
                 request.PassthroughRate is < 0 or > 1 || request.SalesTaxRate is < 0 or > 1)
@@ -3434,7 +3445,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             var agency = await db.Agencies.AsNoTracking()
                 .SingleAsync(candidate => candidate.Id == actor.AgencyId, cancellationToken);
@@ -3449,7 +3460,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var procedureCode = Normalize(request.ProcedureCode)?.ToUpperInvariant() ?? string.Empty;
@@ -3499,7 +3510,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             var targetUserId = userId ?? actor.UserId;
             if (month is < 1 or > 12 || year is < 2000 or > 2200 ||
@@ -3532,7 +3543,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var query = from period in db.BillingPeriods.AsNoTracking().Include(candidate => candidate.Lines)
@@ -3551,7 +3562,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var rows = await (from item in db.BillingSubmissionEvents.AsNoTracking()
@@ -3573,7 +3584,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var rows = await db.RemittanceClaimOutcomes.AsNoTracking()
@@ -3596,7 +3607,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var deposits = await db.RemittanceDeposits.AsNoTracking()
@@ -3632,7 +3643,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             if (string.IsNullOrWhiteSpace(request.Document))
             {
@@ -3699,7 +3710,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             // Same gate as the Demo seed command, and NotFound rather than Forbid so the
@@ -3790,7 +3801,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var rows = await (from note in db.Notes.AsNoTracking()
@@ -3827,7 +3838,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
 
             var row = await (from note in db.Notes
@@ -3916,7 +3927,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             var lines = await (from line in db.ClaimLines.AsNoTracking()
                                join period in db.BillingPeriods.AsNoTracking() on line.BillingPeriodId equals period.Id
@@ -3935,7 +3946,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             var period = await (from candidate in db.BillingPeriods.Include(value => value.Lines)
                                 join owner in db.Users on candidate.UserId equals owner.Id
@@ -3984,7 +3995,7 @@ internal static class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
-            if (actor.Role != "Admin")
+            if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             if (!Guid.TryParse(request.IdempotencyKey, out var parsedKey))
             {
@@ -4309,7 +4320,7 @@ internal static class ApiEndpoints
         int noteId,
         CancellationToken cancellationToken)
     {
-        if (!TenantAccess.IsSupervisorRole(actor.Role))
+        if (!actor.HasSupervisorPermissions)
             return null;
 
         // The client's own agency is checked alongside its owner's. A person row
@@ -4319,8 +4330,9 @@ internal static class ApiEndpoints
                       join person in db.People on note.PersonId equals person.Id
                       join owner in db.Users on person.UserId equals owner.Id
                       where note.Id == noteId && owner.AgencyId == actor.AgencyId &&
-                            person.AgencyId == actor.AgencyId && owner.Role == "CaseManager" &&
-                            (actor.Role == "Director" || actor.Role == "Admin" ||
+                            person.AgencyId == actor.AgencyId &&
+                            (owner.Permissions & UserPermissions.CaseManagement) != 0 &&
+                            (actor.HasAdminPermissions ||
                              owner.SupervisorId == actor.UserId)
                       select new ReviewableNote(note, person)).SingleOrDefaultAsync(cancellationToken);
     }
@@ -4809,20 +4821,22 @@ internal static class ApiEndpoints
         var displayName = request.DisplayName?.Trim() ?? string.Empty;
         if (username.Length is < 1 or > 50) errors["username"] = ["Username is required and must not exceed 50 characters."];
         if (displayName.Length is < 1 or > 150) errors["displayName"] = ["Display name is required and must not exceed 150 characters."];
-        var roles = new[] { "CaseManager", "Supervisor", "Director", "Admin" };
-        if (!roles.Contains(request.Role)) errors["role"] = ["The user role is invalid."];
+        if (request.Permissions == UserPermissions.None ||
+            !UserPermissionRules.IsSupported(request.Permissions))
+            errors["permissions"] = ["Choose at least one supported agency permission."];
         if (request.AgencyId != actor.AgencyId) errors["agencyId"] = ["Users must belong to your agency."];
         if (request.Email?.Length > 254) errors["email"] = ["Email must not exceed 254 characters."];
         if (request.Phone?.Length > 30) errors["phone"] = ["Phone must not exceed 30 characters."];
-        if (actor.Role == "Supervisor" && (request.Role != "CaseManager" || request.SupervisorId != actor.UserId))
-            errors["role"] = ["Supervisors may manage only their assigned case managers."];
-        if (actor.Role == "Director" && request.Role == "Admin") errors["role"] = ["Only an administrator may create or assign an administrator."];
+        if (!actor.HasAdminPermissions &&
+            (request.Permissions != UserPermissions.CaseManagement ||
+             request.SupervisorId != actor.UserId))
+            errors["permissions"] = ["Supervisors may manage only their assigned case managers."];
         if (!string.IsNullOrWhiteSpace(username) && await db.Users.AsNoTracking().AnyAsync(
                 x => x.Username == username && x.Id != currentUserId, cancellationToken))
             errors["username"] = ["A user with that username already exists."];
         if (request.SupervisorId.HasValue && !await db.Users.AsNoTracking().AnyAsync(
                 x => x.Id == request.SupervisorId && x.AgencyId == actor.AgencyId &&
-                     (x.Role == "Supervisor" || x.Role == "Admin"), cancellationToken))
+                     (x.Permissions & UserPermissions.Supervision) != 0, cancellationToken))
             errors["supervisorId"] = ["The selected supervisor is invalid."];
         return errors;
     }

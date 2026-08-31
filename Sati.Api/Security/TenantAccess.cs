@@ -1,13 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Sati.Api.Data;
+using Sati.Contracts.V1;
+using System.Security.Claims;
 
 namespace Sati.Api.Security;
 
 internal static class TenantAccess
 {
-    public static bool IsSupervisorRole(string role) =>
-        role is "Supervisor" or "Director" or "Admin";
-
     public static Task<bool> IsCurrentActorAsync(
         ApiDbContext db,
         Actor actor,
@@ -15,7 +14,8 @@ internal static class TenantAccess
         db.Users.AsNoTracking().AnyAsync(
             user => user.Id == actor.UserId &&
                     user.AgencyId == actor.AgencyId &&
-                    user.Role == actor.Role,
+                    user.Role == actor.Role &&
+                    user.Permissions == actor.Permissions,
             cancellationToken);
 
     public static async Task<bool> CanAccessUserAsync(
@@ -28,16 +28,15 @@ internal static class TenantAccess
             return false;
 
         if (targetUserId == actor.UserId)
-            return true;
-        if (!IsSupervisorRole(actor.Role))
+            return actor.HasCaseManagerPermissions;
+        if (!actor.HasSupervisorPermissions)
             return false;
 
         return await db.Users.AsNoTracking().AnyAsync(
             user => user.Id == targetUserId &&
                     user.AgencyId == actor.AgencyId &&
-                    user.Role == "CaseManager" &&
-                    (actor.Role == "Director" ||
-                     actor.Role == "Admin" ||
+                    (user.Permissions & Sati.Contracts.V1.UserPermissions.CaseManagement) != 0 &&
+                    (actor.HasAdminPermissions ||
                      user.SupervisorId == actor.UserId),
             cancellationToken);
     }
@@ -50,9 +49,11 @@ internal static class TenantAccess
         (from person in db.People.AsNoTracking()
          join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
          where person.Id == personId &&
+               actor.HasCaseManagerPermissions &&
                owner.Id == actor.UserId &&
                owner.AgencyId == actor.AgencyId &&
                owner.Role == actor.Role &&
+               owner.Permissions == actor.Permissions &&
                person.AgencyId == actor.AgencyId
          select person.Id).AnyAsync(cancellationToken);
 
@@ -72,9 +73,22 @@ internal sealed class ValidatedActorFilter : IEndpointFilter
         EndpointFilterDelegate next)
     {
         var db = context.HttpContext.RequestServices.GetRequiredService<ApiDbContext>();
-        var actor = Actor.From(context.HttpContext.User);
-        if (!await TenantAccess.IsCurrentActorAsync(db, actor, context.HttpContext.RequestAborted))
+        var claimedActor = Actor.FromUnvalidatedClaims(context.HttpContext.User);
+        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(candidate =>
+            candidate.Id == claimedActor.UserId &&
+            candidate.AgencyId == claimedActor.AgencyId &&
+            candidate.Role == claimedActor.Role,
+            context.HttpContext.RequestAborted);
+        if (user is null || !UserPermissionRules.IsSupported(user.Permissions))
             return Results.Unauthorized();
+
+        var identity = context.HttpContext.User.Identity as ClaimsIdentity;
+        if (identity is null)
+            return Results.Unauthorized();
+        identity.AddClaim(new Claim(
+            Actor.ValidatedPermissionsClaim,
+            ((int)user.Permissions).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        var actor = Actor.From(context.HttpContext.User);
 
         // The cross-tenant support identity is deliberately not an agency user. Keep
         // it on the narrow platform surface even though its token carries an agency

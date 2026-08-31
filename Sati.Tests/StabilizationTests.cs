@@ -1513,8 +1513,11 @@ public sealed class StabilizationTests
                 nameof(RemittanceClaimStatus.Unmatched), 50m, null, 0m, 0m, 0m,
                 "DEMO-UNMATCH", "Synthetic unmatched claim.", null, true)
         };
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-user", "Billing User", "hash", "salt", UserRole.Admin, null, 1));
         var viewModel = new BillingRemittancesViewModel(
-            new StubBillingService(outcomes: outcomes));
+            new StubBillingService(outcomes: outcomes), session);
 
         await viewModel.LoadAsync();
 
@@ -1648,22 +1651,22 @@ public sealed class StabilizationTests
         private readonly IReadOnlyList<BillingPeriod> _periods = periods?.ToList() ?? [];
         private readonly IReadOnlyList<RemittanceClaimOutcomeDto> _outcomes = outcomes ?? [];
 
-        public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year) =>
+        public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
             throw new NotSupportedException();
-        public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId) =>
+        public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(AgencyActor actor, int userId) =>
             throw new NotSupportedException();
-        public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync() =>
+        public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor actor) =>
             Task.FromResult<IEnumerable<BillingPeriod>>(_periods);
-        public Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false,
+        public Task<ClaimLine> CreateClaimLineAsync(AgencyActor actor, int noteId, bool isComplianceException = false,
             string? complianceExceptionReason = null) => throw new NotSupportedException();
-        public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) =>
+        public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId) =>
             throw new NotSupportedException();
-        public Task SubmitBillingPeriodAsync(int billingPeriodId) => throw new NotSupportedException();
-        public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() => throw new NotSupportedException();
+        public Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) => throw new NotSupportedException();
+        public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor) => throw new NotSupportedException();
         public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
-        public Task<BillingConfiguration> GetBillingConfigurationAsync() => throw new NotSupportedException();
-        public Task SaveBillingConfigurationAsync(BillingConfiguration configuration) => throw new NotSupportedException();
-        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+        public Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor) => throw new NotSupportedException();
+        public Task SaveBillingConfigurationAsync(AgencyActor actor, BillingConfiguration configuration) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<BillingSubmissionHistoryDto>>(_periods
                 .Where(period => period.Status != BillingStatus.Draft)
                 .Select(period => new BillingSubmissionHistoryDto(
@@ -1671,9 +1674,9 @@ public sealed class StabilizationTests
                     period.Lines.Count, period.SubmittedAt ?? DateTime.UtcNow,
                     period.Status.ToString(), null, null, null, null, true))
                 .ToList());
-        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor actor) =>
             Task.FromResult(_outcomes);
-        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<RemittanceDepositDto>>([]);
     }
 }

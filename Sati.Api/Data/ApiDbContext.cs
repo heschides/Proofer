@@ -42,6 +42,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Username).HasMaxLength(50);
             entity.Property(x => x.Role).HasMaxLength(50);
+            entity.Property(x => x.Permissions).HasConversion<int>();
         });
 
         modelBuilder.Entity<ServerPerson>(entity =>
@@ -431,6 +432,7 @@ internal sealed class ServerUser
     public string PasswordHash { get; set; } = string.Empty;
     public string Salt { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public UserPermissions Permissions { get; set; }
     public int? SupervisorId { get; set; }
     public int AgencyId { get; set; }
     public string? Email { get; set; }

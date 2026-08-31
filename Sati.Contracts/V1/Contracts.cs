@@ -16,17 +16,18 @@ public sealed record UserProfileDto(
     string Username,
     string DisplayName,
     string Role,
+    UserPermissions Permissions,
     int? SupervisorId,
     int AgencyId,
     string? Email,
     string? Phone);
 
 public sealed record CreateUserRequest(
-    string Username, string DisplayName, string Role, int? SupervisorId,
+    string Username, string DisplayName, UserPermissions Permissions, int? SupervisorId,
     int AgencyId, string? Email, string? Phone, string InitialPassword);
 
 public sealed record SaveUserRequest(
-    string Username, string DisplayName, string Role, int? SupervisorId,
+    string Username, string DisplayName, UserPermissions Permissions, int? SupervisorId,
     int AgencyId, string? Email, string? Phone);
 
 public sealed record ResetPasswordRequest(string NewPassword);

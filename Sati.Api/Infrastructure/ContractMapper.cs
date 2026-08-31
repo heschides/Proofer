@@ -27,6 +27,7 @@ internal static class ContractMapper
         user.Username,
         user.DisplayName,
         user.Role,
+        user.Permissions,
         user.SupervisorId,
         user.AgencyId,
         user.Email,

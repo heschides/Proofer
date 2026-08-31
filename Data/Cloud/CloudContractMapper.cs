@@ -19,6 +19,7 @@ internal static class CloudContractMapper
             Parse<UserRole>(dto.Role),
             dto.SupervisorId,
             dto.AgencyId);
+        user.Permissions = dto.Permissions;
         user.Email = dto.Email;
         user.Phone = dto.Phone;
         return user;

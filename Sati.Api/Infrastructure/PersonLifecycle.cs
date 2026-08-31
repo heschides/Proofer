@@ -114,7 +114,8 @@ internal sealed class PersonLifecycle(ApiDbContext db, IHttpContextAccessor http
         }
 
         var snapshot = Capture(person);
-        var systemActor = new Actor(0, person.AgencyId ?? 0, "System", "Sati tracking baseline");
+        var systemActor = new Actor(
+            0, person.AgencyId ?? 0, "System", "Sati tracking baseline", UserPermissions.None);
         AddVersion(systemActor, person, "TrackingBaseline", snapshot,
             Fields.Select(field => ToChange(field, null, snapshot)).ToList());
         return true;

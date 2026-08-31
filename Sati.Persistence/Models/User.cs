@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text;
+using Sati.Contracts.V1;
 
 namespace Sati.Models
 {
@@ -12,7 +14,10 @@ namespace Sati.Models
         public string DisplayName { get; private set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         public string Salt { get; set; } = string.Empty;
+        // Role remains only as a compatibility/display label and for the orthogonal
+        // PlatformOperator identity. Authorization must use Permissions.
         public UserRole Role { get; set; }
+        public UserPermissions Permissions { get; set; }
         public int? SupervisorId { get; set; }
         public User? Supervisor { get; set; }
         public ICollection<User> Supervisees { get; set; } = [];
@@ -37,6 +42,7 @@ namespace Sati.Models
             PasswordHash = passwordHash;
             Salt = salt;
             Role = role;
+            Permissions = UserPermissionRules.FromLegacyRole(role.ToString());
             SupervisorId = supervisorId;
             AgencyId = agencyId;
         }
@@ -51,6 +57,49 @@ namespace Sati.Models
         {
             PasswordHash = hash;
             Salt = salt;
+        }
+
+        [NotMapped]
+        public bool HasCaseManagerPermissions
+        {
+            get => UserPermissionRules.HasCaseManagerPermissions(Permissions);
+            set => SetPermission(UserPermissions.CaseManagement, value);
+        }
+
+        [NotMapped]
+        public bool HasSupervisorPermissions
+        {
+            get => UserPermissionRules.HasSupervisorPermissions(Permissions);
+            set => SetPermission(UserPermissions.Supervision, value);
+        }
+
+        [NotMapped]
+        public bool HasAdminPermissions
+        {
+            get => UserPermissionRules.HasAdminPermissions(Permissions);
+            set => SetPermission(UserPermissions.Administration, value);
+        }
+
+        [NotMapped]
+        public bool HasBillingPermissions
+        {
+            get => UserPermissionRules.HasBillingPermissions(Permissions);
+            set => SetPermission(UserPermissions.Billing, value);
+        }
+
+        [NotMapped]
+        public string PermissionSummary => UserPermissionRules.Describe(Permissions);
+
+        public AgencyActor ToAgencyActor() => new(Id, AgencyId, Permissions);
+
+        private void SetPermission(UserPermissions permission, bool enabled)
+        {
+            Permissions = enabled ? Permissions | permission : Permissions & ~permission;
+            if (Role != UserRole.PlatformOperator)
+            {
+                var label = UserPermissionRules.LegacyLabel(Permissions);
+                Role = Enum.TryParse<UserRole>(label, out var role) ? role : UserRole.CaseManager;
+            }
         }
     }
 }

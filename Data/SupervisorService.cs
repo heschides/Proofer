@@ -137,10 +137,10 @@ public sealed class SupervisorService(
         _ = allSupervisees;
         var actor = CurrentReviewer(supervisorId);
         await using var context = contextFactory.CreateDbContext();
-        var canReviewAgency = actor.Role is UserRole.Director or UserRole.Admin;
+        var canReviewAgency = actor.HasAdminPermissions;
         var caseManagerIds = await context.Users.AsNoTracking()
             .Where(user => user.AgencyId == actor.AgencyId &&
-                user.Role == UserRole.CaseManager &&
+                (user.Permissions & UserPermissions.CaseManagement) != 0 &&
                 (canReviewAgency || user.SupervisorId == actor.Id))
             .Select(user => user.Id)
             .ToListAsync();
@@ -160,7 +160,7 @@ public sealed class SupervisorService(
         User actor,
         int noteId)
     {
-        var canReviewAgency = actor.Role is UserRole.Director or UserRole.Admin;
+        var canReviewAgency = actor.HasAdminPermissions;
         return context.Notes
             .Include(note => note.Person)
                 .ThenInclude(person => person.Forms)
@@ -170,7 +170,7 @@ public sealed class SupervisorService(
                 context.Users.Any(user =>
                     user.Id == note.Person.UserId &&
                     user.AgencyId == actor.AgencyId &&
-                    user.Role == UserRole.CaseManager &&
+                    (user.Permissions & UserPermissions.CaseManagement) != 0 &&
                     (canReviewAgency || user.SupervisorId == actor.Id)));
     }
 
@@ -178,8 +178,7 @@ public sealed class SupervisorService(
     {
         var actor = sessionService.CurrentUser
             ?? throw new UnauthorizedAccessException("A signed-in reviewer is required.");
-        if (actor.Id != requestedReviewerId ||
-            actor.Role is not (UserRole.Supervisor or UserRole.Director or UserRole.Admin))
+        if (actor.Id != requestedReviewerId || !actor.HasSupervisorPermissions)
         {
             throw new UnauthorizedAccessException("Only the signed-in reviewer may perform this action.");
         }

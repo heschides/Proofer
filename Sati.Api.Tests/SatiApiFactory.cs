@@ -206,6 +206,16 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
+    public async Task ChangeUserPermissionsAsync(int userId, UserPermissions permissions)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var user = await db.Users.SingleAsync(candidate => candidate.Id == userId);
+        user.Permissions = permissions;
+        await db.SaveChangesAsync();
+    }
+
     public async Task<IReadOnlyList<AuditEventSnapshot>> GetAuditEventsAsync(string action)
     {
         await EnsureSeededAsync();
@@ -313,6 +323,10 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 CreateUser(verifier, 12, "case-manager-one", "CaseManager", 1, 13),
                 CreateUser(verifier, 13, "supervisor-one", "Supervisor", 1),
                 CreateUser(verifier, 14, "stale-badge-user", "CaseManager", 1),
+                CreateUser(verifier, 15, "billing-only-one", "CaseManager", 1,
+                    permissions: UserPermissions.Billing),
+                CreateUser(verifier, 16, "admin-without-billing-one", "Admin", 1,
+                    permissions: UserPermissions.Administration),
                 CreateUser(verifier, 21, "admin-two", "Admin", 2),
                 CreateUser(verifier, 22, "case-manager-two", "CaseManager", 2, 23),
                 CreateUser(verifier, 23, "supervisor-two", "Supervisor", 2),
@@ -570,7 +584,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         string username,
         string role,
         int agencyId,
-        int? supervisorId = null)
+        int? supervisorId = null,
+        UserPermissions? permissions = null)
     {
         var credential = verifier.Hash(TestPassword);
         return new ServerUser
@@ -579,6 +594,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             Username = username,
             DisplayName = username,
             Role = role,
+            Permissions = permissions ?? UserPermissionRules.FromLegacyRole(role),
             AgencyId = agencyId,
             SupervisorId = supervisorId,
             PasswordHash = credential.Hash,

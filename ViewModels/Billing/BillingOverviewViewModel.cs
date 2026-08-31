@@ -1,11 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sati.Data;
 using Sati.Data.Billing;
 using Sati.Models.Billing;
 
 namespace Sati.ViewModels.Billing;
 
-public partial class BillingOverviewViewModel(IBillingService billingService) : ObservableObject
+public partial class BillingOverviewViewModel(
+    IBillingService billingService,
+    ISessionService sessionService) : ObservableObject
 {
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     [ObservableProperty] private string procedureCode = string.Empty;
@@ -29,7 +32,7 @@ public partial class BillingOverviewViewModel(IBillingService billingService) : 
         try
         {
             IsBusy = true;
-            var configuration = await billingService.GetBillingConfigurationAsync();
+            var configuration = await billingService.GetBillingConfigurationAsync(CurrentActor());
             ProcedureCode = configuration.ProcedureCode;
             Modifier = configuration.Modifier;
             UnitRate = configuration.UnitRate;
@@ -58,7 +61,7 @@ public partial class BillingOverviewViewModel(IBillingService billingService) : 
         try
         {
             IsBusy = true;
-            await billingService.SaveBillingConfigurationAsync(new BillingConfiguration(
+            await billingService.SaveBillingConfigurationAsync(CurrentActor(), new BillingConfiguration(
                 ProcedureCode, Modifier, UnitRate, EdiSubmitterId,
                 PayerName, PayerId, ContactName, ContactPhone));
             await LoadAsync();
@@ -73,4 +76,8 @@ public partial class BillingOverviewViewModel(IBillingService billingService) : 
             IsBusy = false;
         }
     }
+
+    private Sati.Contracts.V1.AgencyActor CurrentActor() =>
+        sessionService.CurrentUser?.ToAgencyActor()
+        ?? throw new UnauthorizedAccessException("A signed-in user is required.");
 }

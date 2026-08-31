@@ -104,7 +104,9 @@ public sealed class AdministratorBootstrapTests : IDisposable
             Secure(StrongPassword));
 
         Assert.False(await service.AnyAdministratorExistsAsync());
-        Assert.False(AdministratorBootstrap.IsAdministrator(UserRole.PlatformOperator));
+        Assert.False(AdministratorBootstrap.IsAdministrator(User.Create(
+            0, "operator", "Platform Operator", string.Empty, string.Empty,
+            UserRole.PlatformOperator, null, 1)));
     }
 
     // ---- Creating one, and the window closing behind it ----
@@ -117,6 +119,7 @@ public sealed class AdministratorBootstrapTests : IDisposable
         var created = await service.CreateFirstAdministratorAsync(NewAdmin(), Secure(StrongPassword));
 
         Assert.Equal(UserRole.Admin, created.Role);
+        Assert.Equal(Sati.Contracts.V1.UserPermissions.AllAgencyPermissions, created.Permissions);
         Assert.True(await service.AnyAdministratorExistsAsync());
 
         // The password is the one that was chosen, and it was hashed, not stored.

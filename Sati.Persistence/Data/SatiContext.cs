@@ -230,6 +230,8 @@ namespace Sati.Data
                       .IsUnique();
                 entity.Property(u => u.Role)
                       .HasConversion<string>();
+                entity.Property(u => u.Permissions)
+                      .HasConversion<int>();
                 entity.HasOne(u => u.Supervisor)
                       .WithMany(u => u.Supervisees)
                       .HasForeignKey(u => u.SupervisorId)

@@ -211,7 +211,7 @@ public sealed class ConcurrencySafetyTests
     public async Task BillingQueueCollapsesOverlappingLoads()
     {
         var service = new BlockingBillingService();
-        var viewModel = new BillingQueueViewModel(service);
+        var viewModel = new BillingQueueViewModel(service, CreateSession(UserRole.Admin));
 
         var first = viewModel.LoadAsync();
         await service.ConfigurationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -447,7 +447,7 @@ public sealed class ConcurrencySafetyTests
         public TaskCompletionSource ConfigurationEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseConfiguration { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task<BillingConfiguration> GetBillingConfigurationAsync()
+        public async Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor)
         {
             ConfigurationCalls++;
             ConfigurationEntered.TrySetResult();
@@ -455,20 +455,20 @@ public sealed class ConcurrencySafetyTests
             return new BillingConfiguration("T1016", null, 1m, "SUBMITTER", "Payer", "PAYER", "Contact", "2075550100");
         }
 
-        public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() => Task.FromResult<IEnumerable<Note>>([]);
+        public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor) => Task.FromResult<IEnumerable<Note>>([]);
         public BillingValidationResult ValidateNoteForBilling(Note note) => new(true, note, []);
-        public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year) => throw new NotSupportedException();
-        public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId) => throw new NotSupportedException();
-        public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync() => throw new NotSupportedException();
-        public Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false, string? complianceExceptionReason = null) => throw new NotSupportedException();
-        public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) => throw new NotSupportedException();
-        public Task SubmitBillingPeriodAsync(int billingPeriodId) => throw new NotSupportedException();
-        public Task SaveBillingConfigurationAsync(BillingConfiguration configuration) => throw new NotSupportedException();
-        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+        public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) => throw new NotSupportedException();
+        public Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(AgencyActor actor, int userId) => throw new NotSupportedException();
+        public Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor actor) => throw new NotSupportedException();
+        public Task<ClaimLine> CreateClaimLineAsync(AgencyActor actor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null) => throw new NotSupportedException();
+        public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId) => throw new NotSupportedException();
+        public Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) => throw new NotSupportedException();
+        public Task SaveBillingConfigurationAsync(AgencyActor actor, BillingConfiguration configuration) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<BillingSubmissionHistoryDto>>([]);
-        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+        public Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<RemittanceClaimOutcomeDto>>([]);
-        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+        public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<RemittanceDepositDto>>([]);
     }
 

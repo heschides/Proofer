@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sati.Data;
 using Sati.Data.Billing;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -9,6 +10,7 @@ namespace Sati.ViewModels.Billing
     public partial class BillingQueueViewModel : ObservableObject
     {
         private readonly IBillingService _billingService;
+        private readonly ISessionService _sessionService;
         private readonly SemaphoreSlim _loadGate = new(1, 1);
 
         public ObservableCollection<BillingQueueItemViewModel> QueueItems { get; } = [];
@@ -21,9 +23,10 @@ namespace Sati.ViewModels.Billing
         public int InvalidCount => QueueItems.Count(r => !r.IsValid);
         public int SelectedValidCount => QueueItems.Count(r => r.IsSelected && r.IsValid);
 
-        public BillingQueueViewModel(IBillingService billingService)
+        public BillingQueueViewModel(IBillingService billingService, ISessionService sessionService)
         {
             _billingService = billingService;
+            _sessionService = sessionService;
         }
 
         public async Task LoadAsync()
@@ -36,8 +39,10 @@ namespace Sati.ViewModels.Billing
             try
             {
                 Debug.WriteLine($"[BillingQueue] LoadAsync started — {DateTime.Now:HH:mm:ss.fff}");
-                var configuration = await _billingService.GetBillingConfigurationAsync();
-                var notes = await _billingService.GetApprovedUnbilledNotesAsync();
+                var actor = _sessionService.CurrentUser?.ToAgencyActor()
+                    ?? throw new UnauthorizedAccessException("A signed-in user is required.");
+                var configuration = await _billingService.GetBillingConfigurationAsync(actor);
+                var notes = await _billingService.GetApprovedUnbilledNotesAsync(actor);
                 Debug.WriteLine($"[BillingQueue] GetApprovedUnbilledNotesAsync returned {notes.Count()} notes — {DateTime.Now:HH:mm:ss.fff}");
                 QueueItems.Clear();
                 var items = notes.Select(note => new BillingQueueItemViewModel(
@@ -72,6 +77,7 @@ namespace Sati.ViewModels.Billing
             try
             {
                 await _billingService.CreateClaimLineAsync(
+                    CurrentActor(),
                     item.Result.Note.Id,
                     item.Result.Note.ComplianceOverride,
                     item.Result.Note.OverrideReason);
@@ -99,6 +105,7 @@ namespace Sati.ViewModels.Billing
                 try
                 {
                     await _billingService.CreateClaimLineAsync(
+                        CurrentActor(),
                         item.Result.Note.Id,
                         item.Result.Note.ComplianceOverride,
                         item.Result.Note.OverrideReason);
@@ -134,5 +141,9 @@ namespace Sati.ViewModels.Billing
             OnPropertyChanged(nameof(InvalidCount));
             OnPropertyChanged(nameof(SelectedValidCount));
         }
+
+        private Sati.Contracts.V1.AgencyActor CurrentActor() =>
+            _sessionService.CurrentUser?.ToAgencyActor()
+            ?? throw new UnauthorizedAccessException("A signed-in user is required.");
     }
 }

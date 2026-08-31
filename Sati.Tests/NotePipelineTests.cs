@@ -671,20 +671,43 @@ public sealed class NotePipelineTests
     }
 
     [Fact]
-    public async Task BillingIsRefusedToEveryRoleButAnAdministrator()
+    public async Task BillingUsesTheCurrentPermissionInsteadOfTheRoleLabel()
     {
         await using var fixture = await PipelineFixture.CreateAsync();
-        var noteId = await fixture.SeedNoteAsync(
+        var billingNote = await fixture.SeedNoteAsync(
             fixture.PersonOneId, NoteStatus.Approved, fixture.BillableDate);
+        var deniedNote = await fixture.SeedNoteAsync(
+            fixture.PersonPeerId, NoteStatus.Approved, fixture.BillableDate.AddDays(-1));
 
-        foreach (var user in new[] { fixture.CaseManagerOne, fixture.SupervisorOne })
+        await using (var db = fixture.Factory.CreateDbContext())
         {
-            var billing = fixture.BillingAs(user);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                billing.CreateClaimLineAsync(noteId));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                billing.GetApprovedUnbilledNotesAsync());
+            (await db.Users.SingleAsync(user => user.Id == fixture.CaseManagerOne.Id)).Permissions =
+                UserPermissions.Billing;
+            (await db.Users.SingleAsync(user => user.Id == fixture.AdminOne.Id)).Permissions =
+                UserPermissions.Administration;
+            await db.SaveChangesAsync();
         }
+
+        var service = new BillingService(fixture.Factory);
+        var billingActor = new AgencyActor(
+            fixture.CaseManagerOne.Id, fixture.CaseManagerOne.AgencyId, UserPermissions.Billing);
+        var adminWithoutBilling = new AgencyActor(
+            fixture.AdminOne.Id, fixture.AdminOne.AgencyId, UserPermissions.Administration);
+
+        Assert.Equal(billingNote,
+            (await service.CreateClaimLineAsync(billingActor, billingNote)).NoteId);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.CreateClaimLineAsync(adminWithoutBilling, deniedNote));
+
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            (await db.Users.SingleAsync(user => user.Id == fixture.CaseManagerOne.Id)).Permissions =
+                UserPermissions.None;
+            await db.SaveChangesAsync();
+        }
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.GetApprovedUnbilledNotesAsync(billingActor));
     }
 
     [Fact]
@@ -825,13 +848,37 @@ public sealed class NotePipelineTests
         public ISupervisorService SupervisionAs(User user) =>
             new SupervisorService(Factory, SessionFor(user));
 
-        public IBillingService BillingAs(User user) => new BillingService(Factory, SessionFor(user));
+        public ActorBoundBillingService BillingAs(User user) =>
+            new(new BillingService(Factory), user.ToAgencyActor());
 
         private static ISessionService SessionFor(User user)
         {
             var session = new SessionService();
             session.SetUser(user);
             return session;
+        }
+
+        public sealed class ActorBoundBillingService(
+            IBillingService service,
+            AgencyActor actor)
+        {
+            public Task<ClaimLine> CreateClaimLineAsync(
+                int noteId,
+                bool isComplianceException = false,
+                string? complianceExceptionReason = null) =>
+                service.CreateClaimLineAsync(
+                    actor, noteId, isComplianceException, complianceExceptionReason);
+
+            public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(
+                int userId,
+                int month,
+                int year) => service.GetOrCreateBillingPeriodAsync(actor, userId, month, year);
+
+            public Task SubmitBillingPeriodAsync(int billingPeriodId) =>
+                service.SubmitBillingPeriodAsync(actor, billingPeriodId);
+
+            public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() =>
+                service.GetApprovedUnbilledNotesAsync(actor);
         }
 
         public async Task<int> SeedNoteAsync(int personId, NoteStatus status, DateTime eventDate)

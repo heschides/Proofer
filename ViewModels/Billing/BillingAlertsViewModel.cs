@@ -1,11 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sati.Contracts.V1;
+using Sati.Data;
 using Sati.Data.Billing;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels.Billing;
 
-public partial class BillingAlertsViewModel(IBillingService billingService) : ObservableObject
+public partial class BillingAlertsViewModel(
+    IBillingService billingService,
+    ISessionService sessionService) : ObservableObject
 {
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly List<BillingWorklistRow> _allItems = [];
@@ -30,7 +33,7 @@ public partial class BillingAlertsViewModel(IBillingService billingService) : Ob
         {
             _allItems.Clear();
             var today = DateTime.Today;
-            foreach (var outcome in await billingService.GetRemittanceOutcomesAsync())
+            foreach (var outcome in await billingService.GetRemittanceOutcomesAsync(CurrentActor()))
             {
                 if (outcome.Status == RemittanceClaimStatus.Paid.ToString()) continue;
                 var age = Math.Max(0, (today - outcome.ReceivedAtUtc.ToLocalTime().Date).Days);
@@ -84,6 +87,9 @@ public partial class BillingAlertsViewModel(IBillingService billingService) : Ob
     {
         >= 120 => "120+", >= 90 => "90–119", >= 60 => "60–89", >= 30 => "30–59", _ => "0–29"
     };
+
+    private AgencyActor CurrentActor() => sessionService.CurrentUser?.ToAgencyActor()
+        ?? throw new UnauthorizedAccessException("A signed-in user is required.");
 }
 
 public sealed record BillingWorklistRow(

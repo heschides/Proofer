@@ -1,11 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sati.Contracts.V1;
+using Sati.Data;
 using Sati.Data.Billing;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels.Billing;
 
-public partial class BillingRemittancesViewModel(IBillingService billingService) : ObservableObject
+public partial class BillingRemittancesViewModel(
+    IBillingService billingService,
+    ISessionService sessionService) : ObservableObject
 {
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     public ObservableCollection<RemittanceClaimOutcomeDto> Outcomes { get; } = [];
@@ -21,9 +24,10 @@ public partial class BillingRemittancesViewModel(IBillingService billingService)
         {
             Outcomes.Clear();
             Deposits.Clear();
-            foreach (var outcome in await billingService.GetRemittanceOutcomesAsync())
+            var actor = CurrentActor();
+            foreach (var outcome in await billingService.GetRemittanceOutcomesAsync(actor))
                 Outcomes.Add(outcome);
-            foreach (var deposit in await billingService.GetRemittanceDepositsAsync())
+            foreach (var deposit in await billingService.GetRemittanceDepositsAsync(actor))
                 Deposits.Add(deposit);
             HasLoaded = true;
             StatusMessage = Outcomes.Count == 0
@@ -39,4 +43,7 @@ public partial class BillingRemittancesViewModel(IBillingService billingService)
             _loadGate.Release();
         }
     }
+
+    private AgencyActor CurrentActor() => sessionService.CurrentUser?.ToAgencyActor()
+        ?? throw new UnauthorizedAccessException("A signed-in user is required.");
 }

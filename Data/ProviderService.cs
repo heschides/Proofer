@@ -136,12 +136,13 @@ namespace Sati.Data
             // consumers — the transitional local path enforces that rather than relying on the
             // API being the only caller.
             var actor = CurrentActor();
-            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role.ToString()))
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Permissions))
                 throw new UnauthorizedAccessException(ProviderDirectoryRules.DeleteRequiresAdminMessage);
 
             await using var context = _contextFactory.CreateDbContext();
             var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(user =>
-                user.Id == actor.Id && user.AgencyId == actor.AgencyId && user.Role == UserRole.Admin);
+                user.Id == actor.Id && user.AgencyId == actor.AgencyId &&
+                (user.Permissions & UserPermissions.Administration) != 0);
             if (!actorIsCurrentAdmin)
                 throw new UnauthorizedAccessException(ProviderDirectoryRules.DeleteRequiresAdminMessage);
             var tracked = await context.Providers.SingleOrDefaultAsync(
@@ -269,12 +270,13 @@ namespace Sati.Data
         public async Task<string> MergeAsync(int survivingProviderId, int mergedProviderId)
         {
             var actor = CurrentActor();
-            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Role.ToString()))
+            if (!ProviderDirectoryRules.CanDeleteOrMerge(actor.Permissions))
                 throw new UnauthorizedAccessException(ProviderDirectoryRules.MergeRequiresAdminMessage);
 
             await using var context = _contextFactory.CreateDbContext();
             var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(user =>
-                user.Id == actor.Id && user.AgencyId == actor.AgencyId && user.Role == UserRole.Admin);
+                user.Id == actor.Id && user.AgencyId == actor.AgencyId &&
+                (user.Permissions & UserPermissions.Administration) != 0);
             if (!actorIsCurrentAdmin)
                 throw new UnauthorizedAccessException(ProviderDirectoryRules.MergeRequiresAdminMessage);
 
@@ -396,14 +398,14 @@ namespace Sati.Data
 
         private void EnsureCanCreateOrEdit()
         {
-            if (!ProviderDirectoryRules.CanCreateOrEdit(CurrentRole()))
+            if (!ProviderDirectoryRules.CanCreateOrEdit(CurrentPermissions()))
                 throw new UnauthorizedAccessException(
                     "Your account cannot change the provider directory.");
         }
 
-        private string CurrentRole() => (_sessionService.CurrentUser?.Role
-            ?? throw new InvalidOperationException("A signed-in user is required to access providers."))
-            .ToString();
+        private UserPermissions CurrentPermissions() =>
+            _sessionService.CurrentUser?.Permissions
+            ?? throw new InvalidOperationException("A signed-in user is required to access providers.");
 
         private User CurrentActor() => _sessionService.CurrentUser
             ?? throw new InvalidOperationException("A signed-in user is required to access providers.");

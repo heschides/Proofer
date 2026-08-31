@@ -283,7 +283,7 @@ public sealed class ProviderDirectoryMergeTests
         {
             await using var db = Factory.CreateDbContext();
             var admin = await db.Users.SingleAsync(user => user.Id == _admin.Id);
-            admin.Role = UserRole.CaseManager;
+            admin.Permissions &= ~UserPermissions.Administration;
             await db.SaveChangesAsync();
         }
 

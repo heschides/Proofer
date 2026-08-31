@@ -51,7 +51,7 @@ public partial class AdminDashboardViewModel(
 
     public async Task InitializeAsync()
     {
-        if (sessionService.CurrentUser?.Role != UserRole.Admin)
+        if (sessionService.CurrentUser?.HasAdminPermissions != true)
         {
             StatusMessage = "Only an Admin can open this dashboard.";
             return;

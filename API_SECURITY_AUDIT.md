@@ -107,11 +107,13 @@ against the unfixed code before being kept.
 
 ## Reviewed and found sound
 
-- **Tenant scoping across all 87 protected routes.** Every route taking a caller-supplied `userId`
+- **Tenant scoping across all 112 protected routes.** Every route taking a caller-supplied `userId`
   (`/caseload`, `/notes/monthly`, `/notes/day`, `/at-requests`, `/reviews`, `/incentives`) gates on
-  `TenantAccess.CanAccessUserAsync` before use. Admin routes check `actor.Role == "Admin"` and
-  scope every query to `actor.AgencyId`. `ValidatedActorFilter` re-confirms the claimed identity,
-  role, and agency against the database on every request, so a token does not outlive a role change.
+  `TenantAccess.CanAccessUserAsync` before use. Administration routes check the current database-
+  resolved administration permission and
+  scope every query to `actor.AgencyId`. `ValidatedActorFilter` re-confirms the claimed identity and
+  agency and resolves current permissions from the database on every request, so a token does not
+  preserve a revoked permission.
 - **`PlatformOperator` containment.** Confined to the platform surface by an allow-list that fails
   closed on any unrecognized path.
 - **No credential material in contracts.** `UserProfileDto` carries no hash or salt; nothing maps
@@ -155,7 +157,7 @@ is listed so a later reviewer knows it was looked at rather than skipped.
 | Raw SQL | No injection surface. The only two `CommandText` uses are fixed strings for database-identity checks with no interpolation. |
 | Anonymous endpoints | Only `POST /auth/login` (rate-limited) and health checks. |
 | Mass assignment on user creation | Sound. Client-supplied `AgencyId` is discarded and replaced with the actor's. |
-| Role escalation on user creation | Sound. A Supervisor may create only `CaseManager`s assigned to themselves; a Director may not create an `Admin`; `PlatformOperator` is not an assignable role. |
+| Permission escalation on user creation | Sound. A user with supervision but not administration permission may create only a case-management-only user assigned to themself; `PlatformOperator` is not an assignable agency permission set. |
 | By-id lookups | Sound. Every one either carries an `AgencyId` predicate or is followed by a `TenantAccess` check. |
 | JWT validation | Sound. Issuer, audience, signing key, and lifetime all validated, HMAC-SHA256, 30-second clock skew. |
 | Hardcoded secrets | None found in source, config, or scripts. |

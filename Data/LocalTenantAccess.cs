@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 
 namespace Sati.Data;
@@ -17,21 +18,21 @@ namespace Sati.Data;
 /// </remarks>
 internal static class LocalTenantAccess
 {
-    public static bool IsReviewerRole(UserRole role) =>
-        role is UserRole.Supervisor or UserRole.Director or UserRole.Admin;
+    public static bool IsReviewer(UserPermissions permissions) =>
+        UserPermissionRules.HasSupervisorPermissions(permissions);
 
     public static async Task<bool> CanAccessUserAsync(SatiContext context, User actor, int targetUserId)
     {
         if (targetUserId == actor.Id)
-            return true;
-        if (!IsReviewerRole(actor.Role))
+            return actor.HasCaseManagerPermissions;
+        if (!IsReviewer(actor.Permissions))
             return false;
 
-        var canReviewAgency = actor.Role is UserRole.Director or UserRole.Admin;
+        var canReviewAgency = actor.HasAdminPermissions;
         return await context.Users.AsNoTracking().AnyAsync(user =>
             user.Id == targetUserId &&
             user.AgencyId == actor.AgencyId &&
-            user.Role == UserRole.CaseManager &&
+            (user.Permissions & UserPermissions.CaseManagement) != 0 &&
             (canReviewAgency || user.SupervisorId == actor.Id));
     }
 

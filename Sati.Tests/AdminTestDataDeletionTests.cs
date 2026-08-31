@@ -411,7 +411,7 @@ public sealed class AdminTestDataDeletionTests
         {
             await using var db = Factory.CreateDbContext();
             var storedAdmin = await db.Users.SingleAsync(candidate => candidate.Id == Admin.Id);
-            storedAdmin.Role = UserRole.CaseManager;
+            storedAdmin.Permissions &= ~UserPermissions.Administration;
             await db.SaveChangesAsync();
         }
 

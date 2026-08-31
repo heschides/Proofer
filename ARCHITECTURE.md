@@ -1,7 +1,26 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-15,
-against release 1.2.17.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-30.*
+
+## Agency authorization model
+
+Agency access is a persisted per-user `[Flags]` value owned by
+`Sati.Contracts.V1.UserPermissions`: case management, supervision, administration, and billing are
+independent capabilities. `UserPermissionRules` is the sole interpreter used by the desktop and
+API. The legacy `User.Role` value remains temporarily for display, signed-record compatibility,
+and the orthogonal `PlatformOperator` identity; it is not an agency authorization source.
+
+`ValidatedActorFilter` re-resolves the current permission set from the database on every API
+request after confirming the token's user, agency, and legacy identity label. Permission values are
+not read from caller input or trusted from a JWT, so revocation takes effect before token expiry.
+The API constructs its actor server-side. Transitional local billing receives an explicit minimal
+`AgencyActor` and verifies its identity, agency, and permission set against the database before use.
+Neither path accepts a persistence `User` object as a network or service authorization contract.
+
+The `AddUserPermissions` migration preserves existing access by backfilling the old labels, while
+new user management edits the permission set directly. Unknown bits and an empty set deny by
+default. Billing UI visibility follows billing permission, but every billing route and the local
+billing service enforce it independently.
 
 ## Incident and health boundary
 
@@ -39,7 +58,7 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
 ### Platform-neutral persistence boundary (2026-08-30)
 
 - `Sati.Persistence` targets plain `net10.0` and owns the entity model, `SatiContext`, its
-  design-time factory, the two pure helpers required by entities, and all 80 migrations. It has no
+  design-time factory, the pure helpers required by entities, and all 81 migrations. It has no
   WPF reference. `WorkdayTile` remains in the desktop because it is an `ObservableObject`, not an
   entity.
 - The WPF client references that assembly while retaining its transitional local EF services. Its
@@ -49,7 +68,7 @@ Prior review (2026-06-25) covered Models, services, helpers, all ViewModel layer
   cross-platform owner. The API still uses its separately scoped `ApiDbContext` at runtime; this
   move does not make the desktop context the cloud request context or erase the documented model-
   parity obligation.
-- `dotnet ef migrations list` now resolves all 80 migrations from `Sati.Persistence`. The
+- `dotnet ef migrations list` now resolves all 81 migrations from `Sati.Persistence`. The
   hand-authored `TenantScopeSettingsAndProviders` migration was given its missing context/id
   metadata; its DDL body was not changed.
 - **EF tooling now needs an explicit startup project.** The repository root *is* the desktop
@@ -833,7 +852,10 @@ old rows as a side effect.
 
 ### `BillingService`
 - Owns agency-scoped `BillingPeriod`/`ClaimLine` persistence and agency billing/EDI configuration.
-  Admin authorization and tenant scope are enforced in the service/API, not by tab visibility.
+  Billing permission and tenant scope are enforced in the service/API, not by tab visibility.
+  Every stateful method takes an explicit minimal `AgencyActor`; the local implementation reloads
+  the matching database user before work, while the cloud API ignores the client actor and uses the
+  server-derived actor from `ValidatedActorFilter`.
 - `ValidateNoteForBilling` collects approval, duration, current-compliance, historical billing-window,
   subscriber, provider, and EDI-configuration failures. Claim creation repeats validation against
   freshly loaded records before writing.
@@ -862,7 +884,7 @@ old rows as a side effect.
 - Owns ten personal, client-local snippets keyed by Sati environment and signed-in user inside the
   current Windows profile. Each value is limited to 200 characters. This is typing assistance, not
   an agency configuration or clinical record, so it does not use the Settings API or weaken its
-  Admin authorization boundary.
+  administration-permission boundary.
 - The keyboard hook handles Win+Shift+number only while the Sati shell is active, a non-empty mapping
   exists, and an explicitly marked editable note narrative or Scratchpad `TextBox` has focus. Every
   other key event is passed through to Windows unchanged. Snippet text is never diagnostic-log data.
@@ -1223,7 +1245,8 @@ identical autosaves are server-side no-ops.
 `BillingDashboardViewModel`: `HasLoaded` guards; fire-and-forget `LoadAsync` (unobservable).
 `BillingQueueViewModel`: sequential promotion (intentional — don't parallelize);
 `IsComplianceOverride` reads correctly (contrast supervisor queue's hardcoded false); profiling
-`Debug.WriteLine`s. `BillingSubmissionsViewModel`: role-gated scope; **`IsTestMode = true` by default
+`Debug.WriteLine`s. `BillingSubmissionsViewModel`: billing-permission-gated agency scope;
+**`IsTestMode = true` by default
 — must be explicitly false for real submission**; inclusive billing-month range generation produces
 one retry-safe file per locked period; `Process.Start("explorer.exe", ...)` is Windows-only. Its
 history grid reads append-only exchange events and derives a `Not submitted` row for every

@@ -45,7 +45,6 @@ namespace Sati.ViewModels.Supervisor
 
         [ObservableProperty] private User? selectedUser;
         [ObservableProperty] private User? selectedSupervisor;
-        [ObservableProperty] private UserRole selectedRole;
         [ObservableProperty] private string statusMessage = string.Empty;
         [ObservableProperty] private SecureString? resetPasswordValue;
         [ObservableProperty] private SecureString? resetPasswordConfirmation;
@@ -58,15 +57,13 @@ namespace Sati.ViewModels.Supervisor
 
         public ObservableCollection<User> Users { get; } = [];
         public ObservableCollection<User> Supervisors { get; } = [];
-        public Array Roles => Enum.GetValues<UserRole>()
-            .Where(role => role != UserRole.PlatformOperator)
-            .ToArray();
-
         // -------------------------------------------------------------------------
         // Computed properties
         // -------------------------------------------------------------------------
 
         public bool HasSelectedUser => SelectedUser is not null;
+        public bool CanAssignExpandedPermissions =>
+            _sessionService.CurrentUser?.HasAdminPermissions == true;
         public string SelectedSupervisorName => SelectedSupervisor?.DisplayName ??
             (SelectedUser?.SupervisorId is null ? "Not assigned" : "Supervisor unavailable");
 
@@ -86,7 +83,6 @@ namespace Sati.ViewModels.Supervisor
                 return;
             }
 
-            SelectedRole = value.Role;
             SelectedSupervisor = Supervisors.FirstOrDefault(s => s.Id == value.SupervisorId);
             OnPropertyChanged(nameof(SelectedSupervisorName));
         }
@@ -117,7 +113,16 @@ namespace Sati.ViewModels.Supervisor
 
             try
             {
-                SelectedUser.Role = SelectedRole;
+                if (!CanAssignExpandedPermissions)
+                {
+                    var actor = _sessionService.CurrentUser
+                        ?? throw new UnauthorizedAccessException("A signed-in supervisor is required.");
+                    if (SelectedUser.SupervisorId != actor.Id ||
+                        SelectedUser.Permissions != Sati.Contracts.V1.UserPermissions.CaseManagement)
+                        throw new UnauthorizedAccessException(
+                            "Supervisors may manage only their assigned case managers.");
+                    SelectedSupervisor = actor;
+                }
                 SelectedUser.SupervisorId = SelectedSupervisor?.Id;
                 await _userService.UpdateAsync(SelectedUser);
                 StatusMessage = "Changes saved.";
@@ -211,12 +216,15 @@ namespace Sati.ViewModels.Supervisor
             var all = await _userService.GetAllAsync();
 
             Users.Clear();
-            foreach (var user in all.OrderBy(u => u.DisplayName))
+            var actor = _sessionService.CurrentUser;
+            var visibleUsers = CanAssignExpandedPermissions
+                ? all
+                : all.Where(user => user.SupervisorId == actor?.Id && user.HasCaseManagerPermissions);
+            foreach (var user in visibleUsers.OrderBy(u => u.DisplayName))
                 Users.Add(user);
 
             Supervisors.Clear();
-            foreach (var user in all.Where(u =>
-                u.Role is UserRole.Supervisor or UserRole.Director or UserRole.Admin)
+            foreach (var user in all.Where(u => u.HasSupervisorPermissions)
                 .OrderBy(u => u.DisplayName))
                 Supervisors.Add(user);
 

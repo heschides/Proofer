@@ -38,7 +38,7 @@ public sealed class CloudUserService(CloudApiClient api) : IUserService
         try
         {
             var request = new CreateUserRequest(
-                user.Username, user.DisplayName, user.Role.ToString(), user.SupervisorId,
+                user.Username, user.DisplayName, user.Permissions, user.SupervisorId,
                 user.AgencyId, user.Email, user.Phone, plainText);
             return CloudContractMapper.ToUser(
                 await api.PostAsync<CreateUserRequest, UserProfileDto>("/api/v1/users", request));
@@ -98,7 +98,7 @@ public sealed class CloudUserService(CloudApiClient api) : IUserService
         .ToList();
 
     private static SaveUserRequest ToRequest(User user) => new(
-        user.Username, user.DisplayName, user.Role.ToString(), user.SupervisorId,
+        user.Username, user.DisplayName, user.Permissions, user.SupervisorId,
         user.AgencyId, user.Email, user.Phone);
 
     private static string ToPlainText(SecureString password) =>
@@ -471,34 +471,34 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
 {
     private readonly Dictionary<int, IReadOnlyList<string>> _candidateErrors = [];
 
-    public async Task<BillingPeriod> GetOrCreateBillingPeriodAsync(int userId, int month, int year) =>
+    public async Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
         CloudContractMapper.ToBillingPeriod(await api.PostAsync<object, BillingPeriodDto>(
             $"/api/v1/billing/periods/{year}/{month}?userId={userId}", new { }));
 
-    public async Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(int userId) =>
+    public async Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(AgencyActor actor, int userId) =>
         (await api.GetAsync<List<BillingPeriodDto>>($"/api/v1/billing/periods?userId={userId}"))
         .Select(CloudContractMapper.ToBillingPeriod)
         .ToList();
 
-    public async Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync() =>
+    public async Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor actor) =>
         (await api.GetAsync<List<BillingPeriodDto>>("/api/v1/billing/periods"))
         .Select(CloudContractMapper.ToBillingPeriod)
         .ToList();
 
-    public async Task<ClaimLine> CreateClaimLineAsync(int noteId, bool isComplianceException = false, string? complianceExceptionReason = null) =>
+    public async Task<ClaimLine> CreateClaimLineAsync(AgencyActor actor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null) =>
         CloudContractMapper.ToClaimLine(await api.PostAsync<CreateClaimLineRequest, ClaimLineDto>(
             "/api/v1/billing/claim-lines",
             new CreateClaimLineRequest(noteId, isComplianceException, complianceExceptionReason)));
 
-    public async Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(int userId) =>
+    public async Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId) =>
         (await api.GetAsync<List<ClaimLineDto>>($"/api/v1/billing/claim-lines/draft?userId={userId}"))
         .Select(CloudContractMapper.ToClaimLine)
         .ToList();
 
-    public async Task SubmitBillingPeriodAsync(int billingPeriodId) =>
+    public async Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) =>
         _ = await api.PostAsync<object, BillingPeriodDto>($"/api/v1/billing/periods/{billingPeriodId}/submit", new { });
 
-    public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync()
+    public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor)
     {
         var candidates = await api.GetAsync<List<BillingCandidateDto>>("/api/v1/billing/candidates");
         _candidateErrors.Clear();
@@ -513,11 +513,11 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
         return new BillingValidationResult(errors.Count == 0, note, errors);
     }
 
-    public async Task<BillingConfiguration> GetBillingConfigurationAsync() =>
+    public async Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor) =>
         CloudContractMapper.ToBillingConfiguration(
             await api.GetAsync<BillingConfigurationDto>("/api/v1/billing/configuration"));
 
-    public async Task SaveBillingConfigurationAsync(BillingConfiguration configuration) =>
+    public async Task SaveBillingConfigurationAsync(AgencyActor actor, BillingConfiguration configuration) =>
         _ = await api.PutAsync<SaveBillingConfigurationRequest, BillingConfigurationDto>(
             "/api/v1/billing/configuration",
             new SaveBillingConfigurationRequest(
@@ -530,13 +530,13 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
                 configuration.ContactName,
                 configuration.ContactPhone));
 
-    public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync() =>
+    public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor actor) =>
         await api.GetAsync<List<BillingSubmissionHistoryDto>>("/api/v1/billing/submissions");
 
-    public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync() =>
+    public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor actor) =>
         await api.GetAsync<List<RemittanceClaimOutcomeDto>>("/api/v1/billing/remittances");
 
-    public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync() =>
+    public async Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor actor) =>
         await api.GetAsync<List<RemittanceDepositDto>>("/api/v1/billing/remittance-deposits");
 }
 

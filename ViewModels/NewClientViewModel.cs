@@ -412,7 +412,7 @@ namespace Sati.ViewModels
         public bool ShowClientWorkspace => HasSelectedPerson || IsClientEditorOpen;
         public bool IsAddingClient => IsClientEditorOpen && !IsEditMode;
         public bool CanMarkNewConsumerAsTest =>
-            IsAddingClient && _sessionService.CurrentUser?.Role == UserRole.Admin;
+            IsAddingClient && _sessionService.CurrentUser?.HasAdminPermissions == true;
 
         // Comma-joined list of the selected client's active waiver services, for
         // display only. Empty string when none are set, which the detail panel

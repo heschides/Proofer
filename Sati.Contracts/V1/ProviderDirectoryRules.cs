@@ -22,15 +22,17 @@ public static class ProviderDirectoryRules
     /// useful if the person on the phone with a new specialist can record them straight away, and
     /// a wrong entry is fixable.
     /// </summary>
-    public static bool CanCreateOrEdit(string? role) =>
-        role is "CaseManager" or "Supervisor" or "Director" or "Admin";
+    public static bool CanCreateOrEdit(UserPermissions permissions) =>
+        UserPermissionRules.IsSupported(permissions) &&
+        UserPermissionRules.HasCaseManagerPermissions(permissions);
 
     /// <summary>
     /// Deleting and merging are Admin-only. Both destroy a row that other case managers'
     /// consumers, documents, and affiliations point at, and neither is undoable by the person who
     /// did it.
     /// </summary>
-    public static bool CanDeleteOrMerge(string? role) => role is "Admin";
+    public static bool CanDeleteOrMerge(UserPermissions permissions) =>
+        UserPermissionRules.HasAdminPermissions(permissions);
 
     public const string DeleteRequiresAdminMessage =
         "Only an agency Admin can remove a provider from the directory. Other case managers' " +

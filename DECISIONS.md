@@ -2292,3 +2292,35 @@ added.
 **Rejected:** leaving draft periods on the Queue after claim-line promotion. That would make the
 same note appear to be both awaiting promotion and already promoted, and it would give two screens
 authority over one lifecycle state.
+
+## 2026-08-30 — Agency authorization is per-user permissions, with billing independent
+
+Agency users carry a persisted `[Flags]` permission set owned by `UserPermissions` and interpreted
+only by `UserPermissionRules` in `Sati.Contracts.V1`. Case management, supervision,
+administration, and billing are independent capabilities. This permits a case manager to bill
+without gaining user management, destructive test-data cleanup, audit export, operations, or
+schema-report access. The old `Role` column remains temporarily as non-authoritative compatibility
+metadata and for the separate `PlatformOperator` identity; agency authorization never reads it.
+
+The API resolves permissions from the database in `ValidatedActorFilter` on every request rather
+than trusting a permission claim in the JWT. Thus a grant or revocation takes effect on the next
+request. Every billing endpoint denies without billing permission, regardless of an Admin legacy
+label. `PlatformOperator` has no agency permissions and retains only its narrow cross-tenant
+incident surface.
+
+Stateful billing service methods accept a small immutable `AgencyActor` containing user id, agency
+id, and permissions, not a persistence `User` or an ambient login service. The local implementation
+re-confirms all three fields against the database before doing work. The API constructs the actor
+from validated server state; it never trusts a caller-supplied user or agency as the actor. This
+makes authorization an explicit dependency without coupling domain code to WPF session state or
+exposing the user entity as a contract.
+
+The migration backfills legacy access: CaseManager gets case management; Supervisor gets case
+management and supervision; Director adds administration; Admin gets all four. Unknown bits and an
+empty set deny by default. New user management edits permissions directly, and desktop visibility
+follows the same predicates while remaining only a presentation aid.
+
+**Rejected:** four unrelated boolean columns, because combinations and future extension become
+scattered rules; permissions in the token, because revocation would wait for expiry; passing the
+full logged-in `User`, because it couples services to persistence and ambient UI state; and a
+general role/claim framework, which adds machinery the four known capabilities do not require.

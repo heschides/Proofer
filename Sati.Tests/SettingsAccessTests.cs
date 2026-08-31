@@ -4,6 +4,7 @@ using Sati.Data;
 using Sati.Data.Cloud;
 using Sati.Models;
 using Sati.Services;
+using Sati.Contracts.V1;
 using Xunit;
 
 namespace Sati.Tests;
@@ -11,13 +12,15 @@ namespace Sati.Tests;
 public sealed class SettingsAccessTests
 {
     [Theory]
-    [InlineData(UserRole.CaseManager, false)]
-    [InlineData(UserRole.Supervisor, false)]
-    [InlineData(UserRole.Director, false)]
-    [InlineData(UserRole.Admin, true)]
-    [InlineData(UserRole.PlatformOperator, false)]
-    public void OnlyAgencyAdminsCanManageOperationalSettings(UserRole role, bool expected) =>
-        Assert.Equal(expected, SettingsAccessPolicy.CanManageAgencySettings(role));
+    [InlineData(UserPermissions.None, false)]
+    [InlineData(UserPermissions.CaseManagement, false)]
+    [InlineData(UserPermissions.Supervision, false)]
+    [InlineData(UserPermissions.Administration, true)]
+    [InlineData(UserPermissions.Billing, false)]
+    public void OnlyAgencyAdministrationPermissionCanManageOperationalSettings(
+        UserPermissions permissions,
+        bool expected) =>
+        Assert.Equal(expected, SettingsAccessPolicy.CanManageAgencySettings(permissions));
 
     [Fact]
     public async Task CloudRejectionBecomesAnExpectedSettingsSaveFailure()

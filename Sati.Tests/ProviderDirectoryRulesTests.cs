@@ -6,23 +6,23 @@ namespace Sati.Tests;
 public sealed class ProviderDirectoryRulesTests
 {
     [Theory]
-    [InlineData("CaseManager", true)]
-    [InlineData("Supervisor", true)]
-    [InlineData("Director", true)]
-    [InlineData("Admin", true)]
-    [InlineData("GlobalAdmin", false)]
-    [InlineData(null, false)]
-    public void CreateAndEditPermissionsAreExplicit(string? role, bool expected) =>
-        Assert.Equal(expected, ProviderDirectoryRules.CanCreateOrEdit(role));
+    [InlineData(UserPermissions.CaseManagement, true)]
+    [InlineData(UserPermissions.CaseManagement | UserPermissions.Supervision, true)]
+    [InlineData(UserPermissions.CaseManagement | UserPermissions.Administration, true)]
+    [InlineData(UserPermissions.Billing, false)]
+    [InlineData(UserPermissions.Supervision, false)]
+    [InlineData(UserPermissions.None, false)]
+    public void CreateAndEditPermissionsAreExplicit(UserPermissions permissions, bool expected) =>
+        Assert.Equal(expected, ProviderDirectoryRules.CanCreateOrEdit(permissions));
 
     [Theory]
-    [InlineData("Admin", true)]
-    [InlineData("CaseManager", false)]
-    [InlineData("Supervisor", false)]
-    [InlineData("Director", false)]
-    [InlineData(null, false)]
-    public void DestructivePermissionsAreAdminOnly(string? role, bool expected) =>
-        Assert.Equal(expected, ProviderDirectoryRules.CanDeleteOrMerge(role));
+    [InlineData(UserPermissions.Administration, true)]
+    [InlineData(UserPermissions.CaseManagement, false)]
+    [InlineData(UserPermissions.Supervision, false)]
+    [InlineData(UserPermissions.Billing, false)]
+    [InlineData(UserPermissions.None, false)]
+    public void DestructivePermissionsAreAdministrationOnly(UserPermissions permissions, bool expected) =>
+        Assert.Equal(expected, ProviderDirectoryRules.CanDeleteOrMerge(permissions));
 
     [Fact]
     public void SameNameMatchingTrimsCollapsesWhitespaceAndIgnoresCase()

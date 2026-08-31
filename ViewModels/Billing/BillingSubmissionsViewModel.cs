@@ -119,10 +119,9 @@ namespace Sati.ViewModels.Billing
                 GenerationPeriods.Clear();
                 SubmissionHistory.Clear();
                 var user = _sessionService.CurrentUser!;
-                var periods = user.Role is UserRole.Admin or UserRole.Supervisor
-                    ? await _billingService.GetAllBillingPeriodsAsync()
-                    : await _billingService.GetBillingPeriodsAsync(user.Id);
-                var history = await _billingService.GetSubmissionHistoryAsync();
+                var actor = user.ToAgencyActor();
+                var periods = await _billingService.GetAllBillingPeriodsAsync(actor);
+                var history = await _billingService.GetSubmissionHistoryAsync(actor);
 
                 foreach (var period in periods)
                     BillingPeriods.Add(period);
@@ -168,7 +167,7 @@ namespace Sati.ViewModels.Billing
                 IsGenerating = true;
                 StatusMessage = "Submitting and locking billing period...";
                 var selectedId = SelectedPeriod.Id;
-                await _billingService.SubmitBillingPeriodAsync(selectedId);
+                await _billingService.SubmitBillingPeriodAsync(CurrentActor(), selectedId);
                 HasLoaded = false;
                 await LoadAsync();
                 SelectedPeriod = BillingPeriods.SingleOrDefault(period => period.Id == selectedId);
@@ -356,6 +355,9 @@ namespace Sati.ViewModels.Billing
         }
 
         private static DateTime MonthStart(DateTime value) => new(value.Year, value.Month, 1);
+
+        private AgencyActor CurrentActor() => _sessionService.CurrentUser?.ToAgencyActor()
+            ?? throw new UnauthorizedAccessException("A signed-in user is required.");
 
         [RelayCommand]
         private void OpenOutputFolder()

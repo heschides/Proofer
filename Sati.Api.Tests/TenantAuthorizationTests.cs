@@ -24,9 +24,10 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task BillingExchangeHistoryIsAdminOnlyAndTenantScoped()
+    public async Task BillingExchangeHistoryUsesBillingPermissionAndIsTenantScoped()
     {
-        using var admin = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        using var billingUser = await _factory.CreateAuthenticatedClientAsync("billing-only-one");
+        using var adminWithoutBilling = await _factory.CreateAuthenticatedClientAsync("admin-without-billing-one");
         using var caseManager = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
 
         Assert.Equal(HttpStatusCode.Forbidden,
@@ -35,12 +36,14 @@ public sealed class TenantAuthorizationTests
             (await caseManager.GetAsync("/api/v1/billing/remittances")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await caseManager.GetAsync("/api/v1/billing/remittance-deposits")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await adminWithoutBilling.GetAsync("/api/v1/billing/submissions")).StatusCode);
 
-        var submissions = await admin.GetFromJsonAsync<List<BillingSubmissionHistoryDto>>(
+        var submissions = await billingUser.GetFromJsonAsync<List<BillingSubmissionHistoryDto>>(
             "/api/v1/billing/submissions");
-        var remittances = await admin.GetFromJsonAsync<List<RemittanceClaimOutcomeDto>>(
+        var remittances = await billingUser.GetFromJsonAsync<List<RemittanceClaimOutcomeDto>>(
             "/api/v1/billing/remittances");
-        var deposits = await admin.GetFromJsonAsync<List<RemittanceDepositDto>>(
+        var deposits = await billingUser.GetFromJsonAsync<List<RemittanceDepositDto>>(
             "/api/v1/billing/remittance-deposits");
 
         var submission = Assert.Single(submissions!, item => item.Reference == "SYN-ONE");
@@ -55,6 +58,66 @@ public sealed class TenantAuthorizationTests
         Assert.Equal("SYN-EFT-ONE", deposit.PaymentReference);
         Assert.Equal(nameof(DepositReconciliationStatus.Matched), deposit.Status);
     }
+
+    [Fact]
+    public async Task BillingPermissionRevocationTakesEffectBeforeTheTokenExpires()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("billing-only-one");
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.GetAsync("/api/v1/billing/configuration")).StatusCode);
+
+        await _factory.ChangeUserPermissionsAsync(15, UserPermissions.None);
+        try
+        {
+            Assert.Equal(HttpStatusCode.Forbidden,
+                (await client.GetAsync("/api/v1/billing/configuration")).StatusCode);
+        }
+        finally
+        {
+            await _factory.ChangeUserPermissionsAsync(15, UserPermissions.Billing);
+        }
+    }
+
+    [Fact]
+    public async Task EveryBillingRouteDeniesAnAdministratorWithoutBillingPermission()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-without-billing-one");
+        var configuration = new SaveBillingConfigurationRequest(
+            "G9012", "HI", 25m, "SUBMITTER", "Payer", "PAYER",
+            "Billing Contact", "2075550100");
+        Func<HttpRequestMessage>[] requests =
+        [
+            () => new(HttpMethod.Get, "/api/v1/billing/configuration"),
+            () => JsonRequest(HttpMethod.Put, "/api/v1/billing/configuration", configuration),
+            () => new(HttpMethod.Post, "/api/v1/billing/periods/2026/7?userId=12"),
+            () => new(HttpMethod.Get, "/api/v1/billing/periods"),
+            () => new(HttpMethod.Get, "/api/v1/billing/submissions"),
+            () => new(HttpMethod.Get, "/api/v1/billing/remittances"),
+            () => new(HttpMethod.Get, "/api/v1/billing/remittance-deposits"),
+            () => JsonRequest(HttpMethod.Post, "/api/v1/billing/periods/1101/responses",
+                new ClaimResponseIngestRequest("test")),
+            () => JsonRequest(HttpMethod.Post, "/api/v1/billing/periods/1101/mock-clearinghouse",
+                new MockClearinghouseRequest(MockClearinghouseScenario.Accepted)),
+            () => new(HttpMethod.Get, "/api/v1/billing/candidates"),
+            () => JsonRequest(HttpMethod.Post, "/api/v1/billing/claim-lines",
+                new CreateClaimLineRequest(501, false, null)),
+            () => new(HttpMethod.Get, "/api/v1/billing/claim-lines/draft?userId=12"),
+            () => new(HttpMethod.Post, "/api/v1/billing/periods/1101/submit"),
+            () => JsonRequest(HttpMethod.Post, "/api/v1/billing/periods/1101/edi",
+                new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")))
+        ];
+
+        Assert.Equal(14, requests.Length);
+        foreach (var createRequest in requests)
+        {
+            using var request = createRequest();
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+    }
+
+    private static HttpRequestMessage JsonRequest<T>(HttpMethod method, string uri, T body) =>
+        new(method, uri) { Content = JsonContent.Create(body) };
 
     [Fact]
     public async Task ActiveSessionCanRenewItsShortLivedAccessToken()
@@ -1007,7 +1070,7 @@ public sealed class TenantAuthorizationTests
         Assert.NotNull(overview);
         Assert.Equal(1, overview.AgencyId);
         Assert.Equal("Agency One", overview.AgencyName);
-        Assert.Equal(4, overview.UserCount);
+        Assert.Equal(6, overview.UserCount);
         Assert.Equal(2, overview.PersonCount);
         Assert.Equal(1, overview.NotesThisMonth);
         Assert.NotEmpty(people!);

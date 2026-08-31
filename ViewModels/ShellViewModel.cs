@@ -88,9 +88,12 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
         // Computed properties
         // -------------------------------------------------------------------------
+        public bool IsCaseManagementAvailable =>
+            _sessionService.CurrentUser?.HasCaseManagerPermissions == true;
         public bool IsBillingAvailable =>
-    _sessionService.CurrentUser?.Role is UserRole.Admin;
-        public bool IsAdminAvailable => _sessionService.CurrentUser?.Role is UserRole.Admin;
+            _sessionService.CurrentUser?.HasBillingPermissions == true;
+        public bool IsAdminAvailable =>
+            _sessionService.CurrentUser?.HasAdminPermissions == true;
         public bool IsPlatformHealthAvailable => _sessionService.CurrentUser?.Role is UserRole.PlatformOperator;
         public bool IsDemoEnvironment => _dataEnvironment.IsDemo;
         public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
@@ -100,9 +103,7 @@ namespace Sati.ViewModels
         public bool IsPlatformHealthActive => CurrentViewModel is PlatformHealthViewModel;
 
         public bool IsSupervisionAvailable =>
-            _sessionService.CurrentUser?.Role is UserRole.Supervisor
-                or UserRole.Admin
-                or UserRole.Director;
+            _sessionService.CurrentUser?.HasSupervisorPermissions == true;
 
         // Active tab indicators
         public bool IsCaseManagementActive => CurrentViewModel is CaseManagementViewModel;
@@ -125,13 +126,13 @@ namespace Sati.ViewModels
 
         public SolidColorBrush AvatarBrush => new SolidColorBrush(
             (Color)ColorConverter.ConvertFromString(
-                _sessionService.CurrentUser?.Role switch
+                _sessionService.CurrentUser switch
                 {
-                    UserRole.CaseManager => "#5B7FA6",
-                    UserRole.Supervisor => "#5A8A5A",
-                    UserRole.Director => "#A6607A",
-                    UserRole.Admin => "#4A3728",
-                    UserRole.PlatformOperator => "#7A2E8E",
+                    { Role: UserRole.PlatformOperator } => "#7A2E8E",
+                    { HasAdminPermissions: true } => "#4A3728",
+                    { HasBillingPermissions: true } => "#A6607A",
+                    { HasSupervisorPermissions: true } => "#5A8A5A",
+                    { HasCaseManagerPermissions: true } => "#5B7FA6",
                     _ => "#9C7A5C"
                 }));
 
@@ -154,14 +155,27 @@ namespace Sati.ViewModels
         // Navigation commands
         // -------------------------------------------------------------------------
 
-        [RelayCommand] private void NavigateToCaseManagement() => CurrentViewModel = _caseManagementViewModel;
-        [RelayCommand] private void NavigateToSupervisorDashboard() => CurrentViewModel = _supervisorDashboardViewModel;
+        [RelayCommand]
+        private void NavigateToCaseManagement()
+        {
+            if (IsCaseManagementAvailable) CurrentViewModel = _caseManagementViewModel;
+        }
+        [RelayCommand]
+        private void NavigateToSupervisorDashboard()
+        {
+            if (IsSupervisionAvailable) CurrentViewModel = _supervisorDashboardViewModel;
+        }
         [RelayCommand] private void RequestSwitchUser() => SwitchUserRequested?.Invoke(this, EventArgs.Empty);
         [RelayCommand] public void OpenSettingsWindow() => OpenSettingsWindowRequested?.Invoke(this, true);
-        [RelayCommand] private void NavigateToBilling() => CurrentViewModel = _billingDashboardViewModel;
+        [RelayCommand]
+        private void NavigateToBilling()
+        {
+            if (IsBillingAvailable) CurrentViewModel = _billingDashboardViewModel;
+        }
         [RelayCommand]
         private async Task NavigateToAdmin()
         {
+            if (!IsAdminAvailable) return;
             CurrentViewModel = _adminDashboardViewModel;
             await _adminDashboardViewModel.InitializeAsync();
         }
@@ -269,6 +283,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(UserInitials));
             OnPropertyChanged(nameof(AvatarBrush));
             OnPropertyChanged(nameof(IsSupervisionAvailable));
+            OnPropertyChanged(nameof(IsCaseManagementAvailable));
             OnPropertyChanged(nameof(IsBillingAvailable));
             OnPropertyChanged(nameof(IsAdminAvailable));
             OnPropertyChanged(nameof(IsPlatformHealthAvailable));
@@ -281,10 +296,12 @@ namespace Sati.ViewModels
                 await NavigateToPlatformHealth();
                 return;
             }
-            if (_sessionService.CurrentUser?.Role is UserRole.Supervisor or UserRole.Admin or UserRole.Director)
+            if (_sessionService.CurrentUser?.HasSupervisorPermissions == true)
                 await InitializeSupervisorAsync();
-
-            NavigateToCaseManagement();
+            if (IsCaseManagementAvailable) NavigateToCaseManagement();
+            else if (IsSupervisionAvailable) NavigateToSupervisorDashboard();
+            else if (IsBillingAvailable) NavigateToBilling();
+            else if (IsAdminAvailable) await NavigateToAdmin();
         }
 
         private async Task InitializeSupervisorAsync()
