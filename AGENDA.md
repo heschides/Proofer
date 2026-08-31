@@ -370,11 +370,16 @@ That pass is done and recorded in `API_SECURITY_AUDIT.md` (third pass plus resol
 scoping survived intact and the route inventory matches the code exactly. Three findings blocked
 release and are fixed; what remains:
 
-- [ ] **Denial tests for the supervision and case-management gates.** Mutation testing showed all
-      278 API tests passing with every supervisor gate disabled, and again with every
-      case-management gate disabled. Most sit above separately data-scoped queries so removing one
-      usually yields an empty result rather than a leak — but `POST /users` is the exception, and
-      "untested" should not be discovered a second time.
+- [x] **Denial tests for the supervision gates — done 2026-08-31.** `SupervisionGateTests` covers
+      all nine plus the one in `TenantAccess.CanAccessUserAsync`. The actor is a demoted
+      supervisor: case management only, still named as user 19's supervisor, which is what a real
+      database holds the moment supervision is revoked while supervisees still point at the row.
+      That shape is what makes the tests load-bearing — every query beneath these gates is scoped
+      by `SupervisorId`, so an ordinary case manager sees an empty list either way and proves
+      nothing. Verified: 11 of the 13 fail with every supervisor gate disabled. The two that
+      survive are the positive controls, which is correct.
+- [ ] **Denial tests for the case-management gates.** Still outstanding. All API tests pass with
+      every `!actor.HasCaseManagerPermissions` gate disabled.
 - [ ] **Denial tests for `GET /admin/incidents`, `PUT /admin/incidents/{id}/status`, and
       `ProviderDirectoryRules.CanCreateOrEdit`.** The only administration and provider gates with
       no covering test.

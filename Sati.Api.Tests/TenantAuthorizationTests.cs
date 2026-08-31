@@ -1131,8 +1131,8 @@ public sealed class TenantAuthorizationTests
         Assert.NotNull(overview);
         Assert.Equal(1, overview.AgencyId);
         Assert.Equal("Agency One", overview.AgencyName);
-        Assert.Equal(7, overview.UserCount);
-        Assert.Equal(2, overview.PersonCount);
+        Assert.Equal(9, overview.UserCount);
+        Assert.Equal(3, overview.PersonCount);
         Assert.Equal(1, overview.NotesThisMonth);
         Assert.NotEmpty(people!);
         Assert.All(people!, person => Assert.DoesNotContain("Two", person.DisplayName));

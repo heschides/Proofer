@@ -216,6 +216,21 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// The stored workflow status, for asserting that a refused supervisory action changed
+    /// nothing. A 403 that had already written the transition would otherwise go unnoticed.
+    /// </summary>
+    public async Task<int?> GetNoteStatusAsync(int noteId)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        return await db.Notes.AsNoTracking()
+            .Where(note => note.Id == noteId)
+            .Select(note => note.Status)
+            .SingleAsync();
+    }
+
     public async Task<IReadOnlyList<AuditEventSnapshot>> GetAuditEventsAsync(string action)
     {
         await EnsureSeededAsync();
@@ -330,6 +345,15 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 // Legacy Director: agency-wide supervisory reach, no administration. Seeded
                 // through FromLegacyRole so the fixture cannot drift from the backfill.
                 CreateUser(verifier, 17, "director-one", "Director", 1),
+                // A demoted supervisor: still named as user 19's supervisor, but carrying only
+                // case management. This pair is what makes the supervision gates testable. Every
+                // query beneath those gates is scoped by SupervisorId, so an ordinary case
+                // manager sees an empty result whether the gate is there or not, and a denial
+                // test built on one proves nothing. This actor WOULD be handed real rows if the
+                // gate were removed, so the test fails when the gate does.
+                CreateUser(verifier, 18, "demoted-supervisor-one", "CaseManager", 1,
+                    permissions: UserPermissions.CaseManagement),
+                CreateUser(verifier, 19, "supervisee-of-demoted-one", "CaseManager", 1, 18),
                 CreateUser(verifier, 21, "admin-two", "Admin", 2),
                 CreateUser(verifier, 22, "case-manager-two", "CaseManager", 2, 23),
                 CreateUser(verifier, 23, "supervisor-two", "Supervisor", 2),
@@ -362,6 +386,26 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                     BillingState = "ME", BillingZip = "04101",
                     DayProgramCount = 1
                 },
+                // Owned by the demoted supervisor's supervisee, so a supervision gate that stopped
+                // working would expose a real consumer and a real note rather than an empty list.
+                // Seeded declaratively rather than through a helper so the counts stay fixed
+                // regardless of which tests have run.
+                new ServerPerson
+                {
+                    Id = 103, UserId = 19, AgencyId = 1, FirstName = "Supervisee", LastName = "Consumer",
+                    BirthDate = new DateTime(1992, 3, 4), EffectiveDate = CycleStart,
+                    Journal = "Supervisee caseload journal", MaineCareId = "444444",
+                    DiagnosisCode = "F89", PlaceOfService = 11,
+                    BillingStreet = "30 Test Street", BillingCity = "Augusta",
+                    BillingState = "ME", BillingZip = "04330",
+                    Forms =
+                    [
+                        CompliantForm(103, "PCP"),
+                        CompliantForm(103, "ComprehensiveAssessment"),
+                        CompliantForm(103, "Reclassification"),
+                        CompliantForm(103, "SafetyPlan")
+                    ]
+                },
                 new ServerPerson
                 {
                     Id = 201, UserId = 22, AgencyId = 2, FirstName = "Person", LastName = "Two",
@@ -378,6 +422,15 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 {
                     Id = 501, PersonId = 101, AgencyId = 1, Narrative = "Agency one note",
                     EventDate = new DateTime(2026, 7, 10), Minutes = 60, Status = 2
+                },
+                // Logged, so it sits in the supervisory review queue and is a legal target for
+                // approve, approve-override, and return. Dated in a prior month so it does not
+                // move the administrator dashboard's notes-this-month count.
+                new ServerNote
+                {
+                    Id = 507, PersonId = 103, AgencyId = 1,
+                    Narrative = "Supervisee note awaiting review",
+                    EventDate = new DateTime(2026, 7, 15), Minutes = 45, Status = 2
                 },
                 new ServerNote
                 {
