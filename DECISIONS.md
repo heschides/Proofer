@@ -2378,3 +2378,22 @@ change about themselves and cannot express a permission, agency, supervisor, or 
 belonged to is gone and the permission set can express the same thing structurally; and narrowing
 Director to plain supervision, which removes the escalation but silently costs every existing
 Director the agency-wide review they actually had.
+
+### Addendum — what the WebJob does and does not remove
+
+Recorded because it caused a real mistaken belief during the 1.2.34 release. `AGENDA.md` had
+summarised the 1.2.32 WebJob as meaning "applying a Demo schema change no longer needs a temporary
+exact-IP SQL firewall rule". That sentence outran what shipped, and the same release section
+elsewhere says plainly that 1.2.32 contained no schema change and opened no rule, so the claim was
+never exercised.
+
+The accurate boundary is the one the job's own header draws. `demo-history-reconciliation` writes
+only to `dbo.__EFMigrationsHistory` and reads catalog views. It issues no `CREATE`, `ALTER`, or
+`DROP`, which is precisely why it needs `db_datawriter` rather than `db_ddladmin` and why it was
+safe to ship inside the internet-facing API. Reconciling history from inside the App Service does
+not generalise to applying DDL from inside it.
+
+So until `Sati.Migrator` exists, a schema-adding release still opens the rule, and 1.2.34 did:
+`AddUserPermissions` adds a column. The AGENDA line is corrected in place rather than deleted, with
+the correction visible, because a reader who remembers the original sentence needs to find out why
+it was wrong rather than wonder whether they imagined it.

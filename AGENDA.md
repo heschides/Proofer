@@ -19,6 +19,7 @@ database on every machine, migrated by the desktop at its next launch.
 | `20260830231500_SeparateAgencyWideSupervision` | Director 7 → 19, Admin 15 → 31 |
 
 ### Validation
+- [x] Source release commit `c2f19b6`, pushed to `origin/master` without rewriting history.
 - [x] Release build clean: 0 errors, 7 warnings.
 - [x] 1,221 tests pass across all three projects — 930 desktop, 287 API, 4 Carika. One skip:
       `LocalAiModelCompetenceTests`, whose documented prerequisite `SATI_RUN_LOCAL_AI_MODEL_EVAL=1`
@@ -33,28 +34,59 @@ database on every machine, migrated by the desktop at its next launch.
 - [x] Resulting values match `UserPermissionRules.FromLegacyRole`: CaseManager 1, Supervisor 3,
       Director 19, Admin 31, PlatformOperator 0.
 
-### Deployment evidence — pending
-- [ ] Demo migration applied to `SatiDemo` with the three-pass sequence, against the real database.
-- [ ] API ZIP hash, deployment identifier.
-- [ ] `/health/live`, `/health/ready`, `/health/version` reporting release 1.2.34, and contract
-      revision parity.
-- [ ] `SatiDemoSetup-1.2.34.exe` generated, accepted, size and SHA-256 recorded.
-- [ ] `SatiLocalSetup-1.2.34.exe` generated, accepted, size and SHA-256 recorded.
-- [ ] Both installers and checksums published to their distribution folders.
+### Deployment evidence
+- [x] Demo migration applied to real `SatiDemo` with the three-pass sequence, no EF-generated
+      script involved. Dry run: column added, 16 users backfilled, 1 Director and 1 Admin
+      corrected, 2 history rows, rolled back — verified afterwards that the column was absent,
+      zero history rows, 80 migrations, so the rollback genuinely held. Real run: identical
+      counts, committed. Third pass: every count and every proof `0`.
+- [x] Resulting distribution across 16 accounts, 82 migrations in history: Admin 31 (1),
+      CaseManager 1 (12), **Director 19 (1)**, PlatformOperator 0 (1), Supervisor 3 (1).
+      Demo held exactly one Director — the account the original backfill would have handed the
+      audit export, settings writes, test-data deletion, and provider merge.
+- [x] API ZIP built from the pushed source commit `c2f19b6`, confirmed by the stamped
+      `ProductVersion 1.2.34+c2f19b6b19b6045cd3f7113ee9eaba2f03ea3395`. 9,494,910 bytes; SHA-256
+      `D797B6F426FD9B65EFB5E4404461AA58041614390F1EBDFDFD01952C54257016`. No `appsettings*.json`,
+      Development configuration, or key material in the payload; the triggered WebJob is present
+      at `App_Data/jobs/triggered/demo-history-reconciliation/`.
+- [x] Deployed to `sati-demo-api-satilogica`, deployment `3a36b20eab2148c3a09a1f0df886e718`,
+      provisioning state Succeeded.
+- [x] `/health/live` live. `/health/ready` **Healthy** — the real confirmation the migration
+      satisfied the deployed model, because `SchemaDriftHealthCheck` compares the model's tables
+      and columns against the database. `/health/version` reports release `1.2.34` and contract
+      revision `88B12BEC015F`.
+- [x] Client/API contract parity verified rather than assumed: `ApiSurface.Revision` read directly
+      from the locally built `Sati.Contracts` is `88B12BEC015F`, identical to the deployed value.
+- [x] Generated and accepted `SatiDemoSetup-1.2.34.exe` (100,442,112 bytes; SHA-256
+      `A3798804E1C5671C7B131DCB4ACE06152AC040D6993F8F99F75A31F0037C0020`): five launches, all
+      responding, graceful closes, zero exit codes, installed version 1.2.34.0, isolated cleanup
+      passed.
+- [x] Generated and accepted `SatiLocalSetup-1.2.34.exe` (202,507,018 bytes; SHA-256
+      `DD6E77AF60F667A4DD561954A9072D5CD7D63A5629F3768CB0DE3B086AED7534`): version 1.2.34.0,
+      integrated security confirmed with no SQL username or password in configuration, isolated
+      cleanup passed. The embedded `artifacts\Prerequisites\SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) carries a valid Microsoft
+      Corporation Authenticode signature, verified before use.
+- [x] Published both installers and their `.sha256` files by verified copy-then-rename to
+      `...\SatiLogica - Documents\SatiLogica Demo Files` and `...\SatiLogica - Documents\Sati
+      Desktop`. Destination hashes re-verified after publication and identical to the accepted
+      artifacts; no file overwritten; no temporary file left behind.
+- [x] The temporary `datt-workstation-temp` firewall rule was added by the user for the migration
+      and removed immediately after it. Verified absent afterwards: the allow-list holds exactly
+      the three `sati-demo-api-outbound-*` entries. The release workflow never created, altered,
+      or deleted a firewall rule.
 
-### Local Production machines — pending
-- [ ] **Not yet enumerated.** The desktop applies pending migrations at launch, so a machine that
-      has not been opened since 1.2.33 has not received this. List every known machine by name and
-      the release it is on, including any believed to be behind, before this section is closed. A
-      machine nobody has thought about is the one that breaks.
-- [ ] `AGENDA.md` already records one machine believed to be carrying unreconciled history drift,
-      and that `SatiProduction` has not received `AddBillingExchangeHistory` or
-      `AddRemittanceDeposits`. Both are relevant to what this release will attempt at next launch.
-
-### Blocked on
-- [ ] Temporary exact-IP rule on the `SatiDemo` SQL firewall for the release workstation
-      (`72.95.106.10`), added and removed by the user. The release workflow never touches a
-      firewall rule. The Demo migration itself is authorized.
+### Local Production machines — still open
+- [ ] **Not yet enumerated, and this section is not closed.** `SatiDemo` is one database, migrated
+      deliberately above. Local `SatiProduction` is a separate database on *every* machine,
+      migrated by the desktop at its next launch, so a machine that has not been opened since
+      1.2.33 has not received `AddUserPermissions` or `SeparateAgencyWideSupervision`. List each
+      known machine by name and the release it is on, including any believed to be behind.
+- [ ] Two facts already recorded elsewhere in this file bear on what those machines will attempt:
+      one machine is believed to still carry unreconciled migration-history drift, and
+      `SatiProduction` has not received `AddBillingExchangeHistory` or `AddRemittanceDeposits`.
+- [ ] `scripts/Apply-UserPermissionsMigrations.ps1` accepts `-DatabaseName SatiProduction` and is
+      the manual path for a machine that needs it applied outside the desktop's startup migration.
 
 ## Release 1.2.33 — 2026-08-30
 
@@ -141,8 +173,14 @@ rule. No user-facing feature changes and no new migrations.
 - [x] `SchemaComparison` in `Sati.Contracts.V1` owns the rule for how two descriptions of a schema
       differ, shared by the readiness check and the drift report. `GET /api/v1/admin/schema-drift`
       returns it, Admin only.
-- [x] The `demo-history-reconciliation` triggered WebJob runs inside the App Service, so applying a
-      Demo schema change no longer needs a temporary exact-IP SQL firewall rule.
+- [x] The `demo-history-reconciliation` triggered WebJob runs inside the App Service, so reconciling
+      `__EFMigrationsHistory` on Demo no longer needs a temporary exact-IP SQL firewall rule.
+      **Corrected 2026-08-31: this originally read "applying a Demo schema change", which overstated
+      what shipped.** The job writes only to `dbo.__EFMigrationsHistory` and reads catalog views —
+      no `CREATE`, `ALTER`, or `DROP` — which is why it needs only `db_datawriter`. Applying real
+      DDL still needs `Sati.Migrator`, which does not exist yet, and until it does a schema-adding
+      release still opens the rule. 1.2.34 did. The sentence was read later as a promise the
+      release never made; see `DECISIONS.md`, 2026-08-30 and 2026-08-31.
 - [x] `SatiDemo`'s migration history reconciled: two ids applied under superseded timestamps removed,
       two chain migrations with no history row written, verified idempotent.
 
