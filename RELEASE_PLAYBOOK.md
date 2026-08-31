@@ -53,7 +53,10 @@ A DATT release is complete only when all applicable conditions are true:
 - the Demo and Local installers are new, non-overwritten artifacts and pass their acceptance gates;
 - the accepted Local and Demo installers and checksums are present in their designated distribution
   folders with hashes identical to the accepted build artifacts;
-- deployment identifiers, test results, artifact paths, sizes, and SHA-256 hashes are recorded; and
+- deployment identifiers, test results, artifact paths, sizes, and SHA-256 hashes are recorded;
+- when the release changes schema, both halves are recorded: the Demo application with its
+  evidence, and the known Local Production machines with the release each is on, including any
+  known to be behind; and
 - the final evidence commit is pushed and the local default branch matches its remote.
 
 ## 1. Preflight and repository audit
@@ -81,6 +84,21 @@ A DATT release is complete only when all applicable conditions are true:
 
    Discovering either of these at the API publication step wastes a full release pass. Raise both
    in the preflight report, alongside the other findings, before any version bump or commit.
+
+   A schema change reaches two kinds of place, never one. `SatiDemo` is a single Azure database
+   migrated deliberately. Local `SatiProduction` is a separate database on *every* machine, migrated
+   by the desktop at its next launch. They are therefore never applied together, and treating the
+   Demo application as "the migration is done" is how three machines came to be running different
+   schemas on 2026-08-30 without anyone knowing until one refused to start.
+
+   So a schema-changing release records both halves:
+   - the Demo application, with its evidence; and
+   - the Local Production machines that exist, and which release each is on.
+
+   **Never assume a machine has caught up.** The desktop applies pending migrations at launch, so a
+   machine that has not been opened since the last release has not received it. List the known
+   machines by name and version in the release record, including any believed to be behind. A
+   machine nobody has thought about is the one that breaks.
 7. If a change's ownership or intent cannot be determined safely, stop and ask the smallest
    necessary question. Never hide uncertainty by stashing, resetting, or overwriting it.
 
