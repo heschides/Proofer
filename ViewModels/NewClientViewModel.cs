@@ -85,7 +85,10 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public event Func<List<Form>, bool>? ComplianceReviewRequested;
-        public event EventHandler? FormComplianceChanged;
+        // One dashboard host owns this instance. Awaiting its refresh keeps the
+        // matrix and overdue-event list synchronized before the toggle command
+        // reports completion.
+        public Func<Task>? FormComplianceChangedAsync { get; set; }
         public event EventHandler<ClientSaveProblemEventArgs>? ClientSaveProblemOccurred;
 
         // -------------------------------------------------------------------------
@@ -1001,7 +1004,12 @@ namespace Sati.ViewModels
         private async Task ToggleForm(FormType type)
         {
             if (SelectedPerson is null) return;
-            var form = SelectedPerson.GetCurrentCycleForm(type);
+            await ToggleFormForAsync(SelectedPerson, type);
+        }
+
+        internal async Task ToggleFormForAsync(Person person, FormType type)
+        {
+            var form = person.GetCurrentCycleForm(type);
             if (form is null) return;
 
             // Toggle through the sanctioned door. Marking compliant uses the form's
@@ -1015,8 +1023,9 @@ namespace Sati.ViewModels
 
             await _formService.UpdateFormAsync(form);
             RefreshComplianceFlags();
-            RefreshUpcomingItems(SelectedPerson);
-            FormComplianceChanged?.Invoke(this, EventArgs.Empty);
+            RefreshUpcomingItems(person);
+            if (FormComplianceChangedAsync is not null)
+                await FormComplianceChangedAsync();
         }
 
         // -------------------------------------------------------------------------

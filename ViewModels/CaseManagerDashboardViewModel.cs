@@ -38,6 +38,7 @@ namespace Sati.ViewModels
         private int _remainingEligibleDays;
         private List<ExemptDate> _exemptDatesForMonth = [];
         private readonly LatestRequestTracker _notesLoadRequests = new();
+        private readonly LatestRequestTracker _upcomingEventLoadRequests = new();
         private DispatcherTimer? _abandonmentTimer;
         // -------------------------------------------------------------------------
         // Constructor
@@ -123,12 +124,13 @@ CalendarViewModel calendarViewModel,
             WireJournalReminders(noteEntryViewModel, newClientViewModel);
             WireJournalReminders(notesWindowViewModel.NoteEntry, newClientViewModel);
 
-            newClientViewModel.FormComplianceChanged += async (s, e) =>
+            newClientViewModel.FormComplianceChangedAsync = async () =>
             {
                 await LoadPeopleAsync();
                 if (SelectedPerson is not null)
                     SelectedPerson = People.FirstOrDefault(p => p.Id == SelectedPerson.Id);
                 await NotesLog.ReloadAsync();
+                await AfterFormComplianceChangedAsync();
             };
 
             notesWindowViewModel.NoteStatusChanged += async (s, e) =>
@@ -626,7 +628,7 @@ CalendarViewModel calendarViewModel,
             else
                 form.MarkComplete(form.DueDate);
             await _formService.UpdateFormAsync(form);
-            RefreshComplianceFlags();
+            await AfterFormComplianceChangedAsync();
         }
 
         [RelayCommand]
@@ -649,7 +651,7 @@ CalendarViewModel calendarViewModel,
             row.Form.Reset();
             row.Form.OpenedDate = DateTime.Today;
             await _formService.UpdateFormAsync(row.Form);
-            AfterRowStatusChange(row);
+            await AfterRowStatusChangeAsync(row);
         }
 
         [RelayCommand]
@@ -660,7 +662,7 @@ CalendarViewModel calendarViewModel,
 
             row.Form.MarkComplete(DateTime.Today);
             await _formService.UpdateFormAsync(row.Form);
-            AfterRowStatusChange(row);
+            await AfterRowStatusChangeAsync(row);
         }
 
         [RelayCommand]
@@ -672,18 +674,24 @@ CalendarViewModel calendarViewModel,
             row.Form.Reset();
             row.Form.OpenedDate = null;
             await _formService.UpdateFormAsync(row.Form);
-            AfterRowStatusChange(row);
+            await AfterRowStatusChangeAsync(row);
         }
 
         // Updates the touched row in place rather than rebuilding the list, so the row
         // recolors where you're looking and a just-completed form doesn't vanish before
         // you see green. Compliance flags and the matrix do refresh, keeping the
         // checkbox grid and caseload matrix in step with the board.
-        private void AfterRowStatusChange(FormTaskRow row)
+        private async Task AfterRowStatusChangeAsync(FormTaskRow row)
         {
             row.Refresh();
+            await AfterFormComplianceChangedAsync();
+        }
+
+        private async Task AfterFormComplianceChangedAsync()
+        {
             RefreshComplianceFlags();
             Matrix?.Rebuild(People, DateTime.Today);
+            await LoadUpcomingEventsAsync();
         }
 
         // -------------------------------------------------------------------------
@@ -841,8 +849,12 @@ CalendarViewModel calendarViewModel,
             if (LoggedInUser is null)
                 return;
 
+            var request = _upcomingEventLoadRequests.Begin();
             var settings = await _settingsService.LoadAsync();
             var events = _upcomingEventService.GenerateEvents(People, settings);
+            if (!_upcomingEventLoadRequests.IsCurrent(request))
+                return;
+
             UpcomingEvents.Clear();
             foreach (var e in events)
                 UpcomingEvents.Add(e);
@@ -866,8 +878,7 @@ CalendarViewModel calendarViewModel,
 
             form.MarkComplete(DateTime.Today);
             await _formService.UpdateFormAsync(form);
-            RefreshComplianceFlags();
-            Matrix?.Rebuild(People, DateTime.Today);
+            await AfterFormComplianceChangedAsync();
         }
 
         public async Task OpenFormAsync(FormType formType)
