@@ -1,6 +1,7 @@
 # Handoff — "Suggested follow-up" on the note entry panel
 
-**Status:** design agreed with Josh, 2026-08-31. No code changed.
+**Status:** implemented and tested on 2026-08-31.
+Implementation commit: `c0cc157`.
 **Investigated against:** `master` @ `51b2341`.
 
 ---
@@ -37,13 +38,13 @@ acceptance" standard `CLAUDE.md` sets for AI-assisted drafting. The feature is c
 fragments and marks each one's usage:
 
 ```csharp
-var usage = FollowUpSignalRegex().IsMatch(fragment)
+var usage = HasFollowUpSignal(fragment)
     ? CaseNoteFactUsage.Narrative | CaseNoteFactUsage.FollowUp
     : CaseNoteFactUsage.Narrative;
 facts.Add(new($"RAW-{index + 1:000}", fragment, "Rough note", usage));
 ```
 
-`FollowUpSignalRegex` (line 299) matches `follow up`, `follow-up`, `f/u`, `next step(s)`,
+`FollowUpSignalRegex` matches `follow up`, `follow-up`, `f/u`, `next step(s)`,
 `plan to`, `will`, `confirm`, `send`, `check back`, `prepare for`.
 
 So appending a line that begins `Follow-up:` to `NoteEntryViewModel.Narrative` becomes a
@@ -123,10 +124,9 @@ Then the text is ordinary editable narrative — the case manager can reword or 
   for the current note, and re-enable when the note is reset or a different note is
   opened.
 - **Do not create a second follow-up.** If `Narrative` already contains a line matching
-  `FollowUpSignalRegex`, either disable the button with a tooltip saying a follow-up is
-  already documented, or append without the `Follow-up:` prefix. Two `Follow-up:` sections
-  in a clinical note is a defect. **Ask Josh which he prefers**; recommendation is to
-  disable, because it keeps one follow-up per note and makes the state visible.
+  `FollowUpSignalRegex`, disable the button with a tooltip saying a follow-up is already
+  documented. Two `Follow-up:` sections in a clinical note is a defect. This follows the
+  recommended fail-closed choice accepted during implementation.
 - **Appends, never replaces.** Note the existing template-fill behavior at
   `NoteEntryViewModel.cs:566` and `:671` only fills when `Narrative` is blank. Appending
   is a different and safer operation — do not route it through that path.
@@ -166,7 +166,7 @@ text or glyph cue.
 ## Files to read first
 
 1. `AI_CASE_NOTE_RULES.md` rule 3 — the constraint this feature has to satisfy
-2. `Services/LocalAi/CaseNoteFactCompiler.cs:38-70` and `:296-300` — the seam and the regex
+2. `Services/LocalAi/CaseNoteFactCompiler.cs` — the shared signal test and compiler seam
 3. `Sati.Contracts/V1/CaseNoteDrafting.cs` — `CaseNoteFactUsage`, `NoFollowUpFactId`
 4. `Views/NoteEntryView.xaml` — the one place the row belongs
 5. `Data/UpcomingEventsService.cs` — the suggestion source

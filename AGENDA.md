@@ -1828,6 +1828,14 @@ and broad supervisory analytics are not assumed to belong in the first mobile cl
 
 ## Future Roadmap
 
+### Upcoming-item rule ownership
+
+- [ ] Reconcile the deliberately different scopes of `IUpcomingEventService` (the settings-driven
+  open/late window used by dashboards and suggestions) and
+  `NewClientViewModel.RefreshUpcomingItems` (all non-compliant forms on the selected-client page).
+  Decide whether both scopes remain product requirements, then give each a named shared owner so a
+  third hand-written upcoming-item calculation cannot appear.
+
 ### Local AI case-note drafting
 
 Closed-world revision shipped 2026-08-22: prior notes, assessments, Bio, deadlines, contacts, and

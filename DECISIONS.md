@@ -1328,6 +1328,14 @@ organizer with fail-closed output gates; they do not make generated language int
 or remove the need for human review, device evaluation, privacy review, and accepted-draft audit and
 retention decisions before production.
 
+The note-entry panel may present the soonest current `IUpcomingEventService` item as a suggestion,
+but the due item is not itself a documented commitment and is never inserted automatically. The
+case manager must explicitly accept it before Sati appends an editable `Follow-up:` line to the raw
+narrative. That human action makes it a current-note fact under the existing closed-world rule. If
+the narrative already contains follow-up language recognized by `CaseNoteFactCompiler`, acceptance
+is disabled rather than creating a second follow-up section. This presentation feature does not add
+historical records to model context and does not change the deterministic drafting boundary.
+
 ## Database waits have one payload-free activity owner (2026-08-22)
 
 Database wait feedback is driven by a singleton reference counter at the data boundary, not by

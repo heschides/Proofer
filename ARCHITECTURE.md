@@ -1393,6 +1393,13 @@ template, selector, detail, or narrative change cancels and invalidates in-fligh
 publication and acceptance recompute the fingerprint. Switching consumers must successfully unload
 the previous model before new facts can be sent, and an unload failure stops generation.
 
+The shared note-entry control may display the selected person's soonest settings-windowed item from
+`IUpcomingEventService` as a suggested follow-up. It never enters the narrative automatically. Only
+the case manager's explicit **Accept suggestion** action appends an editable `Follow-up:` line, at
+which point it is a current-note fact and the existing compiler recognizes it through the same
+follow-up-signal owner. Existing follow-up language disables the action so one note cannot acquire
+two follow-up sections. Reminder notes never show the suggestion.
+
 This is still a development feature, not a compliance or factual-truth guarantee. Before production
 it needs an approved agency note standard and de-identified evaluation corpus, pinned model/rule
 versions, measured rejection and factual-fidelity thresholds on actual target devices, a deliberate
