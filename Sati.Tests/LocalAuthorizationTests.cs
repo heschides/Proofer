@@ -70,6 +70,28 @@ public sealed class LocalAuthorizationTests
     }
 
     [Fact]
+    public async Task AgendaAssessmentReadIsOwnCaseloadOnlyAndNeverCreatesADraft()
+    {
+        await using var fixture = await LocalFixture.CreateAsync();
+        var session = new SessionService();
+        session.SetUser(fixture.CaseManagerOne);
+        var service = new ComprehensiveAssessmentService(fixture.Factory, session);
+        var created = await service.GetOrCreateDraftAsync(
+            fixture.PersonOneId,
+            fixture.CaseManagerOne.Id);
+        await using (var beforeContext = fixture.Factory.CreateDbContext())
+            Assert.Equal(1, await beforeContext.ComprehensiveAssessments.CountAsync());
+
+        var latest = await service.GetLatestForAgendaAsync(fixture.PersonOneId);
+
+        Assert.Equal(created.Id, latest!.Id);
+        await using (var afterContext = fixture.Factory.CreateDbContext())
+            Assert.Equal(1, await afterContext.ComprehensiveAssessments.CountAsync());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.GetLatestForAgendaAsync(fixture.ForeignPersonId));
+    }
+
+    [Fact]
     public async Task SupervisorAllScopeNeverCrossesAssignmentOrAgency()
     {
         await using var fixture = await LocalFixture.CreateAsync();

@@ -1586,6 +1586,10 @@ public sealed class StabilizationTests
 
     private sealed class SmokeAssessmentService : IComprehensiveAssessmentService
     {
+        public Task<Models.Assessments.ComprehensiveAssessment?> GetLatestForAgendaAsync(
+            int personId) =>
+            Task.FromResult<Models.Assessments.ComprehensiveAssessment?>(null);
+
         public Task<Models.Assessments.ComprehensiveAssessment> GetOrCreateDraftAsync(
             int personId,
             int authorUserId) => Task.FromResult(new Models.Assessments.ComprehensiveAssessment

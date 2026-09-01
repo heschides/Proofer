@@ -2077,6 +2077,23 @@ internal static class ApiEndpoints
 
     private static void MapAssessments(RouteGroupBuilder api)
     {
+        api.MapGet("/people/{personId:int}/assessments/latest", async Task<IResult> (
+            int personId, ClaimsPrincipal principal, ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+
+            var assessment = await db.ComprehensiveAssessments.AsNoTracking()
+                .Where(item => item.PersonId == personId && item.Status != "Superseded")
+                .OrderByDescending(item => item.Version)
+                .FirstOrDefaultAsync(cancellationToken);
+            return assessment is null
+                ? Results.Json<ComprehensiveAssessmentDto?>(null)
+                : Results.Ok(ContractMapper.ToAssessment(assessment));
+        });
+
         api.MapPost("/people/{personId:int}/assessments/draft", async Task<IResult> (
             int personId, int authorUserId, ClaimsPrincipal principal, ApiDbContext db,
             AuditTrail auditTrail, CancellationToken cancellationToken) =>

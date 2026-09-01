@@ -398,6 +398,13 @@ public sealed class CloudComprehensiveAssessmentService(CloudApiClient api) : IC
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task<ComprehensiveAssessment?> GetLatestForAgendaAsync(int personId)
+    {
+        var assessment = await api.GetAsync<ComprehensiveAssessmentDto?>(
+            $"/api/v1/people/{personId}/assessments/latest");
+        return assessment is null ? null : CloudContractMapper.ToAssessment(assessment);
+    }
+
     public async Task<ComprehensiveAssessment> GetOrCreateDraftAsync(int personId, int authorUserId) =>
         CloudContractMapper.ToAssessment(await api.PostAsync<object, ComprehensiveAssessmentDto>(
             $"/api/v1/people/{personId}/assessments/draft?authorUserId={authorUserId}", new { }));

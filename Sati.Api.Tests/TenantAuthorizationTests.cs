@@ -890,6 +890,19 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task LatestAssessmentReadExistsForOwnCaseloadAndHidesOtherAgencies()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+
+        var own = await client.GetAsync("/api/v1/people/101/assessments/latest");
+        var otherAgency = await client.GetAsync("/api/v1/people/201/assessments/latest");
+
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        Assert.Equal(101, (await own.Content.ReadFromJsonAsync<ComprehensiveAssessmentDto>())!.PersonId);
+        Assert.Equal(HttpStatusCode.NotFound, otherAgency.StatusCode);
+    }
+
+    [Fact]
     public async Task SupervisorCannotAuthorACaseManagersAssessment()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("supervisor-one");

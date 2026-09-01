@@ -12,6 +12,27 @@ public sealed class ComprehensiveAssessmentService(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task<ComprehensiveAssessment?> GetLatestForAgendaAsync(int personId)
+    {
+        var actor = sessionService.CurrentUser
+            ?? throw new UnauthorizedAccessException("A signed-in case manager is required.");
+        if (!actor.HasCaseManagerPermissions)
+            throw new UnauthorizedAccessException("A case manager account is required.");
+
+        await using var db = await contextFactory.CreateDbContextAsync();
+        var ownsPerson = await db.People.AsNoTracking().AnyAsync(person =>
+            person.Id == personId && person.UserId == actor.Id &&
+            person.AgencyId == actor.AgencyId);
+        if (!ownsPerson)
+            throw new UnauthorizedAccessException("Only the assigned case manager may read this assessment.");
+
+        return await db.ComprehensiveAssessments.AsNoTracking()
+            .Where(assessment => assessment.PersonId == personId &&
+                                 assessment.Status != AssessmentStatus.Superseded)
+            .OrderByDescending(assessment => assessment.Version)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<ComprehensiveAssessment> GetOrCreateDraftAsync(int personId, int authorUserId)
     {
         var actor = CurrentAuthor(authorUserId);
