@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Sati.ViewModels.Children;
@@ -16,6 +17,7 @@ namespace Sati.ViewModels
         private readonly IPersonService _personService;
         private readonly IReviewItemService _reviewItemService;
         private readonly ISettingsService _settingsService;
+        private readonly IFormService _formService;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -32,6 +34,18 @@ namespace Sati.ViewModels
         // quarters. Not persisted — resets to the friendly default each launch.
         [ObservableProperty]
         private bool showAllQuarters;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CompleteSelectedQuarterCommand))]
+        private DateTime? attestationCompletionDate;
+
+        [ObservableProperty]
+        private string attestationDateError = string.Empty;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CompleteSelectedQuarterCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ResetSelectedQuarterCommand))]
+        private bool isSavingAttestation;
 
         // -------------------------------------------------------------------------
         // Collections
@@ -52,6 +66,29 @@ namespace Sati.ViewModels
             ? string.Empty
             : $"{SelectedCell.Row.Person.FullName} — Quarter {SelectedCell.Quarter}";
 
+        private Form? SelectedQuarterForm =>
+            SelectedCell?.Row.FormForQuarter(SelectedCell.Quarter);
+
+        public bool HasSelectedQuarterForm => SelectedQuarterForm is not null;
+        public bool IsSelectedQuarterComplete => SelectedQuarterForm?.CompletedDate is not null;
+        public string DetailAttestationStatus => SelectedCell is null
+            ? string.Empty
+            : SelectedCell.Row.StatusForQuarter(SelectedCell.Quarter) switch
+            {
+                FormCellStatus.Complete => $"Q{SelectedCell.Quarter}R attestation complete",
+                FormCellStatus.Overdue => $"Q{SelectedCell.Quarter}R attestation overdue",
+                FormCellStatus.DueThisMonth => $"Q{SelectedCell.Quarter}R attestation due this month",
+                FormCellStatus.DueNextMonth => $"Q{SelectedCell.Quarter}R attestation due next month",
+                _ => $"Q{SelectedCell.Quarter}R attestation not yet due"
+            };
+        public string DetailAttestationDates => SelectedQuarterForm is not Form form
+            ? "No QnR attestation record is available for this quarter."
+            : form.CompletedDate is DateTime completed
+                ? $"Due {form.DueDate:MMM d, yyyy} · completed {completed:MMM d, yyyy}"
+                : $"Due {form.DueDate:MMM d, yyyy} · completion date not recorded";
+
+        public Func<Task>? FormComplianceChangedAsync { get; set; }
+
         // -------------------------------------------------------------------------
         // Property change callbacks
         // -------------------------------------------------------------------------
@@ -60,6 +97,14 @@ namespace Sati.ViewModels
         {
             OnPropertyChanged(nameof(HasSelectedCell));
             OnPropertyChanged(nameof(DetailHeader));
+            OnPropertyChanged(nameof(HasSelectedQuarterForm));
+            OnPropertyChanged(nameof(IsSelectedQuarterComplete));
+            OnPropertyChanged(nameof(DetailAttestationStatus));
+            OnPropertyChanged(nameof(DetailAttestationDates));
+            CompleteSelectedQuarterCommand.NotifyCanExecuteChanged();
+            ResetSelectedQuarterCommand.NotifyCanExecuteChanged();
+            AttestationCompletionDate = null;
+            AttestationDateError = string.Empty;
 
             DetailCells.Clear();
             if (value is null)
@@ -74,12 +119,14 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ReviewsViewModel(ISessionService sessionService, IPersonService personService,
-                                        IReviewItemService reviewItemService, ISettingsService settingsService)
+            IReviewItemService reviewItemService, ISettingsService settingsService,
+            IFormService formService)
         {
             _sessionService = sessionService;
             _personService = personService;
             _reviewItemService = reviewItemService;
             _settingsService = settingsService;
+            _formService = formService;
         }
 
         // -------------------------------------------------------------------------
@@ -123,6 +170,95 @@ namespace Sati.ViewModels
         private void SelectCell(ReviewCellSelection? selection)
         {
             SelectedCell = selection;
+        }
+
+        partial void OnAttestationCompletionDateChanged(DateTime? value)
+        {
+            AttestationDateError = value is DateTime date
+                ? FormCompletionRules.Validate(date, DateTime.Today) ?? string.Empty
+                : string.Empty;
+        }
+
+        private bool CanCompleteSelectedQuarter() =>
+            !IsSavingAttestation
+            && SelectedQuarterForm is { CompletedDate: null }
+            && AttestationCompletionDate is DateTime date
+            && FormCompletionRules.Validate(date, DateTime.Today) is null;
+
+        [RelayCommand(CanExecute = nameof(CanCompleteSelectedQuarter))]
+        private async Task CompleteSelectedQuarter()
+        {
+            var form = SelectedQuarterForm;
+            var completedOn = AttestationCompletionDate;
+            if (form is null || completedOn is null)
+                return;
+
+            var error = FormCompletionRules.Validate(completedOn.Value, DateTime.Today);
+            if (error is not null)
+            {
+                AttestationDateError = error;
+                return;
+            }
+
+            IsSavingAttestation = true;
+            form.MarkComplete(completedOn.Value.Date);
+            try
+            {
+                await _formService.UpdateFormAsync(form);
+            }
+            catch
+            {
+                form.Reset();
+                throw;
+            }
+            finally
+            {
+                IsSavingAttestation = false;
+            }
+
+            await PublishAttestationChangeAsync();
+            AttestationCompletionDate = null;
+        }
+
+        private bool CanResetSelectedQuarter() =>
+            !IsSavingAttestation && SelectedQuarterForm?.CompletedDate is not null;
+
+        [RelayCommand(CanExecute = nameof(CanResetSelectedQuarter))]
+        private async Task ResetSelectedQuarter()
+        {
+            var form = SelectedQuarterForm;
+            if (form?.CompletedDate is not DateTime previousCompletion)
+                return;
+
+            IsSavingAttestation = true;
+            form.Reset();
+            try
+            {
+                await _formService.UpdateFormAsync(form);
+            }
+            catch
+            {
+                form.MarkComplete(previousCompletion);
+                throw;
+            }
+            finally
+            {
+                IsSavingAttestation = false;
+            }
+
+            await PublishAttestationChangeAsync();
+        }
+
+        private async Task PublishAttestationChangeAsync()
+        {
+            SelectedCell?.Row.NotifyAttestationChanged();
+            OnPropertyChanged(nameof(IsSelectedQuarterComplete));
+            OnPropertyChanged(nameof(DetailAttestationStatus));
+            OnPropertyChanged(nameof(DetailAttestationDates));
+            CompleteSelectedQuarterCommand.NotifyCanExecuteChanged();
+            ResetSelectedQuarterCommand.NotifyCanExecuteChanged();
+            if (FormComplianceChangedAsync is not null)
+                await FormComplianceChangedAsync();
         }
 
         // Handed to every cell VM at construction. Writes one stage date through

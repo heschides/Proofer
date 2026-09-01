@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Sati.Helpers;
 using Sati.Models;
 using System.Collections.ObjectModel;
 
@@ -42,8 +43,28 @@ namespace Sati.ViewModels.Children
         // Form records rather than recomputed — FormDueDateCalculator is the
         // single owner of due-date math, and Q4R in particular is anchored to
         // nextAnniversary − Q4RDaysBeforeAnniversary, not a flat 360 days.
+        public Form? FormForQuarter(int quarter) =>
+            Person.GetCurrentCycleForm(QuarterFormType(quarter), _today);
+
         private Form? CurrentQuarterForm =>
-            CurrentQuarter is int q ? Person.GetCurrentCycleForm(QuarterFormType(q), _today) : null;
+            CurrentQuarter is int q ? FormForQuarter(q) : null;
+
+        public FormCellStatus StatusForQuarter(int quarter) =>
+            FormCellStatusCalculator.Compute(FormForQuarter(quarter), _today);
+
+        public FormCellStatus Q1Status => StatusForQuarter(1);
+        public FormCellStatus Q2Status => StatusForQuarter(2);
+        public FormCellStatus Q3Status => StatusForQuarter(3);
+        public FormCellStatus Q4Status => StatusForQuarter(4);
+        public FormCellStatus CurrentQuarterStatus => CurrentQuarter is int quarter
+            ? StatusForQuarter(quarter)
+            : FormCellStatus.NotYetOpen;
+
+        public string Q1StatusDisplay => StatusDisplay(Q1Status);
+        public string Q2StatusDisplay => StatusDisplay(Q2Status);
+        public string Q3StatusDisplay => StatusDisplay(Q3Status);
+        public string Q4StatusDisplay => StatusDisplay(Q4Status);
+        public string CurrentQuarterStatusDisplay => StatusDisplay(CurrentQuarterStatus);
 
         public DateTime? DueDate => CurrentQuarterForm?.DueDate;
 
@@ -65,10 +86,7 @@ namespace Sati.ViewModels.Children
             && _today >= start.Date && _today <= due.Date;
 
         // Past the due date and not yet completed.
-        public bool IsOverdue =>
-            CurrentQuarterForm is Form form
-            && _today > form.DueDate.Date
-            && form.CompletedDate is null;
+        public bool IsOverdue => CurrentQuarterStatus == FormCellStatus.Overdue;
 
         // The window opens later than today — nothing to do yet.
         public bool IsWindowUpcoming =>
@@ -86,6 +104,15 @@ namespace Sati.ViewModels.Children
             3 => FormType.Q3R,
             4 => FormType.Q4R,
             _ => throw new ArgumentOutOfRangeException(nameof(quarter), quarter, "Quarter must be 1 through 4.")
+        };
+
+        private static string StatusDisplay(FormCellStatus status) => status switch
+        {
+            FormCellStatus.Complete => "Attestation complete",
+            FormCellStatus.Overdue => "Attestation overdue",
+            FormCellStatus.DueThisMonth => "Attestation due this month",
+            FormCellStatus.DueNextMonth => "Attestation due next month",
+            _ => "Attestation not yet due"
         };
         // One flag per quarter rather than binding the int and comparing in XAML.
         // A DataTrigger can only test equality against a literal, so the
@@ -156,6 +183,21 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(Q2Cells));
             OnPropertyChanged(nameof(Q3Cells));
             OnPropertyChanged(nameof(Q4Cells));
+        }
+
+        public void NotifyAttestationChanged()
+        {
+            OnPropertyChanged(nameof(Q1Status));
+            OnPropertyChanged(nameof(Q2Status));
+            OnPropertyChanged(nameof(Q3Status));
+            OnPropertyChanged(nameof(Q4Status));
+            OnPropertyChanged(nameof(CurrentQuarterStatus));
+            OnPropertyChanged(nameof(Q1StatusDisplay));
+            OnPropertyChanged(nameof(Q2StatusDisplay));
+            OnPropertyChanged(nameof(Q3StatusDisplay));
+            OnPropertyChanged(nameof(Q4StatusDisplay));
+            OnPropertyChanged(nameof(CurrentQuarterStatusDisplay));
+            OnPropertyChanged(nameof(IsOverdue));
         }
     }
 }

@@ -39,6 +39,7 @@ namespace Sati.ViewModels
         private List<ExemptDate> _exemptDatesForMonth = [];
         private readonly LatestRequestTracker _notesLoadRequests = new();
         private readonly LatestRequestTracker _upcomingEventLoadRequests = new();
+        private readonly LatestRequestTracker _peopleLoadRequests = new();
         private DispatcherTimer? _abandonmentTimer;
         // -------------------------------------------------------------------------
         // Constructor
@@ -126,12 +127,9 @@ CalendarViewModel calendarViewModel,
 
             newClientViewModel.FormComplianceChangedAsync = async () =>
             {
-                await LoadPeopleAsync();
-                if (SelectedPerson is not null)
-                    SelectedPerson = People.FirstOrDefault(p => p.Id == SelectedPerson.Id);
-                await NotesLog.ReloadAsync();
-                await AfterFormComplianceChangedAsync();
+                await ReloadAfterExternalFormComplianceChangedAsync();
             };
+            reviewsViewModel.FormComplianceChangedAsync = ReloadAfterExternalFormComplianceChangedAsync;
 
             notesWindowViewModel.NoteStatusChanged += async (s, e) =>
             {
@@ -799,8 +797,12 @@ CalendarViewModel calendarViewModel,
         {
             try
             {
-                People.Clear();
+                var request = _peopleLoadRequests.Begin();
                 var people = await _personService.GetAllPeopleAsync(LoggedInUser!.Id);
+                if (!_peopleLoadRequests.IsCurrent(request))
+                    return;
+
+                People.Clear();
                 foreach (var person in people)
                     People.Add(person);
 
@@ -817,6 +819,16 @@ CalendarViewModel calendarViewModel,
             {
                 Debug.WriteLine($"Failed to load people: {ex.Message}");
             }
+        }
+
+        private async Task ReloadAfterExternalFormComplianceChangedAsync()
+        {
+            var selectedPersonId = SelectedPerson?.Id;
+            await LoadPeopleAsync();
+            if (selectedPersonId is int personId)
+                SelectedPerson = People.FirstOrDefault(person => person.Id == personId);
+            await NotesLog.ReloadAsync();
+            await AfterFormComplianceChangedAsync();
         }
 
         private async Task LoadMonthlyNotesAsync()
