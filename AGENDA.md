@@ -34,9 +34,12 @@ each quarter, per client.
       `Person.AddMissingForms` instead of assigning over `Forms`.
 - [x] Declare the same index and length on `ApiDbContext.ServerForm` so the server model
       matches the column it writes to.
-- [ ] Run `scripts/Report-DuplicateComplianceForms.sql` against `SatiProduction` on the other
-      login BEFORE installing, to learn the conflict count. Conflicts stop the migration, and
-      therefore startup, until they are resolved by hand.
+- [x] Ran `scripts/Report-DuplicateComplianceForms.sql` against `SatiProduction` on 2026-09-01:
+      1,788 form rows, 804 distinct forms, 492 duplicated groups at exactly 3 copies each, 984
+      surplus rows, 25 of 26 clients. **Zero conflicted groups** — every group holds at most one
+      completion fact, so the repair merges all 492 unattended and the index binds on the same
+      launch. One duplicated group blocks billing today: person 1056 `Q1R` due 2026-08-28, the
+      reported record, classified `FALSE BLOCK -- work was attested on another copy`.
 - [ ] Apply the migration to `SatiDemo` through the controlled path. The desktop repair does
       not run in Demo (`UsesCloudApi` skips the whole block), so if `SatiDemo` holds
       duplicates the migration will refuse there until they are cleared separately.
@@ -45,6 +48,13 @@ each quarter, per client.
       stale prior-cycle documents keep blocking.
 - [ ] Do not lift the `EnableEnsureCycleFormsOnLoad` guard (`SettingsViewModel.cs:240` notes the
       intent to) until the index has actually been applied to the target database.
+- [ ] **The duplicate repair will not clear person 1044.** Their `ComprehensiveAssessment` due
+      2026-08-23 is a single row holding `IsCompliant = 1` with no completion date, so it reads
+      complete on every screen and blocks the gate — the same symptom by the other mechanism
+      below. It is not a duplicate and nothing in this change touches it. There is no completion
+      date to recover; closing it means deciding when the assessment actually happened.
+      (Person 1042's `Q2R` due 2026-08-24 also still blocks, correctly — it is genuinely
+      incomplete on every copy.)
 - [ ] Separately: 147 rows hold `IsCompliant` true with a null or future `CompletedDate`. Harmless
       until each due date passes, then it reproduces this same symptom. Deriving
       `IsCompliant => CompletedDate.HasValue` makes it unrepresentable; needs sign-off, since it
