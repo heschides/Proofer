@@ -109,18 +109,58 @@ never exercised before publication. This release adds that check: the real `Loca
 path is run against a genuinely un-migrated `SatiProduction` before any artifact is published.
 
 ### Validation
-- [ ] Release build of the full solution
-- [ ] Sati desktop/domain tests
-- [ ] Sati API integration tests
-- [ ] Carika tests
-- [ ] Real startup path applied both migrations against an un-migrated local database
+- [x] Release build of the full solution: 0 errors.
+- [x] Sati desktop/domain tests: 1,014 passed, 1 skipped (the `SATI_RUN_LOCAL_AI_MODEL_EVAL`
+      on-device model evaluation — documented opt-in prerequisite, genuinely absent).
+- [x] Sati API integration tests: 302 passed. Carika tests: 4 passed.
+- [x] **The gate 1.2.36 lacked.** The dev `SatiProduction` was rewound to the exact pre-1.2.36
+      shape — `Forms.Type` back to `nvarchar(max)`, `IX_Forms_PersonId` restored, `IsCompliant`
+      re-added, both history rows deleted — and seeded with the reported defect: three `Q1R` rows
+      at one due date with one completed, plus a `PCP` pair flagged compliant with no date. The
+      real `LocalDatabaseUpdater.UpdateAsync` path then reported **`Applied`**, having taken a
+      backup (the database held records), merged 2 duplicate groups removing 3 rows with 0
+      conflicts, and applied both migrations.
+      Result: one `Q1R` keeping its real completion date `2026-08-28`; one `PCP` backfilled to its
+      cycle start `2026-05-30`; `IsCompliant` dropped; unique index present; 2 history rows;
+      3 `form.duplicate-removed` and 1 `form.compliance-date-backfilled` audit events.
+      This is the first time the repair-then-index sequence ran against real duplicates on SQL
+      Server rather than SQLite. The synthetic "Rehearsal Client" remains in the dev database,
+      marked `IsTestData`.
 
 ### Deployment and artifact evidence
-- [ ] Source release commit pushed to `master`
-- [ ] Demo API published; deployment id, health, version, and contract parity recorded
-- [ ] Demo installer built, acceptance-tested, published with SHA-256
-- [ ] Local installer built, acceptance-tested, published with SHA-256
-- [ ] Local Production machines and the release each is on
+- [x] Source release commit `c48fc12` pushed to `master` and confirmed on the remote before any
+      artifact was produced.
+- [x] **No cloud database action.** `SatiDemo` was already at the 1.2.36 schema; no migration, no
+      temporary firewall rule, and no Azure SQL access of any kind belongs to this release.
+- [x] Demo API ZIP `artifacts/SatiApi-1.2.37.zip` built from `c48fc12`. `Sati.Api.dll` reports file
+      version `1.2.37.0` and product version
+      `1.2.37+c48fc1285df7562d31b85c82ffd9a5f30d1273c0`. 9,502,275 bytes; SHA-256
+      `5880468485814AD10B26FD03964ACAD29FF08DD606C82ADAFFE9BF56E6407243`; 70 files with
+      forward-slash entry paths, both WebJob files present, no `appsettings*.json` or key material.
+      The 1.2.36 package remains in `artifacts`.
+- [x] Deployed only to the existing App Service `sati-demo-api-satilogica`; OneDeploy
+      `941e7c0cd86e4d838872902e23144b67` succeeded. `/health/live` live, `/health/ready` Healthy,
+      `/health/version` reports `Sati.Api`, release `1.2.37`, contract `729A9E9F9B2B` — matching
+      the locally built `Sati.Contracts`, and unchanged from 1.2.36 because no contract moved.
+- [x] Generated and accepted `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.37.exe`
+      (100,487,168 bytes; SHA-256
+      `F3D19F4A5F46B77123A4437975E01EB0CAEF872BEE431AC5D0DF50E6CAF88D0E`): five installed launches
+      responded, closed gracefully with exit code 0, reported version 1.2.37.0, cleanup passed.
+      Evidence in `artifacts/release-1.2.37-demo-installer-acceptance.json`.
+- [x] Generated and accepted `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.37.exe`
+      (202,546,954 bytes; SHA-256
+      `E2CBE465E6AF383C06E3BE881F1010DB3BB56DE1CF23778E1F357F09AC7BCD18`): version 1.2.37.0,
+      Windows integrated security, cleanup passed. Its embedded `SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) carried a valid Microsoft
+      Corporation Authenticode signature, verified before use. The generated installers are not
+      represented as code-signed.
+- [x] Published both accepted installers and only their `.sha256` files through uniquely named,
+      hash-verified temporary siblings to `...\SatiLogica - Documents\Sati Desktop` and
+      `...\SatiLogica - Documents\SatiLogica Demo Files`. No file overwritten, no temporary left.
+      The 1.2.36 installers remain in place, superseded and deliberately not deleted — **they will
+      still refuse to start until 1.2.37 is installed over them.**
+- [ ] Local Production machines and the release each is on. Awaiting Josh. Both were on 1.2.35;
+      one has 1.2.36 installed and cannot open until 1.2.37 is applied over it.
 
 ## 1.2.36 blocks Local startup — found 2026-09-01, fixed, needs 1.2.37
 
