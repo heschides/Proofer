@@ -45,7 +45,7 @@ internal static partial class CaseNoteFactCompiler
         for (var index = 0; index < fragments.Count; index++)
         {
             var fragment = fragments[index];
-            var usage = FollowUpSignalRegex().IsMatch(fragment)
+            var usage = HasFollowUpSignal(fragment)
                 ? CaseNoteFactUsage.Narrative | CaseNoteFactUsage.FollowUp
                 : CaseNoteFactUsage.Narrative;
             facts.Add(new($"RAW-{index + 1:000}", fragment, "Rough note", usage));
@@ -91,6 +91,14 @@ internal static partial class CaseNoteFactCompiler
             facts,
             fingerprint);
     }
+
+    /// <summary>
+    /// Uses the same signal test that classifies current-note facts, so note-entry
+    /// conveniences cannot disagree with the drafting pipeline about whether a
+    /// follow-up is already documented.
+    /// </summary>
+    public static bool HasFollowUpSignal(string? narrative) =>
+        !string.IsNullOrWhiteSpace(narrative) && FollowUpSignalRegex().IsMatch(narrative);
 
     private static IReadOnlyList<string> SplitRawNarrative(string rawNarrative)
     {

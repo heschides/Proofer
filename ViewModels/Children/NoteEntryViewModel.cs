@@ -40,6 +40,7 @@ namespace Sati.ViewModels.Children
         private readonly INoteService _noteService;
         private readonly IPersonService _personService;
         private readonly ISettingsService _settingsService;
+        private readonly IUpcomingEventService _upcomingEventService;
         private readonly ISessionService _sessionService;
         private readonly IPersonContactService _personContactService;
         private readonly IClientAiContextService _clientAiContextService;
@@ -72,6 +73,9 @@ namespace Sati.ViewModels.Children
         // Guards the freshness read taken when a note is unlocked, so a slow reply
         // for a note the panel has already moved off cannot publish over it.
         private readonly LatestRequestTracker _freshnessChecks = new();
+        private readonly LatestRequestTracker _suggestedFollowUpRequests = new();
+        private UpcomingEvent? _suggestedFollowUp;
+        private bool _suggestedFollowUpAccepted;
         private IReadOnlyList<ServiceBlock> _recordedDayBlocks = [];
 
         // True when the open dialog was triggered by a billing-window block (note
@@ -88,6 +92,7 @@ namespace Sati.ViewModels.Children
             INoteService noteService,
             IPersonService personService,
             ISettingsService settingsService,
+            IUpcomingEventService upcomingEventService,
             ISessionService sessionService,
             IPersonContactService personContactService,
             IClientAiContextService clientAiContextService,
@@ -98,6 +103,7 @@ namespace Sati.ViewModels.Children
             _noteService = noteService;
             _personService = personService;
             _settingsService = settingsService;
+            _upcomingEventService = upcomingEventService;
             _sessionService = sessionService;
             _personContactService = personContactService;
             _clientAiContextService = clientAiContextService;
@@ -201,6 +207,31 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private IReadOnlyList<string> aiWarnings = [];
         [ObservableProperty] private IReadOnlyList<ClientAiContextSource> aiContextSources = [];
         [ObservableProperty] private string aiContextSummary = "Verified inputs";
+
+        public string SuggestedFollowUpText => _suggestedFollowUp is null
+            ? string.Empty
+            : $"{_suggestedFollowUp.Title}, due {_suggestedFollowUp.Date:M/d/yy}";
+
+        public bool IsSuggestedFollowUpVisible =>
+            _suggestedFollowUp is not null && !IsReminderNote;
+
+        public string SuggestedFollowUpAutomationName => _suggestedFollowUp is null
+            ? "Accept suggested follow-up"
+            : $"Add suggested follow-up: {SuggestedFollowUpText}";
+
+        public string SuggestedFollowUpToolTip
+        {
+            get
+            {
+                if (_suggestedFollowUpAccepted)
+                    return "This suggestion has already been added to the note.";
+                if (CaseNoteFactCompiler.HasFollowUpSignal(Narrative))
+                    return "A follow-up is already documented in this note.";
+                if (IsLocked)
+                    return "Unlock the note before adding the suggested follow-up.";
+                return "Add this item to the note as an editable follow-up.";
+            }
+        }
 
         // Structured Visit facts. The legacy singular enum values remain so old
         // note JSON still opens; the option collections are the current UI state.
@@ -356,6 +387,8 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsDateEnabled));
             SubmitNoteCommand.NotifyCanExecuteChanged();
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
         }
 
         partial void OnReturnReasonChanged(string? value) =>
@@ -439,6 +472,7 @@ namespace Sati.ViewModels.Children
             if (oldValue?.Id == newValue?.Id)
             {
                 _ = LoadVisitAttendeesAsync(newValue);
+                RefreshSuggestedFollowUp(newValue, resetAcceptance: false);
                 return;
             }
 
@@ -475,6 +509,7 @@ namespace Sati.ViewModels.Children
 
                 MarkDirty();
                 _ = LoadVisitAttendeesAsync(newValue);
+                RefreshSuggestedFollowUp(newValue, resetAcceptance: true);
                 return;
             }
 
@@ -495,6 +530,7 @@ namespace Sati.ViewModels.Children
             // wiped by the client switch, which is itself the deliberate act.
             HasUnsavedChanges = false;
             _ = LoadVisitAttendeesAsync(newValue);
+            RefreshSuggestedFollowUp(newValue, resetAcceptance: true);
         }
 
         private void SetSelectedPersonWithoutEffects(Person? person)
@@ -521,9 +557,12 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsJournalReminder));
             OnPropertyChanged(nameof(AreNoteFieldsEnabled));
             OnPropertyChanged(nameof(NarrativeLabel));
+            OnPropertyChanged(nameof(IsSuggestedFollowUpVisible));
+            OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
             OnPropertyChanged(nameof(SaveActionLabel));
             OnPropertyChanged(nameof(StatusGuidance));
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
 
             // A caller can change fields programmatically and a user can click a
             // type after choosing the date. Either way, a future date remains a
@@ -609,6 +648,8 @@ namespace Sati.ViewModels.Children
         partial void OnNarrativeChanged(string? value)
         {
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
             MarkDirty();
 
             if (!_applyingAiDraft)
@@ -699,6 +740,7 @@ namespace Sati.ViewModels.Children
         public async Task InitializeAsync()
         {
             _settings = await _settingsService.LoadAsync();
+            RefreshSuggestedFollowUp(SelectedPerson, resetAcceptance: false);
         }
 
         // Hosts own people loading (the module never queries the caseload itself —
@@ -714,6 +756,69 @@ namespace Sati.ViewModels.Children
 
             if (keepId is int id)
                 SelectedPerson = People.FirstOrDefault(p => p.Id == id);
+        }
+
+        private void RefreshSuggestedFollowUp(Person? person, bool resetAcceptance)
+        {
+            var request = _suggestedFollowUpRequests.Begin();
+            UpcomingEvent? suggestion = null;
+
+            if (person is not null && _settings is not null)
+            {
+                try
+                {
+                    suggestion = _upcomingEventService
+                        .GenerateEvents([person], _settings)
+                        .OrderBy(item => item.Date)
+                        .FirstOrDefault();
+                }
+                catch (Exception ex)
+                {
+                    var reference = AppErrorLog.Record(ex, "note-entry.suggested-follow-up");
+                    Debug.WriteLine($"Suggested follow-up unavailable. Support reference: {reference}.");
+                }
+            }
+
+            if (!_suggestedFollowUpRequests.IsCurrent(request) ||
+                SelectedPerson?.Id != person?.Id)
+                return;
+
+            _suggestedFollowUp = suggestion;
+            if (resetAcceptance)
+                _suggestedFollowUpAccepted = false;
+            NotifySuggestedFollowUpChanged();
+        }
+
+        private void NotifySuggestedFollowUpChanged()
+        {
+            OnPropertyChanged(nameof(SuggestedFollowUpText));
+            OnPropertyChanged(nameof(IsSuggestedFollowUpVisible));
+            OnPropertyChanged(nameof(SuggestedFollowUpAutomationName));
+            OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
+            AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
+        }
+
+        private bool CanAcceptSuggestedFollowUp() =>
+            _suggestedFollowUp is not null &&
+            !_suggestedFollowUpAccepted &&
+            !IsReminderNote &&
+            !IsLocked &&
+            !CaseNoteFactCompiler.HasFollowUpSignal(Narrative);
+
+        [RelayCommand(CanExecute = nameof(CanAcceptSuggestedFollowUp))]
+        private void AcceptSuggestedFollowUp()
+        {
+            if (!CanAcceptSuggestedFollowUp() || _suggestedFollowUp is null)
+                return;
+
+            var item = _suggestedFollowUp.Title.Trim().TrimEnd('.');
+            var line = $"Follow-up: {item} due {_suggestedFollowUp.Date:M/d/yy}.";
+            Narrative = string.IsNullOrWhiteSpace(Narrative)
+                ? line
+                : $"{Narrative.TrimEnd()}{Environment.NewLine}{line}";
+
+            _suggestedFollowUpAccepted = true;
+            NotifySuggestedFollowUpChanged();
         }
 
         private async Task LoadVisitAttendeesAsync(Person? person)
@@ -1302,6 +1407,7 @@ namespace Sati.ViewModels.Children
 
             HasUnsavedChanges = false;
             _ = LoadVisitAttendeesAsync(SelectedPerson);
+            RefreshSuggestedFollowUp(SelectedPerson, resetAcceptance: true);
             _ = RefreshServiceDayAsync();
         }
 
@@ -1492,6 +1598,7 @@ namespace Sati.ViewModels.Children
         public void Clear()
         {
             SetSelectedPersonWithoutEffects(null);
+            RefreshSuggestedFollowUp(null, resetAcceptance: true);
             ReturnToNewNote();
         }
 
@@ -1969,6 +2076,8 @@ namespace Sati.ViewModels.Children
             ResetVisitDocumentation(clearAttendees: true);
             ClearAiReview();
             AiStatusMessage = string.Empty;
+            _suggestedFollowUpAccepted = false;
+            NotifySuggestedFollowUpChanged();
 
             _freshnessChecks.Invalidate();
             StaleNoteMessage = null;
@@ -2042,6 +2151,7 @@ namespace Sati.ViewModels.Children
             IsLocked = false;
             ReturnReason = null;
             SetSelectedPersonWithoutEffects(null);
+            RefreshSuggestedFollowUp(null, resetAcceptance: true);
             ClearNoteFields();
             People.Clear();
         }

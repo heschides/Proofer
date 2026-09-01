@@ -512,6 +512,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <!-- Carries the unit count the removed detail panel
@@ -944,11 +945,41 @@
                                      FontSize="{Binding NarrativeFontSize}"
                                      Text="{Binding Narrative, UpdateSourceTrigger=PropertyChanged}" />
 
+                            <Border Grid.Row="8"
+                                    Margin="0,6,0,10"
+                                    Padding="10,8"
+                                    CornerRadius="6"
+                                    Background="{DynamicResource SurfaceMutedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    Visibility="{Binding IsSuggestedFollowUpVisible,
+                                        Converter={StaticResource BoolToVisibilityConverter}}">
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Margin="12,0,0,0"
+                                            Padding="12,5"
+                                            VerticalAlignment="Center"
+                                            Content="Accept suggestion"
+                                            Command="{Binding AcceptSuggestedFollowUpCommand}"
+                                            AutomationProperties.Name="{Binding SuggestedFollowUpAutomationName}"
+                                            ToolTip="{Binding SuggestedFollowUpToolTip}"
+                                            ToolTipService.ShowOnDisabled="True" />
+                                    <TextBlock VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               AutomationProperties.Name="{Binding SuggestedFollowUpText,
+                                                   StringFormat=Suggested follow-up: {0}}">
+                                        <Run Text="Suggested follow-up: " FontWeight="SemiBold" />
+                                        <Run Text="{Binding SuggestedFollowUpText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </DockPanel>
+                            </Border>
+
                             <!-- Disabled for a Reminder: the local AI path drafts
                                  case note prose from current note-entry facts, which a
                                  reminder neither needs nor should supply. The command
                                  refuses it too — this is not the only gate. -->
-                            <StackPanel Grid.Row="8"
+                            <StackPanel Grid.Row="9"
                                         Margin="0,2,0,10"
                                         IsEnabled="{Binding AreNoteFieldsEnabled}"
                                         Visibility="{Binding IsLocalAiEnabled,
@@ -1020,7 +1051,7 @@
                                              AutomationProperties.Name="Local AI model download progress" />
                             </StackPanel>
 
-                            <Border Grid.Row="9"
+                            <Border Grid.Row="10"
                                     Margin="0,2,0,10"
                                     Padding="12"
                                     CornerRadius="6"
