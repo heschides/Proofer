@@ -62,6 +62,21 @@ each quarter, per client.
       change — see `DECISIONS.md`, 2026-09-01.
 - [ ] Operational: service dates wrongly blocked by an unreachable copy become billable again
       after the repair. Re-billing decision, not a code change.
+- [ ] **Nothing generates new cycle forms right now, and there is a ~2028 cliff.**
+      `EnsureCurrentCycleForms` has exactly one caller — `PersonService.cs:216`, behind
+      `EnableEnsureCycleFormsOnLoad = false` since `57af6fa`. Existing clients hold forms into
+      2027–2028 only because the racing pre-`57af6fa` runs created the current *and* next cycle
+      before the flag went off. When those run out, no new compliance forms appear and nothing
+      says so. `Person.CreatePerson` covers new clients only. Needs a generator that runs
+      somewhere deliberate — the flag was switched off to stop the race, and the unique index
+      now handles that, but turning it back on as-is also resumes minting annual documents with
+      `isCompliant: true` and no completion date, which is the defect below.
+- [ ] No in-app control captures an arbitrary completion date for a non-review form. The
+      quarterly attestation control (`ReviewsViewModel`) covers `Q1R`–`Q4R`; `ComplianceFormRow`'s
+      per-row date picker is reachable only from client creation and the add-a-waiver dialog.
+      Everywhere else stamps `DueDate` (Clients/dashboard checkbox) or `DateTime.Today` (task
+      board). So a Comprehensive Assessment completed on a date that is neither cannot be
+      recorded truthfully without a database edit.
 
 ## Release 1.2.35 — 2026-09-01
 
