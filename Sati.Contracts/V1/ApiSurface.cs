@@ -85,6 +85,7 @@ public static class ApiSurface
         "GET /api/v1/notes/monthly",
         "GET /api/v1/notes/year/{year:int}",
         "GET /api/v1/people/{personId:int}/appointments/latest",
+        "GET /api/v1/people/{personId:int}/assessments/latest",
         "GET /api/v1/people/{personId:int}/at-requests",
         "GET /api/v1/people/{personId:int}/ai-context",
         "GET /api/v1/people/{personId:int}/contacts",
