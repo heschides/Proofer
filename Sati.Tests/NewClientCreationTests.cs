@@ -458,6 +458,8 @@ public sealed class NewClientCreationTests
         public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
         public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
             throw new NotSupportedException();
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
+            throw new NotSupportedException();
     }
 
     private sealed class CountingPersonService : IPersonService
@@ -478,6 +480,8 @@ public sealed class NewClientCreationTests
         public Task<string?> GetJournalAsync(int personId) => throw new NotSupportedException();
         public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
         public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
+            throw new NotSupportedException();
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
     }
 

@@ -1407,6 +1407,86 @@ internal static class ApiEndpoints
             return Results.Ok(await LoadPersonDtoAsync(db, person, cancellationToken));
         });
 
+        // Moves a consumer between caseloads. The immediate caller is caseload distribution
+        // after a Credible import, where a supervisor holds a batch personally and hands it
+        // out; the same route is what staff turnover needs. See CREDIBLE_IMPORT_DESIGN.md.
+        //
+        // Every fact the decision rests on is read from the database. The request supplies a
+        // target id and a revision token and nothing else — in particular it cannot assert
+        // who the current owner is, which is the value an attacker would most want to choose.
+        api.MapPut("/people/{personId:int}/owner", async Task<IResult> (
+            int personId,
+            TransferCaseloadRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.SingleOrDefaultAsync(
+                candidate => candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var currentOwner = await TenantAccess.LoadParticipantAsync(
+                db, person.UserId, cancellationToken);
+            var target = await TenantAccess.LoadParticipantAsync(
+                db, request.TargetUserId, cancellationToken);
+            if (currentOwner is null || target is null)
+                return Results.NotFound();
+
+            var denial = CaseloadTransferRules.Evaluate(
+                actor.ToAgencyActor(), currentOwner.Value, target.Value);
+            if (denial is CaseloadTransferDenial.AlreadyOwned)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["targetUserId"] = [CaseloadTransferRules.Describe(denial)]
+                });
+            }
+            if (denial is not CaseloadTransferDenial.None)
+                return Results.Forbid();
+
+            if (request.ExpectedRevision != person.Revision)
+                return StalePersonConflict();
+
+            var before = PersonLifecycle.Capture(person);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            var previousUserId = person.UserId;
+            person.UserId = request.TargetUserId;
+
+            // userId is a tracked lifecycle field, so the move lands in the consumer's own
+            // history as a named change and bumps the revision. The audit event is separate
+            // and unconditional in intent: history says what the record looks like now, the
+            // trail says who moved it.
+            if (lifecycle.RecordChanged(actor, person, before, "Reassigned"))
+            {
+                auditTrail.Record(
+                    actor,
+                    AuditActions.PersonReassigned,
+                    "Person",
+                    personId,
+                    JsonSerializer.Serialize(new
+                    {
+                        previousUserId,
+                        newUserId = request.TargetUserId
+                    }));
+            }
+
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
+
+            return Results.Ok(new CaseloadOwnershipDto(person.Id, person.UserId, person.Revision));
+        });
+
         api.MapGet("/people/{personId:int}/history", async Task<IResult> (
             int personId,
             ClaimsPrincipal principal,

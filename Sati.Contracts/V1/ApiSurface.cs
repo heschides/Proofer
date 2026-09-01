@@ -159,6 +159,7 @@ public static class ApiSurface
         "PUT /api/v1/people/{personId:int}",
         "PUT /api/v1/people/{personId:int}/contacts/{contactId:int}",
         "PUT /api/v1/people/{personId:int}/journal",
+        "PUT /api/v1/people/{personId:int}/owner",
         "PUT /api/v1/people/{personId:int}/providers/{linkId:int}",
         "PUT /api/v1/people/{personId:int}/ssn",
         "PUT /api/v1/providers/{id:int}",

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Sati.Contracts.V1;
 
 namespace Sati.Data
 {
@@ -30,5 +31,18 @@ namespace Sati.Data
         Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text);
 
         Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId);
+
+        // Moves a consumer to another case manager's caseload. Separate from EditPersonAsync
+        // because ownership is not a profile field: it decides who may read the record at all,
+        // it is the only Person change a supervisor makes to someone else's consumer, and
+        // Person.UserId is deliberately not settable through the ordinary save path.
+        //
+        // Sati.Contracts.V1.CaseloadTransferRules owns who may do this. Both implementations
+        // load the participants themselves and consult it; neither trusts the caller to have
+        // checked, because the desktop path has no server in front of it.
+        Task<CaseloadOwnershipDto> TransferOwnershipAsync(
+            int personId,
+            int targetUserId,
+            int expectedRevision);
     }
 }

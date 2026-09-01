@@ -22,6 +22,16 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
             $"/api/v1/people/{person.Id}", request));
     }
 
+    // The server decides. Nothing is evaluated here — a client-side authorization check
+    // would only be a second opinion the server does not ask for, and one that drifts.
+    public Task<CaseloadOwnershipDto> TransferOwnershipAsync(
+        int personId,
+        int targetUserId,
+        int expectedRevision) =>
+        api.PutAsync<TransferCaseloadRequest, CaseloadOwnershipDto>(
+            $"/api/v1/people/{personId}/owner",
+            new TransferCaseloadRequest(targetUserId, expectedRevision));
+
     public async Task<List<Person>> GetAllPeopleAsync(int userId) =>
         (await api.GetAsync<List<PersonDto>>($"/api/v1/caseload?userId={userId}")).Select(CloudContractMapper.ToPerson).ToList();
 

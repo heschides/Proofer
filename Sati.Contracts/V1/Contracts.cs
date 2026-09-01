@@ -146,6 +146,21 @@ public sealed record SavePersonRequest(
     string? Email = null,
     bool IsTestData = false);
 
+/// <summary>
+/// Moves one consumer to another case manager's caseload.
+///
+/// <para>
+/// <paramref name="ExpectedRevision"/> is not optional in practice: a supervisor distributing an
+/// imported batch and a case manager editing the same consumer's profile are exactly the
+/// concurrent pair this record has to lose to rather than overwrite. A mismatch answers with the
+/// same <c>stale_person</c> conflict a profile save does.
+/// </para>
+/// </summary>
+public sealed record TransferCaseloadRequest(int TargetUserId, int ExpectedRevision);
+
+/// <summary>The consumer's ownership as it stands after a transfer.</summary>
+public sealed record CaseloadOwnershipDto(int PersonId, int UserId, int Revision);
+
 public sealed record PersonContactDto(
     int Id,
     int PersonId,
