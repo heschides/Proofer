@@ -90,6 +90,40 @@ each quarter, per client.
       board). So a Comprehensive Assessment completed on a date that is neither cannot be
       recorded truthfully without a database edit.
 
+## 1.2.36 blocks Local startup — found 2026-09-01, fixed, needs 1.2.37
+
+**Every Local Production machine refuses to start on 1.2.36.** Josh hit it installing the release.
+The dialog is correct and nothing was written, but the premise it stopped on was false.
+
+`MigrationEffectAnalyzer` judged an `AlterColumnOperation` satisfied on nullability alone.
+`AddUniqueFormPersonTypeDueDateIndex` narrows `Forms.Type` from `nvarchar(max)` to `nvarchar(40)`
+so it can be indexed, and that column is `NOT NULL` before and after. So on a database that had
+had *none* of the migration, the alter read as already applied while the unique index beside it
+read as missing — one present, one missing, `PartiallyPresent`, which is the one verdict
+`LocalDatabaseUpdater` deliberately will not act on. It is the correct refusal for a genuinely
+mixed schema; here the schema was simply un-migrated.
+
+Verified directly against this machine's `SatiProduction`: `Forms.Type` still `nvarchar(max)`,
+`IX_Forms_PersonId` still present, `IX_Forms_PersonId_Type_DueDate` absent, `IsCompliant` present,
+zero 2026-09 history rows. Nothing of the release had been applied, on either migration.
+
+**Fixed:** an alter is now satisfied only when a declared bound has actually been applied. An
+unbounded live column where the migration declares a bound is proof the alter has not run. Only
+unbounded-versus-bounded counts as evidence — a column merely wider than declared stays satisfied,
+because stopping startup over benign drift is the same class of mistake. Re-run against the live
+database, both migrations now report `NotApplied`, which is the ordinary path: backup, duplicate
+repair, migrate.
+
+The analyzer had no automated coverage because it reads SQL Server catalog views. It has five
+tests now, against a hand-built schema; the headline one fails against the unfixed classifier.
+
+- [ ] Cut 1.2.37 with this fix. 1.2.36 cannot be re-cut — its installers are published and the
+      playbook forbids replacing bytes under an existing version.
+- [ ] Demo needs no repeat migration; `SatiDemo` is already at the 1.2.36 schema and healthy. The
+      1.2.37 API publish is a version bump only.
+- [ ] Treat the published 1.2.36 installers as superseded. Do not delete them; publish 1.2.37
+      beside them.
+
 ## Release 1.2.36 — 2026-09-01
 
 "One record, one answer." A completed 90-day review that kept blocking billing, traced to three

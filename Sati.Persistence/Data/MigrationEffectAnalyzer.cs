@@ -109,7 +109,7 @@ public static class MigrationEffectAnalyzer
         return findings;
     }
 
-    private static MigrationEffectFinding Classify(
+    internal static MigrationEffectFinding Classify(
         string migrationId,
         IReadOnlyList<MigrationOperation> operations,
         LiveSchema schema)
@@ -138,14 +138,35 @@ public static class MigrationEffectAnalyzer
                     Record($"{drop.Table}.{drop.Name} removed", !schema.HasColumn(drop.Table, drop.Name));
                     break;
 
-                // An alter is satisfied only when the column exists AND its nullability
-                // matches the target. The columns this chain alters are made NOT NULL
-                // after a backfill, so nullability is the signal that the backfill ran.
+                // An alter is satisfied only when the column exists, its nullability
+                // matches the target, AND a declared bound has actually been applied.
+                // The columns this chain alters are made NOT NULL after a backfill, so
+                // nullability is the signal that the backfill ran.
+                //
+                // Nullability alone is not enough. AddUniqueFormPersonTypeDueDateIndex
+                // narrows Forms.Type from nvarchar(max) to nvarchar(40) so it can be
+                // indexed, and that column is NOT NULL both before and after. Judged on
+                // nullability the alter read as already applied while the index beside
+                // it read as missing, so a completely un-migrated database reported
+                // PartiallyPresent and startup refused - correctly, given what the
+                // analyzer could see, but on a false premise. An unbounded column where
+                // the migration declares a bound is proof the alter has NOT run.
+                //
+                // Only unbounded-versus-bounded is treated as evidence. A live column
+                // merely wider than the migration declared is left satisfied, because
+                // that is benign drift and narrowing the verdict there would stop
+                // startup over something that does not affect correctness.
                 case AlterColumnOperation alter:
+                    var boundApplied =
+                        alter.MaxLength is not int declaredLength
+                        || schema.ColumnMaxLength(alter.Table, alter.Name) is not int liveLength
+                        || liveLength >= declaredLength;
                     Record(
-                        $"{alter.Table}.{alter.Name} is {(alter.IsNullable ? "nullable" : "not null")}",
+                        $"{alter.Table}.{alter.Name} is {(alter.IsNullable ? "nullable" : "not null")}"
+                        + (alter.MaxLength is int bound ? $" and bounded to {bound}" : string.Empty),
                         schema.HasColumn(alter.Table, alter.Name)
-                        && schema.ColumnIsNullable(alter.Table, alter.Name) == alter.IsNullable);
+                        && schema.ColumnIsNullable(alter.Table, alter.Name) == alter.IsNullable
+                        && boundApplied);
                     break;
 
                 case CreateIndexOperation index:
@@ -208,9 +229,27 @@ public static class MigrationEffectAnalyzer
     /// The tables, columns, indexes, primary keys, and foreign keys the database actually
     /// has, read once so a migration set is classified against one consistent picture.
     /// </summary>
-    private sealed class LiveSchema
+    internal sealed class LiveSchema
     {
-        private readonly Dictionary<string, Dictionary<string, bool>> _columns = new(StringComparer.OrdinalIgnoreCase);
+        // Test seam. The reader below needs SQL Server catalog views, so the
+        // classification rules would otherwise have no automated coverage at all.
+        internal static LiveSchema ForTests(
+            Dictionary<string, Dictionary<string, (bool Nullable, int? MaxChars)>> columns,
+            IEnumerable<(string Table, string[] Columns)>? indexes = null)
+        {
+            var schema = new LiveSchema();
+            foreach (var table in columns)
+                schema._columns[table.Key] = table.Value;
+            foreach (var index in indexes ?? [])
+                schema._indexes.Add(Key(index.Table, index.Columns));
+            return schema;
+        }
+
+        // Value is (IsNullable, MaxCharacters). MaxCharacters is null for a column with
+        // no character length - a non-string type - and -1 for an unbounded one, which
+        // is what INFORMATION_SCHEMA reports for nvarchar(max).
+        private readonly Dictionary<string, Dictionary<string, (bool Nullable, int? MaxChars)>> _columns =
+            new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _indexes = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _primaryKeys = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _foreignKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -224,7 +263,8 @@ public static class MigrationEffectAnalyzer
             {
                 await ReadAsync(connection,
                     """
-                    SELECT TABLE_NAME, COLUMN_NAME, CASE WHEN IS_NULLABLE = 'YES' THEN 1 ELSE 0 END
+                    SELECT TABLE_NAME, COLUMN_NAME, CASE WHEN IS_NULLABLE = 'YES' THEN 1 ELSE 0 END,
+                           CHARACTER_MAXIMUM_LENGTH
                     FROM INFORMATION_SCHEMA.COLUMNS
                     """,
                     reader =>
@@ -232,10 +272,12 @@ public static class MigrationEffectAnalyzer
                         var table = reader.GetString(0);
                         if (!schema._columns.TryGetValue(table, out var columns))
                         {
-                            columns = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                            columns = new Dictionary<string, (bool, int?)>(StringComparer.OrdinalIgnoreCase);
                             schema._columns[table] = columns;
                         }
-                        columns[reader.GetString(1)] = Convert.ToInt32(reader.GetValue(2)) == 1;
+                        columns[reader.GetString(1)] = (
+                            Convert.ToInt32(reader.GetValue(2)) == 1,
+                            reader.IsDBNull(3) ? null : Convert.ToInt32(reader.GetValue(3)));
                     }, cancellationToken);
 
                 // Index and key membership is keyed by table plus its ordered key columns,
@@ -294,8 +336,20 @@ public static class MigrationEffectAnalyzer
 
         public bool ColumnIsNullable(string table, string column) =>
             _columns.TryGetValue(table, out var columns)
-            && columns.TryGetValue(column, out var nullable)
-            && nullable;
+            && columns.TryGetValue(column, out var info)
+            && info.Nullable;
+
+        /// <summary>
+        /// The column's character length, or null when it has none. An unbounded
+        /// column - nvarchar(max) - reports -1, which is deliberately NOT normalised
+        /// to null: "unbounded" is a real answer that disproves a declared bound,
+        /// while "not a string column" is an absence of evidence.
+        /// </summary>
+        public int? ColumnMaxLength(string table, string column) =>
+            _columns.TryGetValue(table, out var columns)
+            && columns.TryGetValue(column, out var info)
+                ? info.MaxChars
+                : null;
 
         public bool HasIndex(string table, string[] columns) => _indexes.Contains(Key(table, columns));
 
