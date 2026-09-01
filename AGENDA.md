@@ -122,23 +122,87 @@ Demo has no duplicates because its forms come from the API's `BuildInitialForms`
 path whose concurrent-load race produced them locally.
 
 ### Validation
-- [ ] Release build of the full solution
-- [ ] Sati desktop/domain tests
-- [ ] Sati API integration tests
-- [ ] Carika tests
+- [x] Release build of the full solution: 0 errors.
+- [x] Sati desktop/domain tests: 1,009 passed, 1 skipped.
+- [x] Sati API integration tests: 302 passed.
+- [x] Carika tests: 4 passed.
+- [x] The single skip is `LocalAiModelCompetenceTests.ConfiguredModelCompletesGroundedWorkflow`
+      `AcrossRepresentativeCurrentNoteInputs`, gated on `SATI_RUN_LOCAL_AI_MODEL_EVAL=1` for the
+      on-device Foundry Local model evaluation. Documented opt-in prerequisite, genuinely absent.
 
 ### Deployment and artifact evidence
-- [ ] Source release commit pushed to `master`
-- [ ] Temporary `datt-workstation-temp` firewall rule added by Josh for `72.95.106.10`; the release
-      workflow never created, altered, or deleted it
-- [ ] Controlled `SatiDemo` migration: rollback-only dry run, real run, then a third run proving
-      idempotency
-- [ ] Demo API published; deployment id, `/health/live`, `/health/ready`, `/health/version`, and
-      contract revision parity recorded
-- [ ] Demo installer built, acceptance-tested, published with SHA-256
-- [ ] Local installer built, acceptance-tested, published with SHA-256
-- [ ] `datt-workstation-temp` removed and verified absent
-- [ ] Local Production machines and the release each is on, including any known to be behind
+- [x] Source release commit `18ef75e` pushed to `master` and confirmed equal to `origin/master`
+      before any artifact was produced.
+- [x] Temporary `datt-workstation-temp` firewall rule added by Josh for `72.95.106.10` using
+      `scripts/Set-DemoWorkstationFirewallRule.ps1`. The release workflow never created, altered,
+      or deleted a firewall rule; it only wrote the script and validated that it parses.
+- [x] Controlled `SatiDemo` migration via `scripts/Apply-DerivedFormComplianceMigrations.ps1`,
+      guarded on the real schema rather than on `__EFMigrationsHistory`, and fail-closed on
+      database and environment identity. Three runs:
+      **dry run (rolled back)** and **real run** each reported `TypeNarrowed 1, IndexesAdded 1,
+      RowsBackfilled 1147, AuditEventsWritten 1147, IsCompliantDropped 1, HistoryRowsWritten 2`;
+      the **third run** reported all zeros, proving idempotency. The script refuses outright if
+      duplicate `(PersonId, Type, DueDate)` rows exist, and aborts if the backfill and its audit
+      trail disagree on the row count.
+- [x] Post-migration state verified independently: `IsCompliant` column absent, unique
+      `IX_Forms_PersonId_Type_DueDate` present, `Type` at `nvarchar(40)`, 4,124 forms unchanged,
+      1,848 carrying a completion date (701 pre-existing plus 1,147 backfilled), 1,147
+      `form.compliance-date-backfilled` audit events, 2 history rows.
+- [x] Demo API ZIP `artifacts/SatiApi-1.2.36.zip` built from pushed source commit `18ef75e`.
+      `Sati.Api.dll` reports file version `1.2.36.0` and product version
+      `1.2.36+18ef75e4fe68c5c1ac8714ab8f9ebe62987c562b`. The ZIP is 9,501,366 bytes with SHA-256
+      `1D951038A809A8459BA6B7F2573E3DA1C140061C261482855F3720B404022109`, holds 70 files — an
+      identical file set to the 1.2.35 package — including the two `demo-history-reconciliation`
+      WebJob files, and contains no `appsettings*.json`, private desktop configuration, credential
+      pattern, or key material. The prior known-healthy 1.2.35 package remains in `artifacts`.
+      **Rebuilt once before deployment:** `Compress-Archive` on Windows PowerShell 5.1 wrote 29
+      backslash-separated entry paths where the known-good 1.2.35 package had none, which would
+      have deployed files to wrong paths. Repacked with normalised separators and diffed against
+      1.2.35 to confirm no file was gained or lost.
+- [x] Demo API deployed only to the existing App Service `sati-demo-api-satilogica`; OneDeploy
+      deployment `62c49231d5724f9fb78e9c8d373c16b7` succeeded. `/health/live` returns
+      `{"status":"live"}`, `/health/ready` returns `Healthy`, and `/health/version` reports product
+      `Sati.Api`, release `1.2.36`, contract revision `729A9E9F9B2B`. The revision read from the
+      locally built `Sati.Contracts` is also `729A9E9F9B2B`. A healthy readiness result is the
+      real confirmation the migration satisfied the deployed model, because `SchemaDriftHealthCheck`
+      compares the model's tables and columns against the database.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.36.exe`
+      (100,487,168 bytes; SHA-256
+      `0DB4225E5FDBCB76E1D7EC6B9F34A8BB8385B38DA04D358897C8D20BA7284985`) without overwriting an
+      artifact: all five installed launches responded, closed gracefully with exit code 0, reported
+      version 1.2.36.0, and isolated cleanup passed. Evidence in
+      `artifacts/release-1.2.36-demo-installer-acceptance.json`.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.36.exe`
+      (202,545,930 bytes; SHA-256
+      `8EFF42D1E6D057237FCAF571D8833CA43E2FB28BF86E60AEE867B2D39EFD06D7`) without overwriting an
+      artifact: version 1.2.36.0, Windows integrated security, and isolated cleanup passed. Its
+      embedded `artifacts\Prerequisites\SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) carried a valid Microsoft
+      Corporation Authenticode signature, verified before use. The generated installers themselves
+      are not represented as code-signed.
+- [x] Published both accepted installers and only their `.sha256` files through uniquely named,
+      hash-verified temporary siblings to
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop` and
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+      Destination hashes match the accepted artifacts; no existing file was overwritten and no
+      temporary file remains.
+- [ ] `datt-workstation-temp` removed by Josh and verified absent. **Outstanding at the time of this
+      commit** — the workflow cannot remove a firewall rule.
+- [ ] Local Production machines and the release each is on, including any known to be behind.
+      Awaiting Josh. Both machines were on 1.2.35 before this release; **neither receives 1.2.36
+      until the new Local installer is run there**, and the desktop applies the duplicate repair and
+      both migrations at that first launch, not before.
+
+### Branch audit
+- [x] Deleted `fix/derived-form-compliance` (`6d98931`), `fix/duplicate-compliance-forms`
+      (`3aa960c`) and `handoff/duplicate-compliance-forms` (`1184140`) locally and remotely after
+      proving each fully merged, with no unique commits and no worktree holding it.
+- [x] Retained `claude/cool-jang-f6b3c4`: fully merged but checked out by a linked worktree.
+- [x] Retained `second-machine-setup` (7 unique commits) and remote
+      `claude/local-vs-github-workflow-dlcqpb` (1): historical setup and documentation branches from
+      2026-08-16 whose current intent is not safe to infer.
 
 ## Release 1.2.35 — 2026-09-01
 
