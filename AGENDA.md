@@ -69,20 +69,20 @@ each quarter, per client.
       one-time unblocking from the duplicate repair and the 147 backfilled rows therefore has no
       financial consequence. Neither recurs: both corrected rows that were blocking on a missing
       field rather than on a real compliance failure.
-- [ ] **Revisit the in-force assumption before real billing, specifically for backdated
-      admissions.** `Person.InForceSince` marks a cycle's annual documents in force from the
-      cycle start whenever that cycle has already begun. For an admission entered today that is
-      right — the paperwork was signed to open the case. For a client entered with an effective
-      date well in the past, it silently marks that whole cycle's documents in force with nobody
-      attesting them, and because the completion date precedes the due date they can never block.
-      Harmless while nothing is billed; decide deliberately before it is.
-- [ ] **Intervening cycles get no forms at all for a backdated admission.**
-      `Person.GenerateFormList` covers the first cycle and `EnsureCurrentCycleForms` covers the
-      current and next — nothing covers the years between. A client entered with a 2024 effective
-      date has no forms for the 2025 cycle, and a missing form is not a blocking reason, so that
-      year has no compliance requirements at all. Predates this work and does not affect the
-      current caseload (every client's cycles are contiguous), but it is a real hole in the same
-      area: the gate cannot enforce a document that was never created.
+- [x] **Intervening cycles get no forms for a backdated admission** — fixed 2026-09-01.
+      `EnsureCurrentCycleForms` now generates every cycle from the effective date through the
+      one after the current, bounded at 25 cycles and dropping the oldest end so the workable
+      cycles are always present. A form that was never created cannot be enforced, so those
+      years previously carried no compliance requirements at all.
+- [x] **The in-force assumption is scoped to the cycle containing today** — same change. It
+      previously applied to any already-started cycle, which was harmless while only the current
+      cycle was generated and would have asserted compliance nobody attested across every
+      historical year at once. Closed cycles are generated outstanding: Sati has no record of
+      whether a closed year's documents were renewed, and a later cycle beginning proves nothing
+      because cycles turn over on the anniversary, not because anything was signed.
+- [ ] Expect open historical documents on any client entered with a backdated effective date.
+      That is the honest reading of an unknown, matching the quarterly-review precedent — do not
+      bulk-close and do not invent dates. The creation dialog is where those years get recorded.
 - [ ] No in-app control captures an arbitrary completion date for a non-review form. The
       quarterly attestation control (`ReviewsViewModel`) covers `Q1R`–`Q4R`; `ComplianceFormRow`'s
       per-row date picker is reachable only from client creation and the add-a-waiver dialog.
