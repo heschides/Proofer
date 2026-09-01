@@ -146,6 +146,7 @@ namespace Sati
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<TextShortcutService>();
+                        services.AddSingleton<DailyAgendaPreferenceService>();
                         services.AddSingleton<TextShortcutHook>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 
