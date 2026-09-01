@@ -37,7 +37,7 @@ namespace Sati.ViewModels
 
                 lines.Add($"Due: {Form.DueDate:M/d/yy}");
 
-                if (Form.IsCompliant && Form.CompletedDate.HasValue)
+                if (Form.CompletedDate.HasValue)
                     lines.Add($"Completed: {Form.CompletedDate.Value:M/d/yy}");
                 else if (IsOpen)
                     lines.Add($"Opened: {Form.OpenedDate!.Value:M/d/yy}");

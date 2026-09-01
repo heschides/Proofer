@@ -15,7 +15,7 @@ public sealed class DailyAgendaBuilderTests
     {
         var person = PersonWithForms(
             "Alex",
-            new Form(FormType.Q1R, Today.AddDays(-120), false));
+            new Form(FormType.Q1R, Today.AddDays(-120)));
         var upcoming = new StubUpcomingEventService(
             Event("Q1 Review — Alex", Today.AddDays(-120), UpcomingEventKind.LateReview),
             Event("PCP — Alex", Today.AddDays(10), UpcomingEventKind.OpenReview));
@@ -33,8 +33,8 @@ public sealed class DailyAgendaBuilderTests
     {
         var person = PersonWithForms(
             "Alex",
-            new Form(FormType.PrivacyPractices, Today.AddDays(-2), false),
-            new Form(FormType.Q2R, Today.AddDays(-1), false));
+            new Form(FormType.PrivacyPractices, Today.AddDays(-2)),
+            new Form(FormType.Q2R, Today.AddDays(-1)));
 
         var result = new DailyAgendaBuilder(new StubUpcomingEventService())
             .Build([person], new Settings(), Today);
@@ -52,8 +52,7 @@ public sealed class DailyAgendaBuilderTests
         var forms = Enumerable.Range(1, 8)
             .Select(index => new Form(
                 FormType.PrivacyPractices,
-                Today.AddDays(-index),
-                false))
+                Today.AddDays(-index)))
             .ToArray();
         var person = PersonWithForms("Alex", forms);
 
@@ -70,8 +69,8 @@ public sealed class DailyAgendaBuilderTests
     [Fact]
     public void BuildingAgendaNeverChangesFormCompletionState()
     {
-        var incomplete = new Form(FormType.Q3R, Today.AddDays(-4), false);
-        var completed = new Form(FormType.SafetyPlan, Today.AddDays(-8), false);
+        var incomplete = new Form(FormType.Q3R, Today.AddDays(-4));
+        var completed = new Form(FormType.SafetyPlan, Today.AddDays(-8));
         completed.MarkComplete(Today.AddDays(-2));
         var person = PersonWithForms("Alex", incomplete, completed);
         var before = person.Forms
@@ -91,10 +90,10 @@ public sealed class DailyAgendaBuilderTests
     {
         var later = PersonWithForms(
             "Later Person",
-            new Form(FormType.ComprehensiveAssessment, Today.AddDays(90), false));
+            new Form(FormType.ComprehensiveAssessment, Today.AddDays(90)));
         var sooner = PersonWithForms(
             "Sooner Person",
-            new Form(FormType.ComprehensiveAssessment, Today.AddDays(45), false));
+            new Form(FormType.ComprehensiveAssessment, Today.AddDays(45)));
 
         var result = new DailyAgendaBuilder(new StubUpcomingEventService())
             .Build([later, sooner], new Settings(), Today);

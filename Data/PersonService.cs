@@ -6,9 +6,6 @@ namespace Sati.Data
 {
     public class PersonService : IPersonService
     {
-
-        private static readonly bool EnableEnsureCycleFormsOnLoad = false;
-
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private readonly ISettingsService _settingsService;
         private readonly ISessionService _sessionService;
@@ -205,7 +202,14 @@ namespace Sati.Data
                 .AsSplitQuery()
                 .ToListAsync();
 
-            if (EnableEnsureCycleFormsOnLoad)
+            // Generating missing cycle forms on load is the only thing keeping an
+            // ongoing caseload supplied with compliance records; without it clients
+            // silently run out once their pre-created cycles lapse. It was gated off
+            // from 57af6fa until the unique index existed, because two concurrent
+            // loads could both pass EnsureCurrentCycleForms' membership check and both
+            // insert — which is exactly how every form ended up triplicated.
+            // IX_Forms_PersonId_Type_DueDate now decides that race, and the catch
+            // below turns losing it into a re-read rather than a crash.
             {
                 var settings = await _settingsService.LoadAsync();
                 var today = DateTime.Today;

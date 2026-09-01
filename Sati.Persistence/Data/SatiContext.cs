@@ -379,6 +379,11 @@ namespace Sati.Data
             modelBuilder.Entity<Form>(entity =>
             {
                 entity.HasKey(f => f.Id);
+                // Compliance is derived from CompletedDate, not stored. The column it
+                // used to occupy was dropped in AddDerivedFormCompliance; two stored
+                // fields for one fact is what let a form read complete on screen while
+                // the billing gate treated it as outstanding.
+                entity.Ignore(f => f.IsCompliant);
                 // Bounded so the type can participate in the unique index below;
                 // nvarchar(max) cannot be indexed. The longest FormType name is
                 // ComprehensiveAssessment at 23 characters.

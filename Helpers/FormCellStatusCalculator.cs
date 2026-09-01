@@ -23,7 +23,12 @@ namespace Sati.Helpers
             // Complete trumps timing. A form completed at any point in this
             // cycle stays green regardless of where today falls relative to
             // the original due date.
-            if (form.IsCompliant)
+            //
+            // IsSatisfiedAsOf, not IsCompliant: a completion date that has not
+            // arrived yet is recorded but not in force, and BillingComplianceGate
+            // still blocks on it. A green cell over a blocking form is precisely the
+            // disagreement this whole area was fixed to remove.
+            if (form.IsSatisfiedAsOf(today))
                 return FormCellStatus.Complete;
 
             var due = form.DueDate.Date;

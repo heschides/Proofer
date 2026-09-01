@@ -589,9 +589,20 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
 - Returns `(bool Passed, IReadOnlyList<string> Reasons)` — one pass produces both result and
   human-readable explanation. `Person.EvaluateComplianceGate` is the desktop adapter.
 - A form fails the gate only when its due date has passed and it was not completed as of the
-  evaluation date. `Form.IsCompliant` is presentation/workflow state and is not authoritative for
-  billing; this prevents future unfinished forms from blocking early and stale flags from letting
-  overdue unfinished forms pass.
+  evaluation date.
+- **`Form.CompletedDate` is the only stored compliance fact.** `Form.IsCompliant` is derived from
+  it (`CompletedDate.HasValue`) and the column it used to occupy was dropped in
+  `AddDerivedFormCompliance`. A stored flag beside the date is a second copy of one fact kept in
+  step by convention, and 147 rows proved convention insufficient.
+- **Two questions, two names.** `IsCompliant` — is a completion recorded. `IsSatisfiedAsOf(date)` —
+  is it in force as of that date. They differ only when a completion date has not arrived yet.
+  Anything whose answer depends on today (caseload matrix, `UpcomingEvents`, task rows,
+  `GetComplianceStatus`) must ask `IsSatisfiedAsOf`, which shares its predicate with
+  `BillingComplianceGate.IsIncompleteAndOverdue`; checkbox bindings ask `IsCompliant`.
+- **`Person.InForceSince` owns "was this already satisfied when its cycle began."** Annual
+  documents are in force from their cycle start; reviews are never assumed; a cycle that has not
+  started assumes nothing. Both generation paths route through it, so a form cannot be born
+  compliant without a date.
 - The due date remains billable. The block begins the following day and ends on the completion
   date. An absent effective date is a separate profile/data-quality issue, not an overdue form.
 - **The gate reads every row in `Person.Forms`; `Person.GetCurrentCycleForm` reads one.** That

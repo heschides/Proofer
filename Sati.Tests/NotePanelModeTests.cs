@@ -240,7 +240,7 @@ public sealed class NotePanelModeTests
 
         var saved = Assert.Single(log.NotesView.Cast<Note>());
         saved.Person.Forms.Add(new Form(
-            FormType.PCP, DateTime.Today.AddDays(-1), isCompliant: false));
+            FormType.PCP, DateTime.Today.AddDays(-1)));
         log.SelectedNote = saved;
         Assert.Equal(NoteStatus.Pending, log.NoteEntry.Status);
 

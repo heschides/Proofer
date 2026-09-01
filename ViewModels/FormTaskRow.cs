@@ -44,7 +44,7 @@ namespace Sati.ViewModels
         // Mirrors GetComplianceStatus's Overdue branch, but applied to THIS form
         // rather than the current-cycle form that method re-fetches — board rows
         // are often the next cycle's renewal, which that method can't see.
-        public bool IsOverdue => !Form.IsCompliant && _today.Date > DueDate.Date;
+        public bool IsOverdue => !Form.IsSatisfiedAsOf(_today) && _today.Date > DueDate.Date;
         public int DaysOverdue => IsOverdue ? (_today.Date - DueDate.Date).Days : 0;
         public string OverdueTooltip => $"{DaysOverdue} day{(DaysOverdue == 1 ? "" : "s")} overdue";
 

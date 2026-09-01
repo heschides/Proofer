@@ -103,8 +103,7 @@ public sealed class DailyAgendaCoordinatorTests : IDisposable
         person.LastName = "Person";
         person.Forms.Add(new Form(
             FormType.ComprehensiveAssessment,
-            new DateTime(2027, 4, 1),
-            isCompliant: false));
+            new DateTime(2027, 4, 1)));
 
         var result = await Coordinator(
                 Preferences(),
@@ -127,8 +126,7 @@ public sealed class DailyAgendaCoordinatorTests : IDisposable
         person.LastName = "Person";
         person.Forms.Add(new Form(
             FormType.ComprehensiveAssessment,
-            new DateTime(2027, 4, 1),
-            isCompliant: false));
+            new DateTime(2027, 4, 1)));
 
         var result = await Coordinator(
                 Preferences(),

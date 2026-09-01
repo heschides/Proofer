@@ -47,7 +47,11 @@ namespace Sati.Data
             foreach (var (type, openBefore, daysAfter, label) in formMeta)
             {
                 var form = person.GetCurrentCycleForm(type, today);
-                if (form is null || form.IsCompliant)
+                // IsSatisfiedAsOf, not IsCompliant: a completion dated in the future is
+                // recorded but not yet in force, and the billing gate still treats
+                // that form as outstanding. Asking the same question keeps this list
+                // and the gate from naming different forms.
+                if (form is null || form.IsSatisfiedAsOf(today))
                     continue;
 
                 var dueDate = form.DueDate.Date;

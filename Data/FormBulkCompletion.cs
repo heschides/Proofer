@@ -103,7 +103,10 @@ namespace Sati.Data
             var eligible = Eligible(forms, cutoffInclusive).ToList();
             var alreadyCompleted = forms.Count(f =>
                 f.DueDate.Date <= cutoffInclusive.Date && f.CompletedDate.HasValue);
-            var legacyCompliantMissingDate = eligible.Count(f => f.IsCompliant);
+            // Always zero since AddDerivedFormCompliance: compliance IS the completion
+            // date, so a row without one cannot claim to be compliant. Kept so the
+            // report shape does not change mid-migration; drop it with this class.
+            const int legacyCompliantMissingDate = 0;
 
             var sb = new StringBuilder();
             sb.AppendLine("================================================================");

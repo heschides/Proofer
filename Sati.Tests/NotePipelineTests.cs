@@ -1022,7 +1022,7 @@ public sealed class NotePipelineTests
                          FormType.Reclassification, FormType.SafetyPlan
                      })
             {
-                var form = new Form(type, dueDate, true);
+                var form = new Form(type, dueDate, DateTime.Today);
                 form.MarkComplete(effective);
                 forms.Add(form);
             }

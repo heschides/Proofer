@@ -232,16 +232,35 @@ namespace Sati
             return Enum.GetValues<FormType>()
                 .Select(type =>
                 {
-                    var form = new Form(
+                    return new Form(
                         type,
                         FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
-                        isCompliant: false);
-                    if (!IsReviewType(type) && effective.Date <= DateTime.Today)
-                        form.MarkComplete(effective.Date);
-                    return form;
+                        InForceSince(type, cycleStart));
                 })
                 .ToList();
         }
+
+        // THE single answer to "was this document already satisfied when its cycle
+        // began, and if so, since when."
+        //
+        // An annual document is in force from the day its cycle started, because the
+        // cycle started BY it being signed — that is what an admission or a renewal
+        // is. Reviews are never assumed: a quarterly review is an attestation that
+        // work happened, and no date can be inferred for work nobody has recorded.
+        //
+        // A cycle that has not started yet assumes nothing either. Its documents are
+        // outstanding until someone renews them, which is exactly how missed
+        // renewal prep gets flagged.
+        //
+        // This returns a DATE rather than a flag on purpose. The old code paths
+        // expressed the same belief two different ways — GenerateFormList stamped the
+        // effective date, AddMissingFormsForCycle set a bare compliant flag with no
+        // date — and the second produced the 147 rows that read complete while
+        // blocking billing. One helper, one answer.
+        private static DateTime? InForceSince(FormType type, DateTime cycleStart) =>
+            !IsReviewType(type) && cycleStart.Date <= DateTime.Today
+                ? cycleStart.Date
+                : null;
 
         // Returns (cycleStart, cycleEnd) bracketing the cycle containing today:
         // cycleStart <= today < cycleEnd. The anniversary itself belongs to the
@@ -336,9 +355,13 @@ namespace Sati
             if (form is null)
                 return FormComplianceStatus.NoForm;
 
-            if (form.IsCompliant)
+            // IsSatisfiedAsOf, not IsCompliant. A completion date that has not arrived
+            // is recorded but not in force; reporting it Compliant here would put this
+            // status ahead of the billing gate, which still treats the form as
+            // outstanding until the date arrives.
+            if (form.IsSatisfiedAsOf(referenceDate))
             {
-                return form.CompletedDate.HasValue && form.CompletedDate.Value > form.DueDate
+                return form.CompletedDate!.Value > form.DueDate
                     ? FormComplianceStatus.CompliantLate
                     : FormComplianceStatus.CompliantOnTime;
             }
@@ -378,12 +401,21 @@ namespace Sati
             _ => 30
         };
 
-        // Ensures forms exist for the current AND next cycle. Current-cycle
-        // annual non-reviews default compliant (the cycle started because those
-        // documents were signed); next-cycle annuals default non-compliant and
-        // get marked true during the prep window as renewals are signed — if the
-        // cycle rolls over with them still false, missed prep is correctly
-        // flagged. Reviews default false in both cycles.
+        // Ensures forms exist for the current AND next cycle. Current-cycle annual
+        // non-reviews are created already satisfied, dated from the cycle start,
+        // because the cycle started by those documents being signed. Next-cycle
+        // annuals are created outstanding and are satisfied during the prep window as
+        // renewals are signed — if the cycle rolls over with them still open, missed
+        // prep is correctly flagged. Reviews are outstanding in both cycles.
+        // InForceSince owns that whole distinction.
+        //
+        // This is the only thing that generates forms for an ongoing caseload, so if
+        // it does not run, clients silently stop having compliance records once their
+        // pre-created cycles run out. It was gated off between 57af6fa and the unique
+        // index because it races: the membership check below reads this person's own
+        // Forms, and two callers could both pass it and both insert. The index now
+        // decides that race in the database, and PersonService discards the losing
+        // insert and re-reads, so the guard is no longer needed.
         //
         // Settings is unused after the form-model refactor; kept so PersonService
         // doesn't change in lockstep. Remove in a follow-up sweep.
@@ -396,11 +428,11 @@ namespace Sati
             var (cycleStart, cycleEnd) = boundaries.Value;
             var added = false;
 
-            added |= AddMissingFormsForCycle(cycleStart, cycleEnd, defaultAnnualCompliant: true, settings);
+            added |= AddMissingFormsForCycle(cycleStart, cycleEnd, settings);
 
             var nextStart = cycleEnd;
             var nextEnd = cycleEnd.AddYears(1);
-            added |= AddMissingFormsForCycle(nextStart, nextEnd, defaultAnnualCompliant: false, settings);
+            added |= AddMissingFormsForCycle(nextStart, nextEnd, settings);
 
             return added;
         }
@@ -440,7 +472,7 @@ namespace Sati
         // Idempotent: only adds forms missing for the cycle. Membership routes
         // through FormBelongsToCycle — the (cycleStart, cycleEnd] convention —
         // so a form created here is visible to GetCurrentCycleForm.
-        private bool AddMissingFormsForCycle(DateTime cycleStart, DateTime cycleEnd, bool defaultAnnualCompliant, Settings settings)
+        private bool AddMissingFormsForCycle(DateTime cycleStart, DateTime cycleEnd, Settings settings)
         {
             var added = false;
 
@@ -453,12 +485,13 @@ namespace Sati
                 if (existsForCycle)
                     continue;
 
-                var defaultCompliant = !IsReviewType(type) && defaultAnnualCompliant;
-
+                // InForceSince, not a bare flag: a document created already satisfied
+                // carries the date that satisfied it. This call site is where the 147
+                // dateless-but-compliant rows came from.
                 Forms.Add(new Form(
                                     type,
                                     FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
-                                    isCompliant: defaultCompliant)
+                                    InForceSince(type, cycleStart))
                 {
                     PersonId = Id
                 });
