@@ -4267,7 +4267,12 @@ internal static class ApiEndpoints
             {
                 Type = typeName,
                 DueDate = ComputeFormDueDate(type, effectiveDate, cycleEnd, settings),
-                IsCompliant = requested.IsCompliant,
+                // requested.IsCompliant is deliberately not stored. Compliance is the
+                // completion date; accepting a flag from the client alongside the date
+                // is what let the two disagree, and the client's flag is itself
+                // derived. PersonSaveRules still rejects a request whose flag and date
+                // contradict each other, so a confused caller is told rather than
+                // silently reinterpreted.
                 CompletedDate = requested.CompletedDate?.Date,
                 OpenedDate = requested.OpenedDate?.Date
             });

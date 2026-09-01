@@ -285,7 +285,7 @@ public sealed class AdminTestDataDeletionTests
                 ItemCost = 1m,
                 Quantity = 1
             });
-            db.Forms.Add(new Form(FormType.PCP, DateTime.Today.AddDays(30), false)
+            db.Forms.Add(new Form(FormType.PCP, DateTime.Today.AddDays(30))
             {
                 PersonId = person.Id,
                 Person = person

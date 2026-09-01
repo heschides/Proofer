@@ -317,11 +317,9 @@ public sealed class FormDuplicateRepairTests
     private static Form Form(
         int id, FormType type, DateTime dueDate, DateTime? completed = null, int personId = 1)
     {
-        var form = new Form(type, dueDate, completed.HasValue) { PersonId = personId };
+        var form = new Form(type, dueDate, completed) { PersonId = personId };
         if (id > 0)
             form.Id = id;
-        if (completed.HasValue)
-            form.MarkComplete(completed.Value);
         return form;
     }
 

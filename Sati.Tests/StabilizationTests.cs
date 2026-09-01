@@ -327,10 +327,10 @@ public sealed class StabilizationTests
         person.EffectiveDate = new DateTime(2026, 1, 1);
         person.Forms =
         [
-            new Form(FormType.PCP, new DateTime(2026, 12, 31), true),
-            new Form(FormType.ComprehensiveAssessment, new DateTime(2026, 7, 31), false),
-            new Form(FormType.Reclassification, new DateTime(2026, 12, 31), true),
-            new Form(FormType.SafetyPlan, new DateTime(2026, 12, 31), true)
+            new Form(FormType.PCP, new DateTime(2026, 12, 31), DateTime.Today),
+            new Form(FormType.ComprehensiveAssessment, new DateTime(2026, 7, 31)),
+            new Form(FormType.Reclassification, new DateTime(2026, 12, 31), DateTime.Today),
+            new Form(FormType.SafetyPlan, new DateTime(2026, 12, 31), DateTime.Today)
         ];
 
         var reasons = NewClientViewModel.GetComplianceReasons(person, new DateTime(2026, 8, 14));
@@ -950,7 +950,7 @@ public sealed class StabilizationTests
             WaiverType.Section21,
             new Settings());
         person.Forms.RemoveAll(form => form.Type == FormType.PCP);
-        person.Forms.Add(new Form(FormType.PCP, today.AddDays(-2), false));
+        person.Forms.Add(new Form(FormType.PCP, today.AddDays(-2)));
 
         var cell = new Sati.ViewModels.FormCellViewModel(person, FormType.PCP, today);
 

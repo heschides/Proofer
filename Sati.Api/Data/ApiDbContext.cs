@@ -78,6 +78,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Forms");
             entity.HasKey(x => x.Id);
+            entity.Ignore(x => x.IsCompliant);
             // 40 to match SatiContext.FormTypeMaxLength — the two models describe the
             // same physical column and the migration chain narrowed it so it could be
             // indexed. Declaring 50 here would let the server accept a value the
@@ -521,16 +522,16 @@ internal sealed class ServerForm
     public int Id { get; set; }
     public string Type { get; set; } = string.Empty;
     public DateTime DueDate { get; set; }
-    public bool IsCompliant { get; set; }
     public int PersonId { get; set; }
     public DateTime? CompletedDate { get; set; }
     public DateTime? OpenedDate { get; set; }
 
-    public void ApplyCompletion(DateTime? completedOn)
-    {
-        CompletedDate = completedOn?.Date;
-        IsCompliant = completedOn.HasValue;
-    }
+    // Derived, matching Sati.Models.Form. The stored column was dropped in
+    // AddDerivedFormCompliance: a second field for the same fact is a rule with no
+    // owner, and the two disagreed on 147 rows.
+    public bool IsCompliant => CompletedDate.HasValue;
+
+    public void ApplyCompletion(DateTime? completedOn) => CompletedDate = completedOn?.Date;
 }
 
 internal sealed class ServerNote

@@ -236,8 +236,11 @@ namespace Sati.ViewModels
         // ====================================================================
         // TEMPORARY MAINTENANCE — DUE-DATE BACKFILL
         // Remove this whole region (and the three controls in SettingsWindow.xaml
-        // marked with the same banner) once the backfill has been run and the
-        // PersonService.EnableEnsureCycleFormsOnLoad guard has been lifted.
+        // marked with the same banner) once the backfill has been run.
+        //
+        // The other half of that condition is already met: the
+        // EnableEnsureCycleFormsOnLoad guard is gone, since the unique index on
+        // dbo.Forms now decides the race it was suppressing.
         // ====================================================================
 
         // What the last dry run reported it would change. You type this exact

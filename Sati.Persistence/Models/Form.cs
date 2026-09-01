@@ -1,56 +1,79 @@
-﻿namespace Sati.Models
+namespace Sati.Models
 {
     public class Form
     {
         public int Id { get; set; }
         public FormType Type { get; set; }
         public DateTime DueDate { get; set; }
-        public bool IsCompliant { get; private set; }
-        public Person Person { get; set; } = null!; 
+        public Person Person { get; set; } = null!;
         public int PersonId { get; set; }
-        public DateTime? CompletedDate { get; set; }
+        public DateTime? CompletedDate { get; private set; }
         public DateTime? OpenedDate { get; set; }
 
+        // Compliance IS the completion date. It used to be a separate stored column,
+        // and the two could disagree: 147 rows in SatiProduction held IsCompliant = 1
+        // with no date. Every screen reads this property, while BillingComplianceGate
+        // reads CompletedDate alone, so those rows rendered complete and blocked
+        // billing at the same time — indistinguishable, to the person looking at it,
+        // from the duplicate-row defect that shared the symptom.
+        //
+        // Two writers kept in step by convention is a rule with no owner. Deriving it
+        // means there is one fact, so there is nothing left to disagree.
+        public bool IsCompliant => CompletedDate.HasValue;
+
+        /// <summary>
+        /// Whether this document is satisfied *as of* a date — a completion date is
+        /// recorded and it has arrived.
+        ///
+        /// This is not the same question as <see cref="IsCompliant"/>, and conflating
+        /// them is the second way these two readers drifted apart. A form completed on
+        /// a date that has not arrived yet holds a real record (IsCompliant) while not
+        /// yet being in force (this). BillingComplianceGate has always decided
+        /// billing on the second question, so anything whose answer depends on today —
+        /// overdue colouring, late-review events, task rows — has to ask this one, or
+        /// it will disagree with the gate on exactly those rows.
+        ///
+        /// Same predicate as the completion half of
+        /// BillingComplianceGate.IsIncompleteAndOverdue, stated once here so the
+        /// desktop readers cannot express it a second, subtly different way.
+        /// </summary>
+        public bool IsSatisfiedAsOf(DateTime asOf) =>
+            CompletedDate is DateTime completed && completed.Date <= asOf.Date;
+
         // EF Core needs a parameterless constructor to materialize entities from the
-        // database; it's protected so application code can't bypass the generation
-        // constructor below.
+        // database; it's protected so application code can't bypass the constructor
+        // below.
         protected Form() { }
 
-        // The ONE sanctioned way to create a form with an initial compliance value.
-        // Generation is the single legitimate exception to "compliant implies a
-        // completion date": an annual document born compliant at admission represents
-        // a pre-existing, in-force record whose real completion date is unknown — the
-        // exact state the backfill later resolves. Because this is the only entry point
-        // that sets initial compliance, that exception lives here and nowhere else;
-        // every post-creation change still goes through MarkComplete/Reset.
-        public Form(FormType type, DateTime dueDate, bool isCompliant)
+        /// <summary>
+        /// Creates a form. <paramref name="completedOn"/> is the completion date if
+        /// this document is already satisfied at creation — an annual document in
+        /// force when its cycle began — and null if it is outstanding.
+        ///
+        /// It takes a date rather than a bool precisely because the bool was the
+        /// defect: "compliant, date unknown" was expressible, and it is the one state
+        /// the gate cannot act on. A caller that believes a document is in force must
+        /// now say since when.
+        /// </summary>
+        public Form(FormType type, DateTime dueDate, DateTime? completedOn = null)
         {
             Type = type;
             DueDate = dueDate;
-            IsCompliant = isCompliant;
-        }
-
-        // The only sanctioned writers of compliance state. IsCompliant and
-        // CompletedDate must agree — compliant iff there's a completion date — and
-        // routing every caller through these two methods is what guarantees that.
-        // MarkComplete takes a real date by value (not nullable), so "compliant with
-        // no date," the exact shape that breaks the windowed billing gate, is
-        // unreachable through this door.
-        //
-        // The date is whatever the caller captured — the dialog's per-row picker, the
-        // board's "today," a backfill's due date — never synthesized here, because the
-        // late-vs-on-time distinction (CompletedDate vs DueDate) is a billing fact the
-        // entity has no business guessing.
-        public void MarkComplete(DateTime completedOn)
-        {
             CompletedDate = completedOn;
-            IsCompliant = true;
         }
 
-        public void Reset()
-        {
-            CompletedDate = null;
-            IsCompliant = false;
-        }
+        // The named doors for changing completion state. CompletedDate has a private
+        // setter so these stay the only way in, but they no longer carry an invariant
+        // between two fields — there is only one field. What they still buy is a
+        // greppable list of everywhere completion is decided.
+        //
+        // MarkComplete takes a real date by value, never nullable: the caller captured
+        // it — the dialog's per-row picker, the board's "today", a cycle's start date.
+        // It is not synthesized here, because the late-vs-on-time distinction
+        // (CompletedDate vs DueDate) is a billing fact the entity has no business
+        // guessing.
+        public void MarkComplete(DateTime completedOn) => CompletedDate = completedOn;
+
+        public void Reset() => CompletedDate = null;
     }
 }

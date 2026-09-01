@@ -15,7 +15,7 @@ public sealed class FormCompletionValidationTests
         int formId;
         await using (var db = fixture.Factory.CreateDbContext())
         {
-            var form = new Form(FormType.Q1R, DateTime.Today, false)
+            var form = new Form(FormType.Q1R, DateTime.Today)
             {
                 PersonId = fixture.PersonOneId
             };

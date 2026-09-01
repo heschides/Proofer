@@ -2535,3 +2535,68 @@ failed migration shuts the app down before the login window — so a repair reac
 from Settings would be unreachable exactly when it was needed. The evidence requirement is
 met instead by an `AuditEvent` per removed row, recorded under `ActorUserId = 0` because no
 one is signed in when it runs.
+
+## 2026-09-01 — Compliance is the completion date, and nothing else
+
+`Form.IsCompliant` is now `CompletedDate.HasValue`. The stored column is gone
+(`AddDerivedFormCompliance`), and so is the `isCompliant` constructor parameter: a
+caller that believes a document is in force must say since when.
+
+The column was a second field for a fact the date already held, kept in step by
+convention. Convention lost. 147 rows in `SatiProduction` held the flag set with no
+date, and because every screen read the flag while `BillingComplianceGate` reads only
+the date, those rows rendered complete and blocked billing simultaneously — the same
+symptom as the duplicate rows, from an unrelated cause, and equally impossible to see
+from the screen. Person 1044's Comprehensive Assessment is one of them.
+
+**The backfill picks the date the code already believed in.** Those rows came from
+`AddMissingFormsForCycle`, which created current-cycle annual documents flagged
+compliant on the reasoning that the cycle had started, therefore the documents were
+signed. That reasoning is sound and its date is knowable: the cycle start — precisely
+what the sibling path `GenerateFormList` was already stamping. The migration completes
+an assertion recorded inconsistently rather than inventing a new one, writes a
+`form.compliance-date-backfilled` audit event per row, and `Person.InForceSince` is now
+the single owner of the rule both paths express.
+
+**Reviews are never backfilled.** A quarterly review is an attestation that work
+happened; no date can be inferred for work nobody recorded. Neither is a cycle that has
+not started, nor a person with no effective date — inventing one there is how this
+class of bug began.
+
+**Consequence — a second question needed its own name.** "A completion is recorded" and
+"this document is in force as of today" are different, and they differ exactly when a
+completion date has not arrived yet. `IsCompliant` answers the first; the new
+`Form.IsSatisfiedAsOf(date)` answers the second, using the same predicate as
+`BillingComplianceGate.IsIncompleteAndOverdue`. Every reader whose answer depends on
+today — the caseload matrix, `UpcomingEvents`, task rows, `GetComplianceStatus` — now
+asks the second, so a screen can no longer call a form complete while the gate blocks
+on it. Checkbox bindings keep asking the first, which is what a checkbox means.
+
+**Rejected: making the gate treat a future completion date as satisfied.** It would have
+collapsed the two questions into one and removed the need for `IsSatisfiedAsOf`, but the
+gate's answer is the correct one — a document completed on a date that has not arrived
+is not in force — and it is date-keyed into historical billing. Changing it would have
+made past service dates billable on the strength of a future date.
+
+## 2026-09-01 — Cycle form generation is on again, because the constraint now holds
+
+`PersonService.GetAllPeopleAsync` generates missing cycle forms on load again;
+`EnableEnsureCycleFormsOnLoad` is gone.
+
+It was switched off in `57af6fa` because it raced: the membership check reads the
+person's own `Forms`, concurrent loads both passed it, and both inserted. Switching it
+off stopped the duplication and left a quieter problem in its place — **nothing else
+generates forms for an ongoing caseload.** Clients only still had records because the
+racing runs had pre-created the current *and* next cycle before the flag went off.
+Those run out through 2027–2028, after which compliance records would simply stop
+appearing, with no error and no empty state to notice.
+
+Two fixes made re-enabling safe rather than merely tempting: `IX_Forms_PersonId_Type_DueDate`
+decides the race in the database, and `GetAllPeopleAsync` treats losing it as a re-read
+instead of an exception. The generator is idempotent and its check is in-memory over
+already-loaded forms, so a caseload with nothing missing costs one comparison and no
+write.
+
+**The guard was never the fix.** It suppressed a symptom of an unenforced invariant, and
+kept suppressing it after the invariant acquired an owner. A feature flag holding back a
+race is a reminder to go fix the race.

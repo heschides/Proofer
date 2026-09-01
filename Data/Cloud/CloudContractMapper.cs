@@ -76,11 +76,14 @@ internal static class CloudContractMapper
 
     public static Form ToForm(FormDto dto)
     {
-        var form = new Form(Parse<FormType>(dto.Type), dto.DueDate, dto.IsCompliant)
+        // dto.IsCompliant is deliberately ignored. The server derives it from
+        // CompletedDate too, so it carries no information the date does not, and
+        // trusting it over the date is how a client could reconstruct the very
+        // disagreement this model removed.
+        var form = new Form(Parse<FormType>(dto.Type), dto.DueDate, dto.CompletedDate)
         {
             Id = dto.Id,
             PersonId = dto.PersonId,
-            CompletedDate = dto.CompletedDate,
             OpenedDate = dto.OpenedDate
         };
         return form;

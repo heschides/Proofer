@@ -993,9 +993,9 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 PersonId = 102,
                 Type = "PCP",
                 DueDate = overduePcp,
-                CompletedDate = null,
-                // Deliberately stale: the date fields, not this flag, must win.
-                IsCompliant = true
+                // Outstanding. There is no longer a flag that could claim otherwise —
+                // ServerForm.IsCompliant is derived from this date.
+                CompletedDate = null
             });
         if (!await db.Forms.AnyAsync(form => form.PersonId == 102 &&
                 form.Type == "ComprehensiveAssessment" && form.DueDate == overdueAssessment))
@@ -1005,7 +1005,6 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 Type = "ComprehensiveAssessment",
                 DueDate = overdueAssessment,
                 CompletedDate = null,
-                IsCompliant = true
             });
         db.Notes.Add(new ServerNote
         {
@@ -1074,7 +1073,6 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         PersonId = personId,
         Type = type,
         DueDate = CycleStart.AddMonths(6),
-        IsCompliant = true,
         CompletedDate = CycleStart.AddDays(1)
     };
 
@@ -1086,7 +1084,6 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         PersonId = personId,
         Type = type,
         DueDate = dueDate,
-        IsCompliant = false,
         CompletedDate = null
     };
 

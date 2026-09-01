@@ -46,31 +46,28 @@ each quarter, per client.
 - [ ] Decide deliberately whether `EvaluateComplianceGate` should read every form or only the
       current cycle, and record it in `DECISIONS.md`. Ask Josh; narrowing it changes whether
       stale prior-cycle documents keep blocking.
-- [ ] Do not lift the `EnableEnsureCycleFormsOnLoad` guard (`SettingsViewModel.cs:240` notes the
-      intent to) until the index has actually been applied to the target database.
-- [ ] **The duplicate repair will not clear person 1044.** Their `ComprehensiveAssessment` due
-      2026-08-23 is a single row holding `IsCompliant = 1` with no completion date, so it reads
-      complete on every screen and blocks the gate — the same symptom by the other mechanism
-      below. It is not a duplicate and nothing in this change touches it. There is no completion
-      date to recover; closing it means deciding when the assessment actually happened.
-      (Person 1042's `Q2R` due 2026-08-24 also still blocks, correctly — it is genuinely
-      incomplete on every copy.)
-- [ ] Separately: 147 rows hold `IsCompliant` true with a null or future `CompletedDate`. Harmless
-      until each due date passes, then it reproduces this same symptom. Deriving
-      `IsCompliant => CompletedDate.HasValue` makes it unrepresentable; needs sign-off, since it
-      changes what a "born compliant" annual document means. Deliberately excluded from this
-      change — see `DECISIONS.md`, 2026-09-01.
+- [x] Derived `IsCompliant` from `CompletedDate` and dropped the stored column
+      (`AddDerivedFormCompliance`). The `isCompliant` constructor parameter is gone, so the
+      state cannot be built. The migration backfills the 147 rows from the cycle start their
+      own generator implied, writes a `form.compliance-date-backfilled` audit event per row,
+      and never backfills a review, a not-yet-started cycle, or a person with no effective date.
+      **Person 1044 is resolved by this**, not by the duplicate repair. (Person 1042's `Q2R` due
+      2026-08-24 still blocks, correctly — it is genuinely incomplete.)
+- [x] Added `Form.IsSatisfiedAsOf(date)` for the distinct question "is this in force as of
+      today", sharing its predicate with `BillingComplianceGate.IsIncompleteAndOverdue`, and
+      routed the caseload matrix, `UpcomingEvents`, task rows and `GetComplianceStatus` through
+      it. A completion date that has not arrived is recorded but not in force; no screen can
+      now call such a form complete while the gate blocks on it.
+- [x] Re-enabled cycle form generation and removed `EnableEnsureCycleFormsOnLoad`. Nothing else
+      generates forms for an ongoing caseload — clients only still had records because the
+      racing pre-`57af6fa` runs pre-created the current *and* next cycle, which run out through
+      2027–2028. Safe now because the unique index decides the race and `GetAllPeopleAsync`
+      treats losing it as a re-read. `Person.InForceSince` owns the born-in-force rule, so the
+      generator no longer mints dateless compliant rows.
 - [ ] Operational: service dates wrongly blocked by an unreachable copy become billable again
-      after the repair. Re-billing decision, not a code change.
-- [ ] **Nothing generates new cycle forms right now, and there is a ~2028 cliff.**
-      `EnsureCurrentCycleForms` has exactly one caller — `PersonService.cs:216`, behind
-      `EnableEnsureCycleFormsOnLoad = false` since `57af6fa`. Existing clients hold forms into
-      2027–2028 only because the racing pre-`57af6fa` runs created the current *and* next cycle
-      before the flag went off. When those run out, no new compliance forms appear and nothing
-      says so. `Person.CreatePerson` covers new clients only. Needs a generator that runs
-      somewhere deliberate — the flag was switched off to stop the race, and the unique index
-      now handles that, but turning it back on as-is also resumes minting annual documents with
-      `isCompliant: true` and no completion date, which is the defect below.
+      after the repair. Separately, the 147 backfilled rows stop blocking from their cycle start
+      date. Both are re-billing decisions, not code changes — the audit events name every
+      affected row.
 - [ ] No in-app control captures an arbitrary completion date for a non-review form. The
       quarterly attestation control (`ReviewsViewModel`) covers `Q1R`–`Q4R`; `ComplianceFormRow`'s
       per-row date picker is reachable only from client creation and the add-a-waiver dialog.
@@ -2529,11 +2526,10 @@ for a rewrite.
       `NewClientViewModel` retains `IsEntryPanelOpen`, `ToggleEntryPanel`, and legacy
       naming. Remove the duplicate markup/commands after confirming the inline Overview
       editor covers add, edit, cancel, and delete.
-- [ ] **Resolve the disabled cycle-form feature switch.** The disabled
-      `EnableEnsureCycleFormsOnLoad` path is still awaiting the duplicate-form reconciliation;
-      the compiler warning has been removed. Either remove the obsolete path or replace it with a
-      deliberate supported configuration after the duplicate-form reconciliation is
-      settled.
+- [x] **Resolve the disabled cycle-form feature switch.** Done 2026-09-01: the flag is removed
+      and generation runs again. It was suppressing a race that the unique index on
+      `dbo.Forms (PersonId, Type, DueDate)` now decides, and leaving it off was quietly starving
+      the caseload of future cycle forms. See the duplicate-form entry at the top of this file.
 - [ ] **Make the README architectural claim accurate.** It currently says ViewModels
       have no knowledge of Views and window creation uses factories throughout. Update it
       after the boundary work above, or describe the remaining pragmatic exceptions until
