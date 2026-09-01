@@ -1,7 +1,9 @@
 # Handoff — Client deletion and archival protocol
 
-**Status:** design settled with Josh, 2026-08-31. **No open questions — ready to build.**
-No code changed.
+**Status:** reviewed and corrected with Josh's authorization, 2026-08-31. The additive
+creation/status migration and archival slice are ready to build. Ordinary-client physical
+deletion is intentionally blocked until a real legal-hold registry can return an affirmative
+clear result. No code changed.
 **Investigated against:** `master` @ `51b2341`.
 
 Two decisions here deliberately narrow what Codex may do on its own, because both are the
@@ -147,7 +149,7 @@ UTC, exclusive at the far end. This decides permission, so per `CLAUDE.md` it be
 `Sati.Contracts.V1` with one owner, referenced by both `Sati.Api` and the transitional
 desktop-local service.
 
-### A3. Legal hold — currently unaddressed by the protocol
+### A3. Legal hold — fail closed until a real registry exists
 
 `OPERATIONS.md` line 30 requires that "every purge query excludes records covered by an
 active hold before selecting deletion targets," and the hold registry does not exist yet.
@@ -155,25 +157,38 @@ active hold before selecting deletion targets," and the hold registry does not e
 deletion policy and does not supersede the unfinished retention/legal-hold work." Rule 3
 *is* an ordinary-client deletion policy, so it inherits that obligation.
 
-**Decided (Josh, 2026-08-31):** define `ILegalHoldRegistry.HasActiveHoldAsync(agencyId,
-personId)` now and call it in the rule-3 path before any delete. Ship an implementation
-that always returns "no hold," named so its status is unmistakable at the call site —
-`NoRegistryLegalHoldRegistry` or similar, not a bare `LegalHoldRegistry` that reads as
-finished.
+**Correction approved by Josh, 2026-08-31:** an implementation that always returns "no
+hold" is fail-open, not fail-safe. It would make the required gate decorative and permit
+irreversible deletion precisely while Sati cannot establish whether a hold exists. Do not ship
+that implementation.
 
-Requirements on the stub, so it fails safe rather than silently:
+Use a result that can represent uncertainty rather than a Boolean that collapses "not checked"
+into "clear":
 
-- Its summary comment states that no registry exists and that it returns "no hold"
-  unconditionally.
-- `OPERATIONS.md` says plainly, in the legal-hold section, that rule-3 deletion calls the
-  gate but the gate is not yet backed by a registry. Do not let the runbook imply
-  coverage that does not exist.
-- `AGENDA.md` records the registry as outstanding with rule-3 deletion now listed as a
-  dependent caller.
+```csharp
+public enum LegalHoldStatus
+{
+    Clear = 0,
+    Active = 1,
+    Unavailable = 2
+}
 
-The point of the seam is that when the registry is built, one implementation swap covers
-this path — rather than someone having to remember that deletion existed and was never
-hold-aware.
+public interface ILegalHoldRegistry
+{
+    Task<LegalHoldStatus> GetStatusAsync(int agencyId, int personId);
+}
+```
+
+The rule-3 transaction may proceed **only** on an explicit `Clear`. `Active`, `Unavailable`,
+timeouts, and exceptions all refuse deletion before any child row is changed. An interim
+`UnconfiguredLegalHoldRegistry` may return `Unavailable` unconditionally so the seam and refusal
+path can be built and tested, but it must never return `Clear` and must never make the deletion
+button actionable.
+
+Archive/status work is non-destructive and may ship before the registry. The ordinary-client
+physical-deletion command may be implemented behind the fail-closed gate, but it remains
+operationally unavailable until a registry-backed implementation can establish `Clear`.
+`OPERATIONS.md` and `AGENDA.md` must state that limitation plainly.
 
 ---
 
@@ -363,6 +378,12 @@ Window (A2):
   `IsTestData` immutability test.
 - A row with a backfilled/absent creation date is archive-only.
 
+Legal hold (A3):
+
+- `Active` and `Unavailable` each refuse deletion before any child record changes.
+- A registry timeout or exception refuses deletion before any child record changes.
+- Only an explicit registry-backed `Clear` permits the remaining deletion gates to run.
+
 Billing-integrity gate (A1):
 - **The permissive cases, which are the point of the window.** A person with notes in
   every status, a Comprehensive Assessment, AT requests, draft claim lines, an
@@ -402,7 +423,8 @@ Audit:
   existing test-consumer entry and superseding its "does not create an ordinary-client
   deletion policy" sentence.
 - `OPERATIONS.md` — add the deletion window and archive statuses to the retention classes
-  table, and state plainly that rule-3 deletion is not yet legal-hold aware (A3).
+  table, and state plainly that rule-3 deletion remains unavailable until the registry returns
+  an affirmative `Clear` (A3).
 - `API_AUTHORIZATION.md` — the new routes, per the standing rule.
 - `AUDIT_EVENTS.md` — the three new actions and the tombstone contract.
 - `AGENDA.md` — the legal-hold registry, now with a second caller depending on it.
@@ -414,7 +436,9 @@ Audit:
 1. Migration + `CreatedAtUtc` immutability + `PersonStatus` (additive; nothing uses it yet).
 2. Archive: status transitions, audit, and the exclusion behavior above. Non-destructive,
    independently useful, and it gives rule 4 a landing place.
-3. Rule-3 deletion last, once the window, content gate, and hold stub are all in place.
+3. Rule-3 deletion last, once the window, content gate, fail-closed hold seam, and a real
+   registry-backed `Clear` result are all in place. The unconfigured implementation must keep
+   physical deletion unavailable.
 
 Landing 2 before 3 matters: until archive exists, an Admin facing a bad record past the
 window has no correct action available, and pressure to loosen the deletion path is
