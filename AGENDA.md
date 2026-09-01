@@ -64,10 +64,25 @@ each quarter, per client.
       2027–2028. Safe now because the unique index decides the race and `GetAllPeopleAsync`
       treats losing it as a re-read. `Person.InForceSince` owns the born-in-force rule, so the
       generator no longer mints dateless compliant rows.
-- [ ] Operational: service dates wrongly blocked by an unreachable copy become billable again
-      after the repair. Separately, the 147 backfilled rows stop blocking from their cycle start
-      date. Both are re-billing decisions, not code changes — the audit events name every
-      affected row.
+- [x] Operational re-billing: **closed 2026-09-01 by Josh** — nothing currently in
+      `SatiProduction` will ever be billed for real, since real billing is 6–8 months out. The
+      one-time unblocking from the duplicate repair and the 147 backfilled rows therefore has no
+      financial consequence. Neither recurs: both corrected rows that were blocking on a missing
+      field rather than on a real compliance failure.
+- [ ] **Revisit the in-force assumption before real billing, specifically for backdated
+      admissions.** `Person.InForceSince` marks a cycle's annual documents in force from the
+      cycle start whenever that cycle has already begun. For an admission entered today that is
+      right — the paperwork was signed to open the case. For a client entered with an effective
+      date well in the past, it silently marks that whole cycle's documents in force with nobody
+      attesting them, and because the completion date precedes the due date they can never block.
+      Harmless while nothing is billed; decide deliberately before it is.
+- [ ] **Intervening cycles get no forms at all for a backdated admission.**
+      `Person.GenerateFormList` covers the first cycle and `EnsureCurrentCycleForms` covers the
+      current and next — nothing covers the years between. A client entered with a 2024 effective
+      date has no forms for the 2025 cycle, and a missing form is not a blocking reason, so that
+      year has no compliance requirements at all. Predates this work and does not affect the
+      current caseload (every client's cycles are contiguous), but it is a real hole in the same
+      area: the gate cannot enforce a document that was never created.
 - [ ] No in-app control captures an arbitrary completion date for a non-review form. The
       quarterly attestation control (`ReviewsViewModel`) covers `Q1R`–`Q4R`; `ComplianceFormRow`'s
       per-row date picker is reachable only from client creation and the add-a-waiver dialog.
