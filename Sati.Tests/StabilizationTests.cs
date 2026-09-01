@@ -553,28 +553,26 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.34", version);
+        Assert.Equal("1.2.35", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Permissions you grant one at a time", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("A calmer start to the workday", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
-        // The release exists to separate billing from administration. The notes have to name
-        // both halves, or a reader cannot tell what actually changed about who can do what.
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Billing access no longer means administrator access" &&
-            section.Items.Any(item => item.Contains("billing", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("administrator", StringComparison.OrdinalIgnoreCase)));
-        // An upgrade that silently widens somebody's access is the failure mode this release
-        // was audited for. The notes must keep saying that Director does not gain admin tools,
-        // because that is the specific promise the backfill makes.
+            section.Title == "Today's work is ready when you sign in" &&
+            section.Items.Any(item => item.Contains("once per day", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Today's Work", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Your existing accounts keep what they had" &&
-            section.Items.Any(item => item.Contains("Director", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("agency-wide", StringComparison.OrdinalIgnoreCase)));
-        // A schema-changing release must say so plainly rather than bury it.
+            section.Title == "Quarterly evidence and attestation are separate" &&
+            section.Items.Any(item => item.Contains("actual", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("bulk", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Nothing else changes in daily use" &&
-            section.Items.Any(item => item.Contains("1.2.33", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("backup", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Suggested follow-ups remain your decision" &&
+            section.Items.Any(item => item.Contains("Accept suggestion", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Keep filters", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Deletion remains conservative" &&
+            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("fails closed", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&

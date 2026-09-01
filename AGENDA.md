@@ -2,6 +2,43 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.35 — 2026-09-01
+
+Daily sign-in agenda, explicit quarterly-review attestation, human-accepted suggested follow-ups,
+successful-save Notes filter clearing, and the fail-closed legal-hold boundary for ordinary-client
+deletion. Twenty commits since the 1.2.34 evidence commit `51fd1aa`.
+
+**This is not a schema-changing release.** No migration was added after 1.2.34. The API change adds
+a narrow read over the existing Comprehensive Assessment table and does not depend on a new column
+or table, so no Demo database migration or temporary SQL firewall rule applies.
+
+### Validation
+- [ ] Source release commit created and pushed to `origin/master` without rewriting history.
+- [x] Complete Release build passes: 0 errors, 6 warnings (offline NuGet vulnerability feed, the
+      existing guarded raw-SQL analyzer warning, and three test-code analyzer/nullability warnings).
+- [x] 1,284 tests pass — 978 desktop/domain, 302 API integration, and 4 Carika. One documented
+      opt-in local-AI model competence test is skipped because `SATI_RUN_LOCAL_AI_MODEL_EVAL=1`
+      is absent.
+- [x] 54 focused release regressions pass, including opposite-theme WPF rendering, agenda behavior,
+      quarterly attestation, form-date validation, suggested-follow-up acceptance, Notes filter
+      clearing/retention, API surface parity, and tenant-scoped assessment reads.
+
+### Deployment and artifact evidence
+- [ ] Demo API ZIP built from the pushed source commit; version, contents, bytes, and SHA-256 recorded.
+- [ ] Demo API deployment succeeds; live, ready, release 1.2.35, and contract parity verified.
+- [ ] Demo and Local 1.2.35 installers built without overwriting an existing artifact.
+- [ ] Demo five-launch and Local isolated acceptance gates pass with cleanup verified.
+- [ ] Installer bytes and SHA-256 values recorded and published to the two exact distribution folders.
+- [ ] Final evidence commit pushed and local `master` confirmed equal to `origin/master`.
+
+### Branch audit
+- [x] Deleted completed `docs/feature-handoffs` at `74b191f` locally and remotely after proving it
+      fully merged, had no unique commits, and was not checked out by a worktree.
+- [x] Retained `claude/cool-jang-f6b3c4`: fully merged but checked out by a linked worktree that
+      also contains an untracked `AGENTS.md`.
+- [x] Retained `second-machine-setup` and remote `claude/local-vs-github-workflow-dlcqpb`: both
+      contain unique divergent setup/documentation work whose current intent is not safe to infer.
+
 ## Quarterly review attestation and refresh repair — 2026-08-31
 
 - [x] Preserve the deliberate split between `ReviewItem` evidence and `Q1R`-`Q4R` form

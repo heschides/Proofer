@@ -34,7 +34,7 @@ checks version and public configuration, and removes the acceptance copy:
 
 ```powershell
 .\scripts\Test-DemoInstaller.ps1 `
-    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.34.exe `
+    -InstallerPath .\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.35.exe `
     -LaunchIterations 5
 ```
 
