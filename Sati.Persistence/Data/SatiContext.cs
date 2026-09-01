@@ -8,6 +8,10 @@ namespace Sati.Data
 {
     public class SatiContext : DbContext
     {
+        // Form.Type is persisted as its enum name. Bounded so it can be indexed —
+        // see the Form configuration in OnModelCreating.
+        public const int FormTypeMaxLength = 40;
+
         public DbSet<Agency> Agencies { get; set; }
         public DbSet<Person> People { get; set; }
         public DbSet<User> Users { get; set; }
@@ -375,8 +379,28 @@ namespace Sati.Data
             modelBuilder.Entity<Form>(entity =>
             {
                 entity.HasKey(f => f.Id);
+                // Bounded so the type can participate in the unique index below;
+                // nvarchar(max) cannot be indexed. The longest FormType name is
+                // ComprehensiveAssessment at 23 characters.
                 entity.Property(f => f.Type)
-                      .HasConversion<string>();
+                      .HasConversion<string>()
+                      .HasMaxLength(FormTypeMaxLength);
+                // A person has exactly one form of a given type for a given due
+                // date. AddMissingFormsForCycle decides whether to insert by reading
+                // the person's own Forms collection first, which is a check-then-
+                // insert with nothing holding the gap: before 57af6fa, concurrent
+                // caseload loads each passed that check and each inserted a full
+                // set, leaving every form triplicated. Only the database can close
+                // that window, so the invariant lives here rather than in the code
+                // that happens to insert.
+                //
+                // Duplicates are also silently unreachable: GetCurrentCycleForm
+                // returns one row on a due-date tie while EvaluateComplianceGate
+                // reads every row, so a completed form can still block billing with
+                // no screen able to show why.
+                entity.HasIndex(f => new { f.PersonId, f.Type, f.DueDate })
+                      .IsUnique()
+                      .HasDatabaseName("IX_Forms_PersonId_Type_DueDate");
                 entity.HasOne(f => f.Person)
                       .WithMany(p => p.Forms)
                       .HasForeignKey(f => f.PersonId)

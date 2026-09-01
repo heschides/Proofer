@@ -175,6 +175,13 @@ namespace Sati.Data
         private User CurrentActor() => _sessionService.CurrentUser
             ?? throw new InvalidOperationException("A signed-in user is required for this operation.");
 
+        // Only a collision on the forms this call was inserting is a lost race worth
+        // swallowing. Any other constraint failure is a real error and must surface.
+        private static bool IsDuplicateFormViolation(SatiContext context) =>
+            context.ChangeTracker
+                .Entries<Form>()
+                .Any(entry => entry.State == EntityState.Added);
+
         private static void ValidatePerson(Person person, bool requireNewForms)
         {
             var errors = PersonSaveRules.Validate(
@@ -211,7 +218,40 @@ namespace Sati.Data
                 }
 
                 if (anyChanges)
-                    await context.SaveChangesAsync();
+                {
+                    try
+                    {
+                        await context.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException) when (IsDuplicateFormViolation(context))
+                    {
+                        // Another loader inserted the same cycle forms first.
+                        // IX_Forms_PersonId_Type_DueDate is what makes that a lost
+                        // race instead of a second copy — before it existed, both
+                        // writers succeeded and every form ended up triplicated.
+                        //
+                        // Losing is not a failure: the rows this call wanted are in
+                        // the database, just written by someone else. Discard the
+                        // losing inserts and re-read so the caller gets the stored
+                        // set rather than a crash on a benign collision.
+                        foreach (var entry in context.ChangeTracker
+                                     .Entries<Form>()
+                                     .Where(entry => entry.State == EntityState.Added)
+                                     .ToList())
+                        {
+                            entry.State = EntityState.Detached;
+                        }
+
+                        await using var reread = _contextFactory.CreateDbContext();
+                        return await reread.People
+                            .Where(p => p.UserId == userId)
+                            .Include(p => p.Notes)
+                            .Include(p => p.Forms)
+                            .OrderBy(p => p.LastName)
+                            .AsSplitQuery()
+                            .ToListAsync();
+                    }
+                }
             }
 
             return people;

@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-08-31.*
+sections at the bottom. Last updated: 2026-09-01.*
 
 ---
 
@@ -2464,3 +2464,74 @@ Two copy corrections were accepted during implementation. Four Set E variants or
 the `{1}` forward-window value despite the handoff's own test requiring it in every Set E variant;
 they now state the guaranteed forward period. Also, forward `LateReview` rows are deliberately
 deduplicated against the overdue section rather than presenting one form twice.
+
+## 2026-09-01 — The database owns "one form per person, type, and due date"
+
+`dbo.Forms` now carries a unique index on `(PersonId, Type, DueDate)`. That invariant used
+to be enforced only by `Person.AddMissingFormsForCycle` reading the person's own `Forms`
+collection before inserting — a check-then-insert with nothing holding the gap. Before
+`57af6fa`, `GetAllPeopleAsync` ran that on every caseload load on its own `DbContext`, and
+startup issued those loads concurrently, so three loaders each passed the check and each
+inserted a full set. Every form in `SatiProduction` generated before that commit exists
+three times.
+
+The code fix that stopped it — serializing the loads, gating the write off — was correct
+and is unchanged. It is also not sufficient: it prevents that one caller from racing,
+while the invariant it protects has no owner. `ViewModels/NewClientViewModel` was a second
+writer producing the same shape by a completely different route, and neither the model nor
+the database would have refused either one. Only a constraint can, so the constraint is
+where the rule now lives.
+
+**Consequence — the writers must survive losing.** `GetAllPeopleAsync` catches the
+unique-violation `DbUpdateException`, discards its own losing inserts and re-reads, because
+losing that race means the rows it wanted are in the database already. A crash on a benign
+concurrent write would be a worse bug than the one being fixed.
+
+`Form.Type` was `nvarchar(max)` and had to be narrowed to be indexable. 40 characters
+against a longest enum name of 23.
+
+**Rejected: deriving `IsCompliant` from `CompletedDate` as part of this change.** It is a
+real defect — 147 rows already hold `IsCompliant` true with a null or future completion
+date, which renders as checked while the gate reads incomplete — and it produces a symptom
+identical to the duplicates. It is also a different defect with a different blast radius,
+and collapsing it into this one would have made a data repair and a semantic change to
+"born compliant" annual documents indistinguishable in the same release. Tracked separately
+in `AGENDA.md`.
+
+## 2026-09-01 — Duplicate form rows merge unattended; conflicting completion dates do not
+
+`FormDuplicateRepair` collapses duplicate rows automatically, at startup, with no dry run
+and no typed-back confirmation — deliberately unlike `FormBulkCompletion` and
+`FormDueDateBackfill`, which demand both.
+
+The difference is what the operation can destroy. Those two **invent** data: a completion
+date the record never held. This one invents nothing. It merges the union of what the
+copies already assert and deletes rows asserting nothing the survivor does not. The
+survivor is chosen as the copy already carrying the most state — a completion date first,
+then compliance, then lowest Id — so no merged row is ever *constructed*, only kept. That
+is what makes it safe to run with nobody watching, and it is the only reason it is.
+
+**A group holding two or more different completion dates is not merged at all.**
+`CompletedDate` is date-keyed into `BillingComplianceGate.IsBillingWindowBlocked`, so
+picking a survivor decides whether service dates between the two candidates were billable.
+That is a billing determination, not a mechanical one. Those groups are reported and left
+untouched, the index migration then refuses with a message naming them, and startup stops
+until a person resolves them. Stopping is correct: the alternative is guessing at a
+billing fact on real client records.
+
+Note what is deliberately *not* a conflict — some copies holding a date and the rest
+holding none. That is the ordinary shape, where one copy was edited and the others are
+untouched generation defaults, and the union contains exactly one completion fact.
+
+**Ordering is forced, not chosen.** The repair runs after the pre-migration backup, so the
+prior state is recoverable, and before `MigrateAsync`, because the index cannot bind while
+duplicates exist. That leaves exactly one correct position in `LocalDatabaseUpdater`, and
+it is asserted rather than trusted.
+
+**Rejected: running the repair as a Settings maintenance action instead.** It was the first
+plan, on the grounds that deleting billing-relevant rows deserves a human present. The
+sequencing killed it: the migration is in the chain, the chain applies at startup, and a
+failed migration shuts the app down before the login window — so a repair reachable only
+from Settings would be unreachable exactly when it was needed. The evidence requirement is
+met instead by an `AuditEvent` per removed row, recorded under `ActorUserId = 0` because no
+one is signed in when it runs.

@@ -62,4 +62,8 @@ internal static class LocalAuditActions
     // client filled the form.
     public const string DhhsFormGenerated = "dhhs-form.generated";
     public const string AgencyReleaseGenerated = "agency-release.generated";
+    // Recorded by FormDuplicateRepair when it collapses duplicate compliance form
+    // rows. Deleting a billing-relevant record leaves evidence even though the
+    // deletion is automated and no one is signed in when it runs.
+    public const string FormDuplicateRemoved = "form.duplicate-removed";
 }

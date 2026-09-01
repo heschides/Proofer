@@ -1,9 +1,27 @@
 # Handoff — "Q1 review is checked and the billing gate still blocks the client"
 
-**Status:** diagnosed, not fixed. No repair has been written and no data has been changed.
+**Status:** implemented and tested on 2026-09-01. **No data has been repaired yet** — the
+repair runs at first launch of the next build against a database holding real records, and
+that has not happened. Pieces 1–3 below are done; piece 4 and the adjacent defect are not.
 **Reported by:** Josh, 2026-09-01. **Investigated against:** `master` @ `95b3b59`.
 **Evidence:** `scripts/Diagnose-BillingGateDisagreement.sql`, run against `SatiProduction`
 on the other Windows login, 2026-09-01.
+
+### What shipped
+
+| | |
+|---|---|
+| Unique index | `20260901150802_AddUniqueFormPersonTypeDueDateIndex`; `Form.Type` narrowed to `nvarchar(40)` to be indexable. Refuses with a named message if duplicates remain. |
+| Repair | `Data/FormDuplicateRepair.cs`, run by `LocalDatabaseUpdater` after the backup and before `MigrateAsync`. |
+| Lost-race handling | `GetAllPeopleAsync` discards its losing inserts and re-reads. |
+| Second duplication path | `Person.AddMissingForms`, called by `NewClientViewModel`. |
+| Server parity | `ApiDbContext.ServerForm` declares the same index and length. |
+| Tests | 13 new; 993 desktop and 302 API passing. |
+
+**Before installing**, run `scripts/Report-DuplicateComplianceForms.sql` against
+`SatiProduction` on the other login. Its result 3 gives the conflict count, and conflicts
+stop startup until resolved. Everything below is the original diagnosis, kept because it
+is the reasoning the implementation rests on.
 
 ---
 

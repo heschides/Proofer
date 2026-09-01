@@ -914,8 +914,13 @@ namespace Sati.ViewModels
 
                 if (wasNoWaiver && isAddingWaiver && effectiveDate is not null)
                 {
-                    var forms = Person.GenerateFormList(effectiveDate.Value, settings);
-                    existing.Forms = forms;
+                    // Append what is missing; do not replace the collection. Assigning
+                    // over existing.Forms inserted a second full set while the stored
+                    // rows survived — see Person.AddMissingForms for why, and
+                    // FormDuplicateRepair for what that costs once it happens.
+                    existing.AddMissingForms(
+                        Person.GenerateFormList(effectiveDate.Value, settings));
+
                     var confirmed = ComplianceReviewRequested?.Invoke(existing.Forms) ?? true;
                     if (!confirmed)
                         return;

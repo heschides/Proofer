@@ -4,7 +4,8 @@
 
 ## Duplicate compliance form rows — 2026-09-01
 
-Diagnosed, not fixed. Full write-up in `HANDOFF_DUPLICATE_COMPLIANCE_FORMS.md`.
+Implemented and tested; the repair has NOT yet run against a database holding real records.
+Full write-up in `HANDOFF_DUPLICATE_COMPLIANCE_FORMS.md`.
 
 Every `(PersonId, Type, DueDate)` in `SatiProduction` that was generated before `57af6fa`
 exists three times — 492 duplicated forms across 25 of 26 clients, 984 surplus rows. Cause was
@@ -19,23 +20,36 @@ on a due-date tie, so the checkbox reads complete, while `EvaluateComplianceGate
 row in `Person.Forms` and sees the unreachable copies. Untouched it produces a fresh false block
 each quarter, per client.
 
-- [ ] Add a unique index on `dbo.Forms (PersonId, Type, DueDate)`. `Form.Type` is
-      `nvarchar(max)` and must be narrowed first. Handle the losing writer's
-      `DbUpdateException` rather than crashing on a benign concurrent insert.
-- [ ] Repair the existing rows on `FormBulkCompletion`'s two-phase latch pattern. Collapse only
-      groups whose copies agree; the copies diverged over ~2 months of editing and which
-      `CompletedDate` survives is a billing fact, not a mechanical one. Audit every deletion.
-- [ ] Close the second duplication path at `NewClientViewModel.cs:917` — `existing.Forms =`
-      `GenerateFormList(...)` inserts 12 `Id == 0` rows without removing the superseded ones.
+- [x] Add a unique index on `dbo.Forms (PersonId, Type, DueDate)` —
+      `20260901150802_AddUniqueFormPersonTypeDueDateIndex`. `Form.Type` narrowed from
+      `nvarchar(max)` to `nvarchar(40)` so it can be indexed. The migration refuses with a
+      named message if duplicates remain rather than failing on the index itself.
+- [x] Handle the losing writer's `DbUpdateException` in `GetAllPeopleAsync` — discard the
+      losing inserts and re-read rather than crashing on a benign concurrent insert.
+- [x] Repair the existing rows: `Data/FormDuplicateRepair.cs`, run by `LocalDatabaseUpdater`
+      between the pre-migration backup and `MigrateAsync`. Merges only groups holding at most
+      one completion fact; a group with two different completion dates is reported and left
+      alone. One `AuditEvent` per removed row under `ActorUserId = 0`.
+- [x] Close the second duplication path — `NewClientViewModel` now calls
+      `Person.AddMissingForms` instead of assigning over `Forms`.
+- [x] Declare the same index and length on `ApiDbContext.ServerForm` so the server model
+      matches the column it writes to.
+- [ ] Run `scripts/Report-DuplicateComplianceForms.sql` against `SatiProduction` on the other
+      login BEFORE installing, to learn the conflict count. Conflicts stop the migration, and
+      therefore startup, until they are resolved by hand.
+- [ ] Apply the migration to `SatiDemo` through the controlled path. The desktop repair does
+      not run in Demo (`UsesCloudApi` skips the whole block), so if `SatiDemo` holds
+      duplicates the migration will refuse there until they are cleared separately.
 - [ ] Decide deliberately whether `EvaluateComplianceGate` should read every form or only the
       current cycle, and record it in `DECISIONS.md`. Ask Josh; narrowing it changes whether
       stale prior-cycle documents keep blocking.
 - [ ] Do not lift the `EnableEnsureCycleFormsOnLoad` guard (`SettingsViewModel.cs:240` notes the
-      intent to) until the unique index exists.
+      intent to) until the index has actually been applied to the target database.
 - [ ] Separately: 147 rows hold `IsCompliant` true with a null or future `CompletedDate`. Harmless
       until each due date passes, then it reproduces this same symptom. Deriving
       `IsCompliant => CompletedDate.HasValue` makes it unrepresentable; needs sign-off, since it
-      changes what a "born compliant" annual document means.
+      changes what a "born compliant" annual document means. Deliberately excluded from this
+      change — see `DECISIONS.md`, 2026-09-01.
 - [ ] Operational: service dates wrongly blocked by an unreachable copy become billable again
       after the repair. Re-billing decision, not a code change.
 

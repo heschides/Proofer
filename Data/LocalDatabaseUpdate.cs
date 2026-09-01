@@ -30,7 +30,8 @@ public sealed record LocalDatabaseUpdateResult(
     IReadOnlyList<string> Migrations,
     string? BackupPath,
     Exception? Failure,
-    IReadOnlyList<MigrationEffectFinding>? Findings = null)
+    IReadOnlyList<MigrationEffectFinding>? Findings = null,
+    FormDuplicateRepair.RepairResult? DuplicateFormRepair = null)
 {
     public static LocalDatabaseUpdateResult Current { get; } =
         new(LocalDatabaseUpdateOutcome.AlreadyCurrent, [], null, null);
@@ -135,6 +136,15 @@ public interface ILocalDatabaseMaintenance
     Task<string> BackUpAsync(CancellationToken cancellationToken = default);
 
     Task MigrateAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Collapses duplicate compliance form rows left behind by the pre-57af6fa
+    /// concurrent-load race. Runs before <see cref="MigrateAsync"/> because
+    /// IX_Forms_PersonId_Type_DueDate cannot be created while duplicates exist.
+    /// Idempotent, and a no-op once the data is clean.
+    /// </summary>
+    Task<FormDuplicateRepair.RepairResult> RepairDuplicateFormsAsync(
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -238,6 +248,29 @@ public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
                 LocalDatabaseUpdateOutcome.Failed, pending, null, failure);
         }
 
+        // Collapse duplicate compliance form rows before migrating. This is ordered
+        // here for a hard reason, not a stylistic one: the pending chain includes the
+        // migration that adds IX_Forms_PersonId_Type_DueDate, and that index cannot
+        // be created while duplicates exist. Running after the backup means the
+        // pre-repair state is recoverable; running before MigrateAsync means the
+        // index has clean data to bind to on the same launch.
+        //
+        // A group whose copies hold conflicting completion dates is deliberately NOT
+        // merged — see FormDuplicateRepair.DuplicateGroup.IsConflicted. Those rows
+        // survive, the index migration then refuses with a message naming them, and
+        // startup stops. That is the correct outcome: the alternative is guessing at
+        // a completion date that decides whether past service dates were billable.
+        FormDuplicateRepair.RepairResult? repair = null;
+        try
+        {
+            repair = await maintenance.RepairDuplicateFormsAsync(cancellationToken);
+        }
+        catch (Exception failure)
+        {
+            return new LocalDatabaseUpdateResult(
+                LocalDatabaseUpdateOutcome.Failed, pending, backupPath, failure, findings);
+        }
+
         // Record the migrations whose every declared effect was found, so EF stops
         // trying to apply changes the database already has. This writes history rows
         // and nothing else — no schema, no consumer data — which is what makes it a
@@ -265,6 +298,6 @@ public sealed class LocalDatabaseUpdater(ILocalDatabaseMaintenance maintenance)
         }
 
         return new LocalDatabaseUpdateResult(
-            LocalDatabaseUpdateOutcome.Applied, pending, backupPath, null, findings);
+            LocalDatabaseUpdateOutcome.Applied, pending, backupPath, null, findings, repair);
     }
 }

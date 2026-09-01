@@ -96,4 +96,8 @@ public sealed class SqlLocalDatabaseMaintenance(SatiContext context) : ILocalDat
 
     public Task MigrateAsync(CancellationToken cancellationToken = default) =>
         context.Database.MigrateAsync(cancellationToken);
+
+    public Task<FormDuplicateRepair.RepairResult> RepairDuplicateFormsAsync(
+        CancellationToken cancellationToken = default) =>
+        FormDuplicateRepair.ApplyAsync(context, cancellationToken);
 }
