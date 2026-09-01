@@ -13,7 +13,8 @@ a narrow read over the existing Comprehensive Assessment table and does not depe
 or table, so no Demo database migration or temporary SQL firewall rule applies.
 
 ### Validation
-- [ ] Source release commit created and pushed to `origin/master` without rewriting history.
+- [x] Source release commit `70dea6d` created and pushed to `origin/master` without rewriting
+      history. The API and both installers were built from that pushed source.
 - [x] Complete Release build passes: 0 errors, 6 warnings (offline NuGet vulnerability feed, the
       existing guarded raw-SQL analyzer warning, and three test-code analyzer/nullability warnings).
 - [x] 1,284 tests pass — 978 desktop/domain, 302 API integration, and 4 Carika. One documented
@@ -24,12 +25,42 @@ or table, so no Demo database migration or temporary SQL firewall rule applies.
       clearing/retention, API surface parity, and tenant-scoped assessment reads.
 
 ### Deployment and artifact evidence
-- [ ] Demo API ZIP built from the pushed source commit; version, contents, bytes, and SHA-256 recorded.
-- [ ] Demo API deployment succeeds; live, ready, release 1.2.35, and contract parity verified.
-- [ ] Demo and Local 1.2.35 installers built without overwriting an existing artifact.
-- [ ] Demo five-launch and Local isolated acceptance gates pass with cleanup verified.
-- [ ] Installer bytes and SHA-256 values recorded and published to the two exact distribution folders.
-- [ ] Final evidence commit pushed and local `master` confirmed equal to `origin/master`.
+- [x] Demo API ZIP `artifacts/SatiApi-1.2.35.zip` built from pushed source commit `70dea6d`.
+      `Sati.Api.dll` reports file version `1.2.35.0` and product version
+      `1.2.35+70dea6dfa3fd2dcc9cb1864d69dfc86c54ca27ca`. The ZIP is 9,635,903 bytes with
+      SHA-256 `B344E8EB60063A8451ED924BD393ED3CF8248F904B533CBEE3558DCDF345F2DD`.
+      It contains the two `demo-history-reconciliation` WebJob files and no `appsettings*.json`,
+      Development/private desktop configuration, credential pattern, or key material. The prior
+      known-healthy 1.2.34 API package remains in `artifacts`.
+- [x] Demo API deployed only to existing App Service `sati-demo-api-satilogica`; OneDeploy
+      deployment `632393f093f9427ea4af6b3b2508fb77` succeeded. `/health/live` returns live,
+      `/health/ready` returns Healthy, and `/health/version` reports product `Sati.Api`, release
+      `1.2.35`, and contract revision `729A9E9F9B2B`. The revision read directly from the locally
+      built `Sati.Contracts` is also `729A9E9F9B2B`. The health-only readiness gate passed;
+      authenticated readiness was not required by the release gate and was skipped because the
+      synthetic Demo credentials were not present in this process.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.35.exe`
+      (100,470,784 bytes; SHA-256
+      `42053C72EC06CA094E39A8B8FAF0C7CD489E3D9388C3B54FAF2A5F8FFFFB17C6`) without overwriting an
+      artifact: all five installed launches responded, closed gracefully with exit code 0, reported
+      version 1.2.35.0, and isolated cleanup passed.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.35.exe`
+      (202,810,634 bytes; SHA-256
+      `DB339529AD8D7184312C538FB3DC912910A2F4144664F76692E218C48015CAA1`) without overwriting an
+      artifact: version 1.2.35.0, Windows integrated security, and isolated cleanup passed. Its
+      embedded `SqlLocalDB.msi` (SHA-256
+      `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) had a valid Microsoft
+      Corporation Authenticode signature before use. The generated installers themselves are not
+      represented as code-signed.
+- [x] Published both accepted installers and only their `.sha256` files through uniquely named,
+      hash-verified temporary siblings to
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop` and
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+      Destination hashes match the accepted artifacts and checksum contents; no existing file was
+      overwritten and no temporary file remains.
+- [ ] Release evidence commit pushed and final local `master` confirmed equal to `origin/master`.
 
 ### Branch audit
 - [x] Deleted completed `docs/feature-handoffs` at `74b191f` locally and remotely after proving it
