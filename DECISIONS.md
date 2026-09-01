@@ -2600,3 +2600,42 @@ write.
 **The guard was never the fix.** It suppressed a symptom of an unenforced invariant, and
 kept suppressing it after the invariant acquired an owner. A feature flag holding back a
 race is a reminder to go fix the race.
+
+## 2026-09-01 — Every cycle gets forms, and only the current one is assumed satisfied
+
+`EnsureCurrentCycleForms` now generates a form set for every cycle from the effective
+date through the cycle after the current one, rather than only the current-and-next
+pair. `Person.InForceSince` marks a cycle's annual documents satisfied only when that
+cycle is the one containing today.
+
+Those two changes are one decision, because either alone is wrong.
+
+**Generating every cycle** closes a hole where a backdated admission had no forms at all
+for the intervening years. A form that was never created cannot be enforced —
+`BillingComplianceGate` iterates the rows that exist and has nothing to fail — so an
+entire year silently carried no compliance requirements. Absent is not the same as
+satisfied, and only the row makes the difference visible.
+
+**Restricting the in-force assumption to the current cycle** is what keeps that
+generation honest. The previous rule marked any already-started cycle satisfied from its
+start date, which was harmless while only the current cycle was ever generated. Applied
+across a client's whole tenure it would have asserted compliance nobody attested, for
+every historical year at once — a far worse defect than the gap it was closing, and the
+same mistake in kind as the 147 dateless-compliant rows.
+
+Sati has no record of whether a closed year's documents were renewed. A later cycle
+beginning proves nothing: cycles turn over on the anniversary date, not because anything
+was signed. So a closed cycle is generated outstanding, an unknown reads as unknown, and
+a real historical gap surfaces as an open document instead of an invented completion
+date. This follows the precedent already set for quarterly reviews — do not bulk-close
+and do not invent dates, accept an honest backlog.
+
+**Consequence — a backdated admission produces open documents on purpose.** The creation
+dialog is where a case manager records what actually happened for those years; nothing
+else should guess.
+
+**Bounded at 25 cycles**, dropping the oldest end so the current and next cycles are
+always present and what remains is a contiguous run. A mistyped effective date decades
+back would otherwise generate hundreds of rows per client. The per-cycle existence check
+also became one pass over `Forms` instead of one per (cycle, type), since this now runs
+across a whole tenure on every caseload load.

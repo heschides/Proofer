@@ -218,25 +218,22 @@ namespace Sati
         // Methods
         // -------------------------------------------------------------------------
 
-        // First-cycle generation. Annual non-reviews default completed on the
-        // effective date when admission is not in the future; reviews remain open.
-        // This preserves the original admission assumption without creating the
-        // contradictory legacy state "compliant with no completion date" or a
-        // completion date in a future year. The creation dialog still lets the
-        // case manager correct every assumption before anything is saved.
+        // First-cycle generation, for the creation dialog. Annual non-reviews are in
+        // force from the cycle start when that cycle is the one we are in; reviews
+        // stay open. The dialog then lets the case manager correct every assumption
+        // before anything is saved, which is the right place to record what actually
+        // happened for a backdated admission.
         public static List<Form> GenerateFormList(DateTime effective, Settings settings)
         {
             var cycleStart = effective;
             var cycleEnd = effective.AddYears(1);
+            var today = DateTime.Today;
 
             return Enum.GetValues<FormType>()
-                .Select(type =>
-                {
-                    return new Form(
-                        type,
-                        FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
-                        InForceSince(type, cycleStart));
-                })
+                .Select(type => new Form(
+                    type,
+                    FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
+                    InForceSince(type, cycleStart, cycleEnd, today)))
                 .ToList();
         }
 
@@ -248,17 +245,32 @@ namespace Sati
         // is. Reviews are never assumed: a quarterly review is an attestation that
         // work happened, and no date can be inferred for work nobody has recorded.
         //
-        // A cycle that has not started yet assumes nothing either. Its documents are
-        // outstanding until someone renews them, which is exactly how missed
-        // renewal prep gets flagged.
+        // ONLY the cycle we are in now gets that assumption, and this is where that
+        // limit lives. Two other kinds of cycle get nothing:
+        //
+        //   A cycle that has not started assumes nothing. Its documents are
+        //   outstanding until someone renews them, which is how missed renewal prep
+        //   gets flagged.
+        //
+        //   A cycle that has already ENDED assumes nothing either. Sati has no record
+        //   of whether those documents were renewed on time, and a later cycle
+        //   beginning proves nothing — cycles turn over on the anniversary date, not
+        //   because anything was signed. Marking a closed year satisfied would assert
+        //   compliance nobody attested, across every historical cycle at once. Those
+        //   forms are generated outstanding instead, so an unknown reads as unknown.
+        //   For a backdated admission the creation dialog is where the case manager
+        //   records what actually happened.
         //
         // This returns a DATE rather than a flag on purpose. The old code paths
         // expressed the same belief two different ways — GenerateFormList stamped the
         // effective date, AddMissingFormsForCycle set a bare compliant flag with no
         // date — and the second produced the 147 rows that read complete while
         // blocking billing. One helper, one answer.
-        private static DateTime? InForceSince(FormType type, DateTime cycleStart) =>
-            !IsReviewType(type) && cycleStart.Date <= DateTime.Today
+        private static DateTime? InForceSince(
+            FormType type, DateTime cycleStart, DateTime cycleEnd, DateTime today) =>
+            !IsReviewType(type) &&
+            cycleStart.Date <= today.Date &&
+            today.Date < cycleEnd.Date
                 ? cycleStart.Date
                 : null;
 
@@ -421,21 +433,49 @@ namespace Sati
         // doesn't change in lockstep. Remove in a follow-up sweep.
         public bool EnsureCurrentCycleForms(DateTime today, Settings settings)
         {
-            var boundaries = GetCurrentCycleBoundaries(today);
-            if (boundaries is null)
+            if (EffectiveDate is null)
                 return false;
 
-            var (cycleStart, cycleEnd) = boundaries.Value;
+            var effective = EffectiveDate.Value;
             var added = false;
 
-            added |= AddMissingFormsForCycle(cycleStart, cycleEnd, settings);
+            // Cycle 0 starts on the effective date; cycle N starts N years later.
+            // Generate every cycle from admission through the one after the current
+            // one — not just the current-and-next pair this used to do. A backdated
+            // admission left the years in between with no forms at all, and a form
+            // that was never created cannot be enforced: BillingComplianceGate has no
+            // row to fail, so an entire year silently carried no compliance
+            // requirements. Absent is not the same as satisfied, and generating the
+            // row is what makes the difference visible.
+            //
+            // Closed cycles are generated outstanding — see InForceSince — so a real
+            // historical gap surfaces as an open document rather than an invented
+            // completion date.
+            var yearsElapsed = today.Year - effective.Year;
+            if (today < effective.AddYears(yearsElapsed))
+                yearsElapsed--;
+            var lastIndex = Math.Max(yearsElapsed + 1, 0);
 
-            var nextStart = cycleEnd;
-            var nextEnd = cycleEnd.AddYears(1);
-            added |= AddMissingFormsForCycle(nextStart, nextEnd, settings);
+            // Skip from the OLDEST end when the range is implausible. The current and
+            // next cycles — the only ones that can be worked on now — are always
+            // generated, and what remains is a contiguous run ending at the next
+            // cycle rather than an arbitrary subset.
+            var firstIndex = Math.Max(0, lastIndex + 1 - MaxGeneratedCycles);
+
+            for (var index = firstIndex; index <= lastIndex; index++)
+            {
+                var cycleStart = effective.AddYears(index);
+                var cycleEnd = effective.AddYears(index + 1);
+                added |= AddMissingFormsForCycle(cycleStart, cycleEnd, today, settings);
+            }
 
             return added;
         }
+
+        // Twenty-five annual cycles is beyond any real case-management tenure and
+        // still cheap; past it, the effective date is far likelier to be a typo than
+        // a record.
+        private const int MaxGeneratedCycles = 25;
 
         // Adds only the candidates this person does not already have, keyed by
         // (type, due date) — the same key as IX_Forms_PersonId_Type_DueDate, so what
@@ -472,17 +512,22 @@ namespace Sati
         // Idempotent: only adds forms missing for the cycle. Membership routes
         // through FormBelongsToCycle — the (cycleStart, cycleEnd] convention —
         // so a form created here is visible to GetCurrentCycleForm.
-        private bool AddMissingFormsForCycle(DateTime cycleStart, DateTime cycleEnd, Settings settings)
+        private bool AddMissingFormsForCycle(
+            DateTime cycleStart, DateTime cycleEnd, DateTime today, Settings settings)
         {
+            // One pass over Forms per cycle rather than one per (cycle, type). This
+            // now runs across a client's whole tenure, so the old nested scan was
+            // O(cycles x types x forms) on every caseload load.
+            var presentForCycle = Forms
+                .Where(form => FormBelongsToCycle(form.DueDate, cycleStart, cycleEnd))
+                .Select(form => form.Type)
+                .ToHashSet();
+
             var added = false;
 
             foreach (var type in Enum.GetValues<FormType>())
             {
-                var existsForCycle = Forms.Any(f =>
-                                    f.Type == type &&
-                                    FormBelongsToCycle(f.DueDate, cycleStart, cycleEnd));
-
-                if (existsForCycle)
+                if (presentForCycle.Contains(type))
                     continue;
 
                 // InForceSince, not a bare flag: a document created already satisfied
@@ -491,7 +536,7 @@ namespace Sati
                 Forms.Add(new Form(
                                     type,
                                     FormDueDateCalculator.Compute(type, cycleStart, cycleEnd, settings),
-                                    InForceSince(type, cycleStart))
+                                    InForceSince(type, cycleStart, cycleEnd, today))
                 {
                     PersonId = Id
                 });

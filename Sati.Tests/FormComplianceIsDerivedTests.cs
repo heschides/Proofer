@@ -181,6 +181,70 @@ public sealed class FormComplianceIsDerivedTests
     }
 
     [Fact]
+    public void ABackdatedAdmissionGetsFormsForEveryYearInBetween()
+    {
+        // The gap: generation used to cover the first cycle (at creation) and the
+        // current and next cycles (on load), and nothing else. A client admitted in
+        // 2023 therefore had no forms at all for 2024 or 2025 — and a form that does
+        // not exist cannot fail the gate, so those years silently carried no
+        // compliance requirements.
+        var person = PersonWithNoForms(new DateTime(2023, 5, 30));
+
+        Assert.True(person.EnsureCurrentCycleForms(Today, new Settings()));
+
+        var cycleStarts = new[]
+        {
+            new DateTime(2023, 5, 30), new DateTime(2024, 5, 30),
+            new DateTime(2025, 5, 30), new DateTime(2026, 5, 30),
+            new DateTime(2027, 5, 30)
+        };
+
+        foreach (var start in cycleStarts)
+        {
+            var pcp = person.Forms.SingleOrDefault(form =>
+                form.Type == FormType.PCP &&
+                form.DueDate > start &&
+                form.DueDate <= start.AddYears(1));
+            Assert.NotNull(pcp);
+        }
+    }
+
+    [Fact]
+    public void ClosedCyclesAreGeneratedOutstandingRatherThanAssumedSatisfied()
+    {
+        // Sati has no record of whether a closed year's documents were renewed, and a
+        // later cycle beginning proves nothing — cycles turn over on the anniversary,
+        // not because anything was signed. Marking them satisfied would assert
+        // compliance nobody attested across every historical cycle at once.
+        var person = PersonWithNoForms(new DateTime(2023, 5, 30));
+        person.EnsureCurrentCycleForms(Today, new Settings());
+
+        var closedCyclePcp = person.Forms.Single(form =>
+            form.Type == FormType.PCP && form.DueDate == new DateTime(2024, 5, 30));
+        Assert.Null(closedCyclePcp.CompletedDate);
+
+        // Only the cycle we are in now carries the in-force assumption.
+        var currentPcp = person.GetCurrentCycleForm(FormType.PCP, Today)!;
+        Assert.Equal(new DateTime(2026, 5, 30), currentPcp.CompletedDate);
+    }
+
+    [Fact]
+    public void AnImplausibleEffectiveDateStopsAtTheOldestEndAndStillCoversTodayAndNext()
+    {
+        // A mistyped effective date decades back would otherwise generate hundreds of
+        // forms per client. What is dropped is the oldest end, so the cycles that can
+        // actually be worked on are always present.
+        var person = PersonWithNoForms(new DateTime(1925, 5, 30));
+
+        person.EnsureCurrentCycleForms(Today, new Settings());
+
+        Assert.NotNull(person.GetCurrentCycleForm(FormType.PCP, Today));
+        Assert.Contains(person.Forms, form =>
+            form.Type == FormType.PCP && form.DueDate == new DateTime(2028, 5, 30));
+        Assert.DoesNotContain(person.Forms, form => form.DueDate.Year < 2001);
+    }
+
+    [Fact]
     public void CycleGenerationIsIdempotentAndAddsNoDuplicates()
     {
         var person = PersonWithNoForms(new DateTime(2026, 5, 30));
