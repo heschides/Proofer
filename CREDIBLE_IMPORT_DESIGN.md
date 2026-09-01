@@ -1,6 +1,6 @@
 # Credible Client Export Import — Design
 
-*Drafted 2026-09-01. Steps 1–2 of the sequencing below are built and tested; the export reader
+*Drafted 2026-09-01. Steps 1–3 of the sequencing below are built and tested; the export reader
 and the import screens are not. See **Sequencing** for what exists.*
 
 Consume a Credible client-data export and create Sati consumers from it: one at a time from the
@@ -538,8 +538,13 @@ mapper takes `ClientExportDocument` rather than markup, most tests need no HTML 
    `CaseloadTransferRules.CanReachCaseloadOf` rather than restating it. 9 view-model tests and
    3 render tests; the render tests exist because this view shipped a `DynamicResource` naming
    a brush the themes do not define, which fails silently.
-3. `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`;
-   synthetic fixtures.
+3. ~~`ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`;
+   synthetic fixtures.~~ **Done 2026-09-01.** 29 tests, six guards confirmed load-bearing by
+   mutation: the guardian inversion, the diagnosis-code extraction, the gender fallback, the
+   culture-independent date parse, the non-breaking-space trim, and first-occurrence handling
+   for repeated sections. The mapper reports four distinct kinds of absence — `Blank`,
+   `LabelMissing`, `SectionMissing`, `Unreadable` — because collapsing them is what makes a
+   truncated export indistinguishable from a sparse client.
 4. `IClientExportReader` over AngleSharp, with the no-network/no-script test.
 5. Single-consumer import button and review screen.
 6. Bulk folder: dry run, then commit.
@@ -574,15 +579,15 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 
 > ## Credible export import — 2026-09-01
 >
-> Steps 1–2 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
+> Steps 1–3 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
 >
 > - [x] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner`;
 >       `person.reassigned` audit in both trails; `ExpectedRevision` and typed 409. Every guard
 >       confirmed load-bearing by mutation, against `PersonService` as well as the API.
 > - [x] Supervisor distribution UI, multi-select, per-record outcomes.
 > - [ ] `Person.CredibleClientId` beside `EvergreenId`, with migration.
-> - [ ] `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`
->       as versioned JSON on `Settings`; synthetic HTML fixtures.
+> - [x] `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`
+>       with a verified default. Storing an agency override as JSON on `Settings` is still open.
 > - [ ] `IClientExportReader` over AngleSharp, configured with no requester and no script provider,
 >       with a test asserting no network activity and no script execution. Refuses PDFs by magic
 >       bytes with a message naming the HTML fix.
