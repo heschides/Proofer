@@ -137,6 +137,7 @@ public static class ApiSurface
         "POST /api/v1/notes",
         "POST /api/v1/notes/abandon-overdue",
         "POST /api/v1/people",
+        "POST /api/v1/people/credible-matches",
         "POST /api/v1/people/{personId:int}/agency-release.pdf",
         "POST /api/v1/people/{personId:int}/assessments/draft",
         "POST /api/v1/people/{personId:int}/contacts",

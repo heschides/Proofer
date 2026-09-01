@@ -333,6 +333,37 @@
                     </TextBlock>
                 </Border>
 
+                <!-- Import a caseload from Credible -->
+                <Border Cursor="Hand" CornerRadius="4" Padding="12,4" Margin="0,0,16,0">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding NavigateToCaseloadImportCommand}" />
+                    </Border.InputBindings>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCaseloadImportActive}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="Import from Credible" FontSize="12"
+                               AutomationProperties.Name="Import a caseload from Credible">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCaseloadImportActive}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource WindowBackgroundBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
                 <!-- Distribute caseload -->
                 <Border Cursor="Hand"
                         CornerRadius="4"

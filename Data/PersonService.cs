@@ -178,6 +178,63 @@ namespace Sati.Data
         }
 
         /// <summary>
+        /// Which of these Credible ids this agency already holds, in local Production.
+        ///
+        /// <para>
+        /// Repeats the API's scoping rather than assuming a server enforces it, because here
+        /// there is not one. The owner's name is disclosed only where
+        /// <see cref="CaseloadTransferRules"/> says the actor could already see that caseload —
+        /// the same predicate the route uses, not a second reading of it.
+        /// </para>
+        /// </summary>
+        public async Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds)
+        {
+            ArgumentNullException.ThrowIfNull(credibleClientIds);
+            var actor = CurrentActor();
+            if (!actor.HasCaseManagerPermissions)
+                return [];
+
+            var ids = credibleClientIds
+                .Select(id => id?.Trim())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (ids.Count == 0)
+                return [];
+
+            await using var context = _contextFactory.CreateDbContext();
+            var matches = await (
+                from person in context.People.AsNoTracking()
+                join owner in context.Users.AsNoTracking() on person.UserId equals owner.Id
+                where person.AgencyId == actor.AgencyId &&
+                      person.CredibleClientId != null &&
+                      ids.Contains(person.CredibleClientId)
+                select new
+                {
+                    person.CredibleClientId,
+                    OwnerId = owner.Id,
+                    OwnerName = owner.DisplayName,
+                    owner.AgencyId,
+                    owner.Permissions,
+                    owner.SupervisorId
+                }).ToListAsync();
+
+            var agencyActor = new AgencyActor(actor.Id, actor.AgencyId, actor.Permissions);
+            return matches
+                .Select(match => new CredibleClientMatchDto(
+                    match.CredibleClientId!,
+                    CaseloadTransferRules.CanReachOwnOrSupervisedCaseload(
+                        agencyActor,
+                        new CaseloadParticipant(
+                            match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId))
+                        ? match.OwnerName
+                        : null))
+                .DistinctBy(match => match.CredibleClientId, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
         /// One user's caseload-authorization facts. Projected rather than loaded whole so a
         /// password hash and salt never enter memory for a question that does not need them.
         /// </summary>

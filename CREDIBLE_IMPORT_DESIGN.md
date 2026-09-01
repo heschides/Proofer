@@ -1,7 +1,7 @@
 # Credible Client Export Import — Design
 
-*Drafted 2026-09-01. Steps 1–5 of the sequencing below are built and tested; bulk folder import
-is not. See **Sequencing** for what exists.*
+*Drafted 2026-09-01. All six steps of the sequencing below are built and tested. Outstanding
+work is listed there and in the agenda entry at the end.*
 
 Consume a Credible client-data export and create Sati consumers from it: one at a time from the
 Consumers page, and in bulk from a folder during agency onboarding.
@@ -555,7 +555,12 @@ mapper takes `ClientExportDocument` rather than markup, most tests need no HTML 
    which the dedupe key needs. 25 tests. `ApplyImportedDraft` fills the form and writes nothing;
    `Submit` stays the only writer, which is what keeps one create path in local Production where
    nothing sits between the view model and SQL Server.
-6. Bulk folder: dry run, then commit.
+6. ~~Bulk folder: dry run, then commit.~~ **Done 2026-09-01.** 14 view-model tests plus 9 API
+   tests for the dedupe lookup, whose three guards are confirmed load-bearing by mutation.
+   `POST /people/credible-matches` is agency-scoped and returns no name and no person id — only
+   the ids that matched, and the owner's display name where the caller could already see that
+   caseload. A POST rather than a query string because these identify real people and a query
+   string is the part of a request that reliably reaches access logs.
 
 Steps 1–2 stand on their own merits — staff turnover and caseload rebalancing need them regardless
 — so they are not wasted if the export work stalls.
@@ -587,7 +592,7 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 
 > ## Credible export import — 2026-09-01
 >
-> Steps 1–5 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
+> All six steps built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
 >
 > - [x] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner`;
 >       `person.reassigned` audit in both trails; `ExpectedRevision` and typed 409. Every guard
@@ -607,7 +612,9 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 >       completes is still outstanding.
 > - [ ] Bulk folder import: dry-run report, then sequential commit. Document hashes, not filenames.
 > - [ ] Add `person.imported` and `caseload-import.completed` to `AUDIT_EVENTS.md`, and add
->       filenames to its forbidden-metadata list.
+>       filenames to its forbidden-metadata list. **Not done** — an imported consumer currently
+>       records `person.created` like any other, which is accurate but does not distinguish an
+>       import from hand entry.
 > - [ ] `API_AUTHORIZATION.md` row for the new owner route.
 > - [ ] Ask agencies during onboarding whether Credible exposes a supported data export or API. A
 >       print view is a vendor presentation artifact and will drift.

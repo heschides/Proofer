@@ -32,6 +32,12 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
             $"/api/v1/people/{personId}/owner",
             new TransferCaseloadRequest(targetUserId, expectedRevision));
 
+    public async Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+        IReadOnlyList<string> credibleClientIds) =>
+        await api.PostAsync<CredibleClientLookupRequest, List<CredibleClientMatchDto>>(
+            "/api/v1/people/credible-matches",
+            new CredibleClientLookupRequest(credibleClientIds));
+
     public async Task<List<Person>> GetAllPeopleAsync(int userId) =>
         (await api.GetAsync<List<PersonDto>>($"/api/v1/caseload?userId={userId}")).Select(CloudContractMapper.ToPerson).ToList();
 

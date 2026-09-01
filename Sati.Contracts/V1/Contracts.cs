@@ -160,6 +160,29 @@ public sealed record SavePersonRequest(
 /// </summary>
 public sealed record TransferCaseloadRequest(int TargetUserId, int ExpectedRevision);
 
+/// <summary>
+/// Asks which of these Credible client ids the agency already holds.
+///
+/// <para>
+/// A POST rather than a query string on purpose. These are identifiers for real people, and a
+/// query string is the one part of a request that reliably reaches access logs, proxies and
+/// browser history. The body keeps them out of all three.
+/// </para>
+/// </summary>
+public sealed record CredibleClientLookupRequest(IReadOnlyList<string> CredibleClientIds);
+
+/// <summary>
+/// One Credible id the agency already holds.
+///
+/// <para>
+/// Deliberately thin. It answers "already imported?" and nothing else — no person id, no name,
+/// no date of birth. <paramref name="OwnerDisplayName"/> is filled only when the caller could
+/// already see that caseload, so a plain case manager learns that an id is taken without
+/// learning whose consumer it is.
+/// </para>
+/// </summary>
+public sealed record CredibleClientMatchDto(string CredibleClientId, string? OwnerDisplayName);
+
 /// <summary>The consumer's ownership as it stands after a transfer.</summary>
 public sealed record CaseloadOwnershipDto(int PersonId, int UserId, int Revision);
 

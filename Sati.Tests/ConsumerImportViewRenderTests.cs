@@ -82,5 +82,6 @@ public sealed class ConsumerImportViewRenderTests
     private sealed class StubPicker : IExportFilePicker
     {
         public string? PickExportFile() => null;
+        public string? PickExportFolder() => null;
     }
 }

@@ -12,4 +12,7 @@ public interface IExportFilePicker
 {
     /// <summary>The chosen file, or null if the user cancelled.</summary>
     string? PickExportFile();
+
+    /// <summary>The chosen folder of saved exports, or null if the user cancelled.</summary>
+    string? PickExportFolder();
 }

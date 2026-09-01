@@ -27,5 +27,16 @@ namespace Sati.Views
 
             return dialog.ShowDialog() == true ? dialog.FileName : null;
         }
+
+        public string? PickExportFolder()
+        {
+            var dialog = new OpenFolderDialog
+            {
+                Title = "Choose a folder of saved Credible print views",
+                Multiselect = false
+            };
+
+            return dialog.ShowDialog() == true ? dialog.FolderName : null;
+        }
     }
 }

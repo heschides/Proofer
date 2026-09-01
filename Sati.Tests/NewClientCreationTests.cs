@@ -462,6 +462,9 @@ public sealed class NewClientCreationTests
             throw new NotSupportedException();
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
     }
 
     private sealed class CountingPersonService : IPersonService
@@ -485,6 +488,9 @@ public sealed class NewClientCreationTests
             throw new NotSupportedException();
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
     }
 
     private sealed class RecordingIncidentReporter : IIncidentReporter

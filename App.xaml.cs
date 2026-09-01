@@ -185,6 +185,7 @@ namespace Sati
                         services.AddTransient<PendingApprovalsViewModel>();
                         services.AddTransient<CaseloadDistributionViewModel>();
                         services.AddTransient<ConsumerImportViewModel>();
+                        services.AddTransient<CaseloadImportViewModel>();
                         services.AddSingleton<IClientExportReader, CredibleExportReader>();
                         services.AddSingleton<IExportFilePicker, Sati.Views.ExportFilePicker>();
 

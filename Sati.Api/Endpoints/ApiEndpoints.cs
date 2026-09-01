@@ -1487,6 +1487,78 @@ internal static class ApiEndpoints
             return Results.Ok(new CaseloadOwnershipDto(person.Id, person.UserId, person.Revision));
         });
 
+        // Which of these Credible ids the agency already holds. The dedupe check behind bulk
+        // import: re-running a folder must report rather than duplicate.
+        //
+        // Scoped to the agency rather than the caller's own caseload, because the duplicate an
+        // importing supervisor most needs to catch is a consumer already sitting on one of their
+        // case managers' caseloads. The response carries no name and no person id — only the id
+        // the caller already had, plus the owner's display name where the caller could already
+        // see that caseload. So a plain case manager learns an id is taken without learning
+        // whose consumer it is.
+        api.MapPost("/people/credible-matches", async Task<IResult> (
+            CredibleClientLookupRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasCaseManagerPermissions)
+                return Results.Forbid();
+
+            var ids = (request.CredibleClientIds ?? [])
+                .Select(id => id?.Trim())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct(StringComparer.Ordinal)
+                .Take(CredibleMatchLookupLimit + 1)
+                .ToList();
+
+            if (ids.Count == 0)
+                return Results.Ok(new List<CredibleClientMatchDto>());
+            if (ids.Count > CredibleMatchLookupLimit)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["credibleClientIds"] =
+                        [$"Look up at most {CredibleMatchLookupLimit} identifiers at a time."]
+                });
+            }
+
+            PreventSensitiveResponseCaching(httpContext);
+
+            var matches = await (
+                from person in db.People.AsNoTracking()
+                join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+                where person.AgencyId == actor.AgencyId &&
+                      person.CredibleClientId != null &&
+                      ids.Contains(person.CredibleClientId)
+                select new
+                {
+                    person.CredibleClientId,
+                    OwnerId = owner.Id,
+                    OwnerName = owner.DisplayName,
+                    owner.AgencyId,
+                    owner.Permissions,
+                    owner.SupervisorId
+                }).ToListAsync(cancellationToken);
+
+            var agencyActor = actor.ToAgencyActor();
+            var result = matches
+                .Select(match => new CredibleClientMatchDto(
+                    match.CredibleClientId!,
+                    CaseloadTransferRules.CanReachOwnOrSupervisedCaseload(
+                        agencyActor,
+                        new CaseloadParticipant(
+                            match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId))
+                        ? match.OwnerName
+                        : null))
+                .DistinctBy(match => match.CredibleClientId, StringComparer.Ordinal)
+                .ToList();
+
+            return Results.Ok(result);
+        });
+
         api.MapGet("/people/{personId:int}/history", async Task<IResult> (
             int personId,
             ClaimsPrincipal principal,
@@ -4638,6 +4710,10 @@ internal static class ApiEndpoints
             "stale_assessment",
             "This assessment was changed after you opened it. Reload it before saving or submitting.",
             string.Empty));
+
+    // A bulk import folder is expected to hold 300-400 consumers, and the client chunks its
+    // lookups. The cap is a runaway guard on a request whose body is a caller-supplied list.
+    private const int CredibleMatchLookupLimit = 500;
 
     private static IResult StalePersonConflict() =>
         Results.Conflict(new ApiErrorDto(

@@ -99,6 +99,9 @@ public sealed class CaseloadDistributionViewRenderTests
             Task.FromResult(new List<PersonSummary>());
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(
             int personId, int targetUserId, int expectedRevision) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
         public Task<Person> AddPersonAsync(Person person) => throw new NotSupportedException();
         public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
         public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();

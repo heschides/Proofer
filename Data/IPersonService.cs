@@ -44,5 +44,14 @@ namespace Sati.Data
             int personId,
             int targetUserId,
             int expectedRevision);
+
+        // Which of these Credible ids the agency already holds. The dedupe check behind bulk
+        // import; agency-scoped, because the duplicate an importing supervisor most needs to
+        // catch is one already sitting on a case manager's caseload rather than their own.
+        //
+        // Returns no name and no person id — only the ids that matched, and the owner's display
+        // name where the caller could already see that caseload.
+        Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds);
     }
 }
