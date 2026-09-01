@@ -53,6 +53,7 @@ namespace Sati.ViewModels
         [ObservableProperty] private string? _searchText;
         [ObservableProperty] private DateTime? _rangeStart;
         [ObservableProperty] private DateTime? _rangeEnd;
+        [ObservableProperty] private bool _keepFiltersAfterSave;
         [ObservableProperty] private bool _isComplianceDialogVisible;
         [ObservableProperty] private string _pendingJustification = string.Empty;
         [ObservableProperty] private IReadOnlyList<string> _complianceFailureReasons = [];
@@ -146,11 +147,7 @@ namespace Sati.ViewModels
             // existing NoteStatusChanged seam so productivity and the board track.
             noteEntryViewModel.NoteSaved += async (s, e) =>
             {
-                // The panel returns to New Note after a save, so the grid must not
-                // keep a row highlighted as though it were still on display.
-                SelectedNote = null;
-                await ReloadAsync();
-                NoteStatusChanged?.Invoke(this, EventArgs.Empty);
+                await HandleSuccessfulNoteSaveAsync();
             };
 
             // New Note (button or Escape) resets the panel; the grid drops its
@@ -268,6 +265,45 @@ namespace Sati.ViewModels
         }
 
         // METHODS
+        internal async Task HandleSuccessfulNoteSaveAsync()
+        {
+            // NoteSaved is raised only after persistence succeeds. Clear the
+            // controls immediately so a slow reload cannot make a completed save
+            // look as though its filters are still active.
+            SelectedNote = null;
+            var keepFilters = KeepFiltersAfterSave;
+            var selectedPersonId = ReferenceEquals(SelectedFilterPerson, AllPersonsSentinel)
+                ? null
+                : SelectedFilterPerson?.Id;
+
+            if (!keepFilters)
+                ClearFilters();
+
+            await ReloadAsync();
+
+            if (keepFilters)
+            {
+                // Reload replaces the Person instances. Re-select the refreshed
+                // instance by ID so the ComboBox selection is genuinely retained
+                // rather than pointing at an item no longer in its ItemsSource.
+                SelectedFilterPerson = selectedPersonId is int personId
+                    ? FilterPeople.FirstOrDefault(person => person?.Id == personId)
+                        ?? AllPersonsSentinel
+                    : AllPersonsSentinel;
+            }
+
+            NoteStatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ClearFilters()
+        {
+            SelectedFilterPerson = AllPersonsSentinel;
+            SelectedStatusOption = StatusOptions[0];
+            SearchText = string.Empty;
+            RangeStart = null;
+            RangeEnd = null;
+        }
+
         [RelayCommand]
         public async Task ReloadAsync()
         {

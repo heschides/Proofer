@@ -1,4 +1,5 @@
 using Sati.Models;
+using Sati.ViewModels;
 using Sati.ViewModels.Children;
 using System.Linq;
 using Xunit;
@@ -351,6 +352,55 @@ public sealed class NotePanelModeTests
         Assert.Null(log.SelectedNote);
         Assert.Equal("New Note", log.NoteEntry.EditorHeading);
         Assert.Equal(person.Id, log.NoteEntry.SelectedPerson?.Id);
+    }
+
+    [Fact]
+    public async Task SuccessfulSaveClearsEveryNotesLogFilterByDefault()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var log = fixture.NotesWindow();
+        await log.ReloadAsync();
+        log.SelectedFilterPerson = log.FilterPeople.Single(person =>
+            person?.Id == fixture.PersonOneId);
+        log.SelectedStatusOption = NotesWindowViewModel.StatusOptions.Single(option =>
+            option.Value == NoteStatus.Pending);
+        log.SearchText = "follow-up";
+        log.RangeStart = new DateTime(2026, 8, 1);
+        log.RangeEnd = new DateTime(2026, 8, 31);
+
+        await log.HandleSuccessfulNoteSaveAsync();
+
+        Assert.Equal("All Persons", log.SelectedFilterPerson?.FullName);
+        Assert.Null(log.SelectedStatusOption.Value);
+        Assert.Equal(string.Empty, log.SearchText);
+        Assert.Null(log.RangeStart);
+        Assert.Null(log.RangeEnd);
+    }
+
+    [Fact]
+    public async Task KeepFiltersAfterSaveRetainsAllValuesAndRebindsTheClient()
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var log = fixture.NotesWindow();
+        await log.ReloadAsync();
+        var originalPerson = log.FilterPeople.Single(person =>
+            person?.Id == fixture.PersonOneId)!;
+        log.SelectedFilterPerson = originalPerson;
+        log.SelectedStatusOption = NotesWindowViewModel.StatusOptions.Single(option =>
+            option.Value == NoteStatus.Pending);
+        log.SearchText = "follow-up";
+        log.RangeStart = new DateTime(2026, 8, 1);
+        log.RangeEnd = new DateTime(2026, 8, 31);
+        log.KeepFiltersAfterSave = true;
+
+        await log.HandleSuccessfulNoteSaveAsync();
+
+        Assert.Equal(fixture.PersonOneId, log.SelectedFilterPerson?.Id);
+        Assert.NotSame(originalPerson, log.SelectedFilterPerson);
+        Assert.Equal(NoteStatus.Pending, log.SelectedStatusOption.Value);
+        Assert.Equal("follow-up", log.SearchText);
+        Assert.Equal(new DateTime(2026, 8, 1), log.RangeStart);
+        Assert.Equal(new DateTime(2026, 8, 31), log.RangeEnd);
     }
 
     [Fact]

@@ -165,6 +165,19 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <StackPanel Width="130"
+                                Margin="0,0,14,6">
+                        <TextBlock Text="AFTER SAVE"
+                                   Style="{StaticResource LabelStyle}" />
+                        <CheckBox Content="Keep filters"
+                                  Height="36"
+                                  VerticalContentAlignment="Center"
+                                  IsChecked="{Binding KeepFiltersAfterSave, Mode=TwoWay}"
+                                  ToolTip="Keep the client, status, search text, and date range after a note is saved."
+                                  AutomationProperties.Name="Keep note filters after save"
+                                  AutomationProperties.HelpText="When selected, saving a note keeps the current client, status, search text, and date range." />
+                    </StackPanel>
+
                     <!-- Units summary — scoped by the filters beside it, fixed to Pending/Logged -->
                     <StackPanel Margin="0,0,14,6">
                         <TextBlock Text="UNITS IN RANGE"
