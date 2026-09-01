@@ -1,6 +1,32 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-30.*
+*Living document. Updated during structured review sessions. Last updated: 2026-08-31.*
+
+## Quarterly review evidence and attestation
+
+`ReviewItem` and quarterly `Form` records deliberately answer different questions. A
+`ReviewItem` records gathered evidence and its Requested/Received/Logged dates. The current-cycle
+`Q1R`-`Q4R` `Form` records the case manager's separate attestation that the quarterly review
+occurred. Logging the final evidence item never completes the form.
+
+The Reviews workspace displays both facts. Evidence tiles retain their existing workflow, while
+each quarter's attestation status comes from `FormCellStatusCalculator`, the same timing-to-status
+owner used by the caseload matrix. Completing an attestation requires an explicitly selected,
+non-future date; the picker starts blank and the entered date is passed unchanged to
+`Form.MarkComplete`. `FormCompletionRules` is the shared future-date validator used by the WPF
+capture, Local `FormService`, and `PUT /api/v1/forms/{id}`. The API applies the accepted value
+through `ServerForm.ApplyCompletion`, keeping `IsCompliant` and `CompletedDate` synchronized.
+
+Every form-compliance mutation converges on
+`CaseManagerDashboardViewModel.AfterFormComplianceChangedAsync`: checkbox flags, the caseload
+matrix, and `UpcomingEvents` refresh together. Changes initiated by the Clients or Reviews
+workspace first reload the dashboard's person snapshot, then use that same cascade. People and
+upcoming-event loads take `LatestRequestTracker` identities before publishing shared UI state.
+
+The older dashboard and Clients quick toggles still use the form's due date as an explicit
+on-time assumption. The Reviews workspace does not: it is where the evidence dates are visible,
+and requires the actual date. Revisiting the weaker quick-toggle assumption is tracked separately;
+it was not silently changed as part of this defect fix.
 
 ## Agency authorization model
 

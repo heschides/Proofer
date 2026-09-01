@@ -2,6 +2,26 @@
 
 # Sati — Refactor Agenda
 
+## Quarterly review attestation and refresh repair — 2026-08-31
+
+- [x] Preserve the deliberate split between `ReviewItem` evidence and `Q1R`-`Q4R` form
+      attestations; logging evidence does not auto-complete a billing gate.
+- [x] Correct the Reviews legend, display the shared matrix-owned attestation status in current-
+      quarter and all-quarter views, and expose the state and dates in the detail pane.
+- [x] Add explicit completion/reset controls. Completion starts with a blank required date,
+      preserves an entered late date, rejects a future date, and writes only through
+      `Form.MarkComplete`/`Reset` and `IFormService`.
+- [x] Centralize the post-form-change cascade so dashboard flags, the caseload matrix, and
+      `UpcomingEvents` refresh after dashboard, task-board, form-note, Clients, and Reviews paths.
+- [x] Enforce the non-future completion rule in shared contracts, Local persistence, and the API;
+      the API returns a validation problem without changing stored state.
+- [x] Add regressions for copy, shared status ownership, explicit late dates, historical billing
+      windows, rejected future dates, the no-auto-derive boundary, and all completion cascades.
+- [ ] Before release, tell case managers that quarters tracked only as Review items remain open
+      attestations and may form an operational backlog. Do not bulk-close them or invent dates.
+- [ ] Review the older dashboard and Clients quick-toggle convention that records `DueDate` as an
+      on-time completion assumption. It remains unchanged in this repair and is the weaker path.
+
 ## Release 1.2.34 — 2026-08-31
 
 Per-user permissions, the line-by-line audit that followed, and the claim-response half of the

@@ -2397,3 +2397,32 @@ So until `Sati.Migrator` exists, a schema-adding release still opens the rule, a
 `AddUserPermissions` adds a column. The AGENDA line is corrected in place rather than deleted, with
 the correction visible, because a reader who remembers the original sentence needs to find out why
 it was wrong rather than wonder whether they imagined it.
+
+## 2026-08-31 — Quarterly evidence does not complete the quarterly attestation
+
+The 90-Day Reviews workspace keeps `ReviewItem` and `Form` separate. Requested, Received, and
+Logged dates say that supporting evidence was gathered and recorded. The corresponding `QnR`
+form says that the case manager attests the quarterly review itself occurred. A provider document
+arriving or being logged cannot make a consumer billable; only the explicit form transition can.
+
+The Reviews workspace therefore shows both states and offers an attestation control beside the
+evidence. Its completion-date picker is blank and required. It does not default to `DueDate` or
+silently stamp today, because `CompletedDate` defines the historical billing-block window and an
+invented on-time date can make late-period service appear billable. An explicitly entered late
+date is preserved exactly. Future dates are rejected by the shared `FormCompletionRules` owner in
+the UI, Local persistence, and API, so bypassing the desktop cannot create contradictory state.
+
+The dashboard and Clients quick toggles remain unchanged: they still record `DueDate` as their
+documented on-time assumption. That is the weaker workflow and is tracked for a later deliberate
+review. It was not broadened into this defect repair, because changing those existing paths would
+alter historical billing behavior beyond the reported Reviews-tab gap.
+
+All form-compliance changes now converge on one dashboard refresh cascade. Checkbox properties,
+the matrix, and upcoming/late-review events refresh together; external workspace changes reload
+the dashboard's person snapshot first. This is an awaited callback rather than an ordinary async
+event so a save command cannot report completion while dependent screens still show stale state.
+
+**Rejected:** auto-completing `QnR` when all evidence is Logged; deriving completion from the last
+Logged date; pre-filling the due date in the evidence-rich Reviews workflow; and validating only
+in WPF. Each either confuses evidence with attestation, invents a billing fact, or permits a direct
+API caller to bypass record-integrity rules.
