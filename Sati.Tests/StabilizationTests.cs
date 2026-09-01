@@ -553,26 +553,29 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.35", version);
+        Assert.Equal("1.2.36", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("A calmer start to the workday", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("One record, one answer", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Today's work is ready when you sign in" &&
-            section.Items.Any(item => item.Contains("once per day", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Today's Work", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A completed form no longer blocks billing" &&
+            section.Items.Any(item => item.Contains("three copies", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("audit", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Quarterly evidence and attestation are separate" &&
-            section.Items.Any(item => item.Contains("actual", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("bulk", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A completion date is what makes a form complete" &&
+            section.Items.Any(item => item.Contains("one fact", StringComparison.OrdinalIgnoreCase)) &&
+            // The assumed-date boundary is the part a case manager must be able to
+            // rely on, so it is pinned rather than left to editorial discretion.
+            section.Items.Any(item => item.Contains("never given an assumed date", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Suggested follow-ups remain your decision" &&
-            section.Items.Any(item => item.Contains("Accept suggestion", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Keep filters", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Screens and billing agree about timing" &&
+            section.Items.Any(item => item.Contains("not yet in force", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Deletion remains conservative" &&
-            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("fails closed", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Compliance records keep pace with the caseload" &&
+            section.Items.Any(item => item.Contains("backdated", StringComparison.OrdinalIgnoreCase)) &&
+            // Same standing instruction the quarterly-review notes carried: an
+            // unknown historical year is not an invitation to invent dates.
+            section.Items.Any(item => item.Contains("bulk-close", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&

@@ -90,6 +90,56 @@ each quarter, per client.
       board). So a Comprehensive Assessment completed on a date that is neither cannot be
       recorded truthfully without a database edit.
 
+## Release 1.2.36 — 2026-09-01
+
+"One record, one answer." A completed 90-day review that kept blocking billing, traced to three
+causes that all produce the same symptom and are individually invisible from the screen. Eleven
+commits since the 1.2.35 audit commit `95b3b59`.
+
+**This IS a schema-changing release.** Two migrations:
+`20260901150802_AddUniqueFormPersonTypeDueDateIndex` and `20260901154714_AddDerivedFormCompliance`.
+Both halves must be recorded — the Demo application below, and the Local Production machines, which
+receive it only at their own next launch.
+
+**Ordering is forced, not preferred.** `AddDerivedFormCompliance` drops `dbo.Forms.IsCompliant`,
+which `InitialCreate` created `bit NOT NULL` with **no default constraint** (verified on `SatiDemo`:
+`IsCompliantDefault = 0`). The 1.2.36 API no longer writes that column, so publishing it against a
+database that still has the column breaks every `INSERT` into `Forms` — client creation in Demo.
+The migration therefore precedes the API publication rather than following it.
+
+### Pre-migration survey of SatiDemo — 2026-09-01, read-only
+
+| Measure | Value |
+|---|---|
+| People / Forms | 177 / 4,124 |
+| Duplicate `(PersonId, Type, DueDate)` groups | **0** — the index applies cleanly |
+| `IsCompliant = 1` with no `CompletedDate` | 1,147 |
+| Of those: reviews left open / no effective date / future cycle | 0 / 0 / 0 |
+| Of those: backfilled from their cycle start | **1,147** |
+| `IX_Forms_PersonId_Type_DueDate` present beforehand | no |
+
+Demo has no duplicates because its forms come from the API's `BuildInitialForms`, not the desktop
+path whose concurrent-load race produced them locally.
+
+### Validation
+- [ ] Release build of the full solution
+- [ ] Sati desktop/domain tests
+- [ ] Sati API integration tests
+- [ ] Carika tests
+
+### Deployment and artifact evidence
+- [ ] Source release commit pushed to `master`
+- [ ] Temporary `datt-workstation-temp` firewall rule added by Josh for `72.95.106.10`; the release
+      workflow never created, altered, or deleted it
+- [ ] Controlled `SatiDemo` migration: rollback-only dry run, real run, then a third run proving
+      idempotency
+- [ ] Demo API published; deployment id, `/health/live`, `/health/ready`, `/health/version`, and
+      contract revision parity recorded
+- [ ] Demo installer built, acceptance-tested, published with SHA-256
+- [ ] Local installer built, acceptance-tested, published with SHA-256
+- [ ] `datt-workstation-temp` removed and verified absent
+- [ ] Local Production machines and the release each is on, including any known to be behind
+
 ## Release 1.2.35 — 2026-09-01
 
 Daily sign-in agenda, explicit quarterly-review attestation, human-accepted suggested follow-ups,

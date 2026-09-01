@@ -6,49 +6,42 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "A calmer start to the workday";
+    public const string ReleaseName = "One record, one answer";
     public const string ReleaseDate = "September 1, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Today's work is ready when you sign in",
+            "A completed form no longer blocks billing",
             [
-                "Case managers now receive a daily agenda after sign-in, once per day on each computer. It brings together overdue records, work coming due, and a quiet-period Comprehensive Assessment suggestion.",
-                "Nothing is selected automatically. Choose the useful rows to append plain, editable lines to Today's Work, or skip without changing anything.",
-                "The personal Appearance setting can turn the agenda off for one Sati account without changing it for anyone else at the agency."
+                "A client could show a completed 90-day review on every screen while the billing alert kept naming that same review. Both displays were reading the record correctly; the client simply had three copies of it, and only one had been completed.",
+                "The duplicates were created by an old startup fault that has not occurred since July, but the records it left behind were never cleaned up. Sati now merges them on first launch and keeps an audit entry for every row it removes.",
+                "The database now refuses to store a second copy of the same form for the same client and due date, so this cannot recur."
             ]),
         new(
-            "Overdue records stay honest",
+            "A completion date is what makes a form complete",
             [
-                "The agenda shows the oldest five incomplete overdue forms and also states the true total, so a large inherited backlog is visible without becoming an unusable wall of rows.",
-                "A separate text cue identifies overdue forms that also block billing; the display never bulk-completes a form or invents a completion date.",
-                "Opening an item takes you to the existing client or form workspace, where the real status and completion date remain explicit."
+                "A form used to carry both a completion date and a separate complete/not-complete marker, and the two could disagree. When they did, the form read as finished on screen while billing still treated it as outstanding.",
+                "There is now one fact instead of two. A form is complete when it has a completion date, and that state cannot be recorded any other way.",
+                "Records that claimed completion without a date are given the date their own annual cycle began, which is what the cycle starting already meant. Quarterly reviews are never given an assumed date, because a review is an attestation that work happened."
             ]),
         new(
-            "Quarterly evidence and attestation are separate",
+            "Screens and billing agree about timing",
             [
-                "The 90-Day Reviews workspace now shows both the provider evidence status and the separate Q1R–Q4R attestation status.",
-                "Completing an attestation requires the actual, non-future completion date. Logging the last evidence item never silently marks the quarterly review complete.",
-                "Quarters previously tracked only through review evidence may therefore still appear open. Review them individually; do not bulk-close them or supply guessed dates."
+                "A completion date entered for a day that has not arrived yet is recorded, but the document is not yet in force. Billing has always treated it that way.",
+                "The caseload grid, upcoming items, and task rows now ask the same question billing asks, so a form cannot appear finished on one screen while blocking on another."
             ]),
         new(
-            "Suggested follow-ups remain your decision",
+            "Compliance records keep pace with the caseload",
             [
-                "The note panel can show the selected client's next due item as a suggested follow-up on both Notes surfaces.",
-                "Sati adds it to the narrative only when you choose Accept suggestion. That explicit action makes it your documented follow-up rather than an automated clinical inference.",
-                "After a note saves successfully, Notes search, filters, and date selectors clear for the next entry unless you deliberately choose Keep filters."
-            ]),
-        new(
-            "Deletion remains conservative",
-            [
-                "No new ordinary-client deletion path ships in this release. The proposed short cleanup window remains blocked until Sati can obtain an affirmative legal-hold result from a real registry.",
-                "Unknown legal-hold state fails closed. Administrative convenience cannot erase a record that may have a retention obligation.",
-                "Existing test-consumer deletion keeps its narrower audited safeguards."
+                "Sati generates each client's compliance forms for every annual cycle from their effective date onward. A client added with a past effective date previously had no records at all for the years in between, and a form that does not exist cannot be flagged.",
+                "Only the cycle currently under way is treated as already satisfied. A closed year is left open rather than assumed complete, because Sati has no record of whether those documents were renewed.",
+                "Expect open historical documents on any client entered with a backdated effective date. Review them individually; do not bulk-close them or supply guessed dates."
             ]),
         new(
             "Still planned before commercial production",
             [
+                "An in-app way to record an exact completion date for annual documents, as the 90-Day Reviews workspace already allows for quarterly attestations.",
                 "A structured daily-task record, if users need durable completion, assignment, linking, or reporting beyond the editable scratchpad.",
                 "A real legal-hold registry and governed archive lifecycle for ordinary clients.",
                 "Office Ally transport and authenticated 999, TA1, and 277CA ingestion tied to immutable ClaimLine snapshots.",
