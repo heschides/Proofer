@@ -40,6 +40,7 @@ internal static class CloudContractMapper
         person.DiagnosisCode = dto.DiagnosisCode;
         person.PlaceOfService = dto.PlaceOfService;
         person.EvergreenId = dto.EvergreenId;
+        person.CredibleClientId = dto.CredibleClientId;
         person.OpenWithVR = dto.OpenWithVR;
         person.HasGuardian = dto.HasGuardian;
         person.GuardianName = dto.GuardianName;

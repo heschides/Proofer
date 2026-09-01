@@ -52,5 +52,6 @@ internal static class PersonContractMapper
         person.CaseManagerIsDhhsRepresentative,
         person.UsesModivcare,
         person.Email,
-        person.IsTestData);
+        person.IsTestData,
+        person.CredibleClientId);
 }

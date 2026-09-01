@@ -141,6 +141,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             null!,
+            null!,
             null!)
         {
             FirstName = "Jamie",
@@ -418,6 +419,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             new RecordingIncidentReporter(),
+            null!,
             null!,
             null!,
             null!,

@@ -4293,6 +4293,7 @@ internal static class ApiEndpoints
         person.DiagnosisCode = Normalize(request.DiagnosisCode);
         person.PlaceOfService = request.PlaceOfService;
         person.EvergreenId = Normalize(request.EvergreenId);
+        person.CredibleClientId = Normalize(request.CredibleClientId);
         person.OpenWithVR = request.OpenWithVR;
         person.HasGuardian = request.HasGuardian;
         person.GuardianName = Normalize(request.GuardianName);

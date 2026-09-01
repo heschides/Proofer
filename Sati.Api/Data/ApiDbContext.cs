@@ -50,6 +50,8 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.ToTable("People");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Revision).IsConcurrencyToken();
+            // Must match the desktop model or the server writes a column it disagrees with.
+            entity.Property(x => x.CredibleClientId).HasMaxLength(PersonSaveRules.CredibleClientIdMaxLength);
             entity.Property(x => x.FirstName)
                 .IsRequired()
                 .HasMaxLength(PersonSaveRules.FirstNameMaxLength);
@@ -470,6 +472,7 @@ internal sealed class ServerPerson
     public string? DiagnosisCode { get; set; }
     public int? PlaceOfService { get; set; }
     public string? EvergreenId { get; set; }
+    public string? CredibleClientId { get; set; }
     public bool OpenWithVR { get; set; }
     public bool HasGuardian { get; set; }
     public string? GuardianName { get; set; }

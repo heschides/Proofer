@@ -250,6 +250,9 @@ namespace Sati.Data
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Revision).IsConcurrencyToken();
+                // Bounded so a future filtered unique index on (AgencyId, CredibleClientId)
+                // does not need a narrowing migration first. See Person.CredibleClientId.
+                entity.Property(p => p.CredibleClientId).HasMaxLength(PersonSaveRules.CredibleClientIdMaxLength);
                 entity.Property(p => p.IsTestData).HasDefaultValue(false);
                 entity.Property(p => p.FirstName)
                       .IsRequired()

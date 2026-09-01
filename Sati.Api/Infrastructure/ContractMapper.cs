@@ -81,7 +81,8 @@ internal static class ContractMapper
         person.CaseManagerIsDhhsRepresentative,
         person.UsesModivcare,
         person.Email,
-        person.IsTestData);
+        person.IsTestData,
+        person.CredibleClientId);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,

@@ -93,7 +93,8 @@ public sealed record PersonDto(
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
     string? Email = null,
-    bool IsTestData = false);
+    bool IsTestData = false,
+    string? CredibleClientId = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -144,7 +145,8 @@ public sealed record SavePersonRequest(
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
     string? Email = null,
-    bool IsTestData = false);
+    bool IsTestData = false,
+    string? CredibleClientId = null);
 
 /// <summary>
 /// Moves one consumer to another case manager's caseload.

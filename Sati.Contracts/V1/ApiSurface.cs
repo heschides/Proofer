@@ -42,7 +42,10 @@ public static class ApiSurface
         "claim-response-ingestion-v1",
         "schema-drift-report-v1",
         "admin-test-consumer-deletion-v1",
-        "person-test-data-v1"
+        "person-test-data-v1",
+        // SavePersonRequest gained CredibleClientId. A newer client sending it to an older
+        // server would have the import dedupe key silently dropped.
+        "person-credible-client-id-v1"
     ];
 
     /// <summary>

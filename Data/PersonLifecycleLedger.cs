@@ -28,6 +28,7 @@ internal static class PersonLifecycleLedger
         new("diagnosisCode", "Diagnosis code", person => person.DiagnosisCode),
         new("placeOfService", "Place of service", person => person.PlaceOfService?.ToString()),
         new("evergreenId", "Evergreen ID", person => person.EvergreenId),
+        new("credibleClientId", "Credible client ID", person => person.CredibleClientId),
         new("openWithVR", "Open with VR", person => YesNo(person.OpenWithVR)),
         new("hasGuardian", "Has guardian", person => YesNo(person.HasGuardian)),
         new("guardianName", "Guardian name", person => person.GuardianName),

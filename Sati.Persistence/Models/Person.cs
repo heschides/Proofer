@@ -75,6 +75,20 @@ namespace Sati
         // every client has one recorded yet.
         public string? EvergreenId { get; set; }
 
+        // The client's id in the agency's Credible instance, captured when a consumer is
+        // imported from a Credible export. It is the dedupe and idempotency key for import:
+        // re-importing the same export must report rather than duplicate.
+        //
+        // Deliberately bounded rather than left to the nvarchar(max) convention that
+        // EvergreenId and MaineCareId follow. Dedupe wants a filtered unique index on
+        // (AgencyId, CredibleClientId) eventually, and an unbounded column cannot be indexed —
+        // that is what forced Form.Type to be narrowed in a later migration. Bounding it now
+        // costs nothing and leaves that index a one-step change.
+        //
+        // Not unique across agencies: two agencies run separate Credible instances whose ids
+        // collide numerically and mean different people.
+        public string? CredibleClientId { get; set; }
+
         // -------------------------------------------------------------------------
         // Contact & support details
         // -------------------------------------------------------------------------

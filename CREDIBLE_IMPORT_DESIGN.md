@@ -1,7 +1,7 @@
 # Credible Client Export Import — Design
 
-*Drafted 2026-09-01. Steps 1–4 of the sequencing below are built and tested; the import screens
-are not. See **Sequencing** for what exists.*
+*Drafted 2026-09-01. Steps 1–5 of the sequencing below are built and tested; bulk folder import
+is not. See **Sequencing** for what exists.*
 
 Consume a Credible client-data export and create Sati consumers from it: one at a time from the
 Consumers page, and in bulk from a folder during agency onboarding.
@@ -550,7 +550,11 @@ mapper takes `ClientExportDocument` rather than markup, most tests need no HTML 
    15 tests; the three refusals and the banner/label/value rules each confirmed load-bearing by
    mutation. Verified end to end against the real 128KB export: 86 sections, 1107 fields, zero
    missing sections, and every one of the 17 mapped fields matching the rendered page.
-5. Single-consumer import button and review screen.
+5. ~~Single-consumer import button and review screen.~~ **Done 2026-09-01.** Plus
+   `Person.CredibleClientId` and its migration (`20260901232228_AddPersonCredibleClientId`),
+   which the dedupe key needs. 25 tests. `ApplyImportedDraft` fills the form and writes nothing;
+   `Submit` stays the only writer, which is what keeps one create path in local Production where
+   nothing sits between the view model and SQL Server.
 6. Bulk folder: dry run, then commit.
 
 Steps 1–2 stand on their own merits — staff turnover and caseload rebalancing need them regardless
@@ -583,13 +587,14 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 
 > ## Credible export import — 2026-09-01
 >
-> Steps 1–4 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
+> Steps 1–5 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
 >
 > - [x] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner`;
 >       `person.reassigned` audit in both trails; `ExpectedRevision` and typed 409. Every guard
 >       confirmed load-bearing by mutation, against `PersonService` as well as the API.
 > - [x] Supervisor distribution UI, multi-select, per-record outcomes.
-> - [ ] `Person.CredibleClientId` beside `EvergreenId`, with migration.
+> - [x] `Person.CredibleClientId` beside `EvergreenId`, with migration. **Not yet applied to any
+>       database** — SatiDemo needs a temporary firewall rule first.
 > - [x] `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`
 >       with a verified default. Storing an agency override as JSON on `Settings` is still open.
 > - [x] `IClientExportReader` over AngleSharp (1.7.2), a bare `HtmlParser` with no browsing
@@ -597,7 +602,9 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 >       application frameset, and the options page.
 > - [ ] Write the operator-facing export procedure into the onboarding material: sections to tick,
 >       Hide Empty Profile Fields off, and save as HTML rather than print to PDF.
-> - [ ] Single-consumer import button and field-level review screen; SSN through `SsnPanel`.
+> - [x] Single-consumer import button and field-level review screen. The SSN is held on
+>       `NewClientViewModel.PendingImportedSsn`; wiring it through `SsnPanel` after the save
+>       completes is still outstanding.
 > - [ ] Bulk folder import: dry-run report, then sequential commit. Document hashes, not filenames.
 > - [ ] Add `person.imported` and `caseload-import.completed` to `AUDIT_EVENTS.md`, and add
 >       filenames to its forbidden-metadata list.

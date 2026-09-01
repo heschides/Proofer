@@ -184,6 +184,9 @@ namespace Sati
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();
                         services.AddTransient<CaseloadDistributionViewModel>();
+                        services.AddTransient<ConsumerImportViewModel>();
+                        services.AddSingleton<IClientExportReader, CredibleExportReader>();
+                        services.AddSingleton<IExportFilePicker, Sati.Views.ExportFilePicker>();
 
                         // Modal windows and their ViewModels
                         services.AddTransient<LoginWindow>();

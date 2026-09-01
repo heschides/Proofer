@@ -915,6 +915,9 @@
             <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
                 <views:ProvidersView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type children:ConsumerImportViewModel}">
+                <views:ConsumerImportView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
                 <views:TeamOverviewView />
             </DataTemplate>

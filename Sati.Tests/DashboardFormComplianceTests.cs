@@ -107,6 +107,7 @@ public sealed class DashboardFormComplianceTests
                 null!,
                 null!,
                 null!,
+                null!,
                 null!);
             var calendar = new CalendarViewModel(exemptDates, notes, session);
             var reviews = new ReviewsViewModel(session, people, null!, settingsService, forms);
