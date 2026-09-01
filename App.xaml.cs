@@ -145,6 +145,8 @@ namespace Sati
                         services.AddTransient<DatabaseActivityHandler>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
                         services.AddTransient<DailyAgendaBuilder>();
+                        services.AddSingleton<DailyAgendaCoordinator>();
+                        services.AddSingleton<DailyAgendaLauncher>();
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<TextShortcutService>();
                         services.AddSingleton<DailyAgendaPreferenceService>();
@@ -191,6 +193,7 @@ namespace Sati
                         services.AddTransient<NewUserViewModel>();
                         services.AddTransient<SettingsViewModel>();
                         services.AddTransient<SettingsWindow>();
+                        services.AddTransient<DailyAgendaWindow>();
                         services.AddSingleton<NotesWindowViewModel>();
                         services.AddTransient<ComplianceReviewViewModel>();
                         services.AddTransient<ComplianceReviewWindow>();
@@ -234,6 +237,7 @@ namespace Sati
                             return dialog.ShowDialog() == true;
                         });
                         services.AddTransient<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
+                        services.AddTransient<Func<DailyAgendaWindow>>(sp => () => sp.GetRequiredService<DailyAgendaWindow>());
                         services.AddTransient<Func<NewUserWindow>>(sp => () => sp.GetRequiredService<NewUserWindow>());
                         services.AddTransient<Func<FirstRunAdminWindow>>(sp => () => sp.GetRequiredService<FirstRunAdminWindow>());
                         services.AddTransient<Func<ScratchpadHistoryWindow>>(sp => () => sp.GetRequiredService<ScratchpadHistoryWindow>());

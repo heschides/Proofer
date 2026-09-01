@@ -52,6 +52,22 @@ public sealed class SettingsAccessTests
         Assert.Contains("SaveTextShortcutsCommand", shortcutTab, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void DailyAgendaPreferenceIsOnTheUngatedAppearanceTab()
+    {
+        var view = File.ReadAllText(Path.Combine(RepositoryRoot(), "Views", "SettingsWindow.xaml"));
+        var appearanceStart = view.IndexOf("Header=\"Appearance\"", StringComparison.Ordinal);
+        var nextTab = view.IndexOf("<TabItem", appearanceStart + 1, StringComparison.Ordinal);
+        var appearanceTab = view[appearanceStart..nextTab];
+
+        Assert.Contains("ShowDailyAgendaAtSignIn", appearanceTab, StringComparison.Ordinal);
+        Assert.Contains(
+            "AutomationProperties.Name=\"Show the daily agenda window at sign-in\"",
+            appearanceTab,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("CanManageAgencySettings", appearanceTab, StringComparison.Ordinal);
+    }
+
     private static string RepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string callerPath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(callerPath)!, ".."));
 

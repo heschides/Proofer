@@ -74,6 +74,7 @@ public sealed class AgendaGreetingTests
             false);
         return new DailyAgendaBuildResult(
             people,
+            30,
             overdue,
             overdue > 0 ? [item] : [],
             upcoming ? [item] : [],

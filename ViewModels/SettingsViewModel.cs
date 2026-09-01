@@ -24,7 +24,10 @@ namespace Sati.ViewModels
         private readonly ISessionService _sessionService;
         private readonly DatabaseActivityPreview _databaseActivityPreview;
         private readonly TextShortcutService _textShortcutService;
+        private readonly DailyAgendaPreferenceService _dailyAgendaPreferences;
         private Settings? _settings;
+        private bool _loadingDailyAgendaPreference;
+        private bool _savedShowDailyAgendaAtSignIn = true;
 
         public SettingsViewModel(
             ISettingsService settingsService,
@@ -34,6 +37,7 @@ namespace Sati.ViewModels
             DatabaseActivityViewModel databaseActivity,
             DatabaseActivityPreview databaseActivityPreview,
             TextShortcutService textShortcutService,
+            DailyAgendaPreferenceService dailyAgendaPreferences,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -46,12 +50,14 @@ namespace Sati.ViewModels
             DatabaseActivity = databaseActivity;
             _databaseActivityPreview = databaseActivityPreview;
             _textShortcutService = textShortcutService;
+            _dailyAgendaPreferences = dailyAgendaPreferences;
             selectedTheme = _themeService.CurrentTheme;
             TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
                 Enumerable.Range(1, 9)
                     .Append(0)
                     .Select(digit => new TextShortcutEditorViewModel(digit)));
             _ = LoadTextShortcutsAsync();
+            _ = LoadDailyAgendaPreferenceAsync();
             if (CanManageAgencySettings)
                 _ = LoadAsync();
         }
@@ -75,6 +81,12 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string textShortcutStatus = string.Empty;
+
+        [ObservableProperty]
+        private bool showDailyAgendaAtSignIn = true;
+
+        [ObservableProperty]
+        private string dailyAgendaPreferenceStatus = string.Empty;
 
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
@@ -103,6 +115,69 @@ namespace Sati.ViewModels
         {
             if (value is not null)
                 _themeService.ApplyTheme(value.ResourceName);
+        }
+
+        partial void OnShowDailyAgendaAtSignInChanged(bool value)
+        {
+            if (!_loadingDailyAgendaPreference)
+                _ = SaveDailyAgendaPreferenceAsync(value);
+        }
+
+        private async Task LoadDailyAgendaPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                DailyAgendaPreferenceStatus = "Sign in to change the daily agenda preference.";
+                return;
+            }
+
+            var preference = await _dailyAgendaPreferences.LoadForUserAsync(userId.Value);
+            _loadingDailyAgendaPreference = true;
+            try
+            {
+                ShowDailyAgendaAtSignIn = preference.ShowAtSignIn;
+                _savedShowDailyAgendaAtSignIn = preference.ShowAtSignIn;
+            }
+            finally
+            {
+                _loadingDailyAgendaPreference = false;
+            }
+
+            DailyAgendaPreferenceStatus = _dailyAgendaPreferences.LastLoadWarning ??
+                "This personal setting is saved immediately for this Sati account on this computer.";
+        }
+
+        private async Task SaveDailyAgendaPreferenceAsync(bool value)
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                DailyAgendaPreferenceStatus = "Sign in before changing the daily agenda preference.";
+                return;
+            }
+
+            DailyAgendaPreferenceStatus = "Saving daily agenda preference...";
+            try
+            {
+                await _dailyAgendaPreferences.SetShowAtSignInAsync(userId.Value, value);
+                _savedShowDailyAgendaAtSignIn = value;
+                DailyAgendaPreferenceStatus = "Daily agenda preference saved.";
+            }
+            catch (DailyAgendaPreferenceSaveException exception)
+            {
+                _loadingDailyAgendaPreference = true;
+                try
+                {
+                    ShowDailyAgendaAtSignIn = _savedShowDailyAgendaAtSignIn;
+                }
+                finally
+                {
+                    _loadingDailyAgendaPreference = false;
+                }
+
+                DailyAgendaPreferenceStatus = $"Preference was not changed. {exception.Message}";
+            }
         }
 
         private async Task LoadTextShortcutsAsync()

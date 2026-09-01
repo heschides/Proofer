@@ -1,0 +1,184 @@
+<Window x:Class="Sati.Views.DailyAgendaWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Today's agenda"
+        Width="860"
+        Height="720"
+        MinWidth="700"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="AgendaItemStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <DataTemplate x:Key="AgendaItemTemplate">
+            <Border Style="{StaticResource AgendaItemStyle}"
+                    AutomationProperties.Name="{Binding AutomationName}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox Grid.Column="0"
+                              Margin="0,2,12,0"
+                              VerticalAlignment="Top"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding AutomationName}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding StatusCue}"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <TextBlock Text="{Binding Title}"
+                                   Margin="0,2,0,0"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Margin="0,2,0,0"
+                                   Foreground="{DynamicResource TextMutedBrush}">
+                            <Run Text="{Binding PersonName, Mode=OneWay}" />
+                            <Run Text=" · " />
+                            <Run Text="{Binding DueText, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Margin="12,0,0,0"
+                            Padding="10,4"
+                            VerticalAlignment="Center"
+                            Content="Open"
+                            Command="{Binding DataContext.OpenItemCommand,
+                                RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding AutomationName,
+                                StringFormat=Open {0}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="10,6"
+                Background="{DynamicResource WarningFillBrush}"
+                BorderBrush="{DynamicResource WarningBrush}"
+                BorderThickness="0,0,0,1"
+                Visibility="{Binding IsDemo, Converter={StaticResource BoolToVisibilityConverter}}"
+                AutomationProperties.Name="Demo environment">
+            <TextBlock HorizontalAlignment="Center"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource WarningBrush}"
+                       Text="{Binding EnvironmentLabel, StringFormat={}{0} — synthetic demonstration data}" />
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="28,24,28,16">
+            <TextBlock Text="TODAY'S AGENDA"
+                       FontSize="11"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="{Binding Greeting}"
+                       Margin="0,6,0,0"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       AutomationProperties.HeadingLevel="Level1" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="2"
+                      Margin="28,0"
+                      VerticalScrollBarVisibility="Auto"
+                      AutomationProperties.Name="Daily agenda items">
+            <StackPanel>
+                <StackPanel Visibility="{Binding HasOverdue, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="NEEDING ATTENTION"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding OverdueSummary}"
+                               Margin="0,3,0,9"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <ItemsControl ItemsSource="{Binding OverdueItems}"
+                                  ItemTemplate="{StaticResource AgendaItemTemplate}"
+                                  AutomationProperties.Name="Incomplete overdue forms" />
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0"
+                            Visibility="{Binding HasUpcoming, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="COMING UP"
+                               Margin="0,0,0,9"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <ItemsControl ItemsSource="{Binding UpcomingItems}"
+                                  ItemTemplate="{StaticResource AgendaItemTemplate}"
+                                  AutomationProperties.Name="Upcoming work" />
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0"
+                            Visibility="{Binding HasAssessmentSuggestion, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="SUGGESTED WORK"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding AssessmentProgressText}"
+                               Margin="0,3,0,9"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <ItemsControl ItemsSource="{Binding AssessmentItems}"
+                                  ItemTemplate="{StaticResource AgendaItemTemplate}"
+                                  AutomationProperties.Name="Suggested Comprehensive Assessment" />
+                </StackPanel>
+
+                <TextBlock Text="There is nothing to select today. You can skip this agenda and continue to your caseload."
+                           Margin="0,18,0,0"
+                           Padding="16"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding HasNoItems, Converter={StaticResource BoolToVisibilityConverter}}"
+                           AutomationProperties.Name="No daily agenda items" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="3"
+                Margin="0,18,0,0"
+                Padding="28,16"
+                BorderBrush="{DynamicResource DividerBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           VerticalAlignment="Center"
+                           Text="Nothing is selected until you choose it."
+                           Foreground="{DynamicResource TextMutedBrush}" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Skip"
+                            MinWidth="90"
+                            Padding="14,7"
+                            Margin="0,0,8,0"
+                            IsCancel="True"
+                            Command="{Binding SkipCommand}"
+                            AutomationProperties.Name="Skip today's agenda" />
+                    <Button Content="Add selected to Today's Work"
+                            MinWidth="190"
+                            Padding="14,7"
+                            IsDefault="True"
+                            Command="{Binding ConfirmCommand}"
+                            AutomationProperties.Name="Add selected agenda items to Today's Work" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
+using Sati.Services;
 using Sati.ViewModels.Billing;
 using Sati.ViewModels.Children;
 using Sati.ViewModels.Supervisor;
@@ -186,6 +187,24 @@ namespace Sati.ViewModels
             await _platformHealthViewModel.RefreshAsync();
         }
         [RelayCommand] private void ToggleScratchpad() => IsScratchpadVisible = !IsScratchpadVisible;
+
+        public async Task OpenAgendaItemAsync(DailyAgendaItem item)
+        {
+            if (!IsCaseManagementAvailable)
+                return;
+
+            CurrentViewModel = _caseManagementViewModel;
+            _caseManagementViewModel.ResetToDashboard();
+
+            var person = NotesViewModel.People.FirstOrDefault(candidate =>
+                candidate.Id == item.PersonId);
+            if (person is null)
+                return;
+
+            NotesViewModel.NoteEntry.SelectedPerson = person;
+            if (item.FormType is FormType formType)
+                await NotesViewModel.OpenFormAsync(formType);
+        }
         // -------------------------------------------------------------------------
         // Initialization
         // -------------------------------------------------------------------------

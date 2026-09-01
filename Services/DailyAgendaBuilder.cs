@@ -18,7 +18,8 @@ public sealed record DailyAgendaItem(
     string Title,
     DateTime DueDate,
     DailyAgendaItemKind Kind,
-    bool BlocksBilling)
+    bool BlocksBilling,
+    FormType? FormType = null)
 {
     public bool IsOverdue => Kind == DailyAgendaItemKind.OverdueForm;
     public string DueText => $"due {DueDate:MMMM d, yyyy}";
@@ -27,6 +28,7 @@ public sealed record DailyAgendaItem(
 
 public sealed record DailyAgendaBuildResult(
     int PersonCount,
+    int LookaheadDays,
     int OverdueTotal,
     IReadOnlyList<DailyAgendaItem> OverdueItems,
     IReadOnlyList<DailyAgendaItem> UpcomingItems,
@@ -79,7 +81,8 @@ public sealed class DailyAgendaBuilder(IUpcomingEventService upcomingEvents)
                     DailyAgendaItemKind.OverdueForm,
                     BillingComplianceGate.IsRequired(
                         form.Type.ToString(),
-                        settings.BillingComplianceRequirements))))
+                        settings.BillingComplianceRequirements),
+                    form.Type)))
             .OrderBy(item => item.DueDate)
             .ThenBy(item => item.PersonName, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Title, StringComparer.CurrentCultureIgnoreCase)
@@ -115,7 +118,8 @@ public sealed class DailyAgendaBuilder(IUpcomingEventService upcomingEvents)
                         "Comprehensive Assessment",
                         form.DueDate.Date,
                         DailyAgendaItemKind.SuggestedAssessment,
-                        false)))
+                        false,
+                        FormType.ComprehensiveAssessment)))
                 .OrderBy(item => item.DueDate)
                 .ThenBy(item => item.PersonName, StringComparer.CurrentCultureIgnoreCase)
                 .FirstOrDefault()
@@ -123,9 +127,25 @@ public sealed class DailyAgendaBuilder(IUpcomingEventService upcomingEvents)
 
         return new DailyAgendaBuildResult(
             caseload.Count,
+            GuaranteedLookaheadDays(settings),
             allOverdue.Count,
             allOverdue.Take(SectionLimit).ToList(),
             upcoming,
             assessmentSuggestion);
     }
+
+    private static int GuaranteedLookaheadDays(Settings settings) =>
+        new[]
+        {
+            settings.PcpOpenDaysBefore,
+            settings.CompAssessmentOpenDaysBefore,
+            settings.ReclassificationOpenDaysBefore,
+            settings.SafetyPlanOpenDaysBefore,
+            settings.PrivacyPracticesOpenDaysBefore,
+            settings.ReleaseAgencyOpenDaysBefore,
+            settings.ReleaseDhhsOpenDaysBefore,
+            settings.ReleaseMedicalOpenDaysBefore,
+            settings.ReviewOpenDaysBefore,
+            30 // Scheduled-note lookahead in UpcomingEventService.
+        }.Min();
 }

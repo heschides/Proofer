@@ -233,6 +233,24 @@
                            TextWrapping="Wrap"
                            Margin="0,0,0,20" />
 
+                <TextBlock Text="DAILY AGENDA"
+                           Style="{StaticResource LabelStyle}" />
+                <CheckBox Content="Show the daily agenda window at sign-in"
+                          AutomationProperties.Name="Show the daily agenda window at sign-in"
+                          IsChecked="{Binding ShowDailyAgendaAtSignIn, Mode=TwoWay}"
+                          Margin="0,0,0,6" />
+                <TextBlock Text="The agenda appears at most once per calendar day for this Sati account on this computer."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="{Binding DailyAgendaPreferenceStatus}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,20" />
+
                 <TextBlock Text="LOADING INDICATOR TEST"
                            Style="{StaticResource SectionHeader}"
                            Margin="0,10,0,0" />

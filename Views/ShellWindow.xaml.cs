@@ -27,6 +27,7 @@ namespace Sati.Views
         private readonly Func<DatabasePatienceWindow> _databasePatienceWindowFactory;
         private readonly TextShortcutService _textShortcutService;
         private readonly TextShortcutHook _textShortcutHook;
+        private readonly DailyAgendaLauncher _dailyAgendaLauncher;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
         private DatabasePatienceWindow? _databasePatienceWindow;
         private bool _isSavingOnClose;
@@ -52,6 +53,7 @@ namespace Sati.Views
             Func<DatabasePatienceWindow> databasePatienceWindowFactory,
             TextShortcutService textShortcutService,
             TextShortcutHook textShortcutHook,
+            DailyAgendaLauncher dailyAgendaLauncher,
             SessionKeepAlive? sessionKeepAlive = null)
         {
             InitializeComponent();
@@ -70,6 +72,7 @@ namespace Sati.Views
             _databasePatienceWindowFactory = databasePatienceWindowFactory;
             _textShortcutService = textShortcutService;
             _textShortcutHook = textShortcutHook;
+            _dailyAgendaLauncher = dailyAgendaLauncher;
             DataContext = shellViewModel;
 
             Loaded += async (_, _) =>
@@ -77,6 +80,7 @@ namespace Sati.Views
                 if (_sessionService.CurrentUser is { } currentUser)
                     await _textShortcutService.LoadForUserAsync(currentUser.Id);
                 _textShortcutHook.Start(this);
+                await _dailyAgendaLauncher.TryShowAsync(this, _shellViewModel);
             };
 
             _databaseActivity.PropertyChanged += OnDatabaseActivityPropertyChanged;
@@ -357,6 +361,7 @@ namespace Sati.Views
                 await _applicationRunState.StartSessionAsync(user, _incidentReporter);
                 await _incidentReporter.FlushAsync();
                 await _shellViewModel.ReinitializeAsync();
+                await _dailyAgendaLauncher.TryShowAsync(this, _shellViewModel);
             }
             finally
             {
@@ -416,6 +421,7 @@ namespace Sati.Views
                     await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
                     await _incidentReporter.FlushAsync();
                     await _shellViewModel.ReinitializeAsync();
+                    await _dailyAgendaLauncher.TryShowAsync(this, _shellViewModel);
                 }
             }
             finally
