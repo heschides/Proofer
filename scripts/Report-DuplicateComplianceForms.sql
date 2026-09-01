@@ -30,18 +30,21 @@
 
   This will recur every quarter, per client, as each duplicated review comes due.
 
-  WHY THIS SCRIPT ONLY REPORTS
-  ----------------------------
-  The copies have DIVERGED. Different copies of the same form carry different
-  completion dates because edits landed on whichever copy happened to surface.
-  Collapsing on lowest Id would silently discard real attestations, and
-  CompletedDate is date-keyed into BillingComplianceGate.IsBillingWindowBlocked
-  -- which completion date survives decides whether past service dates were
-  billable. That is a billing decision, not a mechanical one, so nothing here
-  deletes or updates anything.
+  WHAT ACTUALLY REPAIRS THEM
+  --------------------------
+  FormDuplicateRepair, which LocalDatabaseUpdater runs at startup between the
+  pre-migration backup and MigrateAsync -- it has to precede the migration that
+  adds IX_Forms_PersonId_Type_DueDate, because that index cannot be created while
+  duplicates exist.
 
-  Result 3 is the one to read: it separates the groups that can be collapsed
-  mechanically from the ones that need a human to choose.
+  This script is the read-only preview of what that will do. It changes nothing,
+  so it is safe to run before installing, and it answers the one question the
+  repair cannot answer for itself: how many groups hold conflicting completion
+  dates. Those are the only ones the repair refuses, and each one stops the index
+  migration until a human resolves it.
+
+  Result 3 is the one to read. Its classification matches
+  FormDuplicateRepair.DuplicateGroup.IsConflicted exactly.
 
   HOW TO RUN
   ----------
@@ -123,11 +126,18 @@ WHERE Copies > 1
 ORDER BY PersonId, DueDate, Type;
 
 --------------------------------------------------------------------------------
--- 3. THE MERGE PLAN. Every duplicated form, classified by whether its copies
---    agree. "AGREE" groups can be collapsed mechanically -- any survivor
---    carries identical state. "CONFLICT" groups need someone to choose, because
---    the copies hold different completion dates and the choice changes which
---    past service dates were billable.
+-- 3. THE MERGE PLAN, matching FormDuplicateRepair.DuplicateGroup.IsConflicted
+--    exactly. "MERGE" groups hold at most one completion fact between them, so
+--    there is nothing to choose and the repair collapses them unattended.
+--    "CONFLICT" groups hold two or more DIFFERENT completion dates; merging
+--    would have to pick one, and CompletedDate is date-keyed into
+--    BillingComplianceGate.IsBillingWindowBlocked, so the pick decides whether
+--    past service dates were billable. Those are left exactly as they are.
+--
+--    Note what is deliberately NOT a conflict: some copies holding a date and the
+--    rest holding none. That is the ordinary shape -- one copy was edited, the
+--    others are untouched generation defaults -- and the union has exactly one
+--    completion in it.
 --------------------------------------------------------------------------------
 WITH Groups AS (
     SELECT
@@ -137,7 +147,6 @@ WITH Groups AS (
         COUNT(*)                            AS Copies,
         COUNT(DISTINCT CONVERT(char(8), CompletedDate, 112)) AS DistinctCompletedDates,
         SUM(CASE WHEN CompletedDate IS NOT NULL THEN 1 ELSE 0 END) AS CopiesWithDate,
-        COUNT(DISTINCT CAST(IsCompliant AS int))               AS DistinctFlags,
         MIN(CompletedDate)                  AS EarliestCompletedDate,
         MAX(CompletedDate)                  AS LatestCompletedDate,
         MIN(OpenedDate)                     AS EarliestOpenedDate
@@ -148,11 +157,8 @@ SELECT
     N'3-merge-plan'     AS Result,
     CASE
         WHEN DistinctCompletedDates > 1
-          OR (CopiesWithDate > 0 AND CopiesWithDate < Copies)
-            THEN N'CONFLICT -- copies hold different completion dates'
-        WHEN DistinctFlags > 1
-            THEN N'CONFLICT -- copies disagree on IsCompliant'
-        ELSE N'AGREE -- safe to collapse'
+            THEN N'CONFLICT -- two or more different completion dates'
+        ELSE N'MERGE -- one completion fact at most, nothing to choose'
     END                 AS Classification,
     PersonId,
     Type,
@@ -165,12 +171,7 @@ SELECT
 FROM Groups
 WHERE Copies > 1
 ORDER BY
-    CASE
-        WHEN DistinctCompletedDates > 1
-          OR (CopiesWithDate > 0 AND CopiesWithDate < Copies) THEN 0
-        WHEN DistinctFlags > 1 THEN 1
-        ELSE 2
-    END,
+    CASE WHEN DistinctCompletedDates > 1 THEN 0 ELSE 1 END,
     PersonId, DueDate, Type;
 
 --------------------------------------------------------------------------------
@@ -181,10 +182,7 @@ WITH Conflicted AS (
     FROM dbo.Forms
     GROUP BY PersonId, Type, DueDate
     HAVING COUNT(*) > 1
-       AND (COUNT(DISTINCT CONVERT(char(8), CompletedDate, 112)) > 1
-            OR (SUM(CASE WHEN CompletedDate IS NOT NULL THEN 1 ELSE 0 END) > 0
-                AND SUM(CASE WHEN CompletedDate IS NOT NULL THEN 1 ELSE 0 END) < COUNT(*))
-            OR COUNT(DISTINCT CAST(IsCompliant AS int)) > 1)
+       AND COUNT(DISTINCT CONVERT(char(8), CompletedDate, 112)) > 1
 )
 SELECT
     N'4-conflict-rows'  AS Result,

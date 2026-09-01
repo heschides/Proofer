@@ -405,6 +405,38 @@ namespace Sati
             return added;
         }
 
+        // Adds only the candidates this person does not already have, keyed by
+        // (type, due date) — the same key as IX_Forms_PersonId_Type_DueDate, so what
+        // this refuses to add is exactly what the database would refuse to store.
+        //
+        // Callers hold a freshly generated form list, whose members all carry Id == 0.
+        // Assigning such a list over Forms looks like replacement but is not: saves go
+        // through context.People.Update on a detached graph, which marks every Id == 0
+        // child Added while the stored rows — absent from the graph — survive. That is
+        // how a "replace the forms" call becomes a second full set, and it is the same
+        // duplicate shape FormDuplicateRepair exists to clean up.
+        //
+        // Existing rows always win. A generated form knows nothing that should
+        // overwrite a real completion date.
+        public int AddMissingForms(IEnumerable<Form> candidates)
+        {
+            var present = Forms
+                .Select(form => (form.Type, form.DueDate.Date))
+                .ToHashSet();
+            var added = 0;
+
+            foreach (var candidate in candidates)
+            {
+                if (!present.Add((candidate.Type, candidate.DueDate.Date)))
+                    continue;
+                candidate.PersonId = Id;
+                Forms.Add(candidate);
+                added++;
+            }
+
+            return added;
+        }
+
         // Idempotent: only adds forms missing for the cycle. Membership routes
         // through FormBelongsToCycle — the (cycleStart, cycleEnd] convention —
         // so a form created here is visible to GetCurrentCycleForm.

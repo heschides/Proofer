@@ -78,7 +78,18 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
         {
             entity.ToTable("Forms");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Type).HasMaxLength(50);
+            // 40 to match SatiContext.FormTypeMaxLength — the two models describe the
+            // same physical column and the migration chain narrowed it so it could be
+            // indexed. Declaring 50 here would let the server accept a value the
+            // column cannot hold.
+            entity.Property(x => x.Type).HasMaxLength(40);
+            // Mirrors IX_Forms_PersonId_Type_DueDate from the Sati.Persistence chain,
+            // which owns the migration that creates it. Declared here so the server's
+            // model matches the database it writes to: a person has exactly one form
+            // of a given type for a given due date.
+            entity.HasIndex(x => new { x.PersonId, x.Type, x.DueDate })
+                  .IsUnique()
+                  .HasDatabaseName("IX_Forms_PersonId_Type_DueDate");
         });
 
         modelBuilder.Entity<ServerNote>(entity =>

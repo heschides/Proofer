@@ -54,7 +54,7 @@ public sealed class LocalDatabaseUpdaterTests
         var result = await new LocalDatabaseUpdater(db).UpdateAsync();
 
         Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
-        Assert.Equal(["backup", "migrate"], db.Order);
+        Assert.Equal(["backup", "repair", "migrate"], db.Order);
         Assert.Equal(FakeMaintenance.BackupFile, result.BackupPath);
     }
 
@@ -141,6 +141,51 @@ public sealed class LocalDatabaseUpdaterTests
         Assert.False(message.StartsWith("SQL error", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The duplicate-form repair has to run before the migration chain, because the
+    /// chain contains AddUniqueFormPersonTypeDueDateIndex and that index cannot be
+    /// created while duplicates exist. It also has to run after the backup, so the
+    /// pre-repair rows are recoverable. That leaves exactly one correct position.
+    /// </summary>
+    [Fact]
+    public async Task DuplicateFormsAreRepairedAfterTheBackupAndBeforeTheMigration()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = ["20260901150802_AddUniqueFormPersonTypeDueDateIndex"],
+            HasRecords = true,
+            DuplicateRepair = new FormDuplicateRepair.RepairResult(492, 984, 0, [])
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
+        Assert.Equal(["backup", "repair", "migrate"], db.Order);
+        Assert.Equal(984, result.DuplicateFormRepair!.RowsRemoved);
+    }
+
+    /// <summary>
+    /// A repair that throws leaves the duplicates in place, which means the index
+    /// migration would fail anyway — with a provider error instead of a message.
+    /// Stopping here reports the backup instead.
+    /// </summary>
+    [Fact]
+    public async Task AFailedDuplicateFormRepairStopsBeforeMigrating()
+    {
+        var db = new FakeMaintenance
+        {
+            Pending = ["20260901150802_AddUniqueFormPersonTypeDueDateIndex"],
+            HasRecords = true,
+            RepairThrows = new InvalidOperationException("The database is read-only.")
+        };
+
+        var result = await new LocalDatabaseUpdater(db).UpdateAsync();
+
+        Assert.Equal(LocalDatabaseUpdateOutcome.Failed, result.Outcome);
+        Assert.False(db.Migrated);
+        Assert.Equal(FakeMaintenance.BackupFile, result.BackupPath);
+    }
+
     [Fact]
     public async Task ASuccessfulUpdateHasNoFailureMessage()
     {
@@ -177,7 +222,7 @@ public sealed class LocalDatabaseUpdaterTests
 
         Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
         Assert.Equal([Drifted], db.Recorded);
-        Assert.Equal(["backup", "record", "migrate"], db.Order);
+        Assert.Equal(["backup", "repair", "record", "migrate"], db.Order);
     }
 
     /// <summary>
@@ -244,7 +289,7 @@ public sealed class LocalDatabaseUpdaterTests
 
         Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
         Assert.Empty(db.Recorded);
-        Assert.Equal(["backup", "migrate"], db.Order);
+        Assert.Equal(["backup", "repair", "migrate"], db.Order);
     }
 
     /// <summary>
@@ -265,7 +310,7 @@ public sealed class LocalDatabaseUpdaterTests
         var result = await new LocalDatabaseUpdater(db).UpdateAsync();
 
         Assert.Equal(LocalDatabaseUpdateOutcome.Applied, result.Outcome);
-        Assert.Equal(["backup", "migrate"], db.Order);
+        Assert.Equal(["backup", "repair", "migrate"], db.Order);
     }
 
     /// <summary>A failed repair must not be followed by a migration that will now fail.</summary>
@@ -329,6 +374,19 @@ public sealed class LocalDatabaseUpdaterTests
 
         public Task<bool> HasRecordsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(HasRecords);
+
+        public FormDuplicateRepair.RepairResult DuplicateRepair { get; set; } =
+            new(0, 0, 0, []);
+        public Exception? RepairThrows { get; set; }
+
+        public Task<FormDuplicateRepair.RepairResult> RepairDuplicateFormsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (RepairThrows is not null)
+                return Task.FromException<FormDuplicateRepair.RepairResult>(RepairThrows);
+            Order.Add("repair");
+            return Task.FromResult(DuplicateRepair);
+        }
 
         public Task<string> BackUpAsync(CancellationToken cancellationToken = default)
         {

@@ -594,6 +594,12 @@ Form→cycle: `Person.FormBelongsToCycle(dueDate, cycleStart, cycleEnd)` (new 20
   overdue unfinished forms pass.
 - The due date remains billable. The block begins the following day and ends on the completion
   date. An absent effective date is a separate profile/data-quality issue, not an overdue form.
+- **The gate reads every row in `Person.Forms`; `Person.GetCurrentCycleForm` reads one.** That
+  asymmetry is why a duplicated form could block billing while every screen showed it complete —
+  the checkbox, matrix and task board resolve the due-date tie to one copy, the gate sees them
+  all. `dbo.Forms` now carries a unique index on `(PersonId, Type, DueDate)`, so the two readers
+  cannot disagree about how many records exist. Whether the gate *should* also be cycle-scoped is
+  still open (`AGENDA.md`); today a genuinely stale prior-cycle form blocks indefinitely.
 - `BillingComplianceRequirements` is an agency-scoped flags value stored on `Settings`. Admins may
   enable or disable 90-day reviews, PCP, Comprehensive Assessment, Reclassification, Safety Plan,
   Privacy Practices, and each release type. The migration default preserves the former intended
