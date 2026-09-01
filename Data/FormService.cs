@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Models;
 using Windows.UI;
 
@@ -16,6 +17,11 @@ namespace Sati.Data
 
         public async Task UpdateFormAsync(Form form)
         {
+            if (form.CompletedDate is DateTime completedOn &&
+                FormCompletionRules.Validate(completedOn, DateTime.Today) is string error)
+            {
+                throw new ArgumentOutOfRangeException(nameof(form.CompletedDate), error);
+            }
 
             await using var context = _contextFactory.CreateDbContext();
             context.Forms.Update(form);

@@ -514,6 +514,12 @@ internal sealed class ServerForm
     public int PersonId { get; set; }
     public DateTime? CompletedDate { get; set; }
     public DateTime? OpenedDate { get; set; }
+
+    public void ApplyCompletion(DateTime? completedOn)
+    {
+        CompletedDate = completedOn?.Date;
+        IsCompliant = completedOn.HasValue;
+    }
 }
 
 internal sealed class ServerNote

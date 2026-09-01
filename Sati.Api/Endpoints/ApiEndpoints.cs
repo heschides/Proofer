@@ -4121,7 +4121,7 @@ internal static class ApiEndpoints
             return Results.Ok(new CountDto(deleted));
         });
 
-        api.MapPut("/forms/{id:int}", async Task<Results<Ok<FormDto>, NotFound>> (
+        api.MapPut("/forms/{id:int}", async Task<IResult> (
             int id,
             UpdateFormRequest request,
             ClaimsPrincipal principal,
@@ -4135,9 +4135,18 @@ internal static class ApiEndpoints
                               select f).SingleOrDefaultAsync(cancellationToken);
             if (form is null)
                 return TypedResults.NotFound();
-            form.CompletedDate = request.CompletedDate?.Date;
+
+            if (request.CompletedDate is DateTime completedOn &&
+                FormCompletionRules.Validate(completedOn, DateTime.Today) is string error)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["completedDate"] = [error]
+                });
+            }
+
+            form.ApplyCompletion(request.CompletedDate);
             form.OpenedDate = request.OpenedDate?.Date;
-            form.IsCompliant = request.CompletedDate.HasValue;
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.Ok(ContractMapper.ToForm(form));
         });
