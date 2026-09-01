@@ -188,8 +188,11 @@ path whose concurrent-load race produced them locally.
       `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
       Destination hashes match the accepted artifacts; no existing file was overwritten and no
       temporary file remains.
-- [ ] `datt-workstation-temp` removed by Josh and verified absent. **Outstanding at the time of this
-      commit** — the workflow cannot remove a firewall rule.
+- [x] `datt-workstation-temp` removed by Josh immediately after the migration and verified absent:
+      the allow-list holds exactly the three `sati-demo-api-outbound-01/02/03` entries
+      (`52.189.72.76`, `20.118.56.5`, `20.118.56.47`) and nothing else. The removal path re-lists
+      after deleting and throws if the rule survives, so this is a verified absence rather than an
+      assumed one. The release workflow never created, altered, or deleted a firewall rule.
 - [ ] Local Production machines and the release each is on, including any known to be behind.
       Awaiting Josh. Both machines were on 1.2.35 before this release; **neither receives 1.2.36
       until the new Local installer is run there**, and the desktop applies the duplicate repair and
