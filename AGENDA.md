@@ -60,7 +60,8 @@ or table, so no Demo database migration or temporary SQL firewall rule applies.
       `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
       Destination hashes match the accepted artifacts and checksum contents; no existing file was
       overwritten and no temporary file remains.
-- [ ] Release evidence commit pushed and final local `master` confirmed equal to `origin/master`.
+- [x] Release evidence commit `5293aad` pushed. The checklist-closing commit was then pushed and
+      final local `master` confirmed equal to `origin/master`.
 
 ### Branch audit
 - [x] Deleted completed `docs/feature-handoffs` at `74b191f` locally and remotely after proving it
