@@ -60,6 +60,7 @@ namespace Sati.Data
                 var kind = today > dueDate ? UpcomingEventKind.LateReview : UpcomingEventKind.OpenReview;
                 events.Add(new UpcomingEvent
                 {
+                    PersonId = person.Id,
                     ClientName = person.FullName,
                     Title = $"{label} — {person.FullName}",
                     Date = dueDate,
@@ -100,6 +101,7 @@ namespace Sati.Data
 
                 events.Add(new UpcomingEvent
                 {
+                    PersonId = person.Id,
                     ClientName = person.FullName,
                     Title = label,
                     Date = note.EventDate!.Value,

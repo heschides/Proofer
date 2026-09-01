@@ -144,6 +144,7 @@ namespace Sati
                         services.AddSingleton<DatabaseActivityCommandInterceptor>();
                         services.AddTransient<DatabaseActivityHandler>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
+                        services.AddTransient<DailyAgendaBuilder>();
                         services.AddSingleton<ThemeService>();
                         services.AddSingleton<TextShortcutService>();
                         services.AddSingleton<DailyAgendaPreferenceService>();

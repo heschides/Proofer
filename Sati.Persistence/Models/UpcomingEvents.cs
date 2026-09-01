@@ -7,6 +7,7 @@ namespace Sati.Models
 
     public record UpcomingEvent
     {
+        public int PersonId { get; init; }
         public string ClientName { get; init; } = string.Empty;
         public string Title { get; init; } = string.Empty;
         public DateTime Date { get; init; }

@@ -113,7 +113,7 @@ public static class BillingComplianceGate
     public static bool IsSupported(BillingComplianceRequirements requirements) =>
         (requirements & ~BillingComplianceRequirements.All) == 0;
 
-    private static bool IsIncompleteAndOverdue(
+    public static bool IsIncompleteAndOverdue(
         DateTime dueDate,
         DateTime? completedDate,
         DateTime asOfDate)

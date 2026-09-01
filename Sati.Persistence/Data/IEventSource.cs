@@ -12,6 +12,7 @@ namespace Sati
     // so there is no shadow copy of cycle-membership math.
     public interface IEventSource
     {
+        int Id { get; }
         DateTime? EffectiveDate { get; }
         string FullName { get; }
         List<Form> Forms { get; }

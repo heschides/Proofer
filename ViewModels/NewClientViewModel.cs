@@ -671,6 +671,7 @@ namespace Sati.ViewModels
                 .Where(form => !form.IsCompliant)
                 .Select(form => new UpcomingEvent
                 {
+                    PersonId = person.Id,
                     ClientName = person.FullName,
                     Title = Person.FormDisplayName(form.Type),
                     Date = form.DueDate,
@@ -685,6 +686,7 @@ namespace Sati.ViewModels
                                note.EventDate.Value.Date >= DateTime.Today)
                 .Select(note => new UpcomingEvent
                 {
+                    PersonId = person.Id,
                     ClientName = person.FullName,
                     Title = note.NoteType switch
                     {
