@@ -183,6 +183,7 @@ namespace Sati
                         services.AddSingleton<PlatformHealthViewModel>();
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();
+                        services.AddTransient<CaseloadDistributionViewModel>();
 
                         // Modal windows and their ViewModels
                         services.AddTransient<LoginWindow>();

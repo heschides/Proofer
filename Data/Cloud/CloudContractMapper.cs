@@ -327,6 +327,7 @@ internal static class CloudContractMapper
     {
         Id = dto.Id,
         UserId = dto.UserId,
+        Revision = dto.Revision,
         FirstName = dto.FirstName,
         LastName = dto.LastName,
         EffectiveDate = dto.EffectiveDate,

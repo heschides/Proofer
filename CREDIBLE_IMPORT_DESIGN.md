@@ -1,6 +1,7 @@
 # Credible Client Export Import — Design
 
-*Drafted 2026-09-01. Not yet implemented. Nothing described in this document exists in code.*
+*Drafted 2026-09-01. Steps 1–2 of the sequencing below are built and tested; the export reader
+and the import screens are not. See **Sequencing** for what exists.*
 
 Consume a Credible client-data export and create Sati consumers from it: one at a time from the
 Consumers page, and in bulk from a folder during agency onboarding.
@@ -531,7 +532,12 @@ mapper takes `ClientExportDocument` rather than markup, most tests need no HTML 
    the supervisor-link reach rule had no test until mutation testing exposed the hole, and a
    `TargetCannotHoldCaseload` branch turned out to be fully subsumed by the reach check — no
    test could tell them apart — so it was removed rather than left as a rule stated twice.
-2. Supervisor distribution UI with multi-select.
+2. ~~Supervisor distribution UI with multi-select.~~ **Done 2026-09-01.** `CaseloadDistributionViewModel`
+   as a supervisor-dashboard sub-view; per-record outcomes rather than a batch result, because
+   a consumer edited elsewhere must fail on its own and be seen to. Target list calls
+   `CaseloadTransferRules.CanReachCaseloadOf` rather than restating it. 9 view-model tests and
+   3 render tests; the render tests exist because this view shipped a `DynamicResource` naming
+   a brush the themes do not define, which fails silently.
 3. `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`;
    synthetic fixtures.
 4. `IClientExportReader` over AngleSharp, with the no-network/no-script test.
@@ -568,13 +574,12 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 
 > ## Credible export import — 2026-09-01
 >
-> Designed, not implemented. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
+> Steps 1–2 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
 >
-> - [ ] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner` gated
->       on `CanAccessUserAsync` for both current and target owner; `person.reassigned` audit in
->       both trails; `ExpectedRevision` and typed 409. Tests confirmed failing first, against
->       `PersonService` as well as the API.
-> - [ ] Supervisor distribution UI, multi-select, per-record outcomes.
+> - [x] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner`;
+>       `person.reassigned` audit in both trails; `ExpectedRevision` and typed 409. Every guard
+>       confirmed load-bearing by mutation, against `PersonService` as well as the API.
+> - [x] Supervisor distribution UI, multi-select, per-record outcomes.
 > - [ ] `Person.CredibleClientId` beside `EvergreenId`, with migration.
 > - [ ] `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`
 >       as versioned JSON on `Settings`; synthetic HTML fixtures.

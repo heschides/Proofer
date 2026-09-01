@@ -380,6 +380,7 @@ namespace Sati.Data
                 {
                     Id = p.Id,
                     UserId = p.UserId,
+                    Revision = p.Revision,
                     FirstName = p.FirstName,
                     LastName = p.LastName,
                     EffectiveDate = p.EffectiveDate,

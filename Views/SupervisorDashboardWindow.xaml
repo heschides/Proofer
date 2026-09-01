@@ -333,6 +333,47 @@
                     </TextBlock>
                 </Border>
 
+                <!-- Distribute caseload -->
+                <Border Cursor="Hand"
+                        CornerRadius="4"
+                        Padding="12,4"
+                        Margin="0,0,16,0">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding NavigateToCaseloadDistributionCommand}" />
+                    </Border.InputBindings>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background"
+                                    Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCaseloadDistributionActive}"
+                                             Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource AccentBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="Distribute caseload"
+                               FontSize="12"
+                               AutomationProperties.Name="Distribute caseload">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource TextSecondaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCaseloadDistributionActive}"
+                                                 Value="True">
+                                        <Setter Property="Foreground"
+                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
                 <Border Width="1"
                         Background="{DynamicResource BorderBrush}"
                         Margin="0,2,16,2" />

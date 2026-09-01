@@ -12,6 +12,11 @@ namespace Sati
     {
         public int Id { get; set; }
         public int UserId { get; set; }
+
+        // Carried so the caseload distribution list can assert what it saw when it asks
+        // for a transfer. Without it the ExpectedRevision check would have to be satisfied
+        // by a read taken moments earlier, which is not a concurrency check at all.
+        public int Revision { get; set; }
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public DateTime? EffectiveDate { get; set; }

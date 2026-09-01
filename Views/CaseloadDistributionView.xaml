@@ -1,0 +1,190 @@
+<UserControl x:Class="Sati.Views.CaseloadDistributionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource WindowBackgroundBrush}"
+             TextElement.FontFamily="{StaticResource AppFont}">
+
+    <UserControl.Resources>
+        <Style x:Key="SectionHeading"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="Margin"
+                    Value="0,0,0,6" />
+        </Style>
+
+        <!-- Outcome text. Colour is a reinforcement, never the carrier: the same words say
+             what happened, and AutomationDescription repeats them to a screen reader. -->
+        <Style x:Key="OutcomeText"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="11" />
+            <Setter Property="TextWrapping"
+                    Value="Wrap" />
+            <Setter Property="Margin"
+                    Value="26,2,0,0" />
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextSecondaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Failed}"
+                             Value="True">
+                    <Setter Property="Foreground"
+                            Value="{DynamicResource DangerStrongBrush}" />
+                    <Setter Property="FontWeight"
+                            Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============================================================ -->
+        <!-- HEADING                                                       -->
+        <!-- ============================================================ -->
+        <StackPanel Grid.Row="0"
+                    Margin="0,0,0,16">
+            <TextBlock Text="Distribute caseload"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="Hand consumers you are holding to the case managers you supervise."
+                       FontSize="12"
+                       Margin="0,4,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+        </StackPanel>
+
+        <!-- ============================================================ -->
+        <!-- TARGET AND SELECTION CONTROLS                                 -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceMutedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16"
+                Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Move to"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,8,0" />
+                    <ComboBox x:Name="TargetSelector"
+                              MinWidth="220"
+                              ItemsSource="{Binding Targets}"
+                              SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                              DisplayMemberPath="DisplayName"
+                              AutomationProperties.Name="Case manager to move the selected consumers to"
+                              IsEnabled="{Binding HasTargets}" />
+
+                    <TextBlock Text="{Binding SelectionLabel, Mode=OneWay}"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Margin="16,0,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal">
+                    <Button Content="Select all"
+                            Command="{Binding SelectAllCommand}"
+                            AutomationProperties.Name="Select all consumers"
+                            Margin="0,0,8,0"
+                            Padding="12,4" />
+                    <Button Content="Clear"
+                            Command="{Binding ClearSelectionCommand}"
+                            AutomationProperties.Name="Clear the consumer selection"
+                            Margin="0,0,8,0"
+                            Padding="12,4" />
+                    <Button Content="Move selected"
+                            Command="{Binding DistributeCommand}"
+                            AutomationProperties.Name="Move the selected consumers to the chosen case manager"
+                            Style="{StaticResource PrimaryButton}"
+                            Padding="16,4" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ============================================================ -->
+        <!-- CONSUMER LIST                                                 -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <Grid>
+                <ListBox ItemsSource="{Binding Consumers}"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         AutomationProperties.Name="Consumers on your caseload"
+                         Visibility="{Binding HasConsumers, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Focusable"
+                                    Value="False" />
+                            <Setter Property="Padding"
+                                    Value="0" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="12,8">
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          AutomationProperties.Name="{Binding AutomationDescription, Mode=OneWay}">
+                                    <TextBlock Text="{Binding FullName}"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                </CheckBox>
+                                <TextBlock Text="{Binding Outcome, Mode=OneWay}"
+                                           Style="{StaticResource OutcomeText}"
+                                           Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Text="{Binding StatusMessage, Mode=OneWay}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding HasConsumers, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+            </Grid>
+        </Border>
+
+        <!-- ============================================================ -->
+        <!-- STATUS                                                        -->
+        <!-- ============================================================ -->
+        <TextBlock Grid.Row="3"
+                   Text="{Binding StatusMessage, Mode=OneWay}"
+                   Margin="0,12,0,0"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   AutomationProperties.LiveSetting="Polite"
+                   Visibility="{Binding HasConsumers, Converter={StaticResource BoolToVisibilityConverter}}" />
+    </Grid>
+</UserControl>
