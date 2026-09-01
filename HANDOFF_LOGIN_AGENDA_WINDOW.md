@@ -1,6 +1,6 @@
 # Handoff — Login agenda window
 
-**Status:** design agreed with Josh, 2026-08-31. No code changed.
+**Status:** implemented, tested, documented, committed, and pushed 2026-09-01.
 **Investigated against:** `master` @ `51b2341`.
 
 ---
@@ -529,3 +529,34 @@ Settled since the first draft:
 7. `Themes/` — the thirteen palettes the window must survive
 8. `HANDOFF_90DAY_REVIEW_FLAG.md` — the attested-`QnR` backlog that the lookback will
    surface on day one
+
+---
+
+## Implementation record — 2026-09-01
+
+The handoff is complete. The open cadence question was resolved using the recommended **once per
+local calendar day, per Sati user, per environment, per computer** behavior. The Appearance-tab
+toggle is checked by default and saves immediately. Its local-storage limitation is documented in
+`ARCHITECTURE.md` and `DECISIONS.md`.
+
+Implementation checkpoints:
+
+- `a5e0fb9` — per-user, per-environment local preference and last-shown date;
+- `cce213b` — read-only builder, unbounded all-form lookback, five-row cap and true total;
+- `0a2926e` — five stable greeting sets;
+- `5181fc7` — narrow tenant-scoped latest-assessment read route;
+- `91867cb` — shared assessment progress calculation;
+- `cdf6540` — modal UI, accessibility, settings toggle, startup/account-switch integration, and
+  coordinator failure isolation; and
+- `bbd5633` — compatibility-manifest declaration for the new route.
+
+Two corrections were necessary:
+
+1. Four supplied Set E variants omitted `{1}`, while the handoff's test section required `{1}` in
+   every Set E variant. Those four now name the guaranteed forward period.
+2. `IUpcomingEventService` emits `LateReview` rows for forms also owned by the unbounded overdue
+   lookback. The agenda filters those forward rows so one form is not presented twice.
+
+No form, assessment, compliance, completion-date, or billing state is written by this feature.
+Confirm appends only selected, human-editable lines to `ScratchpadViewModel.ScratchpadContent`;
+Skip is a no-op. The structured successor is recorded as deferred work in `AGENDA.md`.

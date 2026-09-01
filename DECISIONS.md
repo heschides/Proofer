@@ -2434,3 +2434,33 @@ event so a save command cannot report completion while dependent screens still s
 Logged date; pre-filling the due date in the evidence-rich Reviews workflow; and validating only
 in WPF. Each either confuses evidence with attestation, invents a billing fact, or permits a direct
 API caller to bypass record-integrity rules.
+
+## 2026-09-01 — The login agenda is once daily, local, and read-only
+
+The sign-in agenda appears at most once per local calendar day for each Sati user in each
+environment. This resolves the handoff's open cadence question in favor of the recommended
+once-daily behavior. Reauthentication, restarts, and account switching must not repeatedly put a
+modal between a case manager and the caseload. A personal Appearance-tab toggle disables it.
+
+Both values live in one local, environment-and-user-keyed JSON file. They deliberately do not live
+on agency `Settings`, where one person's choice would affect colleagues, and they do not add a
+`User` column and migration for presentation state that does not need to roam. The tradeoff is
+explicit: a person using two computers chooses the setting on each, and may see the agenda once on
+each machine in the same day.
+
+The agenda is not a compliance workflow. It surfaces all unattested overdue forms, shows at most
+the oldest five and the true count, and identifies which additionally block billing. It never bulk
+completes or synthesizes a completion date. `LateReview` forward events are removed from the agenda
+because the unbounded overdue source already owns the same forms; showing both would manufacture
+two apparent tasks from one record. A quiet-period Comprehensive Assessment suggestion keys from
+the form's unattested state even when its assessment entity is Approved, preserving the existing
+evidence-versus-attestation boundary.
+
+Selected items append ordinary human-editable lines through the current Today's Work view model.
+No identifiers, hidden markers, or parseable task payloads are embedded in that text. Structured
+tasks remain a separate future product decision with their own entity and lifecycle.
+
+Two copy corrections were accepted during implementation. Four Set E variants originally omitted
+the `{1}` forward-window value despite the handoff's own test requiring it in every Set E variant;
+they now state the guaranteed forward period. Also, forward `LateReview` rows are deliberately
+deduplicated against the overdue section rather than presenting one form twice.

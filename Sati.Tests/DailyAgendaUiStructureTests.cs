@@ -1,7 +1,11 @@
+using Sati.Views;
+using System.Windows;
+using System.Windows.Media;
 using Xunit;
 
 namespace Sati.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class DailyAgendaUiStructureTests
 {
     private static string Root => Path.GetFullPath(Path.Combine(
@@ -40,5 +44,43 @@ public sealed class DailyAgendaUiStructureTests
         Assert.Contains("IsCancel=\"True\"", view, StringComparison.Ordinal);
         Assert.Contains("IsDefault=\"True\"", view, StringComparison.Ordinal);
         Assert.Contains("IsChecked=\"{Binding IsSelected, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AgendaWindowRendersAgainstOppositeLightAndDarkThemes()
+    {
+        WpfUiHarness.Run(() =>
+        {
+            var dictionaries = Application.Current.Resources.MergedDictionaries;
+            var themeIndex = dictionaries
+                .Select((dictionary, index) => new { dictionary, index })
+                .Single(item => item.dictionary.Source?.OriginalString.Contains(
+                    "Themes/", StringComparison.OrdinalIgnoreCase) == true &&
+                    !item.dictionary.Source.OriginalString.EndsWith(
+                        "States.xaml", StringComparison.OrdinalIgnoreCase))
+                .index;
+            var originalTheme = dictionaries[themeIndex];
+
+            try
+            {
+                foreach (var theme in new[] { "PearlescentCream", "MidnightOpal" })
+                {
+                    dictionaries[themeIndex] = new ResourceDictionary
+                    {
+                        Source = new Uri($"/Sati;component/Themes/{theme}.xaml", UriKind.Relative)
+                    };
+                    var window = new DailyAgendaWindow();
+                    WpfUiHarness.Realize(window, 860, 720);
+
+                    var expected = Assert.IsAssignableFrom<Brush>(
+                        Application.Current.FindResource("WindowBackgroundBrush"));
+                    Assert.Same(expected, window.Background);
+                }
+            }
+            finally
+            {
+                dictionaries[themeIndex] = originalTheme;
+            }
+        });
     }
 }

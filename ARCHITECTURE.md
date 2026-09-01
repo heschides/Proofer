@@ -1547,3 +1547,37 @@ one on screen — a silent duplicate in the clinical record, reachable from the 
 grid lists every client's notes. Covered by
 `NotePanelModeTests.LoadingANoteForADifferentClientStillUpdatesThatNote`, confirmed failing against
 the old ordering.
+
+## Daily sign-in agenda (2026-09-01)
+
+The daily agenda is a desktop presentation feature over existing authoritative data. It does not
+introduce a task record and never changes a form, assessment, due date, compliance state, or billing
+decision. `DailyAgendaBuilder` reads the case manager's already-loaded caseload and agency settings,
+then combines three sources:
+
+- every incomplete overdue `Form`, using the shared
+  `BillingComplianceGate.IsIncompleteAndOverdue` predicate without an upper age limit;
+- forward events from `IUpcomingEventService`, excluding `LateReview` because those rows describe
+  the same overdue forms owned by the first source; and
+- when both lists are empty, the soonest-due unattested Comprehensive Assessment form.
+
+Each displayed list is capped at five rows. The overdue section retains the true total and orders
+oldest first. Billing-blocking overdue forms receive a separate text cue. The assessment candidate
+is selected from `Form.CompletedDate`, not the assessment workflow status; only that candidate's
+assessment document is fetched. `GET /api/v1/people/{personId:int}/assessments/latest` is a narrow,
+read-only DTO route guarded by the ordinary person-ownership check. Progress is calculated by the
+same section definitions and answer-status rule as `ComprehensiveAssessmentViewModel`.
+
+Startup ordering is deliberate. `App` awaits `ShellViewModel.InitializeAsync`, including
+`Scratchpad.InitializeAsync` and the caseload load, before showing `ShellWindow`. The window's
+`Loaded` handler then invokes `DailyAgendaLauncher`. Account switches invoke it only after
+`ReinitializeAsync`. Confirm writes through `ScratchpadViewModel.ScratchpadContent`, so existing
+dirty tracking, autosave, and conflict handling remain in force; Skip writes nothing. Open commands
+navigate to the existing case-management/form surface and do not perform a record transition.
+
+`DailyAgendaPreferenceService` stores `ShowAtSignIn` and `LastShownDate` under
+`%LOCALAPPDATA%\Sati\daily-agenda-preferences.json`, keyed by environment and Sati user id. This is
+per-machine presentation state, not agency policy and not a clinical record. Disabled and
+already-shown-today paths return before settings, event, or assessment reads. Query failures are
+logged and cannot block sign-in. The modal uses dynamic theme resources, a Demo indicator,
+non-color status text, stable automation names, keyboard defaults, and initial checkbox focus.

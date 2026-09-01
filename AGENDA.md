@@ -3095,3 +3095,16 @@ work; deployment and migration remain release-playbook actions.
    never consumer names.
 4. **Documentation complete.** Architecture, route authorization, audit catalog, and durable design
    decisions describe the implemented boundary.
+
+## Daily sign-in agenda — completed 2026-09-01
+
+- [x] Show a theme-aware, accessible agenda after scratchpad and caseload initialization, including
+      overdue forms, upcoming work, a quiet-period Comprehensive Assessment suggestion, and the
+      permanent Demo indicator.
+- [x] Store the enabled toggle and once-per-day marker locally per environment and Sati user; an
+      opted-out or already-shown user reaches no agenda data source.
+- [x] Keep the feature read-only except for explicit selected-line appends to Today's Work, with
+      ordinary navigation to the existing form surface and no compliance transition.
+- [ ] Design a structured daily-task feature only if users need durable completion, assignment,
+      linking, or reporting. It must start with its own entity, authorization, audit, concurrency,
+      retention, and API contract; do not infer structure by parsing scratchpad text.
