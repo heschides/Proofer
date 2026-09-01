@@ -403,7 +403,9 @@ public sealed class NotePipelineTests
     public async Task NoteReadsAreScopedToTheCallersOwnPeopleAndSupervisees()
     {
         await using var fixture = await PipelineFixture.CreateAsync();
-        await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(1));
+        // Use today rather than "yesterday": on the first of a month, yesterday is
+        // outside the monthly query this test is explicitly exercising.
+        await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.BillableDate);
 
         var owner = fixture.NotesAs(fixture.CaseManagerOne);
         Assert.NotEmpty(await owner.GetAllByPersonAsync(fixture.PersonOneId));

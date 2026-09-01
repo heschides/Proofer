@@ -450,7 +450,10 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 new ServerNote
                 {
                     Id = 502, PersonId = 101, AgencyId = 1, Narrative = "Approved agency one note",
-                    EventDate = new DateTime(2026, 8, 3), Minutes = 60, Status = 6
+                    // This is the one current-month record used by the administrator
+                    // overview test. Keep it relative so the fixture remains valid
+                    // after the month in which it was first written.
+                    EventDate = DateTime.Today, Minutes = 60, Status = 6
                 },
                 new ServerNote
                 {
