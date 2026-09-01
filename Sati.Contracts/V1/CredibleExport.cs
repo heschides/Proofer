@@ -240,3 +240,61 @@ public sealed record CredibleProfileDraft(
                                               or CredibleFieldStatus.LabelMissing
                                               or CredibleFieldStatus.SectionMissing);
 }
+
+/// <summary>Why an artifact was refused as a Credible client export.</summary>
+public enum ClientExportRejection
+{
+    None = 0,
+
+    /// <summary>A PDF. The print view must be saved as HTML — see CREDIBLE_IMPORT_DESIGN.md.</summary>
+    NotHtml,
+
+    /// <summary>The Credible application window rather than a print view: a frameset shell.</summary>
+    ApplicationShell,
+
+    /// <summary>HTML, but with no section banners — usually the options page, saved before Print View.</summary>
+    NotAPrintView,
+
+    /// <summary>The file could not be read or parsed at all.</summary>
+    Unreadable
+}
+
+/// <summary>
+/// A read attempt: the document, or why it was refused.
+///
+/// <para>
+/// Refusals are named and specific because all three wrong artifacts look plausible to whoever
+/// produced them, and telling an operator "this looks like the Credible application window, not
+/// a print view" is worth more than any amount of parser tolerance.
+/// </para>
+/// </summary>
+public sealed record ClientExportReadResult(
+    ClientExportDocument? Document,
+    ClientExportRejection Rejection,
+    string? Detail = null)
+{
+    public bool Succeeded => Document is not null && Rejection == ClientExportRejection.None;
+
+    public static ClientExportReadResult Accepted(ClientExportDocument document) =>
+        new(document, ClientExportRejection.None);
+
+    public static ClientExportReadResult Refused(
+        ClientExportRejection rejection, string? detail = null) =>
+        new(null, rejection, detail);
+
+    /// <summary>Operator-facing explanation, naming the fix rather than the symptom.</summary>
+    public string Describe() => Rejection switch
+    {
+        ClientExportRejection.None => string.Empty,
+        ClientExportRejection.NotHtml =>
+            "This is a PDF. Open the client's print view, press Print View, then save the page " +
+            "as a web page — printing to PDF loses which value belongs to which field.",
+        ClientExportRejection.ApplicationShell =>
+            "This is the Credible application window, not a client print view. Open the print " +
+            "view in its own tab and save that page.",
+        ClientExportRejection.NotAPrintView =>
+            "This page has no client sections. It looks like the print options page — press " +
+            "Print View first, then save the page it produces.",
+        _ => Detail ?? "This file could not be read as a Credible client export."
+    };
+}

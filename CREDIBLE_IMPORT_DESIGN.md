@@ -1,7 +1,7 @@
 # Credible Client Export Import — Design
 
-*Drafted 2026-09-01. Steps 1–3 of the sequencing below are built and tested; the export reader
-and the import screens are not. See **Sequencing** for what exists.*
+*Drafted 2026-09-01. Steps 1–4 of the sequencing below are built and tested; the import screens
+are not. See **Sequencing** for what exists.*
 
 Consume a Credible client-data export and create Sati consumers from it: one at a time from the
 Consumers page, and in bulk from a folder during agency onboarding.
@@ -27,8 +27,9 @@ stylesheet:
 |---|---|
 | `.lc`, `.lc2` | label cell |
 | `.vc`, `.vc2` | value cell (`.vc2` is `white-space:pre-wrap` — multi-line free text) |
-| `.shc`, `.shHeader`, `.shb`, `.shbold` | section headers |
-| `.hc` | column header |
+| `.shc` | top-level section banner (CONSUMER INFO, CONSUMER EPISODE INFO) |
+| `.hc` | sub-section banner — Consumer Address, Consumer Demograpics, Medical. **Not** a column header: all 44 in the real export are `colspan="4"` |
+| `.shHeader` | the page title row (client name, id, DOB) — not a section |
 | `P.page` | `page-break-after: always` — section delimiter |
 
 Label and value are **adjacent cells in the DOM**. The column-interleaving problem that PDF
@@ -545,7 +546,10 @@ mapper takes `ClientExportDocument` rather than markup, most tests need no HTML 
    for repeated sections. The mapper reports four distinct kinds of absence — `Blank`,
    `LabelMissing`, `SectionMissing`, `Unreadable` — because collapsing them is what makes a
    truncated export indistinguishable from a sparse client.
-4. `IClientExportReader` over AngleSharp, with the no-network/no-script test.
+4. ~~`IClientExportReader` over AngleSharp, with the no-network/no-script test.~~ **Done 2026-09-01.**
+   15 tests; the three refusals and the banner/label/value rules each confirmed load-bearing by
+   mutation. Verified end to end against the real 128KB export: 86 sections, 1107 fields, zero
+   missing sections, and every one of the 17 mapped fields matching the rendered page.
 5. Single-consumer import button and review screen.
 6. Bulk folder: dry run, then commit.
 
@@ -579,7 +583,7 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 
 > ## Credible export import — 2026-09-01
 >
-> Steps 1–3 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
+> Steps 1–4 built and tested 2026-09-01. Full write-up in `CREDIBLE_IMPORT_DESIGN.md`.
 >
 > - [x] `CaseloadTransferRules` in Contracts; `Person.TransferTo`; `PUT /people/{id}/owner`;
 >       `person.reassigned` audit in both trails; `ExpectedRevision` and typed 409. Every guard
@@ -588,9 +592,9 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 > - [ ] `Person.CredibleClientId` beside `EvergreenId`, with migration.
 > - [x] `ClientExportDocument` and `CredibleProfileMapping` in Contracts; `CredibleLayoutProfile`
 >       with a verified default. Storing an agency override as JSON on `Settings` is still open.
-> - [ ] `IClientExportReader` over AngleSharp, configured with no requester and no script provider,
->       with a test asserting no network activity and no script execution. Refuses PDFs by magic
->       bytes with a message naming the HTML fix.
+> - [x] `IClientExportReader` over AngleSharp (1.7.2), a bare `HtmlParser` with no browsing
+>       context, so there is no requester and no script engine. Refuses PDFs by magic bytes, the
+>       application frameset, and the options page.
 > - [ ] Write the operator-facing export procedure into the onboarding material: sections to tick,
 >       Hide Empty Profile Fields off, and save as HTML rather than print to PDF.
 > - [ ] Single-consumer import button and field-level review screen; SSN through `SsnPanel`.
