@@ -90,6 +90,38 @@ each quarter, per client.
       board). So a Comprehensive Assessment completed on a date that is neither cannot be
       recorded truthfully without a database edit.
 
+## Release 1.2.37 — 2026-09-01
+
+"Sati starts again." A one-defect release fixing the 1.2.36 startup refusal described below, and
+carrying the whole 1.2.36 change set to Local machines that could not install it.
+
+**Authorization note.** This release ran on Josh's explicit, twice-repeated instruction rather than
+the literal `invoke DATT!` phrase. The concern was raised once and reaffirmed; recording it here so
+the audit trail says what actually happened.
+
+**Not a schema-changing release.** No migration was added after 1.2.36. `SatiDemo` is already at
+that schema and healthy, so no Demo migration, no temporary SQL firewall rule, and no cloud
+database action of any kind belongs to this release. The API publish is a version bump only.
+
+**The gate that was missing.** 1.2.36 proved its migration against `SatiDemo` through the guarded
+script, which bypasses the desktop startup path entirely — so the code that actually refused was
+never exercised before publication. This release adds that check: the real `LocalDatabaseUpdater`
+path is run against a genuinely un-migrated `SatiProduction` before any artifact is published.
+
+### Validation
+- [ ] Release build of the full solution
+- [ ] Sati desktop/domain tests
+- [ ] Sati API integration tests
+- [ ] Carika tests
+- [ ] Real startup path applied both migrations against an un-migrated local database
+
+### Deployment and artifact evidence
+- [ ] Source release commit pushed to `master`
+- [ ] Demo API published; deployment id, health, version, and contract parity recorded
+- [ ] Demo installer built, acceptance-tested, published with SHA-256
+- [ ] Local installer built, acceptance-tested, published with SHA-256
+- [ ] Local Production machines and the release each is on
+
 ## 1.2.36 blocks Local startup — found 2026-09-01, fixed, needs 1.2.37
 
 **Every Local Production machine refuses to start on 1.2.36.** Josh hit it installing the release.

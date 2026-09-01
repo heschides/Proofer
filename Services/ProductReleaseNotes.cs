@@ -6,37 +6,31 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "One record, one answer";
+    public const string ReleaseName = "Sati starts again";
     public const string ReleaseDate = "September 1, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "A completed form no longer blocks billing",
+            "Fixes a 1.2.36 install that would not open",
             [
-                "A client could show a completed 90-day review on every screen while the billing alert kept naming that same review. Both displays were reading the record correctly; the client simply had three copies of it, and only one had been completed.",
-                "The duplicates were created by an old startup fault that has not occurred since July, but the records it left behind were never cleaned up. Sati now merges them on first launch and keeps an audit entry for every row it removes.",
-                "The database now refuses to store a second copy of the same form for the same client and due date, so this cannot recur."
+                "Sati 1.2.36 stopped at startup on computers using a local database, reporting that part of its update was already present. Nothing was written and no records were changed; the check that stops a risky update was reading one step incorrectly.",
+                "That check now recognises the step properly, and the update proceeds normally: back up, tidy duplicate compliance records, then update.",
+                "If a computer is still on 1.2.36 and will not open, installing 1.2.37 resolves it. Nothing needs to be undone first."
             ]),
         new(
-            "A completion date is what makes a form complete",
+            "Everything from 1.2.36 arrives with this release",
             [
-                "A form used to carry both a completion date and a separate complete/not-complete marker, and the two could disagree. When they did, the form read as finished on screen while billing still treated it as outstanding.",
-                "There is now one fact instead of two. A form is complete when it has a completion date, and that state cannot be recorded any other way.",
-                "Records that claimed completion without a date are given the date their own annual cycle began, which is what the cycle starting already meant. Quarterly reviews are never given an assumed date, because a review is an attestation that work happened."
+                "A completed 90-day review that kept appearing in the billing alert, because the client held three copies of the same record and only one was completed. Duplicates are merged on first launch, with an audit entry for every row removed, and the database now refuses to store a second copy.",
+                "A form is complete when it has a completion date. The separate complete/not-complete marker is gone, so the two can no longer disagree.",
+                "Compliance records are generated for every annual cycle from a client's effective date onward. Closed years are left open rather than assumed complete."
             ]),
         new(
-            "Screens and billing agree about timing",
+            "What to expect on the first launch after updating",
             [
-                "A completion date entered for a day that has not arrived yet is recorded, but the document is not yet in force. Billing has always treated it that way.",
-                "The caseload grid, upcoming items, and task rows now ask the same question billing asks, so a form cannot appear finished on one screen while blocking on another."
-            ]),
-        new(
-            "Compliance records keep pace with the caseload",
-            [
-                "Sati generates each client's compliance forms for every annual cycle from their effective date onward. A client added with a past effective date previously had no records at all for the years in between, and a form that does not exist cannot be flagged.",
-                "Only the cycle currently under way is treated as already satisfied. A closed year is left open rather than assumed complete, because Sati has no record of whether those documents were renewed.",
-                "Expect open historical documents on any client entered with a backdated effective date. Review them individually; do not bulk-close them or supply guessed dates."
+                "The first launch on a computer holding real records takes noticeably longer. Sati backs the database up, merges duplicate compliance records, and applies both schema updates before the sign-in window appears.",
+                "Quarterly reviews previously tracked only through review evidence, and historical years on any client entered with a backdated effective date, may appear open. Review them individually; do not bulk-close them or supply guessed dates.",
+                "If anything is wrong, Sati stops before writing and names the backup rather than starting against a half-updated database."
             ]),
         new(
             "Still planned before commercial production",

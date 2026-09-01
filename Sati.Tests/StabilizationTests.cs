@@ -553,26 +553,23 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.36", version);
+        Assert.Equal("1.2.37", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("One record, one answer", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Sati starts again", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A completed form no longer blocks billing" &&
+            section.Title == "Fixes a 1.2.36 install that would not open" &&
+            // The reassurance a case manager needs first: their records were not
+            // touched by the failed launch.
+            section.Items.Any(item => item.Contains("no records were changed", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Nothing needs to be undone", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Everything from 1.2.36 arrives with this release" &&
             section.Items.Any(item => item.Contains("three copies", StringComparison.OrdinalIgnoreCase)) &&
             section.Items.Any(item => item.Contains("audit", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A completion date is what makes a form complete" &&
-            section.Items.Any(item => item.Contains("one fact", StringComparison.OrdinalIgnoreCase)) &&
-            // The assumed-date boundary is the part a case manager must be able to
-            // rely on, so it is pinned rather than left to editorial discretion.
-            section.Items.Any(item => item.Contains("never given an assumed date", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Screens and billing agree about timing" &&
-            section.Items.Any(item => item.Contains("not yet in force", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Compliance records keep pace with the caseload" &&
-            section.Items.Any(item => item.Contains("backdated", StringComparison.OrdinalIgnoreCase)) &&
+            section.Title == "What to expect on the first launch after updating" &&
+            section.Items.Any(item => item.Contains("longer", StringComparison.OrdinalIgnoreCase)) &&
             // Same standing instruction the quarterly-review notes carried: an
             // unknown historical year is not an invitation to invent dates.
             section.Items.Any(item => item.Contains("bulk-close", StringComparison.OrdinalIgnoreCase)));
