@@ -64,7 +64,7 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         _providers = providers;
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _saveTimer.Tick += async (_, _) => { _saveTimer.Stop(); await SaveAsync(); };
-        BuildSections();
+        BuildSections(Sections, ScheduleSave);
         SelectedSection = Sections.FirstOrDefault();
     }
 
@@ -290,8 +290,52 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
         Sections.SelectMany(s => s.Questions).All(q => q.Status != AssessmentAnswerStatus.FollowUpRequired);
     public string CompletionText => $"{AnsweredCount} of {TotalCount} questions addressed";
 
-    private void BuildSections()
+    internal static AssessmentProgress CalculateProgress(AssessmentDocument document)
     {
+        var sections = new List<AssessmentSectionViewModel>();
+        BuildSections(sections, static () => { });
+        foreach (var question in sections.SelectMany(section => section.Questions))
+        {
+            question.Load(document.Answers.TryGetValue(question.Key, out var answer)
+                ? answer
+                : new AssessmentAnswer());
+        }
+
+        return new AssessmentProgress(
+            sections.Sum(section => section.Questions.Count(question => question.IsAddressed)),
+            sections.Sum(section => section.Questions.Count));
+    }
+
+    private static void BuildSections(
+        ICollection<AssessmentSectionViewModel> target,
+        Action changed)
+    {
+        AssessmentQuestionViewModel Q(
+            string key, string prompt, string why, string include, string avoid) =>
+            new(key, prompt, why, include, avoid, false,
+                AssessmentQuestionKind.Narrative, [], changed);
+        AssessmentQuestionViewModel SQ(
+            string key, string prompt, string why, string include, string avoid) =>
+            new(key, prompt, why, include, avoid, true,
+                AssessmentQuestionKind.Narrative, [], changed);
+        AssessmentQuestionViewModel YN(string key, string prompt) =>
+            new(key, prompt, string.Empty, string.Empty, string.Empty, false,
+                AssessmentQuestionKind.YesNo, [], changed);
+        AssessmentQuestionViewModel HC(string key, string prompt) =>
+            new(key, prompt, string.Empty, string.Empty, string.Empty, false,
+                AssessmentQuestionKind.HealthConcern, [], changed);
+        AssessmentQuestionViewModel TH(string key, string prompt) =>
+            new(key, prompt, string.Empty, string.Empty, string.Empty, false,
+                AssessmentQuestionKind.Therapy, [], changed);
+        AssessmentQuestionViewModel AS(string key, string prompt, params string[] activities) =>
+            new(key, prompt, string.Empty, string.Empty, string.Empty, false,
+                AssessmentQuestionKind.ActivitySupport, activities, changed);
+        void AddSection(
+            string title,
+            string subtitle,
+            params AssessmentQuestionViewModel[] questions) =>
+            target.Add(new AssessmentSectionViewModel(title, subtitle, questions));
+
         AddSection("Getting started", "People & context",
             Q("self-view", "How {Name} sees {reflexive}",
               "Center the assessment in the person’s own understanding of who they are.",
@@ -378,20 +422,11 @@ public sealed partial class ComprehensiveAssessmentViewModel : ObservableObject
               "What is missing, desired result, urgency, responsible next step, and whether a provider should be associated.", "Needs more services without explaining the need or desired result."));
     }
 
-    private AssessmentQuestionViewModel Q(string key, string prompt, string why, string include, string avoid) =>
-        new(key, prompt, why, include, avoid, false, AssessmentQuestionKind.Narrative, [], ScheduleSave);
-    private AssessmentQuestionViewModel SQ(string key, string prompt, string why, string include, string avoid) =>
-        new(key, prompt, why, include, avoid, true, AssessmentQuestionKind.Narrative, [], ScheduleSave);
-    private AssessmentQuestionViewModel YN(string key, string prompt) =>
-        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.YesNo, [], ScheduleSave);
-    private AssessmentQuestionViewModel HC(string key, string prompt) =>
-        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.HealthConcern, [], ScheduleSave);
-    private AssessmentQuestionViewModel TH(string key, string prompt) =>
-        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.Therapy, [], ScheduleSave);
-    private AssessmentQuestionViewModel AS(string key, string prompt, params string[] activities) =>
-        new(key, prompt, string.Empty, string.Empty, string.Empty, false, AssessmentQuestionKind.ActivitySupport, activities, ScheduleSave);
-    private void AddSection(string title, string subtitle, params AssessmentQuestionViewModel[] questions) =>
-        Sections.Add(new AssessmentSectionViewModel(title, subtitle, questions));
+}
+
+internal sealed record AssessmentProgress(int AnsweredCount, int TotalCount)
+{
+    public string Text => $"{AnsweredCount} of {TotalCount} questions addressed";
 }
 
 public sealed partial class AssessmentSectionViewModel(string title, string subtitle, IEnumerable<AssessmentQuestionViewModel> questions) : ObservableObject
