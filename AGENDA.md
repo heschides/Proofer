@@ -2,6 +2,43 @@
 
 # Sati — Refactor Agenda
 
+## Duplicate compliance form rows — 2026-09-01
+
+Diagnosed, not fixed. Full write-up in `HANDOFF_DUPLICATE_COMPLIANCE_FORMS.md`.
+
+Every `(PersonId, Type, DueDate)` in `SatiProduction` that was generated before `57af6fa`
+exists three times — 492 duplicated forms across 25 of 26 clients, 984 surplus rows. Cause was
+a read-modify-write race: `GetAllPeopleAsync` ran `EnsureCurrentCycleForms` + `SaveChangesAsync`
+unconditionally on every caseload load, startup issued those loads concurrently, and there is no
+unique constraint on `dbo.Forms`. `57af6fa` closed the mechanism on 2026-07-24 by serializing the
+loads and gating the write behind `EnableEnsureCycleFormsOnLoad = false`. The rows it had already
+written were never cleaned up.
+
+It surfaces as a completed form that still blocks billing: `GetCurrentCycleForm` returns one copy
+on a due-date tie, so the checkbox reads complete, while `EvaluateComplianceGate` iterates every
+row in `Person.Forms` and sees the unreachable copies. Untouched it produces a fresh false block
+each quarter, per client.
+
+- [ ] Add a unique index on `dbo.Forms (PersonId, Type, DueDate)`. `Form.Type` is
+      `nvarchar(max)` and must be narrowed first. Handle the losing writer's
+      `DbUpdateException` rather than crashing on a benign concurrent insert.
+- [ ] Repair the existing rows on `FormBulkCompletion`'s two-phase latch pattern. Collapse only
+      groups whose copies agree; the copies diverged over ~2 months of editing and which
+      `CompletedDate` survives is a billing fact, not a mechanical one. Audit every deletion.
+- [ ] Close the second duplication path at `NewClientViewModel.cs:917` — `existing.Forms =`
+      `GenerateFormList(...)` inserts 12 `Id == 0` rows without removing the superseded ones.
+- [ ] Decide deliberately whether `EvaluateComplianceGate` should read every form or only the
+      current cycle, and record it in `DECISIONS.md`. Ask Josh; narrowing it changes whether
+      stale prior-cycle documents keep blocking.
+- [ ] Do not lift the `EnableEnsureCycleFormsOnLoad` guard (`SettingsViewModel.cs:240` notes the
+      intent to) until the unique index exists.
+- [ ] Separately: 147 rows hold `IsCompliant` true with a null or future `CompletedDate`. Harmless
+      until each due date passes, then it reproduces this same symptom. Deriving
+      `IsCompliant => CompletedDate.HasValue` makes it unrepresentable; needs sign-off, since it
+      changes what a "born compliant" annual document means.
+- [ ] Operational: service dates wrongly blocked by an unreachable copy become billable again
+      after the repair. Re-billing decision, not a code change.
+
 ## Release 1.2.35 — 2026-09-01
 
 Daily sign-in agenda, explicit quarterly-review attestation, human-accepted suggested follow-ups,
