@@ -5,11 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Sati;assembly=Sati.Persistence"
         xmlns:converters="clr-namespace:Sati.Converters"
+        xmlns:helpers="clr-namespace:Sati.Helpers"
         xmlns:clientDocuments="clr-namespace:Sati.Views.ClientDocuments"
         xmlns:views="clr-namespace:Sati.Views"
         Background="{DynamicResource WindowBackgroundBrush}">
 
     <UserControl.Resources>
+        <helpers:BindingProxy x:Key="LayoutProxy" Data="{Binding}" />
         <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" />
         <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
                                          TrueWidth="16"
@@ -682,7 +684,7 @@
                         <Style TargetType="ColumnDefinition">
                             <Setter Property="Width" Value="250" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsClientListCompact}" Value="True">
+                                <DataTrigger Binding="{Binding UseHorizontalClientSelector}" Value="True">
                                     <Setter Property="Width" Value="0" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -694,7 +696,7 @@
                         <Style TargetType="ColumnDefinition">
                             <Setter Property="Width" Value="12" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsClientListCompact}" Value="True">
+                                <DataTrigger Binding="{Binding UseHorizontalClientSelector}" Value="True">
                                     <Setter Property="Width" Value="0" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -711,7 +713,7 @@
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
-                    Visibility="{Binding IsClientListCompact, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                    Visibility="{Binding UseHorizontalClientSelector, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -749,6 +751,7 @@
                             <Button Style="{StaticResource IconButton}"
                                     AutomationProperties.Name="Collapse client list"
                                     Command="{Binding ToggleClientListCommand}"
+                                    IsEnabled="{Binding CanToggleClientList}"
                                     ToolTip="Use compact client selector">
                                 <TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -888,7 +891,7 @@
                     CornerRadius="6"
                     Padding="10,8"
                     Margin="0,0,0,10"
-                    Visibility="{Binding IsClientListCompact, Converter={StaticResource BoolToVisibilityConverter}}">
+                    Visibility="{Binding UseHorizontalClientSelector, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -907,6 +910,7 @@
                         <Button Style="{StaticResource IconButton}"
                                 AutomationProperties.Name="Expand client list"
                                 Command="{Binding ToggleClientListCommand}"
+                                IsEnabled="{Binding CanToggleClientList}"
                                 ToolTip="Show full client list">
                             <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1477,11 +1481,10 @@
                             BorderBrush="{DynamicResource AccentBrush}"
                             BorderThickness="1"
                             CornerRadius="7"
-                            Padding="14"
-                            Visibility="{Binding IsClientEditorOpen, Converter={StaticResource BoolToVisibilityConverter}}"
-                            AutomationProperties.Name="Client details edit mode">
-                        <ScrollViewer VerticalScrollBarVisibility="Visible" MaxHeight="390">
-                            <Grid>
+                             Padding="14"
+                             Visibility="{Binding IsClientEditorOpen, Converter={StaticResource BoolToVisibilityConverter}}"
+                             AutomationProperties.Name="Client details edit mode">
+                        <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -1888,8 +1891,7 @@
                                                    Visibility="{Binding CaseManagerIsRepPayee, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     </Grid>
                                 </Border>
-                            </Grid>
-                        </ScrollViewer>
+                        </Grid>
                     </Border>
 
                     <!-- The two expandable profile panels intentionally come last.
@@ -2432,8 +2434,9 @@
                                                         Binding="{Binding Status}"
                                                         Width="80" />
                                     <DataGridTextColumn Header="Narrative"
-                                                        Binding="{Binding Narrative}"
-                                                        Width="*" />
+                                        Binding="{Binding Narrative}"
+                                        Visibility="{Binding Data.ShowNarrativeColumn, Source={StaticResource LayoutProxy}, Converter={StaticResource BoolToVisibilityConverter}}"
+                                        Width="*" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

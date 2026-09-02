@@ -202,6 +202,10 @@
     </Window.Resources>
 
     <Grid>
+        <Grid.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding EasyEyesScale}"
+                            ScaleY="{Binding EasyEyesScale}" />
+        </Grid.LayoutTransform>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -232,6 +236,25 @@
                            Foreground="{DynamicResource TextMutedBrush}"
                            TextWrapping="Wrap"
                            Margin="0,0,0,20" />
+
+                <TextBlock Text="EASY EYES"
+                           Style="{StaticResource LabelStyle}" />
+                <CheckBox Content="Use Easy Eyes mode"
+                          AutomationProperties.Name="Use Easy Eyes mode"
+                          AutomationProperties.HelpText="Makes the interface about thirty percent larger, hides note narrative columns, and uses the horizontal client selector."
+                          IsChecked="{Binding EasyEyesMode, Mode=TwoWay}"
+                          Margin="0,0,0,6" />
+                <TextBlock Text="Makes the working interface about 30% larger, hides the narrative column in note lists, and uses the horizontal client selector."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="{Binding EasyEyesPreferenceStatus}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,20" />
 
                 <TextBlock Text="DAILY AGENDA"
                            Style="{StaticResource LabelStyle}" />

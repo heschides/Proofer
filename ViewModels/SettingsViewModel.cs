@@ -25,9 +25,12 @@ namespace Sati.ViewModels
         private readonly DatabaseActivityPreview _databaseActivityPreview;
         private readonly TextShortcutService _textShortcutService;
         private readonly DailyAgendaPreferenceService _dailyAgendaPreferences;
+        private readonly EasyEyesPreferenceService _easyEyesPreferences;
         private Settings? _settings;
         private bool _loadingDailyAgendaPreference;
         private bool _savedShowDailyAgendaAtSignIn = true;
+        private bool _loadingEasyEyesPreference;
+        private bool _savedEasyEyesMode;
 
         public SettingsViewModel(
             ISettingsService settingsService,
@@ -38,6 +41,7 @@ namespace Sati.ViewModels
             DatabaseActivityPreview databaseActivityPreview,
             TextShortcutService textShortcutService,
             DailyAgendaPreferenceService dailyAgendaPreferences,
+            EasyEyesPreferenceService easyEyesPreferences,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -51,6 +55,7 @@ namespace Sati.ViewModels
             _databaseActivityPreview = databaseActivityPreview;
             _textShortcutService = textShortcutService;
             _dailyAgendaPreferences = dailyAgendaPreferences;
+            _easyEyesPreferences = easyEyesPreferences;
             selectedTheme = _themeService.CurrentTheme;
             TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
                 Enumerable.Range(1, 9)
@@ -58,6 +63,7 @@ namespace Sati.ViewModels
                     .Select(digit => new TextShortcutEditorViewModel(digit)));
             _ = LoadTextShortcutsAsync();
             _ = LoadDailyAgendaPreferenceAsync();
+            _ = LoadEasyEyesPreferenceAsync();
             if (CanManageAgencySettings)
                 _ = LoadAsync();
         }
@@ -87,6 +93,15 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string dailyAgendaPreferenceStatus = string.Empty;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(EasyEyesScale))]
+        private bool easyEyesMode;
+
+        [ObservableProperty]
+        private string easyEyesPreferenceStatus = string.Empty;
+
+        public double EasyEyesScale => EasyEyesMode ? 1.3 : 1.0;
 
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
@@ -121,6 +136,69 @@ namespace Sati.ViewModels
         {
             if (!_loadingDailyAgendaPreference)
                 _ = SaveDailyAgendaPreferenceAsync(value);
+        }
+
+        partial void OnEasyEyesModeChanged(bool value)
+        {
+            if (!_loadingEasyEyesPreference)
+                _ = SaveEasyEyesPreferenceAsync(value);
+        }
+
+        private async Task LoadEasyEyesPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                EasyEyesPreferenceStatus = "Sign in to change the Easy Eyes preference.";
+                return;
+            }
+
+            var enabled = await _easyEyesPreferences.LoadForUserAsync(userId.Value);
+            _loadingEasyEyesPreference = true;
+            try
+            {
+                EasyEyesMode = enabled;
+                _savedEasyEyesMode = enabled;
+            }
+            finally
+            {
+                _loadingEasyEyesPreference = false;
+            }
+
+            EasyEyesPreferenceStatus = _easyEyesPreferences.LastLoadWarning ??
+                "This personal setting is saved immediately for this Sati account on this computer.";
+        }
+
+        private async Task SaveEasyEyesPreferenceAsync(bool value)
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                EasyEyesPreferenceStatus = "Sign in before changing the Easy Eyes preference.";
+                return;
+            }
+
+            EasyEyesPreferenceStatus = "Saving Easy Eyes preference...";
+            try
+            {
+                await _easyEyesPreferences.SetEnabledAsync(userId.Value, value);
+                _savedEasyEyesMode = value;
+                EasyEyesPreferenceStatus = "Easy Eyes preference saved.";
+            }
+            catch (EasyEyesPreferenceSaveException exception)
+            {
+                _loadingEasyEyesPreference = true;
+                try
+                {
+                    EasyEyesMode = _savedEasyEyesMode;
+                }
+                finally
+                {
+                    _loadingEasyEyesPreference = false;
+                }
+
+                EasyEyesPreferenceStatus = $"Preference was not changed. {exception.Message}";
+            }
         }
 
         private async Task LoadDailyAgendaPreferenceAsync()

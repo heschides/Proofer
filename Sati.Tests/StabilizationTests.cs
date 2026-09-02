@@ -553,26 +553,26 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.39", version);
+        Assert.Equal("1.2.40", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("A better fit", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Easy on the eyes", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A clearer calendar at every size" &&
-            section.Items.Any(item => item.Contains("column count", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("without shrinking text", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "An easier view when you need it" &&
+            section.Items.Any(item => item.Contains("30 percent", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("horizontal client selector", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Consumer pages stay reachable" &&
-            section.Items.Any(item => item.Contains("visible vertical scrollbars", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Two new warm palettes" &&
+            section.Items.Any(item => item.Contains("Blue-Gray Pearl", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Cedar Grove", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Carefully update an existing profile from Credible" &&
-            section.Items.Any(item => item.Contains("off by default", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("never saves automatically", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Bulk folder imports", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Clearer calendar controls" &&
+            section.Items.Any(item => item.Contains("vector arrows", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("screen-reader", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Track Vocational Rehabilitation assignments" &&
-            section.Items.Any(item => item.Contains("defaults to VSA", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("keeps them available", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Safer, roomier daily work" &&
+            section.Items.Any(item => item.Contains("Closing Sati", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("edit mode expands vertically", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
@@ -688,6 +688,16 @@ public sealed class StabilizationTests
         Assert.Contains("FlushJournalAsync", source);
         Assert.Contains("application.shutdown-save", source);
         Assert.Contains("close without saving", source, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("new ConfirmationDialog", source);
+        Assert.Contains("Would you like to close Sati now?", source);
+        Assert.Contains(
+            "All work inside the Today's Work and Tomorrow's Work sections will be saved.",
+            source);
+        Assert.Contains("if (confirmation.ShowDialog() != true)", source);
+        Assert.True(
+            source.IndexOf("confirmation.ShowDialog()", StringComparison.Ordinal) <
+            source.IndexOf("SaveAllScratchpadsAsync", StringComparison.Ordinal),
+            "The user must confirm closing before Sati begins the shutdown save flow.");
 
         var settingsView = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml"));
         var settingsCodeBehind = File.ReadAllText(Path.Combine(directory.FullName, "Views", "SettingsWindow.xaml.cs"));

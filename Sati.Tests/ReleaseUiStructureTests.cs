@@ -76,6 +76,25 @@ public sealed class ReleaseUiStructureTests
     }
 
     [Fact]
+    public void ClientEditPanelExpandsInsideTheOverviewScroller()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var document = XDocument.Load(Path.Combine(Root, "Views", "ClientsView.xaml"));
+
+        var editPanel = document.Descendants(presentation + "Border")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Client details edit mode");
+
+        Assert.Empty(editPanel.Descendants(presentation + "ScrollViewer"));
+        Assert.Null(editPanel.Attribute("MaxHeight"));
+
+        var overviewScroller = editPanel.Ancestors(presentation + "ScrollViewer")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Consumer overview");
+        Assert.Equal("Visible", overviewScroller.Attribute("VerticalScrollBarVisibility")?.Value);
+    }
+
+    [Fact]
     public void CompactDisplayModeWarnsAndPreservesPanelReopenControls()
     {
         var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
@@ -116,6 +135,24 @@ public sealed class ReleaseUiStructureTests
         Assert.Contains("Vocational Rehabilitation assistant title",
             File.ReadAllText(Path.Combine(Root, "Views", "SettingsWindow.xaml")));
         Assert.Contains("VrAssistantTitle", clientViewModel);
+    }
+
+    [Fact]
+    public void EasyEyesModeScalesTheWorkspaceAndSimplifiesDenseClientViews()
+    {
+        var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
+        var settings = File.ReadAllText(Path.Combine(Root, "Views", "SettingsWindow.xaml"));
+        var clients = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+        var notes = File.ReadAllText(Path.Combine(Root, "Views", "NotesLogView.xaml"));
+        var clientViewModel = File.ReadAllText(Path.Combine(Root, "ViewModels", "NewClientViewModel.cs"));
+
+        Assert.Contains("ScaleX=\"{Binding EasyEyesScale}\"", shell);
+        Assert.Contains("AutomationProperties.Name=\"Use Easy Eyes mode\"", settings);
+        Assert.Contains("UseHorizontalClientSelector", clients);
+        Assert.Contains("IsClientListCompact || IsEasyEyesMode", clientViewModel);
+        Assert.Contains("IsEnabled=\"{Binding CanToggleClientList}\"", clients);
+        Assert.Contains("Data.ShowNarrativeColumn", clients);
+        Assert.Contains("Data.ShowNarrativeColumn", notes);
     }
 
     [Fact]
@@ -216,7 +253,10 @@ public sealed class ReleaseUiStructureTests
     {
         var required = ResourceKeys(Path.Combine(Root, "Themes", "SunlitShell.xaml"));
 
-        foreach (var name in new[] { "PineCoast", "BlueberryMist", "HarborNight" })
+        foreach (var name in new[]
+                 {
+                     "PineCoast", "BlueberryMist", "BlueGrayPearl", "CedarGrove", "HarborNight"
+                 })
         {
             var supplied = ResourceKeys(Path.Combine(Root, "Themes", $"{name}.xaml"));
             Assert.Empty(required.Except(supplied));
@@ -225,7 +265,23 @@ public sealed class ReleaseUiStructureTests
         var service = File.ReadAllText(Path.Combine(Root, "Services", "ThemeService.cs"));
         Assert.Contains("Pine Coast", service);
         Assert.Contains("Blueberry Mist", service);
+        Assert.Contains("Blue-Gray Pearl", service);
+        Assert.Contains("Cedar Grove", service);
         Assert.Contains("Harbor Night", service);
+    }
+
+    [Fact]
+    public void CalendarYearNavigationUsesVisibleVectorArrows()
+    {
+        var calendar = File.ReadAllText(Path.Combine(Root, "Views", "CalendarView.xaml"));
+
+        Assert.Contains("CalendarYearNavigationButtonStyle", calendar);
+        Assert.Contains("AutomationProperties.Name=\"Previous year\"", calendar);
+        Assert.Contains("AutomationProperties.Name=\"Next year\"", calendar);
+        Assert.Contains("Data=\"M 12,4 L 6,10 L 12,16\"", calendar);
+        Assert.Contains("Data=\"M 6,4 L 12,10 L 6,16\"", calendar);
+        Assert.DoesNotContain("Content=\"&#8249;\"", calendar);
+        Assert.DoesNotContain("Content=\"&#8250;\"", calendar);
     }
 
     [Fact]

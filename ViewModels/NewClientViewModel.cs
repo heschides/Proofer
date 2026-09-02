@@ -150,9 +150,18 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private bool isClientEditorOpen;
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(UseHorizontalClientSelector))]
         private bool isClientListCompact;
         [ObservableProperty]
         private bool isCompactDisplayMode;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(UseHorizontalClientSelector))]
+        [NotifyPropertyChangedFor(nameof(ShowNarrativeColumn))]
+        [NotifyPropertyChangedFor(nameof(CanToggleClientList))]
+        private bool isEasyEyesMode;
+        public bool UseHorizontalClientSelector => IsClientListCompact || IsEasyEyesMode;
+        public bool ShowNarrativeColumn => !IsEasyEyesMode;
+        public bool CanToggleClientList => !IsEasyEyesMode;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanImportCredibleIntoCurrentForm))]
         private bool allowCredibleProfileUpdates;

@@ -32,6 +32,10 @@
     </Window.Resources>
 
     <Grid x:Name="RootGrid">
+        <Grid.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding EasyEyesScale}"
+                            ScaleY="{Binding EasyEyesScale}" />
+        </Grid.LayoutTransform>
         <Grid.RowDefinitions>
             <!-- The busy leaf occupies 38 px before the navigation border's padding.
                  Reserve the full height so toggling it never moves the workspace. -->

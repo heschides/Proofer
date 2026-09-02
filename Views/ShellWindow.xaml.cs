@@ -215,6 +215,19 @@ namespace Sati.Views
                 // closing the window and the first handler later calls Close() on a
                 // window that is already closing.
                 if (_isSavingOnClose) return;
+
+                var confirmation = new ConfirmationDialog(
+                    "Close Sati?",
+                    "Would you like to close Sati now?\n\n" +
+                    "All work inside the Today's Work and Tomorrow's Work sections will be saved.",
+                    "Close Sati",
+                    isDestructive: true)
+                {
+                    Owner = this
+                };
+                if (confirmation.ShowDialog() != true)
+                    return;
+
                 _isSavingOnClose = true;
 
                 try

@@ -6,38 +6,38 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "A better fit";
+    public const string ReleaseName = "Easy on the eyes";
     public const string ReleaseDate = "September 2, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "A clearer calendar at every size",
+            "An easier view when you need it",
             [
-                "The year calendar now changes its column count with the available width instead of squeezing twelve fixed cards into unreadable shapes.",
-                "Month cards have clearer spacing, stronger headings, and consistent event badges while keeping every date keyboard-reachable.",
-                "Sati now starts with a compact layout on 1080p and smaller displays without shrinking text or click targets."
+                "Easy Eyes is a personal, off-by-default setting that enlarges the working interface by about 30 percent.",
+                "Easy Eyes hides narrative columns in note lists without removing note content and uses the horizontal client selector.",
+                "The preference is remembered separately for each Sati account and Demo or Production environment on this computer."
             ]),
         new(
-            "Consumer pages stay reachable",
+            "Two new warm palettes",
             [
-                "The consumer list, profile overview, section navigation, entry form, and editor now keep visible vertical scrollbars when their content is taller than the window.",
-                "Notes and Journal keep usable working height, with forms before them and reference panels following below.",
-                "Both the full client list and compact selector now use the same clear Add Consumer action."
+                "Blue-Gray Pearl combines warm slate, cloud light, and a subtle champagne sheen.",
+                "Cedar Grove combines pale bark, lichen, and soft forest tones.",
+                "Both themes use the requested orange accent, while Local AI actions retain a distinct color."
             ]),
         new(
-            "Carefully update an existing profile from Credible",
+            "Clearer calendar controls",
             [
-                "Agency administrators can enable existing-profile Credible updates in Settings. The option is off by default.",
-                "When enabled, open one consumer for editing, review the Credible fields individually, and then use the ordinary Save changes action. Import never saves automatically.",
-                "Different nonblank Credible client IDs are refused before any field changes. Bulk folder imports continue to skip existing consumers."
+                "The previous-year and next-year controls now use crisp vector arrows rather than font characters that could disappear.",
+                "The rounded arrow buttons provide hover, pressed, focus, tooltip, and screen-reader feedback.",
+                "All existing year-navigation commands and keyboard behavior remain in place."
             ]),
         new(
-            "Track Vocational Rehabilitation assignments",
+            "Safer, roomier daily work",
             [
-                "A consumer marked Open with VR can now record the assigned Vocational Rehabilitation Counselor and assistant.",
-                "The assistant label defaults to VSA. An agency administrator can change that title in Settings without rewriting the assigned person's name.",
-                "Turning off Open with VR hides the assignments but keeps them available if the VR case reopens."
+                "Closing Sati now asks for confirmation and explains that Today's Work and Tomorrow's Work will be saved.",
+                "A client profile in edit mode expands vertically inside the main overview instead of adding a second cramped scrollbar.",
+                "The surrounding overview remains scrollable, so every edit field stays reachable on smaller displays."
             ]),
         new(
             "Still planned before commercial production",

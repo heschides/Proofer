@@ -81,6 +81,61 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="CalendarYearNavigationFocusStyle" TargetType="Control">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Control">
+                        <Border BorderBrush="{DynamicResource AccentBrush}"
+                                BorderThickness="2"
+                                CornerRadius="19"
+                                Margin="-3">
+                            <AdornedElementPlaceholder />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CalendarYearNavigationButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource CalendarYearNavigationFocusStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="17"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverStrongBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -270,34 +325,42 @@
                                        Foreground="{DynamicResource TextSubtleBrush}" />
                             <StackPanel Orientation="Horizontal"
                                         Margin="0,5,0,0">
-                                <Button Content="&#8249;"
+                                <Button Style="{StaticResource CalendarYearNavigationButtonStyle}"
                                         AutomationProperties.Name="Previous year"
+                                        ToolTip="Previous year"
                                         Command="{Binding PreviousYearCommand}"
-                                        Width="32"
-                                        Height="32"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="1"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        FontSize="18"
-                                        Cursor="Hand" />
+                                        Margin="0,0,2,0">
+                                    <Path Data="M 12,4 L 6,10 L 12,16"
+                                          Width="12"
+                                          Height="20"
+                                          Stretch="Uniform"
+                                          Stroke="{DynamicResource AccentBrush}"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Button>
                                 <TextBlock Text="{Binding CurrentYear}"
                                            FontSize="20"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"
                                            Margin="13,0" />
-                                <Button Content="&#8250;"
+                                <Button Style="{StaticResource CalendarYearNavigationButtonStyle}"
                                         AutomationProperties.Name="Next year"
+                                        ToolTip="Next year"
                                         Command="{Binding NextYearCommand}"
-                                        Width="32"
-                                        Height="32"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="1"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        FontSize="18"
-                                        Cursor="Hand" />
+                                        Margin="2,0,0,0">
+                                    <Path Data="M 6,4 L 12,10 L 6,16"
+                                          Width="12"
+                                          Height="20"
+                                          Stretch="Uniform"
+                                          Stroke="{DynamicResource AccentBrush}"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Button>
                                 <TextBlock Text="Loading calendar…"
                                            AutomationProperties.LiveSetting="Polite"
                                            FontSize="11"

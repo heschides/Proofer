@@ -2,6 +2,54 @@
 
 # Sati — Refactor Agenda
 
+## Release 1.2.40 — 2026-09-02
+
+"Easy on the eyes." Close confirmation, full-height client editing, personal Easy Eyes mode,
+Blue-Gray Pearl and Cedar Grove themes, and visible vector year-navigation arrows.
+
+**No schema or API-contract change.** This release adds presentation behavior and local personal
+preference storage only; it requires neither a database migration nor a firewall change.
+
+### Preflight
+
+- [x] Literal `invoke DATT!` received; `master` and `origin/master` began equal at `096e8ef`.
+- [x] Release scope reviewed; no persistence migrations, API routes, or network contracts changed.
+- [x] No 1.2.40 API ZIP, Local installer, Demo installer, checksum, or distribution artifact exists.
+- [x] Retain `claude/cool-jang-f6b3c4` because it is checked out by a linked worktree; retain
+      `second-machine-setup` because its seven unique commits are unrelated to this release.
+      `feature/caseload-transfer` is already fully merged and is retained rather than deleted.
+- [x] Known Local state recorded without assuming an upgrade: SatiLogica's installed executable is
+      1.2.23. Joshu has the hash-verified 1.2.39 Local installer downloaded, but no executable in
+      Joshu's per-user install folder; Joshu's existing shortcut targets SatiLogica's 1.2.23 copy.
+
+### Release evidence
+
+- [ ] Record Release build and complete desktop, API integration, and Carika test totals.
+- [ ] Record source commit and push confirmation.
+- [ ] Record Demo API package, deployment identifier, health/version, and contract parity.
+- [ ] Record accepted Demo and Local installer paths, sizes, versions, hashes, and cleanup.
+- [ ] Publish both installers and checksums to the exact distribution folders and verify hashes.
+- [ ] Record final evidence commit, push, and clean equality with `origin/master`.
+
+## Orange-accent themes and calendar navigation — 2026-09-02
+
+- [x] Add Blue-Gray Pearl and Cedar Grove as complete interchangeable theme palettes, using the
+      supplied `#E25507` orange for their main accent and preserving distinct Local AI colors.
+- [x] Replace font-dependent year-navigation characters with visible rounded vector-chevron
+      buttons, retaining accessible names, tooltips, keyboard focus, and existing commands.
+- [x] Verify both palettes supply every theme resource and cover the calendar arrows with a
+      UI-structure regression test.
+
+## Easy Eyes presentation mode — 2026-09-02
+
+- [x] Add an off-by-default personal Easy Eyes option to the ungated Appearance settings.
+- [x] Persist it per Sati user, Windows profile, and Demo/Production environment without placing
+      presentation state in agency data.
+- [x] Enlarge the working surface by roughly 30%, hide (without deleting) Narrative columns in
+      both note grids, and force the Clients workspace to its horizontal selector while enabled.
+- [x] Apply successful changes immediately to the open shell and reload them at sign-in/account
+      switch; add persistence and UI-structure regression tests.
+
 ## Vocational Rehabilitation assignments — 2026-09-02
 
 - [x] Add consumer-profile assignments for the Vocational Rehabilitation Counselor and the

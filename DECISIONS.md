@@ -2682,3 +2682,17 @@ The assistant role's wording changes independently of the person assigned to it,
 title lives once in agency Settings as `VrAssistantTitle`, with `VSA` as the compatibility default.
 Changing that title updates the label across consumer profiles and does not rewrite every consumer
 row or create misleading person-history entries.
+
+## 2026-09-02 — Easy Eyes is a personal opt-in presentation mode
+
+Easy Eyes belongs to the signed-in worker, Windows profile, and selected environment rather than
+agency Settings. It defaults off. One worker can therefore enlarge and simplify their interface
+without changing every colleague's display, and no clinical, operational, or tenant-owned record
+is created for an accessibility preference.
+
+The mode deliberately applies a 1.3 layout scale to the main working surface. This differs from the
+compact-display decision above: automatic compact mode must never shrink the interface merely to
+fit a monitor, while Easy Eyes is an explicit request to make text, focus indicators, and click
+targets larger together. It also hides only the displayed Narrative columns in the two note grids
+and forces the existing horizontal Clients selector; underlying note content and the user's normal
+compact-selector choice are preserved when the mode is switched off.

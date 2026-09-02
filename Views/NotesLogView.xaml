@@ -3,7 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:Sati.Helpers"
              mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <helpers:BindingProxy x:Key="LayoutProxy" Data="{Binding}" />
+    </UserControl.Resources>
 
     <!-- Escape returns the note panel to a blank New Note and drops the grid's
          highlight with it. Declared here as well as on the module so the key works
@@ -386,6 +391,7 @@
                                         Width="50" />
                     <DataGridTextColumn Header="Narrative"
                                         Binding="{Binding Narrative}"
+                                        Visibility="{Binding Data.ShowNarrativeColumn, Source={StaticResource LayoutProxy}, Converter={StaticResource BoolToVisibilityConverter}}"
                                         Width="*" />
                 </DataGrid.Columns>
             </DataGrid>

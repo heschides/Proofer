@@ -53,7 +53,7 @@ public sealed class SettingsAccessTests
     }
 
     [Fact]
-    public void DailyAgendaPreferenceIsOnTheUngatedAppearanceTab()
+    public void PersonalDisplayPreferencesAreOnTheUngatedAppearanceTab()
     {
         var view = File.ReadAllText(Path.Combine(RepositoryRoot(), "Views", "SettingsWindow.xaml"));
         var appearanceStart = view.IndexOf("Header=\"Appearance\"", StringComparison.Ordinal);
@@ -61,6 +61,11 @@ public sealed class SettingsAccessTests
         var appearanceTab = view[appearanceStart..nextTab];
 
         Assert.Contains("ShowDailyAgendaAtSignIn", appearanceTab, StringComparison.Ordinal);
+        Assert.Contains("EasyEyesMode", appearanceTab, StringComparison.Ordinal);
+        Assert.Contains(
+            "AutomationProperties.Name=\"Use Easy Eyes mode\"",
+            appearanceTab,
+            StringComparison.Ordinal);
         Assert.Contains(
             "AutomationProperties.Name=\"Show the daily agenda window at sign-in\"",
             appearanceTab,

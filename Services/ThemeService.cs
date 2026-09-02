@@ -28,6 +28,8 @@ namespace Sati.Services
             new("Warm Earth", "WarmEarth"),
             new("Pine Coast", "PineCoast"),
             new("Blueberry Mist", "BlueberryMist"),
+            new("Blue-Gray Pearl", "BlueGrayPearl"),
+            new("Cedar Grove", "CedarGrove"),
             new("Moonlit Pearl", "MoonlitPearl"),
             new("Iridescent Jewel", "IridescentJewel"),
             new("Midnight Opal", "MidnightOpal"),

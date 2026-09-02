@@ -59,6 +59,11 @@ namespace Sati.ViewModels
         [ObservableProperty] private IReadOnlyList<string> _complianceFailureReasons = [];
         [ObservableProperty] private bool _hasLoadError;
         [ObservableProperty] private string _loadErrorMessage = string.Empty;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowNarrativeColumn))]
+        private bool _isEasyEyesMode;
+
+        public bool ShowNarrativeColumn => !IsEasyEyesMode;
 
         public event EventHandler? NoteStatusChanged;
 

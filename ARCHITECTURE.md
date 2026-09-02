@@ -2,6 +2,20 @@
 
 *Living document. Updated during structured review sessions. Last updated: 2026-09-02.*
 
+## Easy Eyes presentation mode
+
+Easy Eyes is personal presentation state, stored by `EasyEyesPreferenceService` per Sati user,
+Windows profile, and data environment. It defaults off and never travels through the agency
+Settings API or database. The singleton service notifies the open shell after a successful save,
+so the setting takes effect immediately and is loaded again at sign-in or account switch.
+
+When enabled, the shell and Settings surfaces use a 1.3 layout scale so controls with explicit font
+sizes grow consistently with the rest of the interface. `ShellViewModel` supplies the mode to the
+two note-list view models: their Narrative columns become hidden presentation only, without
+changing note data. The Clients view computes its selector layout as the user's ordinary compact
+choice OR Easy Eyes, so Easy Eyes forces the horizontal selector and disabling it restores the
+underlying responsive/manual layout choice.
+
 ## Vocational Rehabilitation profile assignments
 
 `Person.OpenWithVR` controls whether the Consumers UI reveals `VrCounselorName` and

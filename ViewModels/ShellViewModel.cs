@@ -27,6 +27,7 @@ namespace Sati.ViewModels
         private readonly PlatformHealthViewModel _platformHealthViewModel;
         private readonly DataEnvironmentInfo _dataEnvironment;
         private readonly IApiCompatibilityService _apiCompatibility;
+        private readonly EasyEyesPreferenceService _easyEyesPreferences;
 
 
         // -------------------------------------------------------------------------
@@ -43,7 +44,8 @@ namespace Sati.ViewModels
             PlatformHealthViewModel platformHealthViewModel,
             DataEnvironmentInfo dataEnvironment,
             IApiCompatibilityService apiCompatibility,
-            DatabaseActivityViewModel databaseActivity)
+            DatabaseActivityViewModel databaseActivity,
+            EasyEyesPreferenceService easyEyesPreferences)
         {
             _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
@@ -54,7 +56,9 @@ namespace Sati.ViewModels
             _adminDashboardViewModel = adminDashboardViewModel;
             _platformHealthViewModel = platformHealthViewModel;
             _dataEnvironment = dataEnvironment;
+            _easyEyesPreferences = easyEyesPreferences;
             DatabaseActivity = databaseActivity;
+            _easyEyesPreferences.PreferenceChanged += (_, enabled) => ApplyEasyEyesMode(enabled);
         }
 
         // -------------------------------------------------------------------------
@@ -76,6 +80,9 @@ namespace Sati.ViewModels
         // view-model concern. Defaults open.
         [ObservableProperty] private bool isScratchpadVisible = true;
         [ObservableProperty] private bool isCompactDisplayMode;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(EasyEyesScale))]
+        private bool isEasyEyesMode;
         // -------------------------------------------------------------------------
         // Child ViewModels
         // -------------------------------------------------------------------------
@@ -99,6 +106,7 @@ namespace Sati.ViewModels
         public bool IsPlatformHealthAvailable => _sessionService.CurrentUser?.Role is UserRole.PlatformOperator;
         public bool IsDemoEnvironment => _dataEnvironment.IsDemo;
         public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
+        public double EasyEyesScale => IsEasyEyesMode ? 1.3 : 1.0;
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
         public bool IsAdminActive => CurrentViewModel is AdminDashboardViewModel;
@@ -201,6 +209,20 @@ namespace Sati.ViewModels
             NotesViewModel.Clients.ApplyCompactDisplayMode();
         }
 
+        private void ApplyEasyEyesMode(bool enabled)
+        {
+            IsEasyEyesMode = enabled;
+            NotesViewModel.Clients.IsEasyEyesMode = enabled;
+            NotesViewModel.NotesLog.IsEasyEyesMode = enabled;
+        }
+
+        private async Task LoadEasyEyesPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            ApplyEasyEyesMode(userId is not null &&
+                await _easyEyesPreferences.LoadForUserAsync(userId.Value));
+        }
+
         public async Task OpenAgendaItemAsync(DailyAgendaItem item)
         {
             if (!IsCaseManagementAvailable)
@@ -241,6 +263,7 @@ namespace Sati.ViewModels
         public async Task InitializeAsync()
         {
             NotifyRoleDependentProperties();
+            await LoadEasyEyesPreferenceAsync();
             await CheckApiCompatibilityAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
@@ -291,6 +314,7 @@ namespace Sati.ViewModels
             NotesViewModel.Reset();
             _caseManagementViewModel.ResetToDashboard();
             NotifyRoleDependentProperties();
+            await LoadEasyEyesPreferenceAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
                 await NavigateToPlatformHealth();
