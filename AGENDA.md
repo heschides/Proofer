@@ -140,11 +140,11 @@ key against an older server.
       the real pass wrote both; the third reported 0 and 0, proving idempotency. Final state
       verified directly: `nvarchar(32)`, nullable, one `__EFMigrationsHistory` row, 0 of 177
       consumers populated.
-- [ ] **`datt-workstation-temp` is STILL PRESENT.** Verified against the server after publication:
-      the allow-list holds `datt-workstation-temp` (72.95.106.10) alongside the three
-      `sati-demo-api-outbound-*` entries. The migration finished long before; the rule should have
-      been closed then. Josh must run `scripts/Set-DemoWorkstationFirewallRule.ps1 -Remove`. The
-      release workflow never adds, alters, or deletes a firewall rule.
+- [x] `datt-workstation-temp` removed by Josh and verified absent: the allow-list now holds
+      exactly the three `sati-demo-api-outbound-*` entries. It was still open at the first check
+      after publication, which is longer than the migration needed it; closing it immediately
+      after the migration rather than at the end of the release is the habit to keep. The release
+      workflow never adds, alters, or deletes a firewall rule.
 - [x] API ZIP `artifacts/Sati.Api-1.2.38.zip`, 9,519,208 bytes, SHA-256
       `0EDF6DCC2887B2199540CBB8CC7B53D1693D4C2A3DABAA9A39581E43B72222C9`; 70 files with
       forward-slash entry paths, both WebJob files present, no `appsettings*.json` or key material.
@@ -157,8 +157,9 @@ key against an older server.
       `SchemaDriftHealthCheck` compares the model against the database.
 
 ### Local Production machines
-- [ ] Both machines and the release each is on. Awaiting Josh. The desktop applies pending
-      migrations at launch, so a machine not opened since the last release has not received it.
+- [x] Both machines are on 1.2.38, per Josh. Neither is behind. The desktop applies pending
+      migrations at launch, so this is the half of a schema release that the Demo application
+      does not speak for.
 
 ### Artifacts
 - [x] Generated and accepted

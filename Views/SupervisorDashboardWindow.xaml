@@ -173,8 +173,16 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16,8">
+            <!-- A bare horizontal StackPanel clips silently once its children exceed the window
+                 width: the entries past the edge are laid out, never drawn, and nothing reports
+                 it. The case manager dashboard already carries this ScrollViewer for the same
+                 reason. This toolbar gained two entries in 1.2.38 and had no such guard. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          CanContentScroll="True">
             <StackPanel Orientation="Horizontal"
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Center"
+                        KeyboardNavigation.TabNavigation="Local">
 
                 <!-- Team overview -->
                 <Border Cursor="Hand"
@@ -437,6 +445,7 @@
                            VerticalAlignment="Center" />
 
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ================================================================ -->

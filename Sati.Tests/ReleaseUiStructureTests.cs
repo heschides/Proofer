@@ -31,6 +31,24 @@ public sealed class ReleaseUiStructureTests
         Assert.Contains("Clients.AgencyRelease", hub);
     }
 
+    // Both dashboard toolbars are horizontal StackPanels, which clip silently once their
+    // children exceed the window width: entries past the edge are laid out, never drawn, and
+    // nothing reports it. The supervisor toolbar gained two entries in 1.2.38 - Import from
+    // Credible and Distribute caseload - and had no ScrollViewer at all.
+    [Fact]
+    public void BothDashboardToolbarsSurviveMoreEntriesThanFitTheWindow()
+    {
+        var caseManager = File.ReadAllText(Path.Combine(Root, "Views", "CaseManagerDashboardView.xaml"));
+        var supervisor = File.ReadAllText(Path.Combine(Root, "Views", "SupervisorDashboardWindow.xaml"));
+
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", caseManager);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", supervisor);
+
+        // The two entries that prompted it, so a future edit that drops one is visible here.
+        Assert.Contains("NavigateToCaseloadImportCommand", supervisor);
+        Assert.Contains("NavigateToCaseloadDistributionCommand", supervisor);
+    }
+
     [Fact]
     public void NotesFiltersUseOneExplicitInputHeightAndBaseline()
     {
