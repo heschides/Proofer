@@ -24,12 +24,77 @@ preference storage only; it requires neither a database migration nor a firewall
 
 ### Release evidence
 
-- [ ] Record Release build and complete desktop, API integration, and Carika test totals.
-- [ ] Record source commit and push confirmation.
-- [ ] Record Demo API package, deployment identifier, health/version, and contract parity.
-- [ ] Record accepted Demo and Local installer paths, sizes, versions, hashes, and cleanup.
-- [ ] Publish both installers and checksums to the exact distribution folders and verify hashes.
-- [ ] Record final evidence commit, push, and clean equality with `origin/master`.
+This release completed in a second `invoke DATT!` pass. The first pass pushed the source commit,
+deployed the Demo API, and built the Demo installer, then stopped before the Local installer, the
+acceptance gates, distribution, and this record. The second pass reused the existing 1.2.40 API ZIP
+and Demo installer rather than rebuilding them, so no artifact was replaced under an existing
+version.
+
+- [x] Release build of the full solution: 0 errors, 10 warnings (existing NuGet vulnerability-feed
+      reachability, EF raw-SQL, nullable, and xUnit analyzer warnings).
+- [x] Sati desktop/domain: 1,158 passed, 1 skipped
+      (`LocalAiModelCompetenceTests.ConfiguredModelCompletesGroundedWorkflowAcrossRepresentativeCurrentNoteInputs`,
+      the documented `SATI_RUN_LOCAL_AI_MODEL_EVAL` opt-in whose on-device model prerequisite is
+      absent). API integration: 324 passed. Carika: 4 passed. Totals: 1,486 passed, 1 skipped,
+      0 failed.
+- [x] `git diff --check` clean on the release commit; the working tree stayed clean throughout.
+- [x] Source commit `ab7613776a093f13f6613ada2808b1c82cefd299` confirmed present on
+      `origin/master`; the remote did not advance during the release.
+- [x] `artifacts/Sati.Api-1.2.40.zip` (9,674,472 bytes; SHA-256
+      `C28EBFECEA3ECDC8D18DF761944E05B33E7F587AD7F81B5E3E89CD64CEA04779`; 79 entries). The packaged
+      `Sati.Api.dll` reports `1.2.40+ab7613776a093f13f6613ada2808b1c82cefd299`, proving the package
+      was built from the pushed commit. Inspection found 0 backslash paths, 0 forbidden
+      configuration or key files, no `appsettings*.json` of any kind, and both required
+      `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files. The nine entries it holds
+      beyond the 1.2.39 package are directory records, not new files.
+- [x] Published only to the existing Demo App Service `sati-demo-api-satilogica` in `rg-sati-demo`.
+      OneDeploy deployment `74850bbe93d243c3ab8bff465a240b96` completed successfully and is the
+      active deployment. No database migration was required or performed, and no firewall rule was
+      requested, added, or altered.
+- [x] Hosted `/health/live` returned `{"status":"live"}` and `/health/ready` returned `Healthy`.
+      `/health/version` reported product `Sati.Api`, release `1.2.40`, and contract revision
+      `E807EDE42231`. The client's `Sati.Contracts.V1.ApiSurface.Revision`, evaluated from the
+      Release build under .NET 10, is the same `E807EDE42231`, so client/API contract parity holds.
+      Health-only readiness evidence is `artifacts/release-1.2.40-demo-readiness.json`;
+      authenticated Admin checks were skipped because this workstation has no designated
+      `SATI_DEMO_USERNAME` and password.
+- [x] Demo installer acceptance passed on
+      `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.40.exe` (100,917,248 bytes; SHA-256
+      `56baaa084f09dadda69065be56d4f015dd03b55ffe783b8028c254a7959c53b3`): five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.40.0`, cleanup
+      passed. It ran on the build workstation, so it is not a clean external-machine attestation.
+      Evidence: `artifacts/release-1.2.40-demo-installer-acceptance.json`.
+- [x] Local installer built from the durable repository prerequisite after confirming that
+      `artifacts\Prerequisites\SqlLocalDB.msi` carries a Valid Authenticode signature from
+      `CN=Microsoft Corporation`. `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.40.exe`
+      (202,972,938 bytes; SHA-256
+      `14c06c3eedde67320ad8888e33c09ed1a50420ee498653482f66eb77e51087a1`). Acceptance passed:
+      installed version `1.2.40.0`, `integratedSecurity=True` with no SQL username or password in
+      the Local configuration, cleanup passed. The generated installers are not code-signed; only
+      the embedded Microsoft LocalDB prerequisite is.
+- [x] Published both installers and their `.sha256` files by copying each to a uniquely named
+      temporary sibling, verifying that copy's hash, renaming it to the final versioned name, and
+      verifying the final file again. No destination file was overwritten and no temporary file
+      remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.40.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.40.exe`
+        and its `.sha256`
+
+      Both published hashes are identical to the accepted build artifacts.
+- [ ] Record the final evidence commit, its push, and clean equality with `origin/master`.
+
+### Local Production machines
+
+This release changes no schema, so no local migration is pending. Versions are still recorded so
+that no machine is assumed to have caught up.
+
+- [x] SatiLogica: `C:\Users\SatiLogica\AppData\Local\Programs\Satilogica\Sati\Sati.exe` is
+      **1.2.23**, verified after this release. It is well behind and was not upgraded by this
+      workflow.
+- [ ] Joshu: **unverified.** `C:\Users\Joshu\AppData\Local\Programs\Satilogica\Sati` is not
+      readable from the SatiLogica profile, so its installed version could not be confirmed and
+      must be treated as behind. Record it once that machine installs 1.2.40.
 
 ## Orange-accent themes and calendar navigation — 2026-09-02
 
