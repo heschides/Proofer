@@ -131,20 +131,71 @@ key against an older server.
 ### Demo deployment
 - [x] Temporary `datt-workstation-temp` firewall rule added by Josh for `72.95.106.10`.
 - [x] `SatiDemo` reachable and confirmed as `EnvironmentName = Demo`, with
-      `People.CredibleClientId` absent and no `__EFMigrationsHistory` row — a clean starting state.
-- [ ] Controlled Demo migration applied through an existence-guarded script: rollback-only dry run,
-      then for real, then once more to prove idempotency.
-- [ ] `datt-workstation-temp` removed by Josh immediately after the migration and verified absent.
-- [ ] API ZIP hash, deployment identifier.
-- [ ] `/health/live`, `/health/ready`, `/health/version`, contract revision parity.
+      `People.CredibleClientId` absent and no `__EFMigrationsHistory` row - a clean starting state.
+- [x] Controlled Demo migration applied through `scripts/Apply-CredibleClientIdMigration.ps1`,
+      written for this release on the `Apply-DerivedFormComplianceMigrations.ps1` pattern: fails
+      closed on database and environment identity, guards on the real schema rather than history,
+      and verifies an already-present column is `nvarchar(32)` and nullable rather than merely
+      correctly named. Three passes: dry run reported 1 column and 1 history row and rolled back;
+      the real pass wrote both; the third reported 0 and 0, proving idempotency. Final state
+      verified directly: `nvarchar(32)`, nullable, one `__EFMigrationsHistory` row, 0 of 177
+      consumers populated.
+- [ ] **`datt-workstation-temp` is STILL PRESENT.** Verified against the server after publication:
+      the allow-list holds `datt-workstation-temp` (72.95.106.10) alongside the three
+      `sati-demo-api-outbound-*` entries. The migration finished long before; the rule should have
+      been closed then. Josh must run `scripts/Set-DemoWorkstationFirewallRule.ps1 -Remove`. The
+      release workflow never adds, alters, or deletes a firewall rule.
+- [x] API ZIP `artifacts/Sati.Api-1.2.38.zip`, 9,519,208 bytes, SHA-256
+      `0EDF6DCC2887B2199540CBB8CC7B53D1693D4C2A3DABAA9A39581E43B72222C9`; 70 files with
+      forward-slash entry paths, both WebJob files present, no `appsettings*.json` or key material.
+- [x] Deployed only to the existing App Service `sati-demo-api-satilogica`; OneDeploy
+      `d48c57ab-2056-42df-bca2-e1dc2abf10b9` succeeded. `/health/live` returns `{"status":"live"}`,
+      `/health/ready` returns `Healthy`, and `/health/version` reports `Sati.Api`, release
+      `1.2.38`, contract `64831C77F89C`. The revision read from the locally built `Sati.Contracts`
+      is also `64831C77F89C`; it moved from `729A9E9F9B2B` because two routes were added. A healthy
+      readiness result is the real confirmation the migration satisfied the deployed model, because
+      `SchemaDriftHealthCheck` compares the model against the database.
 
 ### Local Production machines
 - [ ] Both machines and the release each is on. Awaiting Josh. The desktop applies pending
       migrations at launch, so a machine not opened since the last release has not received it.
 
 ### Artifacts
-- [ ] Demo installer name, size, SHA-256, acceptance result, distribution path.
-- [ ] Local installer name, size, SHA-256, acceptance result, distribution path.
+- [x] Generated and accepted
+      `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.38.exe` (100,896,768 bytes; SHA-256
+      `A238FC50AB173E1795D3EF415D6EED53A313B0E4C0A0545793FEC062AB6060EF`) without overwriting an
+      artifact: all five installed launches responded, closed gracefully with exit code 0,
+      reported version 1.2.38.0, and isolated cleanup passed. Evidence in
+      `artifacts/release-1.2.38-demo-installer-acceptance.json`. Those five launches are also what
+      proves the new AngleSharp 1.7.2 dependency packages and loads on a clean install.
+- [x] Generated and accepted
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.38.exe` (202,957,066 bytes; SHA-256
+      `B97803691CDC7C5731D9FBFEFC95103F79ECEFD2051F8EDE84A9794E00B5DA20`) without overwriting an
+      artifact: version 1.2.38.0, Windows integrated security with no SQL username or password in
+      configuration, and isolated cleanup passed. Its embedded
+      `artifacts\Prerequisites\SqlLocalDB.msi` (63,508,480 bytes) carried a valid Microsoft
+      Corporation Authenticode signature, verified before use. The generated installers themselves
+      are not code-signed.
+- [x] Published without overwriting anything. Each file was copied to a uniquely named temporary
+      sibling, hash-verified there, renamed to its final versioned name, and verified again:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.38.exe`
+        and `SatiLocalSetup-1.2.38.exe.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.38.exe`
+        and `SatiDemoSetup-1.2.38.exe.sha256`
+
+      Both destinations resolved inside the named documents root and neither previously held a
+      1.2.38 artifact. No API ZIP, LocalDB prerequisite, or private configuration was published to
+      either folder.
+
+### Branches
+- [x] Merged `feature/caseload-transfer` (7 commits) into `master`; the branch is retained
+      locally rather than deleted, because it is the working branch this release came from and
+      nothing requires its removal.
+- [x] Retained `claude/cool-jang-f6b3c4`: checked out by a linked worktree, which the playbook
+      forbids deleting regardless of its ancestry.
+- [x] Retained `second-machine-setup` (7 unique commits) and remote
+      `claude/local-vs-github-workflow-dlcqpb` (1 unique commit): both hold work unrelated to this
+      release.
 
 ### Known gaps shipped deliberately
 - An SSN in an export is shown and refused rather than saved. Nothing writes an imported SSN yet;
