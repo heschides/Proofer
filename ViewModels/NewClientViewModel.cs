@@ -144,11 +144,18 @@ namespace Sati.ViewModels
         private bool isEntryPanelOpen = false;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanImportCredibleIntoCurrentForm))]
+        [NotifyPropertyChangedFor(nameof(CredibleImportActionLabel))]
         private bool isEditMode;
         [ObservableProperty]
         private bool isClientEditorOpen;
         [ObservableProperty]
         private bool isClientListCompact;
+        [ObservableProperty]
+        private bool isCompactDisplayMode;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanImportCredibleIntoCurrentForm))]
+        private bool allowCredibleProfileUpdates;
         [ObservableProperty]
         private bool isTestData;
         [ObservableProperty]
@@ -157,8 +164,19 @@ namespace Sati.ViewModels
         [NotifyPropertyChangedFor(nameof(HasClientSaveError))]
         private string clientSaveErrorMessage = string.Empty;
         public bool HasClientSaveError => !string.IsNullOrWhiteSpace(ClientSaveErrorMessage);
+        public bool CanImportCredibleIntoCurrentForm =>
+            !IsEditMode || SelectedPerson is not null && AllowCredibleProfileUpdates;
+        public string CredibleImportActionLabel =>
+            IsEditMode ? "Update from Credible…" : "From Credible…";
         [ObservableProperty]
         private bool openWithVR;
+        [ObservableProperty]
+        private string? vrCounselorName;
+        [ObservableProperty]
+        private string? vrAssistantName;
+        [ObservableProperty]
+        private string vrAssistantTitle =
+            VocationalRehabilitationProfile.DefaultAssistantTitle;
 
         [ObservableProperty]
         private bool hasGuardian;
@@ -605,6 +623,16 @@ namespace Sati.ViewModels
             _ = LoadHealthcareOptionsSafelyAsync();
         }
 
+        /// <summary>
+        /// Applies the small-display starting layout without taking either toggle
+        /// away from the user. The shell calls this once after detecting its monitor.
+        /// </summary>
+        public void ApplyCompactDisplayMode()
+        {
+            IsCompactDisplayMode = true;
+            IsClientListCompact = true;
+        }
+
         // ---------------------------------------------------------------------
         // AT requests filed for this client
         // ---------------------------------------------------------------------
@@ -769,7 +797,30 @@ namespace Sati.ViewModels
         public void ApplyImportedDraft(AcceptedImportDraft draft)
         {
             ArgumentNullException.ThrowIfNull(draft);
-            OpenEntryPanel();
+
+            var updatingExisting = IsEditMode && SelectedPerson is not null;
+            if (updatingExisting && !AllowCredibleProfileUpdates)
+            {
+                ClientSaveErrorMessage =
+                    "Updating an existing profile from Credible is disabled in agency settings.";
+                return;
+            }
+
+            var importedClientId = draft.Values.GetValueOrDefault(CredibleFields.CredibleClientId)
+                ?? draft.CredibleClientId;
+            var existingClientId = updatingExisting ? SelectedPerson!.CredibleClientId : null;
+            if (!string.IsNullOrWhiteSpace(existingClientId) &&
+                !string.IsNullOrWhiteSpace(importedClientId) &&
+                !string.Equals(existingClientId.Trim(), importedClientId.Trim(),
+                    StringComparison.Ordinal))
+            {
+                ClientSaveErrorMessage =
+                    "This export belongs to a different Credible client. No profile fields were changed.";
+                return;
+            }
+
+            if (!updatingExisting)
+                OpenEntryPanel();
 
             var values = draft.Values;
             if (values.TryGetValue(CredibleFields.FirstName, out var first)) FirstName = first;
@@ -829,6 +880,7 @@ namespace Sati.ViewModels
         private void BeginClientEdit()
         {
             if (SelectedPerson is not Person person) return;
+            _ = LoadHealthcareOptionsSafelyAsync();
             ClientSaveErrorMessage = string.Empty;
             PopulateFrom(person);
             IsClientEditorOpen = true;
@@ -972,6 +1024,8 @@ namespace Sati.ViewModels
                 existing.Waiver = Waiver;
                 existing.Bio = Bio!;
                 existing.OpenWithVR = OpenWithVR;
+                existing.VrCounselorName = VrCounselorName?.Trim();
+                existing.VrAssistantName = VrAssistantName?.Trim();
                 existing.HasGuardian = HasGuardian;
                 existing.GuardianName = GuardianName;
                 existing.EvergreenId = EvergreenId;
@@ -1040,6 +1094,8 @@ namespace Sati.ViewModels
                                     FirstName!, LastName!, Bio!, BirthDate!.Value, effectiveDate, Waiver, settings);
                 person.Gender = Gender;
                 person.OpenWithVR = OpenWithVR;
+                person.VrCounselorName = VrCounselorName?.Trim();
+                person.VrAssistantName = VrAssistantName?.Trim();
                 person.HasGuardian = HasGuardian;
                 person.GuardianName = GuardianName;
                 person.EvergreenId = EvergreenId;
@@ -1153,6 +1209,8 @@ namespace Sati.ViewModels
             EffectiveDateText = person.EffectiveDate?.ToString("MM/dd") ?? string.Empty;
             Waiver = person.Waiver;
             OpenWithVR = person.OpenWithVR;
+            VrCounselorName = person.VrCounselorName;
+            VrAssistantName = person.VrAssistantName;
             HasGuardian = person.HasGuardian;
             GuardianName = person.GuardianName;
             EvergreenId = person.EvergreenId;
@@ -1195,6 +1253,8 @@ namespace Sati.ViewModels
             foreach (var person in people)
                 People.Add(person);
         }
+
+        public Task ReloadProfileSettingsAsync() => LoadHealthcareOptionsSafelyAsync();
 
         // -------------------------------------------------------------------------
         // Private methods
@@ -1562,6 +1622,9 @@ namespace Sati.ViewModels
         private async Task LoadHealthcareOptionsAsync()
         {
             var settings = await _settingsService.LoadAsync();
+            AllowCredibleProfileUpdates = settings.AllowCredibleProfileUpdates;
+            VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(
+                settings.VrAssistantTitle);
             BillingComplianceRequirements = settings.BillingComplianceRequirements;
             OnPropertyChanged(nameof(BillingComplianceRequirements));
             RefreshComplianceFlags();
@@ -1620,6 +1683,8 @@ namespace Sati.ViewModels
             Waiver = default;
             Bio = string.Empty;
             OpenWithVR = false;
+            VrCounselorName = string.Empty;
+            VrAssistantName = string.Empty;
             HasGuardian = false;
             GuardianName = string.Empty;
             EvergreenId = string.Empty;

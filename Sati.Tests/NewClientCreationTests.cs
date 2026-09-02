@@ -97,6 +97,26 @@ public sealed class NewClientCreationTests
     }
 
     [Fact]
+    public async Task VrAssignmentsReachTheOrdinaryConsumerSave()
+    {
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, new FixedSettingsService());
+        viewModel.FirstName = "Jamie";
+        viewModel.LastName = "River";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "VR assignment save test.";
+        viewModel.OpenWithVR = true;
+        viewModel.VrCounselorName = "Taylor Counselor";
+        viewModel.VrAssistantName = "Morgan Assistant";
+
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.True(people.LastAdded!.OpenWithVR);
+        Assert.Equal("Taylor Counselor", people.LastAdded.VrCounselorName);
+        Assert.Equal("Morgan Assistant", people.LastAdded.VrAssistantName);
+    }
+
+    [Fact]
     public async Task OrdinaryUserCannotMarkANewConsumerAsTestEvenIfThePropertyIsForged()
     {
         var people = new CountingPersonService();

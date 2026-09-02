@@ -503,6 +503,22 @@
                               Margin="0,0,22,10" />
                 </WrapPanel>
 
+                <!-- CREDIBLE IMPORT -->
+                <TextBlock Text="CREDIBLE IMPORT"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,8,0,8" />
+                <Separator />
+                <CheckBox Content="Allow Credible imports to update existing consumer profiles"
+                          AutomationProperties.Name="Allow Credible imports to update existing consumer profiles"
+                          IsChecked="{Binding AllowCredibleProfileUpdates}"
+                          Margin="0,4,0,4" />
+                <TextBlock Text="Off by default. When enabled, staff can open one consumer, review a saved Credible export field by field, and save accepted values over that profile. Different Credible client IDs are always refused. Bulk imports still skip existing consumers."
+                           TextWrapping="Wrap"
+                           MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="22,0,0,12" />
+
                 <!-- AT / PAYMENT REQUESTS -->
                 <TextBlock Text="AT / PAYMENT REQUESTS"
                            Style="{StaticResource SectionHeader}"
@@ -817,6 +833,24 @@
                      Style="{StaticResource SettingsTabItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30">
+
+                <!-- VOCATIONAL REHABILITATION -->
+                <TextBlock Text="VOCATIONAL REHABILITATION"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,0,0,8" />
+                <Separator />
+                <TextBlock Text="ASSISTANT TITLE"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding VrAssistantTitle, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Vocational Rehabilitation assistant title"
+                         MaxLength="100"
+                         Width="300" />
+                <TextBlock Text="This agency-wide label appears beside the assistant assigned to a consumer who is open with VR. Changing the title does not change the assigned person's name."
+                           TextWrapping="Wrap"
+                           MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,20" />
 
                 <!-- HEALTHCARE SYSTEMS -->
                 <TextBlock Text="HEALTHCARE SYSTEMS"

@@ -553,32 +553,26 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.38", version);
+        Assert.Equal("1.2.39", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Bring a caseload with you", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("A better fit", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Start a consumer from a Credible export" &&
-            // The property the whole import design rests on, told to the person using it:
-            // filling the form is not saving, and the button they already know still saves.
-            section.Items.Any(item => item.Contains("Nothing is saved until", StringComparison.OrdinalIgnoreCase)) &&
-            // The one mistake an operator will actually make, named before they make it.
-            section.Items.Any(item => item.Contains("printed PDF", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A clearer calendar at every size" &&
+            section.Items.Any(item => item.Contains("column count", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("without shrinking text", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Import a whole caseload during onboarding" &&
-            section.Items.Any(item => item.Contains("Nothing is written until you say so", StringComparison.OrdinalIgnoreCase)) &&
-            // Exports of a whole caseload are among the most sensitive files an agency holds.
-            // That they never leave the machine is the reassurance to lead with.
-            section.Items.Any(item => item.Contains("never uploads", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Consumer pages stay reachable" &&
+            section.Items.Any(item => item.Contains("visible vertical scrollbars", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Hand consumers to a case manager" &&
-            section.Items.Any(item => item.Contains("moves on its own", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("effective date", StringComparison.OrdinalIgnoreCase)));
-        // The deliberate gap. A future edit that quietly drops this line would leave the notes
-        // implying Sati captures a Social Security number it does not write.
+            section.Title == "Carefully update an existing profile from Credible" &&
+            section.Items.Any(item => item.Contains("off by default", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("never saves automatically", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Bulk folder imports", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "What this release does not do yet" &&
-            section.Items.Any(item => item.Contains("shown but not saved", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Track Vocational Rehabilitation assignments" &&
+            section.Items.Any(item => item.Contains("defaults to VSA", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("keeps them available", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&

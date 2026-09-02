@@ -75,6 +75,7 @@ namespace Sati.ViewModels
         // remembering a user-dragged GridSplitter width is pure view layout, not a
         // view-model concern. Defaults open.
         [ObservableProperty] private bool isScratchpadVisible = true;
+        [ObservableProperty] private bool isCompactDisplayMode;
         // -------------------------------------------------------------------------
         // Child ViewModels
         // -------------------------------------------------------------------------
@@ -187,6 +188,18 @@ namespace Sati.ViewModels
             await _platformHealthViewModel.RefreshAsync();
         }
         [RelayCommand] private void ToggleScratchpad() => IsScratchpadVisible = !IsScratchpadVisible;
+
+        /// <summary>
+        /// Applies compact starting choices while preserving the ordinary toggle
+        /// commands. A small-display user can reopen either panel when they need it.
+        /// </summary>
+        public void ApplyCompactDisplayMode(bool collapseScratchpad)
+        {
+            IsCompactDisplayMode = true;
+            if (collapseScratchpad)
+                IsScratchpadVisible = false;
+            NotesViewModel.Clients.ApplyCompactDisplayMode();
+        }
 
         public async Task OpenAgendaItemAsync(DailyAgendaItem item)
         {

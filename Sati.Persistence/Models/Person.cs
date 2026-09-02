@@ -97,6 +97,8 @@ namespace Sati
         // Section 17 services. Distinct from the MaineCare-funded employment
         // supports below.
         public bool OpenWithVR { get; set; }
+        public string? VrCounselorName { get; set; }
+        public string? VrAssistantName { get; set; }
 
         // HasGuardian governs field visibility only; unchecking it does not null
         // GuardianName, so a lapsed-and-resumed guardianship doesn't destroy data.

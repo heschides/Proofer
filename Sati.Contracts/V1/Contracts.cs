@@ -94,7 +94,9 @@ public sealed record PersonDto(
     bool UsesModivcare = false,
     string? Email = null,
     bool IsTestData = false,
-    string? CredibleClientId = null);
+    string? CredibleClientId = null,
+    string? VrCounselorName = null,
+    string? VrAssistantName = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -146,7 +148,9 @@ public sealed record SavePersonRequest(
     bool UsesModivcare = false,
     string? Email = null,
     bool IsTestData = false,
-    string? CredibleClientId = null);
+    string? CredibleClientId = null,
+    string? VrCounselorName = null,
+    string? VrAssistantName = null);
 
 /// <summary>
 /// Moves one consumer to another case manager's caseload.
@@ -337,7 +341,9 @@ public sealed record SettingsDto(
     int ReleaseMedicalDaysBeforeAnniversary,
     int Revision = 0,
     BillingComplianceRequirements BillingComplianceRequirements =
-        BillingComplianceGate.DefaultRequirements);
+        BillingComplianceGate.DefaultRequirements,
+    bool AllowCredibleProfileUpdates = false,
+    string VrAssistantTitle = VocationalRehabilitationProfile.DefaultAssistantTitle);
 
 public sealed record ScratchpadDto(
     int Id,

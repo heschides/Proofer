@@ -14,6 +14,12 @@
         <converters:BoolToWidthConverter x:Key="SpacerWidthConverter"
                                          TrueWidth="16"
                                          FalseWidth="0" />
+        <converters:BoolToWidthConverter x:Key="CompactWorkspaceRailWidthConverter"
+                                         TrueWidth="140"
+                                         FalseWidth="180" />
+        <converters:BoolToWidthConverter x:Key="CompactWorkspaceSpacerWidthConverter"
+                                         TrueWidth="8"
+                                         FalseWidth="16" />
         <converters:PersonBillingComplianceConverter x:Key="PersonBillingComplianceConverter" />
         <!-- Dot-grid fill for the Journal. A DrawingBrush tiling a single 2px dot in
              the palette's border tone at a 16px pitch. Viewport is absolute (Viewport
@@ -87,6 +93,15 @@
                     Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Margin"
                     Value="0,0,0,8" />
+        </Style>
+
+        <Style x:Key="CompactClientPanelPadding" TargetType="Border">
+            <Setter Property="Padding" Value="16" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                    <Setter Property="Padding" Value="6" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="SsnFieldStyle" TargetType="TextBox">
@@ -223,6 +238,35 @@
             </Setter>
         </Style>
 
+        <!-- One code-native icon is shared by the full roster and the compact
+             selector. The silhouette is neutral; the plus follows the active
+             theme accent so it reads as an action rather than a refresh glyph. -->
+        <DataTemplate x:Key="AddClientIconTemplate">
+            <Viewbox Width="20" Height="20">
+                <Canvas Width="24" Height="24">
+                    <Ellipse Width="7"
+                             Height="7"
+                             Canvas.Left="4.5"
+                             Canvas.Top="2"
+                             Fill="{DynamicResource TextSecondaryBrush}" />
+                    <Path Data="M2,20 C2,14.6 5.1,11.5 8,11.5 C10.9,11.5 14,14.6 14,20 Z"
+                          Fill="{DynamicResource TextSecondaryBrush}" />
+                    <Ellipse Width="10"
+                             Height="10"
+                             Canvas.Left="13"
+                             Canvas.Top="12"
+                             Fill="{DynamicResource SurfaceBrush}"
+                             Stroke="{DynamicResource AccentBrush}"
+                             StrokeThickness="1.5" />
+                    <Path Data="M18,14.5 L18,19.5 M15.5,17 L20.5,17"
+                          Stroke="{DynamicResource AccentBrush}"
+                          StrokeThickness="1.8"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" />
+                </Canvas>
+            </Viewbox>
+        </DataTemplate>
+
         <!-- Client document navigation. The identity rail remains outside this
              control so changing workspaces never loses consumer context. -->
         <Style x:Key="ClientWorkspaceTabItemStyle"
@@ -233,6 +277,8 @@
                     Value="Transparent" />
             <Setter Property="FontSize"
                     Value="12" />
+            <Setter Property="Padding"
+                    Value="12,10" />
             <Setter Property="Margin"
                     Value="0,0,0,4" />
             <Setter Property="Template">
@@ -241,7 +287,7 @@
                         <Border x:Name="WorkspaceTabBackground"
                                 Background="{TemplateBinding Background}"
                                 CornerRadius="5"
-                                Padding="12,10">
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter ContentSource="Header"
                                               HorizontalAlignment="Left" />
                         </Border>
@@ -266,6 +312,12 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                    <Setter Property="Padding" Value="8,6" />
+                    <Setter Property="Margin" Value="0,0,0,2" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="ClientWorkspaceTabControlStyle"
@@ -282,24 +334,44 @@
                     <ControlTemplate TargetType="TabControl">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="180" />
-                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="{Binding IsCompactDisplayMode,
+                                    Converter={StaticResource CompactWorkspaceRailWidthConverter}}" />
+                                <ColumnDefinition Width="{Binding IsCompactDisplayMode,
+                                    Converter={StaticResource CompactWorkspaceSpacerWidthConverter}}" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
                             <Border Background="{DynamicResource SurfaceAltBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10">
-                                <StackPanel>
+                                    CornerRadius="6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Padding" Value="10" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                                <Setter Property="Padding" Value="6" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
                                     <TextBlock Text="CONSUMER RECORD"
                                                FontSize="11"
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="10,4,0,12" />
-                                    <ItemsPresenter />
-                                </StackPanel>
+                                    <ScrollViewer Grid.Row="1"
+                                                  VerticalScrollBarVisibility="Visible"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  AutomationProperties.Name="Consumer record section navigation">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Grid>
                             </Border>
 
                             <ContentPresenter Grid.Column="2"
@@ -311,7 +383,17 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="16">
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="Margin" Value="16" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                        <Setter Property="Margin" Value="4" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="0" />
             <ColumnDefinition Width="0" />
@@ -320,14 +402,16 @@
 
         <!-- ═══ ENTRY FORM (left) ═══ -->
         <Border Grid.Column="0"
+                Style="{StaticResource CompactClientPanelPadding}"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
-                Padding="16"
                 Visibility="{Binding IsEntryPanelOpen, 
   Converter={StaticResource BoolToVisibilityConverter}}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ScrollViewer VerticalScrollBarVisibility="Visible"
+                          HorizontalScrollBarVisibility="Auto"
+                          AutomationProperties.Name="Consumer entry form">
                 <StackPanel>
                     <TextBlock Text="{Binding EntryPanelHeader}"
                                FontSize="13"
@@ -431,6 +515,18 @@
                 <CheckBox Content="Open with VR"
                           IsChecked="{Binding OpenWithVR}"
                           Margin="0,12,0,6" />
+                <StackPanel Visibility="{Binding OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="VOCATIONAL REHABILITATION COUNSELOR (VRC)"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding VrCounselorName, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="150"
+                             AutomationProperties.Name="Vocational Rehabilitation Counselor" />
+                    <TextBlock Text="{Binding VrAssistantTitle}"
+                               Style="{StaticResource LabelStyle}" />
+                    <TextBox Text="{Binding VrAssistantName, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="150"
+                             AutomationProperties.Name="Vocational Rehabilitation assistant assignment" />
+                </StackPanel>
 
                     <CheckBox Content="Has guardian"
                               IsChecked="{Binding HasGuardian}" />
@@ -660,10 +756,9 @@
                             <Button Style="{StaticResource IconButton}"
                                     AutomationProperties.Name="Add a new client"
                                     Command="{Binding OpenEntryPanelCommand}"
-                                    ToolTip="Add a new client">
-                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </Button>
+                                    ToolTip="Add a new client"
+                                    Content="Add client"
+                                    ContentTemplate="{StaticResource AddClientIconTemplate}" />
                         </StackPanel>
                     </Grid>
 
@@ -675,6 +770,7 @@
                              IsEnabled="{Binding IsClientEditorOpen, Converter={StaticResource InverseBoolConverter}}"
                              Background="Transparent"
                              BorderThickness="0"
+                             ScrollViewer.VerticalScrollBarVisibility="Visible"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              Padding="6,0,6,8">
                         <ListBox.ItemContainerStyle>
@@ -801,14 +897,21 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Button Grid.Column="4"
-                            Style="{StaticResource IconButton}"
-                            AutomationProperties.Name="Expand client list"
-                            Command="{Binding ToggleClientListCommand}"
-                            ToolTip="Show full client list">
-                        <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                    </Button>
+                    <StackPanel Grid.Column="4" Orientation="Horizontal">
+                        <Button Style="{StaticResource IconButton}"
+                                AutomationProperties.Name="Add a new client"
+                                Command="{Binding OpenEntryPanelCommand}"
+                                ToolTip="Add a new client"
+                                Content="Add client"
+                                ContentTemplate="{StaticResource AddClientIconTemplate}" />
+                        <Button Style="{StaticResource IconButton}"
+                                AutomationProperties.Name="Expand client list"
+                                Command="{Binding ToggleClientListCommand}"
+                                ToolTip="Show full client list">
+                            <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Button>
+                    </StackPanel>
                     <TextBlock Grid.Column="0" Text="CLIENT" FontSize="11" FontWeight="Bold"
                                Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
                                Margin="0,0,10,0" />
@@ -860,10 +963,10 @@
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="16">
+                    CornerRadius="6">
                 <Border.Style>
-                    <Style TargetType="Border">
+                    <Style TargetType="Border"
+                           BasedOn="{StaticResource CompactClientPanelPadding}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ShowClientWorkspace}" Value="True">
@@ -979,6 +1082,20 @@
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,10"
                                    Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <StackPanel Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="VOCATIONAL REHABILITATION COUNSELOR (VRC)"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBlock Text="{Binding SelectedPerson.VrCounselorName, TargetNullValue=—}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="13"
+                                       Margin="0,0,0,10" />
+                            <TextBlock Text="{Binding VrAssistantTitle}"
+                                       Style="{StaticResource LabelStyle}" />
+                            <TextBlock Text="{Binding SelectedPerson.VrAssistantName, TargetNullValue=—}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="13"
+                                       Margin="0,0,0,10" />
+                        </StackPanel>
 
                         <TextBlock Text="SERVICES"
                                    Style="{StaticResource LabelStyle}"
@@ -1014,7 +1131,10 @@
                                 Style="{StaticResource ClientWorkspaceTabControlStyle}"
                                 AutomationProperties.Name="Consumer record sections">
                         <TabItem Header="Overview"
-                                 Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                                  Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <ScrollViewer VerticalScrollBarVisibility="Visible"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          AutomationProperties.Name="Consumer overview">
                             <DockPanel LastChildFill="True">
                                 <Border DockPanel.Dock="Top"
                                         Background="{DynamicResource DangerSoftBrush}"
@@ -1057,9 +1177,9 @@
                                     <RowDefinition Height="12" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" MinHeight="220" />
                                     <RowDefinition Height="12" />
-                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                     <!-- Landscape consumer summary. This replaces the former vertical
@@ -1168,6 +1288,17 @@
                                            Foreground="{DynamicResource AccentPressedBrush}"
                                            FontWeight="SemiBold"
                                            Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Text="{Binding SelectedPerson.VrCounselorName, StringFormat=VRC: {0}}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding SelectedPerson.OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Run Text="{Binding VrAssistantTitle, Mode=OneWay}" />
+                                    <Run Text=": " />
+                                    <Run Text="{Binding SelectedPerson.VrAssistantName, Mode=OneWay}" />
+                                </TextBlock>
                                 <TextBlock Text="Employment tracking required"
                                            Foreground="{DynamicResource WarningBrush}"
                                            FontWeight="SemiBold"
@@ -1349,7 +1480,7 @@
                             Padding="14"
                             Visibility="{Binding IsClientEditorOpen, Converter={StaticResource BoolToVisibilityConverter}}"
                             AutomationProperties.Name="Client details edit mode">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="390">
+                        <ScrollViewer VerticalScrollBarVisibility="Visible" MaxHeight="390">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -1498,19 +1629,15 @@
                                             Orientation="Horizontal"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Top">
-                                    <!-- Import from a saved Credible print view. Fills this form;
-                                         the Add Client button beside it stays the only thing that
-                                         writes a consumer, so an imported record goes through the
-                                         same validation and audit a typed one does. Hidden while
-                                         editing an existing consumer, where it would overwrite a
-                                         record rather than create one.
-                                         The label is short; the accessible name says the rest. -->
-                                    <Button Content="From Credible…"
+                                    <!-- Import fills the current form; Submit remains the only
+                                         writer. Existing-profile use is agency-disabled by default
+                                         and mismatched Credible ids are refused by the view model. -->
+                                    <Button Content="{Binding CredibleImportActionLabel}"
                                             Command="{Binding ConsumerImport.ChooseFileCommand}"
                                             AutomationProperties.Name="Fill this form from a saved Credible export"
                                             ToolTip="Fill this form from a saved Credible print view"
                                             Style="{StaticResource FormActionButton}"
-                                            Visibility="{Binding IsEditMode, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                            Visibility="{Binding CanImportCredibleIntoCurrentForm, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     <Button Content="Cancel"
                                             Command="{Binding CancelClientEditCommand}"
                                             Style="{StaticResource FormActionButton}" />
@@ -1611,6 +1738,18 @@
                                     <TextBox Text="{Binding GuardianName, UpdateSourceTrigger=PropertyChanged}"
                                              IsEnabled="{Binding HasGuardian}" AutomationProperties.Name="Guardian name" />
                                     <CheckBox Content="Open with VR" IsChecked="{Binding OpenWithVR}" Margin="0,10,0,4" />
+                                    <StackPanel Visibility="{Binding OpenWithVR, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="VOCATIONAL REHABILITATION COUNSELOR (VRC)"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding VrCounselorName, UpdateSourceTrigger=PropertyChanged}"
+                                                 MaxLength="150"
+                                                 AutomationProperties.Name="Vocational Rehabilitation Counselor" />
+                                        <TextBlock Text="{Binding VrAssistantTitle}"
+                                                   Style="{StaticResource LabelStyle}" />
+                                        <TextBox Text="{Binding VrAssistantName, UpdateSourceTrigger=PropertyChanged}"
+                                                 MaxLength="150"
+                                                 AutomationProperties.Name="Vocational Rehabilitation assistant assignment" />
+                                    </StackPanel>
                                     <CheckBox Content="Employed" IsChecked="{Binding IsEmployed}" />
                                     <CheckBox Content="Employment specialist" IsChecked="{Binding HasEmploymentSpecialist}" IsEnabled="{Binding IsEmployed}" />
                                     <CheckBox Content="Work supports" IsChecked="{Binding HasWorkSupports}" IsEnabled="{Binding IsEmployed}" />
@@ -1753,10 +1892,10 @@
                         </ScrollViewer>
                     </Border>
 
-                    <!-- Row 2 carries the two live-profile panels: the support network and
-                         the medical provider list. They share a row rather than each taking
-                         one so the grid's later row numbers stay as they are. -->
-                    <StackPanel Grid.Row="2">
+                    <!-- The two expandable profile panels intentionally come last.
+                         Forms and the working Notes/Journal area stay ahead of reference
+                         details that can be reached by scrolling when needed. -->
+                    <StackPanel Grid.Row="6">
 
                     <!-- Live support-network profile. Notes snapshot selected
                          attendees, so edits here never rewrite historical visits. -->
@@ -1958,7 +2097,16 @@
                     </StackPanel>
 
                     <!-- FORMS COMPLIANCE -->
-                    <Grid Grid.Row="4">
+                    <Grid Grid.Row="2">
+                        <Grid.Resources>
+                            <!-- The shared checkbox style leaves generous breathing room
+                                 elsewhere. Forms is a dense status matrix, so one pixel is
+                                 enough separation and avoids manufacturing another scrollbar. -->
+                            <Style TargetType="CheckBox"
+                                   BasedOn="{StaticResource {x:Type CheckBox}}">
+                                <Setter Property="Margin" Value="0,0,0,1" />
+                            </Style>
+                        </Grid.Resources>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -1995,9 +2143,7 @@
                             </Button>
                         </StackPanel>
 
-                        <ScrollViewer Grid.Row="1"
-                                      VerticalScrollBarVisibility="Auto">
-                            <Grid>
+                            <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="8" />
@@ -2019,7 +2165,8 @@
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="0"
                                            Text="90-Day Reviews"
-                                           Style="{StaticResource SectionHeader}" />
+                                           Style="{StaticResource SectionHeader}"
+                                           Margin="0,0,0,2" />
                                 <StackPanel Grid.Row="1"
                                             Grid.Column="0">
                                     <CheckBox Content="Quarter 1"
@@ -2030,7 +2177,7 @@
                                     <TextBlock Text="{Binding Q1RDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2"
                                             Grid.Column="0">
@@ -2042,7 +2189,7 @@
                                     <TextBlock Text="{Binding Q2RDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3"
                                             Grid.Column="0">
@@ -2054,7 +2201,7 @@
                                     <TextBlock Text="{Binding Q3RDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="4"
                                             Grid.Column="0">
@@ -2066,13 +2213,14 @@
                                     <TextBlock Text="{Binding Q4RDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
 
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="2"
                                            Text="Annual Forms"
-                                           Style="{StaticResource SectionHeader}" />
+                                           Style="{StaticResource SectionHeader}"
+                                           Margin="0,0,0,2" />
                                 <StackPanel Grid.Row="1"
                                             Grid.Column="2">
                                     <CheckBox Content="PCP"
@@ -2083,7 +2231,7 @@
                                     <TextBlock Text="{Binding PcpDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2"
                                             Grid.Column="2">
@@ -2095,7 +2243,7 @@
                                     <TextBlock Text="{Binding CompAssessmentDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3"
                                             Grid.Column="2">
@@ -2107,7 +2255,7 @@
                                     <TextBlock Text="{Binding ReclassificationDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="4"
                                             Grid.Column="2">
@@ -2119,7 +2267,7 @@
                                     <TextBlock Text="{Binding SafetyPlanDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="5"
                                             Grid.Column="2">
@@ -2131,13 +2279,14 @@
                                     <TextBlock Text="{Binding PrivacyPracticesDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
 
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="4"
                                            Text="Releases"
-                                           Style="{StaticResource SectionHeader}" />
+                                           Style="{StaticResource SectionHeader}"
+                                           Margin="0,0,0,2" />
                                 <StackPanel Grid.Row="1"
                                             Grid.Column="4">
                                     <CheckBox Content="DHHS"
@@ -2148,7 +2297,7 @@
                                     <TextBlock Text="{Binding ReleaseDhhsDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2"
                                             Grid.Column="4">
@@ -2160,7 +2309,7 @@
                                     <TextBlock Text="{Binding ReleaseAgencyDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3"
                                             Grid.Column="4">
@@ -2172,7 +2321,7 @@
                                     <TextBlock Text="{Binding ReleaseMedicalDueDate, StringFormat={}{0:MM/dd/yy}}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
-                                               Margin="20,1,0,4" />
+                                               Margin="20,0,0,1" />
                                 </StackPanel>
 
                                 <!-- Appointments: latest doctor/dentist for the
@@ -2182,7 +2331,8 @@
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="6"
                                            Text="Appointments"
-                                           Style="{StaticResource SectionHeader}" />
+                                           Style="{StaticResource SectionHeader}"
+                                           Margin="0,0,0,2" />
                                 <StackPanel Grid.Row="1"
                                             Grid.Column="6">
                                     <TextBlock Text="Doctor"
@@ -2236,7 +2386,6 @@
                                                Margin="20,0,0,4" />
                                 </StackPanel>
                             </Grid>
-                        </ScrollViewer>
                     </Grid>
 
                     <!-- NOTES HISTORY + JOURNAL — split the bottom-right cell so the
@@ -2245,7 +2394,8 @@
                          panel. Journal auto-saves 2s after typing stops (debounced in
                          the VM), plus on client-switch and shutdown — no Save button,
                          matching the app's auto-save-over-dialogs convention. -->
-                    <Grid Grid.Row="6">
+                    <Grid Grid.Row="4"
+                          MinHeight="220">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="3*" />
                             <ColumnDefinition Width="16" />
@@ -2264,6 +2414,7 @@
                                        Style="{StaticResource SectionHeader}" />
 
                             <DataGrid AutomationProperties.Name="Selected person notes" Grid.Row="1"
+                                      MinHeight="180"
                                       ItemsSource="{Binding SelectedPersonNotes}"
                                       AutoGenerateColumns="False"
                                       IsReadOnly="True"
@@ -2326,6 +2477,7 @@
                                  scrolls vertically, no height cap of its own — the row's
                                  * share bounds it and the ScrollViewer takes overflow. -->
                             <TextBox AutomationProperties.Name="Journal" Grid.Row="1"
+                                     MinHeight="180"
                                      Text="{Binding Journal, UpdateSourceTrigger=PropertyChanged}"
                                      IsEnabled="{Binding CanEditJournal}"
                                      AcceptsReturn="True"
@@ -2340,6 +2492,7 @@
                     </Grid>
                             </Grid>
                             </DockPanel>
+                            </ScrollViewer>
                         </TabItem>
 
                         <TabItem Header="Comprehensive Assessment"

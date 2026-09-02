@@ -40,9 +40,9 @@
         <Style x:Key="CalendarDayButtonStyle"
                TargetType="Button">
             <Setter Property="Height"
-                    Value="34" />
+                    Value="36" />
             <Setter Property="Margin"
-                    Value="1" />
+                    Value="2" />
             <Setter Property="Padding"
                     Value="0" />
             <Setter Property="Background"
@@ -85,7 +85,7 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="220" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -256,89 +256,110 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0"
-                               Margin="16,12,16,8">
-                        <Button DockPanel.Dock="Right"
+                    <Grid Grid.Row="0"
+                          Margin="18,14,18,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="YEAR OVERVIEW"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSubtleBrush}" />
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,5,0,0">
+                                <Button Content="&#8249;"
+                                        AutomationProperties.Name="Previous year"
+                                        Command="{Binding PreviousYearCommand}"
+                                        Width="32"
+                                        Height="32"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        FontSize="18"
+                                        Cursor="Hand" />
+                                <TextBlock Text="{Binding CurrentYear}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="13,0" />
+                                <Button Content="&#8250;"
+                                        AutomationProperties.Name="Next year"
+                                        Command="{Binding NextYearCommand}"
+                                        Width="32"
+                                        Height="32"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        FontSize="18"
+                                        Cursor="Hand" />
+                                <TextBlock Text="Loading calendar…"
+                                           AutomationProperties.LiveSetting="Polite"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0,0,0"
+                                           Visibility="{Binding IsLoading,
+                                               Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
                                 Content="Refresh"
                                 AutomationProperties.Name="Refresh calendar"
                                 Command="{Binding RefreshCommand}"
-                                Padding="10,4" />
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="&#8249;"
-                                    AutomationProperties.Name="Previous year"
-                                    Command="{Binding PreviousYearCommand}"
-                                    Width="28"
-                                    Height="28"
-                                    Background="Transparent"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                    FontSize="16"
-                                    Cursor="Hand" />
-                            <TextBlock Text="{Binding CurrentYear}"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="12,0" />
-                            <Button Content="&#8250;"
-                                    AutomationProperties.Name="Next year"
-                                    Command="{Binding NextYearCommand}"
-                                    Width="28"
-                                    Height="28"
-                                    Background="Transparent"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                    FontSize="16"
-                                    Cursor="Hand" />
-                            <TextBlock Text="Loading calendar…"
-                                       AutomationProperties.LiveSetting="Polite"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="14,0,0,0"
-                                       Visibility="{Binding IsLoading,
-                                           Converter={StaticResource BoolToVisibilityConverter}}" />
-                        </StackPanel>
-                    </DockPanel>
+                                Padding="12,6"
+                                VerticalAlignment="Bottom" />
+                    </Grid>
 
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
-                                  Padding="16,0,16,16">
-                        <ItemsControl ItemsSource="{Binding Months}">
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="14,0,14,18">
+                        <ItemsControl x:Name="MonthItemsControl"
+                                      ItemsSource="{Binding Months}"
+                                      VerticalAlignment="Top">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Columns="4" />
+                                    <UniformGrid Columns="{Binding MonthColumnCount,
+                                        RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type children:CalendarMonth}">
-                                    <Border Margin="4"
-                                            Background="{DynamicResource SurfaceBrush}"
+                                    <Border Margin="5"
+                                            Background="{DynamicResource SurfaceRaisedBrush}"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="8"
+                                            CornerRadius="9"
+                                            Padding="10,9,10,11"
                                             VerticalAlignment="Top">
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}"
-                                                       FontSize="12"
+                                                       FontSize="14"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       HorizontalAlignment="Center"
-                                                       Margin="0,0,0,5" />
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Margin="2,0,0,9" />
 
-                                            <UniformGrid Columns="7"
-                                                         Margin="0,0,0,2">
-                                                <TextBlock Text="S" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="M" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="T" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="W" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="T" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="F" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                                <TextBlock Text="S" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
-                                            </UniformGrid>
+                                            <Border Background="{DynamicResource SurfaceMutedBrush}"
+                                                    CornerRadius="5"
+                                                    Padding="0,5"
+                                                    Margin="0,0,0,3">
+                                                <UniformGrid Columns="7">
+                                                    <TextBlock Text="S" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="M" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="T" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="W" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="T" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="F" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="S" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                                </UniformGrid>
+                                            </Border>
 
                                             <ItemsControl ItemsSource="{Binding Cells}">
                                                 <ItemsControl.ItemsPanel>
@@ -349,7 +370,7 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Grid>
-                                                            <Border Height="34"
+                                                            <Border Height="36"
                                                                     Visibility="{Binding Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=inverse}" />
 
                                                             <Button Style="{StaticResource CalendarDayButtonStyle}"
@@ -367,8 +388,9 @@
                                                                 </Button.InputBindings>
                                                                 <Grid>
                                                                     <TextBlock Text="{Binding Date.Day}"
-                                                                               HorizontalAlignment="Center"
+                                                                               HorizontalAlignment="Left"
                                                                                VerticalAlignment="Center"
+                                                                               Margin="5,0,0,0"
                                                                                FontSize="12">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
@@ -398,21 +420,21 @@
                                                                     </TextBlock>
 
                                                                     <Border HorizontalAlignment="Right"
-                                                                            VerticalAlignment="Bottom"
-                                                                            MinWidth="13"
-                                                                            Height="13"
-                                                                            CornerRadius="6"
+                                                                            VerticalAlignment="Center"
+                                                                            MinWidth="16"
+                                                                            Height="16"
+                                                                            CornerRadius="8"
                                                                             Background="{DynamicResource AccentBrush}"
-                                                                            Margin="0,0,1,1"
+                                                                            Margin="0,0,3,0"
                                                                             Visibility="{Binding HasNotes,
                                                                                 Converter={StaticResource BoolToVisibilityConverter}}">
                                                                         <TextBlock Text="{Binding NoteCount}"
-                                                                                   FontSize="8"
+                                                                                   FontSize="9"
                                                                                    FontWeight="Bold"
-                                                                                   Foreground="{DynamicResource SurfaceBrush}"
+                                                                                   Foreground="{DynamicResource OnAccentBrush}"
                                                                                    HorizontalAlignment="Center"
                                                                                    VerticalAlignment="Center"
-                                                                                   Margin="2,0" />
+                                                                                   Margin="3,0" />
                                                                     </Border>
                                                                 </Grid>
                                                             </Button>

@@ -237,7 +237,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.38", release["releaseVersion"]);
+        Assert.Equal("1.2.39", release["releaseVersion"]);
     }
 
     [Fact]
@@ -1345,7 +1345,9 @@ public sealed class TenantAuthorizationTests
             original with
             {
                 ProductivityThreshold = original.ProductivityThreshold + 7,
-                BillingComplianceRequirements = updatedRequirements
+                BillingComplianceRequirements = updatedRequirements,
+                AllowCredibleProfileUpdates = true,
+                VrAssistantTitle = "VR Employment Assistant"
             });
         var successful = await successfulResponse.Content.ReadFromJsonAsync<SettingsDto>();
 
@@ -1364,6 +1366,11 @@ public sealed class TenantAuthorizationTests
                     (BillingComplianceRequirements)(1 << 20)
             });
         Assert.Equal(HttpStatusCode.BadRequest, invalidRequirements.StatusCode);
+
+        var invalidVrTitle = await agencyOneAdmin.PutAsJsonAsync(
+            "/api/v1/settings",
+            successful with { VrAssistantTitle = "   " });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidVrTitle.StatusCode);
 
         var staleResponse = await agencyOneAdmin.PutAsJsonAsync(
             "/api/v1/settings",
@@ -1392,6 +1399,8 @@ public sealed class TenantAuthorizationTests
 
         Assert.Equal(original.ProductivityThreshold + 7, stored!.ProductivityThreshold);
         Assert.Equal(updatedRequirements, stored.BillingComplianceRequirements);
+        Assert.True(stored.AllowCredibleProfileUpdates);
+        Assert.Equal("VR Employment Assistant", stored.VrAssistantTitle);
         Assert.Equal(successful.Revision, stored.Revision);
         Assert.Equal(otherAgencyOriginal, otherAgencyStored);
         Assert.Equal(auditBefore.Count + 1, auditAfter.Count);

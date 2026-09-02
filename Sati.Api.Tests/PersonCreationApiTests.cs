@@ -22,7 +22,10 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
             ValidRequest() with
             {
                 FirstName = "ApiCreate",
-                LastName = Guid.NewGuid().ToString("N")[..10]
+                LastName = Guid.NewGuid().ToString("N")[..10],
+                OpenWithVR = true,
+                VrCounselorName = "Taylor Counselor",
+                VrAssistantName = "Morgan Assistant"
             });
         var created = await response.Content.ReadFromJsonAsync<PersonDto>();
 
@@ -30,6 +33,9 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
         Assert.NotNull(created);
         Assert.Equal(12, created.UserId);
         Assert.Equal(1, created.AgencyId);
+        Assert.True(created.OpenWithVR);
+        Assert.Equal("Taylor Counselor", created.VrCounselorName);
+        Assert.Equal("Morgan Assistant", created.VrAssistantName);
         Assert.Empty(created.Forms);
 
         var after = await owner.GetFromJsonAsync<List<PersonDto>>("/api/v1/caseload");
@@ -40,6 +46,10 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
             $"/api/v1/people/{created.Id}/history");
         var version = Assert.Single(history!);
         Assert.Equal("Created", version.ChangeKind);
+        Assert.Contains(version.Changes, change =>
+            change.Field == "vrCounselorName" && change.NewValue == "Taylor Counselor");
+        Assert.Contains(version.Changes, change =>
+            change.Field == "vrAssistantName" && change.NewValue == "Morgan Assistant");
         Assert.Equal(auditBefore.Count + 1, (await factory.GetAuditEventsAsync("person.created")).Count);
     }
 

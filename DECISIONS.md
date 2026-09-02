@@ -2639,3 +2639,46 @@ always present and what remains is a contiguous run. A mistyped effective date d
 back would otherwise generate hundreds of rows per client. The per-cycle existence check
 also became one pass over `Forms` instead of one per (cycle, type), since this now runs
 across a whole tenure on every caseload load.
+
+## 2026-09-01 — 1080p and smaller get compact starting state, not a globally shrunken UI
+
+Sati decides compact display mode once when `ShellWindow` obtains its native handle. The monitor
+hosting that window is compact when either physical dimension is at or below 1920 × 1080. Exactly
+at the boundary the change is silent and starts the Clients workspace with its horizontal compact
+selector. Below the boundary, a once-per-run notice names the detected resolution, explains the
+adjustments, and recommends 1080p or higher.
+
+Compact mode tightens shell and Clients spacing, narrows the consumer-record rail, condenses the top
+navigation, and relies on automatic scrollbars wherever content still overflows. Sub-1080p mode also
+collapses Today's Work. The existing chevrons remain active, so the mode does not prevent a user from
+reopening either optional panel. Layout rounding and display-optimized ClearType are enabled on the
+shell to reduce fractional-pixel softness without changing font size.
+
+**Rejected: applying a global `ScaleTransform` to the application.** It would make more pixels fit,
+but would do so by shrinking text, focus indicators, and click targets together. That is an
+accessibility regression and conflicts with Windows' own DPI scaling. Responsive starting state and
+overflow preserve reachability without making the interface harder to read or operate.
+
+## 2026-09-02 — Existing-profile Credible import is explicit, reviewed, and single-record
+
+An agency Admin may enable `Settings.AllowCredibleProfileUpdates`, which defaults false. The option
+exposes the existing Credible review action while one consumer is deliberately open for editing.
+Accepted mapped fields fill that edit form and the ordinary Save changes action remains the only
+writer. Missing and declined fields do not clear existing information, Sati-only fields are not
+mapped, and a different nonblank Credible client id refuses the import before changing the form.
+
+The option does not make bulk folder import update matches. A reviewed single record has a visible
+target and a second explicit save; silently replacing hundreds of clinical profiles has neither
+property and requires a separate design, authorization, audit, and recovery decision.
+
+## 2026-09-02 — The VR assistant title is agency reference text, not consumer data
+
+A consumer who is open with Vocational Rehabilitation may record two assigned names: the
+Vocational Rehabilitation Counselor and the counselor's assistant. Those names belong to the
+consumer profile and follow the same validation, concurrency, audit, and immutable-version path as
+other demographic fields. Turning off `OpenWithVR` hides the fields but does not destroy them.
+
+The assistant role's wording changes independently of the person assigned to it, so the displayed
+title lives once in agency Settings as `VrAssistantTitle`, with `VSA` as the compatibility default.
+Changing that title updates the label across consumer profiles and does not rewrite every consumer
+row or create misleading person-history entries.

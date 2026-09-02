@@ -105,7 +105,7 @@
                 </DockPanel>
             </Border>
 
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                 <StackPanel>
                     <Border Style="{StaticResource Card}" IsEnabled="{Binding CanEdit}">
                         <Expander IsExpanded="False">

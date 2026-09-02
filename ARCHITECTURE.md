@@ -1,6 +1,30 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-08-31.*
+*Living document. Updated during structured review sessions. Last updated: 2026-09-02.*
+
+## Vocational Rehabilitation profile assignments
+
+`Person.OpenWithVR` controls whether the Consumers UI reveals `VrCounselorName` and
+`VrAssistantName`. The names are consumer facts and travel through the ordinary person save,
+validation, revision, audit, and immutable-version paths in both Local Production and cloud Demo.
+Unchecking VR hides but does not erase the assignments, preserving context if a VR case reopens.
+
+`Settings.VrAssistantTitle` is agency-wide reference text, defaults to `VSA`, and changes only the
+assistant field's displayed label. It never rewrites an assigned person's name. Closing Settings
+refreshes the Consumers view so the label changes without restarting Sati.
+
+## Credible updates to an existing consumer
+
+`Settings.AllowCredibleProfileUpdates` is an agency-wide, Admin-managed safety switch and defaults
+off. When enabled, the single-consumer review flow may fill the edit form for the deliberately
+selected consumer. It still does not write: `NewClientViewModel.Submit` remains the sole demographic
+writer, so authorization, validation, optimistic concurrency, audit history, and person versioning
+remain identical to a hand edit in Local Production and cloud Demo.
+
+Only accepted, mapped fields replace form values; absent or declined fields remain unchanged.
+Where both the selected profile and export carry a Credible client id, different ids fail before
+any form field changes. The setting does not enable bulk replacement: folder import continues to
+report and skip existing ids.
 
 ## Quarterly review evidence and attestation
 
@@ -1355,6 +1379,22 @@ Splash (3s) → Login → session set → `ShellViewModel.InitializeAsync` → `
 `DispatcherUnhandledException` shows the full exception in a `MessageBox` (dev-grade; add a log file
 + shorter user message before team deployment — this handler is what surfaced the LocalDB timeout
 and the `BoardTabConverter` throw this session).
+
+### Compact display mode
+
+`DisplayLayoutService` reads the physical pixel bounds of the monitor hosting `ShellWindow` when
+the native handle becomes available. Either dimension at or below the 1920 × 1080 boundary selects
+compact presentation for that application session. Physical pixels decide the display tier; WPF's
+device-independent units remain responsible for ordinary Windows DPI scaling.
+
+At the 1080p boundary the adjustment is silent: `NewClientViewModel` selects the horizontal compact
+consumer picker and Shell/Clients XAML use tighter margins, padding, rail width, logo, and navigation
+footprint. Below that boundary `ShellViewModel.ApplyCompactDisplayMode` also closes Today's Work and
+`DisplayAdjustmentDialog` explains the adjustment once, before other shell-owned startup windows,
+and recommends 1080p or higher. Both ordinary toggle commands remain available: compact mode supplies
+space-saving starting state, not a new permission or a permanent lock. Overflow containers remain
+the final accessibility boundary. Fonts, focus indicators, and hit targets are not globally scaled
+down; the shell instead uses layout rounding and WPF's display-optimized ClearType rendering.
 
 ---
 

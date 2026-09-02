@@ -53,6 +53,8 @@ public sealed class PersonSaveRulesTests
     [InlineData("billing-zip", "billingZip")]
     [InlineData("pcp", "primaryCareProvider")]
     [InlineData("health-system", "healthcareSystemName")]
+    [InlineData("vr-counselor", "vrCounselorName")]
+    [InlineData("vr-assistant", "vrAssistantName")]
     public void InvalidClientFieldIsIdentifiedPrecisely(string scenario, string expectedKey)
     {
         var request = scenario switch
@@ -80,6 +82,8 @@ public sealed class PersonSaveRulesTests
             "billing-zip" => ValidRequest() with { BillingZip = new string('1', 16) },
             "pcp" => ValidRequest() with { PrimaryCareProvider = new string('a', 101) },
             "health-system" => ValidRequest() with { HealthcareSystemName = new string('a', 101) },
+            "vr-counselor" => ValidRequest() with { VrCounselorName = new string('a', PersonSaveRules.VrStaffNameMaxLength + 1) },
+            "vr-assistant" => ValidRequest() with { VrAssistantName = new string('a', PersonSaveRules.VrStaffNameMaxLength + 1) },
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
 

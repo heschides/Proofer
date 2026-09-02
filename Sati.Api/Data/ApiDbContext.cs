@@ -64,6 +64,10 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.SsnKeyId).HasMaxLength(400);
             entity.Property(x => x.SsnLastFour).HasMaxLength(4);
             entity.Property(x => x.Email).HasMaxLength(254);
+            entity.Property(x => x.VrCounselorName)
+                .HasMaxLength(PersonSaveRules.VrStaffNameMaxLength);
+            entity.Property(x => x.VrAssistantName)
+                .HasMaxLength(PersonSaveRules.VrStaffNameMaxLength);
             entity.Property(x => x.IsTestData).HasDefaultValue(false);
             entity.Property(x => x.CaseManagerIsDhhsRepresentative);
             entity.Property(x => x.UsesModivcare);
@@ -114,6 +118,9 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.PerUnitIncentive).HasColumnType("decimal(18,2)");
             entity.Property(x => x.PassthroughRate).HasColumnType("decimal(5,4)");
             entity.Property(x => x.SalesTaxRate).HasColumnType("decimal(5,4)");
+            entity.Property(x => x.VrAssistantTitle)
+                .HasMaxLength(VocationalRehabilitationProfile.AssistantTitleMaxLength)
+                .HasDefaultValue(VocationalRehabilitationProfile.DefaultAssistantTitle);
         });
 
         modelBuilder.Entity<ServerScratchpad>(entity =>
@@ -474,6 +481,8 @@ internal sealed class ServerPerson
     public string? EvergreenId { get; set; }
     public string? CredibleClientId { get; set; }
     public bool OpenWithVR { get; set; }
+    public string? VrCounselorName { get; set; }
+    public string? VrAssistantName { get; set; }
     public bool HasGuardian { get; set; }
     public string? GuardianName { get; set; }
     public string? PhoneNumber { get; set; }
@@ -568,6 +577,9 @@ internal sealed class ServerSettings
     public int Id { get; set; }
     public int AgencyId { get; set; }
     public int Revision { get; set; } = 1;
+    public bool AllowCredibleProfileUpdates { get; set; }
+    public string VrAssistantTitle { get; set; } =
+        VocationalRehabilitationProfile.DefaultAssistantTitle;
     public BillingComplianceRequirements BillingComplianceRequirements { get; set; } =
         BillingComplianceGate.DefaultRequirements;
     public int AbandonedAfterDays { get; set; } = 7;

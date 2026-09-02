@@ -2,6 +2,30 @@
 
 # Sati — Refactor Agenda
 
+## Vocational Rehabilitation assignments — 2026-09-02
+
+- [x] Add consumer-profile assignments for the Vocational Rehabilitation Counselor and the
+      counselor's assistant, revealed only while `OpenWithVR` is selected.
+- [x] Store the assistant's agency-wide display title in Settings, default it to `VSA`, and
+      refresh the Consumers workspace after Settings closes.
+- [x] Carry both assignments through shared validation, Local and API saves, optimistic
+      concurrency, immutable person versions, and audit history.
+- [ ] Apply `AddVocationalRehabilitationAssignments` to hosted Demo through the controlled
+      migration path during a release.
+
+## Existing-profile Credible updates — 2026-09-02
+
+- [x] Add agency setting `AllowCredibleProfileUpdates`, default false, to persistence, API
+      settings contracts, Admin Settings UI, and optimistic-concurrency save path.
+- [x] When enabled, allow the field-level single-consumer review to fill the currently selected
+      edit form without bypassing the ordinary person save/version/audit path.
+- [x] Refuse differing nonblank Credible client ids before any form field changes; preserve absent
+      or declined fields and every Sati-only field.
+- [x] Keep bulk folder matches report-and-skip. Bulk replacement remains a separate, deferred
+      workflow requiring recovery and batch-audit design.
+- [ ] Apply `AddCredibleProfileUpdateSetting` to hosted Demo through the controlled migration path
+      during a release. Do not apply it from a workstation without the documented firewall process.
+
 ## Duplicate compliance form rows — 2026-09-01
 
 Implemented and tested; the repair has NOT yet run against a database holding real records.
@@ -89,6 +113,67 @@ each quarter, per client.
       Everywhere else stamps `DueDate` (Clients/dashboard checkbox) or `DateTime.Today` (task
       board). So a Comprehensive Assessment completed on a date that is neither cannot be
       recorded truthfully without a database edit.
+
+## Release 1.2.39 — 2026-09-02
+
+"A better fit." Responsive calendar and compact-display work, guaranteed Consumers overflow,
+reviewed existing-profile Credible updates, and Vocational Rehabilitation assignments with an
+agency-configurable assistant title.
+
+**Schema-changing release.** Two additive migrations:
+
+- `20260902140636_AddCredibleProfileUpdateSetting` adds the non-null
+  `Settings.AllowCredibleProfileUpdates` bit, default false.
+- `20260902142303_AddVocationalRehabilitationAssignments` adds nullable
+  `People.VrCounselorName` and `People.VrAssistantName` (`nvarchar(150)`) plus non-null
+  `Settings.VrAssistantTitle` (`nvarchar(100)`), default `VSA`.
+
+**Authorization and firewall.** Invoked with literal `invoke DATT!`. Josh explicitly authorized
+both controlled SatiDemo migrations and confirmed both Local Production machines were on 1.2.38.
+Josh added `datt-workstation-temp` for the workstation's exact public IP `66.211.131.66`, then
+removed it immediately after migration. The allow-list was verified afterward as exactly the three
+`sati-demo-api-outbound-*` entries; the release workflow did not alter the firewall.
+
+### Validation
+- [x] Release build of the full solution: 0 errors, 9 warnings (existing NuGet vulnerability-feed
+      reachability, EF raw-SQL, nullable, and xUnit analyzer warnings).
+- [x] Sati desktop/domain: 1,151 passed, 1 skipped
+      (`LocalAiModelCompetenceTests.ConfiguredModelCompletesGroundedWorkflowAcrossRepresentativeCurrentNoteInputs`,
+      the documented `SATI_RUN_LOCAL_AI_MODEL_EVAL` opt-in whose prerequisite is absent).
+      API integration: 324 passed. Carika: 4 passed.
+- [x] `git diff --check` clean; release diff and staged scope reviewed.
+
+### Demo migration and deployment
+- [x] `scripts/Apply-CredibleProfileAndVrMigrations.ps1` dry run validated exact
+      `SatiDemo` / `Demo`, 1 Settings row and 177 consumers; reported 4 columns and 2 history rows,
+      then rolled back.
+- [x] Controlled migration committed those 4 columns and 2 EF history rows. A third pass reported
+      0 columns and 0 history rows, proving idempotency; no blank VR assistant titles were found.
+- [x] `datt-workstation-temp` removed by Josh and verified absent. The SQL allow-list contains only
+      `sati-demo-api-outbound-01` through `-03`.
+- [ ] Source commit and evidence commit identifiers.
+- [ ] API ZIP path, size, SHA-256, package inspection, deployment identifier, and publication result.
+- [ ] `/health/live`, `/health/ready`, `/health/version`, and contract-revision parity.
+
+### Local Production machines
+- [x] Both known Local Production machines are on 1.2.38 before release, confirmed by Josh.
+- [ ] Record each machine after it launches 1.2.39 and applies the pending migrations locally.
+
+### Artifacts
+- [ ] Demo installer path, byte size, SHA-256, five-launch acceptance, version, and cleanup.
+- [ ] Local installer path, byte size, SHA-256, LocalDB signature, integrated-security check,
+      acceptance, and cleanup.
+- [ ] Verified Local and Demo distribution paths and hashes.
+
+### Branches
+- [x] `master` and `origin/master` began at `cd22dda`; remote default confirmed as `master`.
+- [x] Retain `claude/cool-jang-f6b3c4`: checked out by a linked worktree.
+- [x] Retain `second-machine-setup` and remote `claude/local-vs-github-workflow-dlcqpb`: both have
+      unique work unrelated to this release.
+- [x] Retain merged `feature/caseload-transfer`; it has no unique commits and is not required to be
+      deleted.
+
+---
 
 ## Release 1.2.38 — 2026-09-01
 
@@ -211,6 +296,21 @@ key against an older server.
   `SatiDemoSetup-1.2.38.exe` and `SatiLocalSetup-1.2.38.exe`. Nothing was overwritten and the
   published artifacts remain the accepted ones; this note exists so that a later build from
   `master` calling itself 1.2.38 is not mistaken for them. It ships in the next release.
+- The Clients workspace now exposes automatic overflow for its Overview, section rail, editor, and
+  fixed-width document workspaces. A separate compact-display mode detects the physical monitor at
+  shell startup. At the 1920 × 1080 boundary it silently starts the horizontal consumer selector and
+  tighter layout; below the boundary it also explains the adjustment once and collapses Today's
+  Work. It condenses navigation and spacing, enables pixel-rounded display-optimized text, keeps the
+  ordinary reopen controls, and does not globally shrink fonts or hit targets. These changes are
+  likewise post-publication source and ship in the next release, not the accepted 1.2.38 installers.
+- The Clients Overview now reserves a real working height for Notes and Journal instead of leaving
+  them in a star row that collapses under the outer overflow viewer. Forms comes immediately before
+  them; Contacts and Support Team plus Medical Providers now follow at the bottom as reference
+  panels. Both the full roster and horizontal selector expose the same theme-aware person-plus Add
+  Client action, replacing the ambiguous circular-arrow glyph. The Overview now measures the inline
+  consumer editor against its available width instead of creating a wide horizontal canvas, and the
+  compact Forms matrix uses the Overview's one vertical scrollbar rather than adding a nested third
+  scrollbar. This is also next-release source.
 
 ### Known gaps shipped deliberately
 - An SSN in an export is shown and refused rather than saved. Nothing writes an imported SSN yet;

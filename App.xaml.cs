@@ -148,6 +148,7 @@ namespace Sati
                         services.AddSingleton<DailyAgendaCoordinator>();
                         services.AddSingleton<DailyAgendaLauncher>();
                         services.AddSingleton<ThemeService>();
+                        services.AddSingleton<DisplayLayoutService>();
                         services.AddSingleton<TextShortcutService>();
                         services.AddSingleton<DailyAgendaPreferenceService>();
                         services.AddSingleton<TextShortcutHook>();
@@ -230,6 +231,8 @@ namespace Sati
 
                         // Factories
                         services.AddTransient<Func<string, UserMessageDialog>>(sp => message => new UserMessageDialog(message));
+                        services.AddTransient<Func<DisplayLayoutProfile, DisplayAdjustmentDialog>>(
+                            sp => profile => new DisplayAdjustmentDialog(profile));
 
                         // Asks before unsaved work is thrown away. Destructive
                         // styling, Cancel focused, Esc cancels — see ConfirmationDialog.

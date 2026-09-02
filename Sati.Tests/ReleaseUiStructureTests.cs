@@ -50,6 +50,156 @@ public sealed class ReleaseUiStructureTests
     }
 
     [Fact]
+    public void ClientWorkspacesExposeOverflowInsteadOfClippingAtLowResolutions()
+    {
+        var clients = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+        var assessment = File.ReadAllText(Path.Combine(
+            Root, "Views", "ClientDocuments", "ComprehensiveAssessmentWorkspace.xaml"));
+        var plan = File.ReadAllText(Path.Combine(
+            Root, "Views", "ClientDocuments", "PersonCenteredPlanWorkspace.xaml"));
+        var dhhs = File.ReadAllText(Path.Combine(
+            Root, "Views", "ClientDocuments", "DhhsFormsWorkspace.xaml"));
+        var release = File.ReadAllText(Path.Combine(
+            Root, "Views", "ClientDocuments", "AgencyReleaseWorkspace.xaml"));
+
+        Assert.Contains("AutomationProperties.Name=\"Consumer overview\"", clients);
+        Assert.Contains("AutomationProperties.Name=\"Consumer record section navigation\"", clients);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", clients);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", assessment);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", plan);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", dhhs);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", release);
+
+        Assert.DoesNotContain("HorizontalScrollBarVisibility=\"Disabled\"", assessment);
+        Assert.DoesNotContain("HorizontalScrollBarVisibility=\"Disabled\"", dhhs);
+        Assert.DoesNotContain("HorizontalScrollBarVisibility=\"Disabled\"", release);
+    }
+
+    [Fact]
+    public void CompactDisplayModeWarnsAndPreservesPanelReopenControls()
+    {
+        var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
+        var shellCode = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml.cs"));
+        var shellViewModel = File.ReadAllText(Path.Combine(Root, "ViewModels", "ShellViewModel.cs"));
+        var clients = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+        var clientViewModel = File.ReadAllText(Path.Combine(Root, "ViewModels", "NewClientViewModel.cs"));
+        var notice = File.ReadAllText(Path.Combine(Root, "Views", "DisplayAdjustmentDialog.xaml"));
+        var noticeCode = File.ReadAllText(Path.Combine(Root, "Views", "DisplayAdjustmentDialog.xaml.cs"));
+
+        Assert.Contains("DetectFor(this)", shellCode);
+        Assert.Contains("ApplyCompactDisplayMode", shellCode);
+        Assert.Contains("RequiresAdjustmentNotice", shellCode);
+        Assert.Contains("_displayAdjustmentNoticeShown", shellCode);
+        Assert.Contains("1080p", noticeCode);
+        Assert.Contains("1920 × 1080", noticeCode);
+        Assert.Contains("Compact display mode notice", notice);
+
+        Assert.Contains("if (collapseScratchpad)", shellViewModel);
+        Assert.Contains("IsScratchpadVisible = false", shellViewModel);
+        Assert.Contains("ToggleScratchpadCommand", shell);
+        Assert.Contains("IsClientListCompact = true", clientViewModel);
+        Assert.Contains("ToggleClientListCommand", clients);
+
+        Assert.Contains("ShellNavTabButton", shell);
+        Assert.Contains("Primary navigation", shell);
+        Assert.Contains("TextOptions.TextFormattingMode=\"Display\"", shell);
+        Assert.Contains("TextOptions.TextRenderingMode=\"ClearType\"", shell);
+        Assert.Contains("UseLayoutRounding=\"True\"", shell);
+        Assert.Contains("IsCompactDisplayMode", clients);
+        Assert.Contains("AllowCredibleProfileUpdates", clientViewModel);
+        Assert.Contains(
+            "Allow Credible imports to update existing consumer profiles",
+            File.ReadAllText(Path.Combine(Root, "Views", "SettingsWindow.xaml")));
+        Assert.Contains("VrCounselorName", clients);
+        Assert.Contains("VrAssistantName", clients);
+        Assert.Contains("Visibility=\"{Binding OpenWithVR", clients);
+        Assert.Contains("Vocational Rehabilitation assistant title",
+            File.ReadAllText(Path.Combine(Root, "Views", "SettingsWindow.xaml")));
+        Assert.Contains("VrAssistantTitle", clientViewModel);
+    }
+
+    [Fact]
+    public void ClientOverviewKeepsWorkingPanelsAheadOfReferencePanels()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var document = XDocument.Load(Path.Combine(Root, "Views", "ClientsView.xaml"));
+
+        var formsLabel = document.Descendants(presentation + "TextBlock")
+            .Single(element => element.Attribute("Text")?.Value == "FORMS");
+        var formsRegion = formsLabel.Ancestors(presentation + "Grid")
+            .First(element => element.Attribute("Grid.Row") is not null);
+        Assert.Equal("2", formsRegion.Attribute("Grid.Row")?.Value);
+        Assert.Null(formsRegion.Attribute("MaxHeight"));
+        Assert.Empty(formsRegion.Descendants(presentation + "ScrollViewer"));
+
+        var overview = document.Descendants(presentation + "ScrollViewer")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Consumer overview");
+        Assert.Equal("Visible", overview.Attribute("VerticalScrollBarVisibility")?.Value);
+        Assert.Equal("Disabled", overview.Attribute("HorizontalScrollBarVisibility")?.Value);
+
+        var sectionNavigation = document.Descendants(presentation + "ScrollViewer")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Consumer record section navigation");
+        Assert.Equal(
+            "Visible",
+            sectionNavigation.Attribute("VerticalScrollBarVisibility")?.Value);
+
+        var entryForm = document.Descendants(presentation + "ScrollViewer")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Consumer entry form");
+        Assert.Equal("Visible", entryForm.Attribute("VerticalScrollBarVisibility")?.Value);
+
+        var roster = document.Descendants(presentation + "ListBox")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value == "Clients");
+        Assert.Equal(
+            "Visible",
+            roster.Attributes().Single(attribute =>
+                attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
+
+        var notes = document.Descendants(presentation + "DataGrid")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Selected person notes");
+        var notesRegion = notes.Ancestors(presentation + "Grid")
+            .First(element => element.Attribute("Grid.Row") is not null);
+        Assert.Equal("4", notesRegion.Attribute("Grid.Row")?.Value);
+        Assert.Equal("220", notesRegion.Attribute("MinHeight")?.Value);
+        Assert.Equal("180", notes.Attribute("MinHeight")?.Value);
+
+        var contacts = document.Descendants(presentation + "Border")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value ==
+                "Consumer contacts and support team");
+        var referenceRegion = contacts.Ancestors(presentation + "StackPanel")
+            .First(element => element.Attribute("Grid.Row") is not null);
+        Assert.Equal("6", referenceRegion.Attribute("Grid.Row")?.Value);
+        Assert.Contains(referenceRegion.Descendants(), element =>
+            element.Name.LocalName == "ConsumerProvidersView");
+    }
+
+    [Fact]
+    public void BothClientSelectorsUseTheSamePersonPlusAction()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var document = XDocument.Load(Path.Combine(Root, "Views", "ClientsView.xaml"));
+
+        var addButtons = document.Descendants(presentation + "Button")
+            .Where(element => element.Attribute("Command")?.Value.Contains(
+                "OpenEntryPanelCommand", StringComparison.Ordinal) == true)
+            .ToList();
+
+        Assert.Equal(2, addButtons.Count);
+        Assert.All(addButtons, button => Assert.Equal(
+            "{StaticResource AddClientIconTemplate}",
+            button.Attribute("ContentTemplate")?.Value));
+        Assert.Single(document.Descendants(presentation + "DataTemplate"), template =>
+            template.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Key" && attribute.Value == "AddClientIconTemplate"));
+
+        var source = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+        Assert.DoesNotContain("&#xE72C;", source);
+    }
+
+    [Fact]
     public void NotesFiltersUseOneExplicitInputHeightAndBaseline()
     {
         var notes = File.ReadAllText(Path.Combine(Root, "Views", "NotesLogView.xaml"));

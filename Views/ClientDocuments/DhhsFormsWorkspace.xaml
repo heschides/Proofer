@@ -76,7 +76,7 @@
 
         <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
+                      HorizontalScrollBarVisibility="Auto"
                       AutomationProperties.Name="DHHS form choices">
             <StackPanel>
                 <Border Padding="14"

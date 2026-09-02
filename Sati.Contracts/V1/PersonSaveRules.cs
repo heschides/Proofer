@@ -22,6 +22,7 @@ public static class PersonSaveRules
     public const int BillingZipMaxLength = 15;
     public const int PrimaryCareProviderMaxLength = 100;
     public const int HealthcareSystemMaxLength = 100;
+    public const int VrStaffNameMaxLength = 150;
 
     // Credible ids are short numeric strings; 32 is generous. Bounded rather than unlimited
     // so a dedupe index on (AgencyId, CredibleClientId) stays a one-step change.
@@ -103,6 +104,10 @@ public static class PersonSaveRules
             "Healthcare system",
             request.HealthcareSystemName,
             HealthcareSystemMaxLength);
+        OptionalLength(errors, "vrCounselorName", "VR counselor", request.VrCounselorName,
+            VrStaffNameMaxLength);
+        OptionalLength(errors, "vrAssistantName", "VR assistant", request.VrAssistantName,
+            VrStaffNameMaxLength);
 
         foreach (var error in RepresentativePayeeRules.Validate(
                      request.CaseManagerIsRepPayee,
@@ -183,4 +188,17 @@ public static class PersonSaveRules
         if (value?.Trim().Length > maxLength)
             errors[key] = [$"{label} must not exceed {maxLength:N0} characters."];
     }
+}
+
+/// <summary>
+/// Shared defaults and validation limits for the agency-configurable label used
+/// for the staff member assisting the Vocational Rehabilitation counselor.
+/// </summary>
+public static class VocationalRehabilitationProfile
+{
+    public const string DefaultAssistantTitle = "VSA";
+    public const int AssistantTitleMaxLength = 100;
+
+    public static string NormalizeAssistantTitle(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? DefaultAssistantTitle : value.Trim();
 }

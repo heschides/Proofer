@@ -80,6 +80,14 @@ namespace Sati.Data
                 throw new SettingsSaveException(
                     "The billing-compliance requirement selection is invalid.",
                     new ArgumentOutOfRangeException(nameof(settings)));
+            if (string.IsNullOrWhiteSpace(settings.VrAssistantTitle) ||
+                settings.VrAssistantTitle.Trim().Length > VocationalRehabilitationProfile.AssistantTitleMaxLength)
+                throw new SettingsSaveException(
+                    $"The VR assistant title is required and must not exceed {VocationalRehabilitationProfile.AssistantTitleMaxLength} characters.",
+                    new ArgumentOutOfRangeException(nameof(settings)));
+
+            settings.VrAssistantTitle =
+                VocationalRehabilitationProfile.NormalizeAssistantTitle(settings.VrAssistantTitle);
 
             await using var context = _contextFactory.CreateDbContext();
             var agencyId = CurrentAgencyId();

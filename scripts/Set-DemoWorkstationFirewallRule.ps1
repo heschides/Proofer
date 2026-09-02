@@ -31,7 +31,7 @@
 
 .EXAMPLE
     # 1. Open it, for this release only
-    .\scripts\Set-DemoWorkstationFirewallRule.ps1 -Ip 72.95.106.10
+    .\scripts\Set-DemoWorkstationFirewallRule.ps1 -Ip 66.211.131.66
 
 .EXAMPLE
     # 2. Close it, the moment the migration finishes
@@ -102,11 +102,40 @@ if ($Ip -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
     throw "'$Ip' is not an IPv4 address. Pass a single exact address, not a range or CIDR."
 }
 
+$parsedIp = [System.Net.IPAddress]::None
+if (-not [System.Net.IPAddress]::TryParse($Ip, [ref]$parsedIp) -or
+    $parsedIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
+    throw "'$Ip' is not a valid IPv4 address. Pass a single exact address, not a range or CIDR."
+}
+
+# Never silently repoint an existing security rule. If this run's exact rule is
+# already open, report that fact; if the name points anywhere else, require the
+# operator to inspect and remove it deliberately before continuing.
+$existingRules = az sql server firewall-rule list `
+    --server $Server --resource-group $ResourceGroup --output json | ConvertFrom-Json
+$existingRule = $existingRules | Where-Object { $_.name -eq $RuleName } | Select-Object -First 1
+if ($existingRule) {
+    if ($existingRule.startIpAddress -eq $Ip -and $existingRule.endIpAddress -eq $Ip) {
+        Write-Host "Rule '$RuleName' is already open for exactly $Ip." -ForegroundColor Yellow
+        Show-AllowList
+        return
+    }
+
+    throw "Rule '$RuleName' already exists for $($existingRule.startIpAddress)-$($existingRule.endIpAddress). Refusing to overwrite it."
+}
+
 # A single address, not a range. Start and end are deliberately identical.
 Write-Host "Adding firewall rule '$RuleName' for $Ip only..." -ForegroundColor Yellow
 az sql server firewall-rule create `
     --name $RuleName --server $Server --resource-group $ResourceGroup `
     --start-ip-address $Ip --end-ip-address $Ip
+
+$created = az sql server firewall-rule show `
+    --name $RuleName --server $Server --resource-group $ResourceGroup `
+    --output json | ConvertFrom-Json
+if ($created.startIpAddress -ne $Ip -or $created.endIpAddress -ne $Ip) {
+    throw "Rule '$RuleName' was created with unexpected bounds. Remove it immediately with -Remove."
+}
 
 Show-AllowList
 Write-Host ''

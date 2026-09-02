@@ -17,6 +17,7 @@
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto"
                   DataContext="{Binding Workspace, ElementName=PlanControl}">
         <StackPanel>
             <TextBlock Text="PERSON-CENTERED PLAN"

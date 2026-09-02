@@ -28,8 +28,12 @@ namespace Sati.Views
         private readonly TextShortcutService _textShortcutService;
         private readonly TextShortcutHook _textShortcutHook;
         private readonly DailyAgendaLauncher _dailyAgendaLauncher;
+        private readonly DisplayLayoutService _displayLayoutService;
+        private readonly Func<DisplayLayoutProfile, DisplayAdjustmentDialog> _displayAdjustmentDialogFactory;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
         private DatabasePatienceWindow? _databasePatienceWindow;
+        private DisplayLayoutProfile? _displayLayoutProfile;
+        private bool _displayAdjustmentNoticeShown;
         private bool _isSavingOnClose;
         private bool _closeAfterSuccessfulSave;
 
@@ -54,6 +58,8 @@ namespace Sati.Views
             TextShortcutService textShortcutService,
             TextShortcutHook textShortcutHook,
             DailyAgendaLauncher dailyAgendaLauncher,
+            DisplayLayoutService displayLayoutService,
+            Func<DisplayLayoutProfile, DisplayAdjustmentDialog> displayAdjustmentDialogFactory,
             SessionKeepAlive? sessionKeepAlive = null)
         {
             InitializeComponent();
@@ -73,10 +79,32 @@ namespace Sati.Views
             _textShortcutService = textShortcutService;
             _textShortcutHook = textShortcutHook;
             _dailyAgendaLauncher = dailyAgendaLauncher;
+            _displayLayoutService = displayLayoutService;
+            _displayAdjustmentDialogFactory = displayAdjustmentDialogFactory;
             DataContext = shellViewModel;
+
+            // The native handle identifies the monitor that actually hosts this
+            // window. Apply the compact state before Loaded so the first rendered
+            // shell does not briefly expose the full-width side panels.
+            SourceInitialized += (_, _) =>
+            {
+                _displayLayoutProfile = _displayLayoutService.DetectFor(this);
+                if (_displayLayoutProfile.Value.UsesCompactMode)
+                    _shellViewModel.ApplyCompactDisplayMode(
+                        collapseScratchpad: _displayLayoutProfile.Value.RequiresAdjustmentNotice);
+            };
 
             Loaded += async (_, _) =>
             {
+                if (!_displayAdjustmentNoticeShown &&
+                    _displayLayoutProfile is { RequiresAdjustmentNotice: true } profile)
+                {
+                    _displayAdjustmentNoticeShown = true;
+                    var notice = _displayAdjustmentDialogFactory(profile);
+                    notice.Owner = this;
+                    notice.ShowDialog();
+                }
+
                 if (_sessionService.CurrentUser is { } currentUser)
                     await _textShortcutService.LoadForUserAsync(currentUser.Id);
                 _textShortcutHook.Start(this);
@@ -110,11 +138,12 @@ namespace Sati.Views
                     ApplyScratchpadVisibility();
             };
 
-            _shellViewModel.OpenSettingsWindowRequested += (s, e) =>
+            _shellViewModel.OpenSettingsWindowRequested += async (s, e) =>
             {
                 var win = settingsWindowFactory();
                 win.Owner = this;
                 win.ShowDialog();
+                await _shellViewModel.NotesViewModel.Clients.ReloadProfileSettingsAsync();
             };
 
             _caseManagerDashboardViewModel.MarkFormCompleteRequested = async formType =>

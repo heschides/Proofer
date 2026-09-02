@@ -53,5 +53,7 @@ internal static class PersonContractMapper
         person.UsesModivcare,
         person.Email,
         person.IsTestData,
-        person.CredibleClientId);
+        person.CredibleClientId,
+        person.VrCounselorName,
+        person.VrAssistantName);
 }

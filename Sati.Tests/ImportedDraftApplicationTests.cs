@@ -3,6 +3,7 @@ using Sati.Data;
 using Sati.Models;
 using Sati.ViewModels;
 using Sati.ViewModels.Children;
+using System.Reflection;
 using Xunit;
 
 namespace Sati.Tests;
@@ -135,6 +136,49 @@ public sealed class ImportedDraftApplicationTests
         Assert.False(model.IsEditMode);
     }
 
+    [Fact]
+    public void ExistingProfileImportIsRefusedWhileAgencySettingIsOff()
+    {
+        var model = CreateViewModel(new CountingPersonService());
+        PutInEditMode(model, credibleClientId: "21864", firstName: "CURRENT");
+
+        model.ApplyImportedDraft(Draft());
+
+        Assert.Equal("CURRENT", model.FirstName);
+        Assert.Contains("disabled", model.ClientSaveErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnabledExistingProfileImportFillsTheEditFormWithoutSaving()
+    {
+        var people = new CountingPersonService();
+        var model = CreateViewModel(people);
+        PutInEditMode(model, credibleClientId: "21864", firstName: "CURRENT");
+        model.AllowCredibleProfileUpdates = true;
+
+        model.ApplyImportedDraft(Draft());
+
+        Assert.True(model.IsEditMode);
+        Assert.Equal("CREDIBLE", model.FirstName);
+        Assert.Equal(0, people.AddCalls);
+        Assert.Equal(0, people.EditCalls);
+    }
+
+    [Fact]
+    public void ExistingProfileImportRefusesADifferentCredibleClientId()
+    {
+        var model = CreateViewModel(new CountingPersonService());
+        PutInEditMode(model, credibleClientId: "99999", firstName: "CURRENT");
+        model.AllowCredibleProfileUpdates = true;
+
+        model.ApplyImportedDraft(Draft());
+
+        Assert.Equal("CURRENT", model.FirstName);
+        Assert.Contains("different Credible client", model.ClientSaveErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     // ---- Helpers ----
 
     private static AcceptedImportDraft Draft(string hasGuardian = "true") =>
@@ -159,6 +203,27 @@ public sealed class ImportedDraftApplicationTests
                 [CredibleFields.CredibleClientId] = "21864",
             },
             CredibleClientId: "21864");
+
+    private static void PutInEditMode(
+        NewClientViewModel model,
+        string credibleClientId,
+        string firstName)
+    {
+        var person = Person.CreatePerson(
+            41, firstName, "PROFILE", "Existing synthetic profile.",
+            new DateTime(1990, 1, 2), null, WaiverType.None, new Settings());
+        person.CredibleClientId = credibleClientId;
+
+        // These unit tests intentionally omit unrelated child view models. Assign
+        // the generated backing field so selecting a person does not start those
+        // child-workspace loads; the import behavior itself still sees the same state.
+        typeof(NewClientViewModel)
+            .GetField("selectedPerson", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(model, person);
+        model.FirstName = firstName;
+        model.IsClientEditorOpen = true;
+        model.IsEditMode = true;
+    }
 
     private static NewClientViewModel CreateViewModel(IPersonService personService)
     {

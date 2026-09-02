@@ -226,6 +226,15 @@ namespace Sati.ViewModels
         // at save in a later slice; here it's just the editable default.
         [ObservableProperty] private decimal salesTaxRate;
 
+        // Agency-wide safety switch. An administrator must explicitly enable
+        // replacing accepted demographic fields on an existing consumer profile.
+        [ObservableProperty] private bool allowCredibleProfileUpdates;
+
+        // Agency-configurable display title for the staff member assisting the
+        // VR counselor. Consumer rows store the assigned name, not this label.
+        [ObservableProperty] private string vrAssistantTitle =
+            VocationalRehabilitationProfile.DefaultAssistantTitle;
+
         // The passthrough-provider list for the default picker, and the chosen
         // default's Id. The combo binds SelectedValue → this, SelectedValuePath=Id,
         // so it round-trips the int? FK without matching object identity. Nullable:
@@ -484,6 +493,9 @@ namespace Sati.ViewModels
             }
 
             SalesTaxRate = _settings.SalesTaxRate;
+            AllowCredibleProfileUpdates = _settings.AllowCredibleProfileUpdates;
+            VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(
+                _settings.VrAssistantTitle);
             DefaultPassthroughProviderId = _settings.DefaultPassthroughProviderId;
 
             PassthroughProviders.Clear();
@@ -580,6 +592,8 @@ namespace Sati.ViewModels
 
             _settings.AbandonedAfterDays = AbandonedAfterDays;
             _settings.SalesTaxRate = SalesTaxRate;
+            _settings.AllowCredibleProfileUpdates = AllowCredibleProfileUpdates;
+            _settings.VrAssistantTitle = VrAssistantTitle;
             _settings.DefaultPassthroughProviderId = DefaultPassthroughProviderId;
             _settings.ProductivityThreshold = ProductivityThreshold;
             _settings.BaseIncentive = BaseIncentive;

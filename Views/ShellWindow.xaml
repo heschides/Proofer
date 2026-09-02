@@ -8,7 +8,28 @@
         MinWidth="900"
         MinHeight="600"
         Background="{DynamicResource WindowBackgroundBrush}"
-        FontFamily="{StaticResource AppFont}">
+        FontFamily="{StaticResource AppFont}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextHintingMode="Fixed">
+
+    <Window.Resources>
+        <!-- Compact mode changes spacing, not text scale or control semantics. The
+             same buttons remain available and keep their accessible names. -->
+        <Style x:Key="ShellNavTabButton"
+               TargetType="Button"
+               BasedOn="{StaticResource NavTabButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Padding" Value="5,2" />
+                    <Setter Property="Margin" Value="0,0,2,0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
 
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
@@ -33,16 +54,29 @@
                 Grid.ColumnSpan="4"
                 Background="{DynamicResource SurfaceAltBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="12,10">
+                BorderThickness="0,0,0,1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Padding" Value="12,10" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                            <Setter Property="Padding" Value="6,4" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <!-- Tab navigation — left side -->
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal">
+                <ScrollViewer Grid.Column="0"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              PanningMode="HorizontalOnly"
+                              AutomationProperties.Name="Primary navigation">
+                <StackPanel Orientation="Horizontal">
                     <Border Background="#FFFFF6D8"
                             BorderBrush="#FFE2C94B"
                             BorderThickness="1"
@@ -52,10 +86,21 @@
                             VerticalAlignment="Center"
                             Visibility="{DynamicResource BrandLogoVisibility}">
                         <Image Source="pack://application:,,,/Images/woodfords-logo.png"
-                               Width="104"
-                               Height="40"
                                Stretch="Uniform"
-                               AutomationProperties.Name="Woodfords Family Services" />
+                               AutomationProperties.Name="Woodfords Family Services">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Width" Value="104" />
+                                    <Setter Property="Height" Value="40" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                            <Setter Property="Width" Value="78" />
+                                            <Setter Property="Height" Value="30" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
                     </Border>
                     <Border Background="#FF7A2E8E"
                             BorderBrush="#FFE5B8F0"
@@ -103,35 +148,35 @@
                          are reachable by keyboard and exposed to screen readers as
                          controls. -->
                     <Button Content="Admin"
-                            Style="{StaticResource NavTabButton}"
+                            Style="{StaticResource ShellNavTabButton}"
                             AutomationProperties.Name="Admin"
                             views:NavTab.IsActive="{Binding IsAdminActive}"
                             Command="{Binding NavigateToAdminCommand}"
                             Visibility="{Binding IsAdminAvailable,
                                 Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Content="Platform health"
-                            Style="{StaticResource NavTabButton}"
+                            Style="{StaticResource ShellNavTabButton}"
                             AutomationProperties.Name="Platform health"
                             views:NavTab.IsActive="{Binding IsPlatformHealthActive}"
                             Command="{Binding NavigateToPlatformHealthCommand}"
                             Visibility="{Binding IsPlatformHealthAvailable,
                                 Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Content="Case Management"
-                            Style="{StaticResource NavTabButton}"
+                            Style="{StaticResource ShellNavTabButton}"
                             AutomationProperties.Name="Case Management"
                             views:NavTab.IsActive="{Binding IsCaseManagementActive}"
                             Command="{Binding NavigateToCaseManagementCommand}"
                             Visibility="{Binding IsCaseManagementAvailable,
                                 Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Content="Supervisor"
-                            Style="{StaticResource NavTabButton}"
+                            Style="{StaticResource ShellNavTabButton}"
                             AutomationProperties.Name="Supervisor"
                             views:NavTab.IsActive="{Binding IsSupervisorActive}"
                             Command="{Binding NavigateToSupervisorDashboardCommand}"
                             Visibility="{Binding IsSupervisionAvailable,
                                 Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Content="Billing"
-                            Style="{StaticResource NavTabButton}"
+                            Style="{StaticResource ShellNavTabButton}"
                             AutomationProperties.Name="Billing"
                             views:NavTab.IsActive="{Binding IsBillingActive}"
                             Command="{Binding NavigateToBillingCommand}"
@@ -139,6 +184,7 @@
                                 Converter={StaticResource BoolToVisibilityConverter}}" />
 
                 </StackPanel>
+                </ScrollViewer>
 
                 <!-- User info — right side -->
                 <StackPanel Grid.Column="1"
@@ -215,10 +261,20 @@
                             <MouseBinding MouseAction="LeftClick"
                                           Command="{Binding RequestSwitchUserCommand}" />
                         </Border.InputBindings>
-                        <TextBlock Text="{Binding UserGreeting}"
-                                   FontSize="12"
+                        <TextBlock FontSize="12"
                                    Foreground="{DynamicResource WindowBackgroundBrush}"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding UserGreeting}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                            <Setter Property="Text" Value="{Binding UserInitials}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Border>
 
                 </StackPanel>

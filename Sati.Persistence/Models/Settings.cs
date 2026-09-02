@@ -12,6 +12,15 @@ namespace Sati.Models
         public int AgencyId { get; set; }
         public int Revision { get; set; } = 1;
 
+        // Agency policy. Off by default: importing into an existing profile can
+        // replace current demographics, so an administrator must opt the agency in.
+        public bool AllowCredibleProfileUpdates { get; set; }
+
+        // Display label for the second VR assignment field. The assigned person's
+        // name lives on Person; changing this title never rewrites profile data.
+        public string VrAssistantTitle { get; set; } =
+            Contracts.V1.VocationalRehabilitationProfile.DefaultAssistantTitle;
+
         // Agency policy: which overdue, incomplete forms stop billing. The
         // decision itself remains in the shared BillingComplianceGate.
         public Contracts.V1.BillingComplianceRequirements BillingComplianceRequirements { get; set; } =

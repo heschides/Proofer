@@ -30,6 +30,8 @@ internal static class PersonLifecycleLedger
         new("evergreenId", "Evergreen ID", person => person.EvergreenId),
         new("credibleClientId", "Credible client ID", person => person.CredibleClientId),
         new("openWithVR", "Open with VR", person => YesNo(person.OpenWithVR)),
+        new("vrCounselorName", "VR counselor", person => person.VrCounselorName),
+        new("vrAssistantName", "VR assistant", person => person.VrAssistantName),
         new("hasGuardian", "Has guardian", person => YesNo(person.HasGuardian)),
         new("guardianName", "Guardian name", person => person.GuardianName),
         new("phoneNumber", "Phone number", person => person.PhoneNumber),

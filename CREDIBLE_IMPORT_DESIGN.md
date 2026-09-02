@@ -501,9 +501,14 @@ Note that agency-run bulk import delivers the same outcome with no custody trans
 
 ## Out of scope for v1
 
-Server-side ingestion, encrypted bundle handoff, merge-into-existing, notes and service history,
+Server-side ingestion, encrypted bundle handoff, bulk merge-into-existing, notes and service history,
 medications, allergies, warnings, treatment plans, authorizations, episodes. Demographics,
 diagnosis, insurance identifiers, and contacts.
+
+The 2026-09-02 single-profile exception is intentionally narrower than a merge: when an Admin has
+enabled the default-off agency setting, a user may open one existing consumer, review mapped fields,
+and fill the ordinary edit form. The ordinary save remains the writer and differing Credible ids
+are refused. Bulk matched records remain skipped.
 
 ## Testing
 

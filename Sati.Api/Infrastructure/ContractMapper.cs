@@ -82,7 +82,9 @@ internal static class ContractMapper
         person.UsesModivcare,
         person.Email,
         person.IsTestData,
-        person.CredibleClientId);
+        person.CredibleClientId,
+        person.VrCounselorName,
+        person.VrAssistantName);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,
@@ -263,7 +265,9 @@ internal static class ContractMapper
         s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
         s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
         s.ReleaseMedicalDaysBeforeAnniversary, s.Revision,
-        s.BillingComplianceRequirements);
+        s.BillingComplianceRequirements,
+        s.AllowCredibleProfileUpdates,
+        VocationalRehabilitationProfile.NormalizeAssistantTitle(s.VrAssistantTitle));
 
     public static bool TryParseNoteStatus(string? value, out int? parsed) =>
         TryParseNullableOrdinal(NoteStatusNames, value, out parsed);

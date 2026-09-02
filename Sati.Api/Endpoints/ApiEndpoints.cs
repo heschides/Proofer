@@ -3178,6 +3178,9 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["settings"] = ["Settings contain an invalid negative value or percentage."] });
             if (!BillingComplianceGate.IsSupported(request.BillingComplianceRequirements))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["billingComplianceRequirements"] = ["The compliance requirement selection is invalid."] });
+            if (string.IsNullOrWhiteSpace(request.VrAssistantTitle) ||
+                request.VrAssistantTitle.Trim().Length > VocationalRehabilitationProfile.AssistantTitleMaxLength)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["vrAssistantTitle"] = [$"The VR assistant title is required and must not exceed {VocationalRehabilitationProfile.AssistantTitleMaxLength} characters."] });
             if (request.DefaultPassthroughProviderId is int providerId &&
                 !await db.Providers.AsNoTracking().AnyAsync(
                     x => x.Id == providerId && x.AgencyId == actor.AgencyId && x.ProvidesPassthroughService,
@@ -3192,6 +3195,8 @@ internal static class ApiEndpoints
             db.Entry(settings).CurrentValues.SetValues(request);
             settings.Id = id;
             settings.AgencyId = agencyId;
+            settings.VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(
+                request.VrAssistantTitle);
             settings.Revision++;
             auditTrail.Record(actor, AuditActions.SettingsUpdated, "Settings", settings.Id);
             try
@@ -4367,6 +4372,8 @@ internal static class ApiEndpoints
         person.EvergreenId = Normalize(request.EvergreenId);
         person.CredibleClientId = Normalize(request.CredibleClientId);
         person.OpenWithVR = request.OpenWithVR;
+        person.VrCounselorName = Normalize(request.VrCounselorName);
+        person.VrAssistantName = Normalize(request.VrAssistantName);
         person.HasGuardian = request.HasGuardian;
         person.GuardianName = Normalize(request.GuardianName);
         person.PhoneNumber = Normalize(request.PhoneNumber);

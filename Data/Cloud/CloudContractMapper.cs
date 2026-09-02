@@ -42,6 +42,8 @@ internal static class CloudContractMapper
         person.EvergreenId = dto.EvergreenId;
         person.CredibleClientId = dto.CredibleClientId;
         person.OpenWithVR = dto.OpenWithVR;
+        person.VrCounselorName = dto.VrCounselorName;
+        person.VrAssistantName = dto.VrAssistantName;
         person.HasGuardian = dto.HasGuardian;
         person.GuardianName = dto.GuardianName;
         person.PhoneNumber = dto.PhoneNumber;
@@ -127,6 +129,8 @@ internal static class CloudContractMapper
     public static Settings ToSettings(SettingsDto s) => new()
     {
         Id = s.Id,
+        AllowCredibleProfileUpdates = s.AllowCredibleProfileUpdates,
+        VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(s.VrAssistantTitle),
         BillingComplianceRequirements = s.BillingComplianceRequirements,
         AbandonedAfterDays = s.AbandonedAfterDays,
         ProductivityThreshold = s.ProductivityThreshold,
@@ -204,7 +208,9 @@ internal static class CloudContractMapper
         s.SafetyPlanDaysBeforeAnniversary, s.PrivacyPracticesDaysBeforeAnniversary,
         s.ReleaseAgencyDaysBeforeAnniversary, s.ReleaseDhhsDaysBeforeAnniversary,
         s.ReleaseMedicalDaysBeforeAnniversary, s.Revision,
-        s.BillingComplianceRequirements);
+        s.BillingComplianceRequirements,
+        s.AllowCredibleProfileUpdates,
+        VocationalRehabilitationProfile.NormalizeAssistantTitle(s.VrAssistantTitle));
 
     public static Scratchpad ToScratchpad(ScratchpadDto dto) => new()
     {

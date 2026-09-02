@@ -4,6 +4,7 @@ using Sati.ViewModels.Children;
 using Sati.Views;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using Xunit;
 
@@ -12,6 +13,30 @@ namespace Sati.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class CalendarViewRenderTests
 {
+    [Fact]
+    public void YearOverviewUsesReadableMonthColumnsAtDifferentWidths()
+    {
+        WpfUiHarness.Run(() =>
+        {
+            var view = new CalendarView();
+
+            WpfUiHarness.Realize(view, 1400, 900);
+            Assert.Equal(4, view.MonthColumnCount);
+            Assert.Equal(4, FindMonthPanel(view).Columns);
+
+            WpfUiHarness.Realize(view, 930, 700);
+            Assert.Equal(2, view.MonthColumnCount);
+            Assert.Equal(2, FindMonthPanel(view).Columns);
+
+            WpfUiHarness.Realize(view, 650, 700);
+            Assert.Equal(1, view.MonthColumnCount);
+            Assert.Equal(1, FindMonthPanel(view).Columns);
+        });
+    }
+
+    private static UniformGrid FindMonthPanel(CalendarView view) =>
+        Assert.Single(WpfUiHarness.Descendants(view).OfType<UniformGrid>());
+
     [Fact]
     public async Task ACalendarDayIsKeyboardReachableAndOpensTheFocusedNoteView()
     {

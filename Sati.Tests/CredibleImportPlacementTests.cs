@@ -71,18 +71,18 @@ public sealed class CredibleImportPlacementTests
             element.Attribute("Visibility")?.Value.Contains("ConsumerImport.HasRefusal") == true);
     }
 
-    // Editing an existing consumer must not offer an import: it would overwrite a record rather
-    // than create one.
+    // Existing-profile import is agency-disabled by default. The view model's policy property
+    // keeps creation available while exposing edit-mode import only after the setting is enabled.
     [Fact]
-    public void TheImportButtonIsHiddenWhileEditingAnExistingConsumer()
+    public void TheImportButtonUsesTheDefaultOffExistingProfilePolicy()
     {
         var import = Single(ClientsView(), "Button", "Command", "ConsumerImport.ChooseFileCommand");
 
         var visibility = import.Attribute("Visibility")?.Value;
 
         Assert.NotNull(visibility);
-        Assert.Contains("IsEditMode", visibility);
-        Assert.Contains("InverseBoolToVisibilityConverter", visibility);
+        Assert.Contains("CanImportCredibleIntoCurrentForm", visibility);
+        Assert.Contains("BoolToVisibilityConverter", visibility);
     }
 
     // The visible label is deliberately short, so the accessible name is what actually says

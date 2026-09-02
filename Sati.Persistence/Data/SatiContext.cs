@@ -270,6 +270,10 @@ namespace Sati.Data
                 entity.Property(p => p.BillingZip).HasMaxLength(15);
                 entity.Property(p => p.PrimaryCareProvider).HasMaxLength(100);
                 entity.Property(p => p.HealthcareSystemName).HasMaxLength(100);
+                entity.Property(p => p.VrCounselorName)
+                      .HasMaxLength(PersonSaveRules.VrStaffNameMaxLength);
+                entity.Property(p => p.VrAssistantName)
+                      .HasMaxLength(PersonSaveRules.VrStaffNameMaxLength);
                 entity.Property(p => p.CaseManagerIsDhhsRepresentative);
                 entity.Property(p => p.UsesModivcare);
                 entity.Property(p => p.RepPayeeMonthlyIncome).HasColumnType("decimal(18,2)");
@@ -535,6 +539,10 @@ namespace Sati.Data
                 // and the [NotMapped] wrapper reads that as an empty dropdown.
                 entity.Property(s => s.HealthcareSystemsJson)
                                       .HasDefaultValue("""["Other"]""");
+
+                entity.Property(s => s.VrAssistantTitle)
+                      .HasMaxLength(Contracts.V1.VocationalRehabilitationProfile.AssistantTitleMaxLength)
+                      .HasDefaultValue(Contracts.V1.VocationalRehabilitationProfile.DefaultAssistantTitle);
 
                 // Rate, not amount — decimal(5,4) like PassthroughRate. HasDefaultValue
                 // backfills the existing row and writes a going-forward DEFAULT so the
