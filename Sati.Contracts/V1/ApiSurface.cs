@@ -45,7 +45,13 @@ public static class ApiSurface
         "person-test-data-v1",
         // SavePersonRequest gained CredibleClientId. A newer client sending it to an older
         // server would have the import dedupe key silently dropped.
-        "person-credible-client-id-v1"
+        "person-credible-client-id-v1",
+        // SavePersonRequest and PersonDto gained the two VR assignment names. An older
+        // server would otherwise accept the request while silently discarding both.
+        "person-vr-assignments-v1",
+        // SettingsDto gained the existing-profile Credible policy and configurable VR
+        // assistant title. Both must round-trip through the agency-authoritative API.
+        "settings-profile-import-and-vr-label-v1"
     ];
 
     /// <summary>
