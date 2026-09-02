@@ -23,6 +23,10 @@ public static class PersonSaveRules
     public const int PrimaryCareProviderMaxLength = 100;
     public const int HealthcareSystemMaxLength = 100;
 
+    // Credible ids are short numeric strings; 32 is generous. Bounded rather than unlimited
+    // so a dedupe index on (AgencyId, CredibleClientId) stays a one-step change.
+    public const int CredibleClientIdMaxLength = 32;
+
     public static IReadOnlyList<string> FormTypes { get; } =
     [
         "Q1R",
@@ -71,6 +75,8 @@ public static class PersonSaveRules
         if (request.DayProgramCount is < 1 or > 100)
             errors["dayProgramCount"] = ["Day program count must be between 1 and 100."];
 
+        OptionalLength(errors, "credibleClientId", "Credible client ID", request.CredibleClientId,
+            CredibleClientIdMaxLength);
         OptionalLength(errors, "guardianName", "Guardian name", request.GuardianName, GuardianNameMaxLength);
         OptionalLength(errors, "phoneNumber", "Phone number", request.PhoneNumber, PhoneMaxLength);
         OptionalLength(errors, "email", "Email", request.Email, EmailMaxLength);

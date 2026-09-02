@@ -32,6 +32,8 @@ namespace Sati.ViewModels.Supervisor
         private readonly MonthlyProductivityViewModel _monthlyProductivityViewModel;
         private readonly UserManagementViewModel _userManagementViewModel;
         private readonly PendingApprovalsViewModel _pendingApprovalsViewModel;
+        private readonly CaseloadDistributionViewModel _caseloadDistributionViewModel;
+        private readonly CaseloadImportViewModel _caseloadImportViewModel;
 
         // -------------------------------------------------------------------------
         // Constructor
@@ -47,7 +49,9 @@ namespace Sati.ViewModels.Supervisor
             IUserService userService,
             ThemeService themeService,
             UserManagementViewModel userManagementViewModel,
-            PendingApprovalsViewModel pendingApprovalsViewModel)
+            PendingApprovalsViewModel pendingApprovalsViewModel,
+            CaseloadDistributionViewModel caseloadDistributionViewModel,
+            CaseloadImportViewModel caseloadImportViewModel)
         {
             _sessionService = sessionService;
             _personService = personService;
@@ -83,6 +87,16 @@ namespace Sati.ViewModels.Supervisor
             // Start on team overview
             CurrentSubView = _teamOverviewViewModel;
             _pendingApprovalsViewModel = pendingApprovalsViewModel;
+            _caseloadDistributionViewModel = caseloadDistributionViewModel;
+
+            // A distribution changes who holds which consumers, so the sidebar counts the
+            // dashboard just drew are stale the moment it succeeds.
+            _caseloadDistributionViewModel.CaseloadsChanged += async () => await InitializeAsync();
+
+            _caseloadImportViewModel = caseloadImportViewModel;
+
+            // An import lands consumers on this supervisor, so the sidebar counts move too.
+            _caseloadImportViewModel.ConsumersImported += async () => await InitializeAsync();
         }
 
         // -------------------------------------------------------------------------
@@ -128,6 +142,8 @@ namespace Sati.ViewModels.Supervisor
         public bool IsOverdueItemsActive => CurrentSubView is OverdueItemsViewModel;
         public bool IsMonthlyProductivityActive => CurrentSubView is MonthlyProductivityViewModel;
         public bool IsUserManagementActive => CurrentSubView is UserManagementViewModel;
+        public bool IsCaseloadDistributionActive => CurrentSubView is CaseloadDistributionViewModel;
+        public bool IsCaseloadImportActive => CurrentSubView is CaseloadImportViewModel;
 
         // -------------------------------------------------------------------------
         // Property change callbacks
@@ -140,6 +156,8 @@ namespace Sati.ViewModels.Supervisor
             OnPropertyChanged(nameof(IsMonthlyProductivityActive));
             OnPropertyChanged(nameof(IsUserManagementActive));
             OnPropertyChanged(nameof(IsPendingApprovalsActive));
+            OnPropertyChanged(nameof(IsCaseloadDistributionActive));
+            OnPropertyChanged(nameof(IsCaseloadImportActive));
         }
 
         // -------------------------------------------------------------------------
@@ -185,6 +203,42 @@ namespace Sati.ViewModels.Supervisor
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
             await _userManagementViewModel.InitializeAsync();
             CurrentSubView = _userManagementViewModel;
+        }
+
+        [RelayCommand]
+        private async Task NavigateToCaseloadDistribution()
+        {
+            if (CurrentSubView is CaseloadDistributionViewModel)
+            {
+                CurrentSubView = null;
+                return;
+            }
+
+            CurrentSubView = null;
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+
+            // Loaded on every navigation rather than once: the supervisor's own caseload is
+            // what an import just changed, and a stale list would offer revision tokens the
+            // server has already moved past.
+            await _caseloadDistributionViewModel.InitializeAsync();
+            CurrentSubView = _caseloadDistributionViewModel;
+        }
+
+        [RelayCommand]
+        private async Task NavigateToCaseloadImport()
+        {
+            if (CurrentSubView is CaseloadImportViewModel)
+            {
+                CurrentSubView = null;
+                return;
+            }
+
+            CurrentSubView = null;
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+
+            // No load here. The screen is empty until a folder is chosen, and re-entering it
+            // must not silently discard a dry run the supervisor has not acted on yet.
+            CurrentSubView = _caseloadImportViewModel;
         }
 
         [RelayCommand]

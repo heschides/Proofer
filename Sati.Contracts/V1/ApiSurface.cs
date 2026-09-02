@@ -42,7 +42,10 @@ public static class ApiSurface
         "claim-response-ingestion-v1",
         "schema-drift-report-v1",
         "admin-test-consumer-deletion-v1",
-        "person-test-data-v1"
+        "person-test-data-v1",
+        // SavePersonRequest gained CredibleClientId. A newer client sending it to an older
+        // server would have the import dedupe key silently dropped.
+        "person-credible-client-id-v1"
     ];
 
     /// <summary>
@@ -134,6 +137,7 @@ public static class ApiSurface
         "POST /api/v1/notes",
         "POST /api/v1/notes/abandon-overdue",
         "POST /api/v1/people",
+        "POST /api/v1/people/credible-matches",
         "POST /api/v1/people/{personId:int}/agency-release.pdf",
         "POST /api/v1/people/{personId:int}/assessments/draft",
         "POST /api/v1/people/{personId:int}/contacts",
@@ -159,6 +163,7 @@ public static class ApiSurface
         "PUT /api/v1/people/{personId:int}",
         "PUT /api/v1/people/{personId:int}/contacts/{contactId:int}",
         "PUT /api/v1/people/{personId:int}/journal",
+        "PUT /api/v1/people/{personId:int}/owner",
         "PUT /api/v1/people/{personId:int}/providers/{linkId:int}",
         "PUT /api/v1/people/{personId:int}/ssn",
         "PUT /api/v1/providers/{id:int}",

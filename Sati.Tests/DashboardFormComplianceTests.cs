@@ -1,3 +1,4 @@
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Sati.ViewModels;
@@ -106,6 +107,7 @@ public sealed class DashboardFormComplianceTests
                 null!,
                 null!,
                 null!,
+                null!,
                 null!);
             var calendar = new CalendarViewModel(exemptDates, notes, session);
             var reviews = new ReviewsViewModel(session, people, null!, settingsService, forms);
@@ -178,6 +180,11 @@ public sealed class DashboardFormComplianceTests
         public Task SaveJournalAsync(int personId, string? journal) => Task.CompletedTask;
         public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
             Task.FromResult(new JournalReminderResult(text));
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
         public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) =>
             Task.FromResult<List<PersonSummary>>([]);
     }

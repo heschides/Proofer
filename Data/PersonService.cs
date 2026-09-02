@@ -99,6 +99,158 @@ namespace Sati.Data
             return person;
         }
 
+        /// <summary>
+        /// Moves a consumer to another case manager's caseload in local Production.
+        ///
+        /// <para>
+        /// This repeats every restriction the API applies rather than assuming a server is in
+        /// front of it, because in local Production there is not one: this class writes straight
+        /// to SQL Server from the desktop. The authorization decision itself is not repeated —
+        /// it is <see cref="CaseloadTransferRules"/>, the same function the API calls — but the
+        /// loading of the facts it decides over happens here, from this database, and never from
+        /// values a caller passed in.
+        /// </para>
+        /// </summary>
+        public async Task<CaseloadOwnershipDto> TransferOwnershipAsync(
+            int personId,
+            int targetUserId,
+            int expectedRevision)
+        {
+            var actor = CurrentActor();
+            await using var context = _contextFactory.CreateDbContext();
+
+            var person = await context.People.SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId);
+            if (person is null)
+                throw new InvalidOperationException("This Person was not found in your agency.");
+
+            var currentOwner = await LoadParticipantAsync(context, person.UserId);
+            var target = await LoadParticipantAsync(context, targetUserId);
+            if (currentOwner is null || target is null)
+            {
+                throw new PersonValidationException(new Dictionary<string, string[]>
+                {
+                    ["targetUserId"] = ["That consumer or case manager is not on your team."]
+                });
+            }
+
+            var denial = CaseloadTransferRules.Evaluate(
+                new AgencyActor(actor.Id, actor.AgencyId, actor.Permissions),
+                currentOwner.Value,
+                target.Value);
+            if (denial is not CaseloadTransferDenial.None)
+            {
+                throw new PersonValidationException(new Dictionary<string, string[]>
+                {
+                    ["targetUserId"] = [CaseloadTransferRules.Describe(denial)]
+                });
+            }
+
+            // Checked after authorization, so a caller who may not move this consumer learns
+            // that and not whether their revision token happened to be current.
+            if (person.Revision != expectedRevision)
+            {
+                throw new InvalidOperationException(
+                    "This Person was changed after you opened it. Reload the Person before saving.");
+            }
+
+            var before = PersonLifecycleLedger.Capture(person);
+            await PersonLifecycleLedger.EnsureBaselineAsync(context, person);
+            var previousUserId = person.UserId;
+            person.TransferTo(targetUserId);
+            if (PersonLifecycleLedger.RecordChanged(context, actor, person, before, "Reassigned"))
+            {
+                LocalAuditTrail.Record(
+                    context,
+                    actor,
+                    LocalAuditActions.PersonReassigned,
+                    "Person",
+                    personId,
+                    System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        previousUserId,
+                        newUserId = targetUserId
+                    }));
+            }
+
+            await context.SaveChangesAsync();
+            return new CaseloadOwnershipDto(person.Id, person.UserId, person.Revision);
+        }
+
+        /// <summary>
+        /// Which of these Credible ids this agency already holds, in local Production.
+        ///
+        /// <para>
+        /// Repeats the API's scoping rather than assuming a server enforces it, because here
+        /// there is not one. The owner's name is disclosed only where
+        /// <see cref="CaseloadTransferRules"/> says the actor could already see that caseload —
+        /// the same predicate the route uses, not a second reading of it.
+        /// </para>
+        /// </summary>
+        public async Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds)
+        {
+            ArgumentNullException.ThrowIfNull(credibleClientIds);
+            var actor = CurrentActor();
+            if (!actor.HasCaseManagerPermissions)
+                return [];
+
+            var ids = credibleClientIds
+                .Select(id => id?.Trim())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (ids.Count == 0)
+                return [];
+
+            await using var context = _contextFactory.CreateDbContext();
+            var matches = await (
+                from person in context.People.AsNoTracking()
+                join owner in context.Users.AsNoTracking() on person.UserId equals owner.Id
+                where person.AgencyId == actor.AgencyId &&
+                      person.CredibleClientId != null &&
+                      ids.Contains(person.CredibleClientId)
+                select new
+                {
+                    person.CredibleClientId,
+                    OwnerId = owner.Id,
+                    OwnerName = owner.DisplayName,
+                    owner.AgencyId,
+                    owner.Permissions,
+                    owner.SupervisorId
+                }).ToListAsync();
+
+            var agencyActor = new AgencyActor(actor.Id, actor.AgencyId, actor.Permissions);
+            return matches
+                .Select(match => new CredibleClientMatchDto(
+                    match.CredibleClientId!,
+                    CaseloadTransferRules.CanReachOwnOrSupervisedCaseload(
+                        agencyActor,
+                        new CaseloadParticipant(
+                            match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId))
+                        ? match.OwnerName
+                        : null))
+                .DistinctBy(match => match.CredibleClientId, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
+        /// One user's caseload-authorization facts. Projected rather than loaded whole so a
+        /// password hash and salt never enter memory for a question that does not need them.
+        /// </summary>
+        private static async Task<CaseloadParticipant?> LoadParticipantAsync(
+            SatiContext context,
+            int userId)
+        {
+            var rows = await context.Users.AsNoTracking()
+                .Where(user => user.Id == userId)
+                .Select(user => new CaseloadParticipant(
+                    user.Id, user.AgencyId, user.Permissions, user.SupervisorId))
+                .ToListAsync();
+
+            return rows.Count == 1 ? rows[0] : null;
+        }
+
         // Reads a single column, not an entity. .Select projects Journal server-side
         // so only that string comes back — the nvarchar(max) never rides a full-row
         // materialization, and nothing is change-tracked. Returns null for a missing
@@ -285,6 +437,7 @@ namespace Sati.Data
                 {
                     Id = p.Id,
                     UserId = p.UserId,
+                    Revision = p.Revision,
                     FirstName = p.FirstName,
                     LastName = p.LastName,
                     EffectiveDate = p.EffectiveDate,

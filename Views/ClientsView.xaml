@@ -36,6 +36,35 @@
             </DrawingBrush.Drawing>
         </DrawingBrush>
 
+        <!-- The Add Client form's action row. Given an explicit height because the row also
+             holds the "required to save" panel, and a stretched StackPanel would otherwise size
+             every button to that panel's height — which is what made three buttons read as a
+             wall rather than a toolbar. -->
+        <Style x:Key="FormActionButton"
+               TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+
+        <!-- The one button in the row that writes a record. It is the only one carrying the
+             accent, so the two beside it read as the alternatives they are. -->
+        <Style x:Key="FormActionPrimaryButton"
+               TargetType="Button"
+               BasedOn="{StaticResource FormActionButton}">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
         <Style x:Key="LabelStyle"
                TargetType="TextBlock">
             <Setter Property="FontSize"
@@ -492,8 +521,9 @@
                 <Button Content="{Binding SubmitButtonLabel}"
                         AutomationProperties.Name="{Binding SubmitButtonLabel}"
                             Style="{StaticResource PrimaryButton}"
-                        Command="{Binding SubmitCommand}" 
+                        Command="{Binding SubmitCommand}"
                             Margin="0,0,0,10"/>
+
 
             </StackPanel>
             </ScrollViewer>
@@ -1465,21 +1495,52 @@
                                     </Border>
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2"
-                                            Orientation="Horizontal" HorizontalAlignment="Right">
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top">
+                                    <!-- Import from a saved Credible print view. Fills this form;
+                                         the Add Client button beside it stays the only thing that
+                                         writes a consumer, so an imported record goes through the
+                                         same validation and audit a typed one does. Hidden while
+                                         editing an existing consumer, where it would overwrite a
+                                         record rather than create one.
+                                         The label is short; the accessible name says the rest. -->
+                                    <Button Content="From Credible…"
+                                            Command="{Binding ConsumerImport.ChooseFileCommand}"
+                                            AutomationProperties.Name="Fill this form from a saved Credible export"
+                                            ToolTip="Fill this form from a saved Credible print view"
+                                            Style="{StaticResource FormActionButton}"
+                                            Visibility="{Binding IsEditMode, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
                                     <Button Content="Cancel"
                                             Command="{Binding CancelClientEditCommand}"
-                                            Padding="12,5" Margin="0,0,8,0"
-                                            Background="{DynamicResource SurfaceBrush}"
-                                            BorderBrush="{DynamicResource BorderBrush}"
-                                            Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            Style="{StaticResource FormActionButton}" />
                                     <Button Content="{Binding SubmitButtonLabel}"
                                             Command="{Binding SubmitCommand}"
-                                            Padding="14,5"
-                                            Background="{DynamicResource AccentBrush}"
-                                            BorderThickness="0"
-                                            Foreground="{DynamicResource SurfaceBrush}"
+                                            Style="{StaticResource FormActionPrimaryButton}"
                                             AutomationProperties.Name="{Binding SubmitButtonLabel}" />
                                 </StackPanel>
+
+                                <!-- The review panel and any refusal, spanning the form's width
+                                     directly under the action row so they cannot be scrolled past. -->
+                                <ContentControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
+                                                Margin="0,36,12,0"
+                                                Content="{Binding ConsumerImport}"
+                                                Visibility="{Binding ConsumerImport.IsOpen, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                                <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
+                                        Background="{DynamicResource WarningFillBrush}"
+                                        BorderBrush="{DynamicResource WarningBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5"
+                                        Padding="9"
+                                        Margin="0,36,12,0"
+                                        AutomationProperties.LiveSetting="Assertive"
+                                        AutomationProperties.Name="Credible import problem"
+                                        Visibility="{Binding ConsumerImport.HasRefusal, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding ConsumerImport.RefusalMessage}"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap" />
+                                </Border>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,14,0">
                                     <TextBlock Style="{StaticResource LabelStyle}">

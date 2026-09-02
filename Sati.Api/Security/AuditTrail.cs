@@ -46,6 +46,9 @@ internal static class AuditActions
     // Distinct from PersonJournalUpdated so the trail separates an entry the
     // application stamped and placed from a case manager's own free-text edit.
     public const string PersonJournalReminderAdded = "person.journal-reminder-added";
+    // Moving a consumer between caseloads changes who may read a clinical record, so it is
+    // its own action rather than a person.updated with different fields.
+    public const string PersonReassigned = "person.reassigned";
     public const string PersonSsnUpdated = "person.ssn-updated";
     // Recorded on every decryption, separately from the form generation that caused
     // it. An SSN read is a disclosure, and accounting of disclosures needs the read

@@ -93,7 +93,8 @@ public sealed record PersonDto(
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
     string? Email = null,
-    bool IsTestData = false);
+    bool IsTestData = false,
+    string? CredibleClientId = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -144,7 +145,46 @@ public sealed record SavePersonRequest(
     bool CaseManagerIsDhhsRepresentative = false,
     bool UsesModivcare = false,
     string? Email = null,
-    bool IsTestData = false);
+    bool IsTestData = false,
+    string? CredibleClientId = null);
+
+/// <summary>
+/// Moves one consumer to another case manager's caseload.
+///
+/// <para>
+/// <paramref name="ExpectedRevision"/> is not optional in practice: a supervisor distributing an
+/// imported batch and a case manager editing the same consumer's profile are exactly the
+/// concurrent pair this record has to lose to rather than overwrite. A mismatch answers with the
+/// same <c>stale_person</c> conflict a profile save does.
+/// </para>
+/// </summary>
+public sealed record TransferCaseloadRequest(int TargetUserId, int ExpectedRevision);
+
+/// <summary>
+/// Asks which of these Credible client ids the agency already holds.
+///
+/// <para>
+/// A POST rather than a query string on purpose. These are identifiers for real people, and a
+/// query string is the one part of a request that reliably reaches access logs, proxies and
+/// browser history. The body keeps them out of all three.
+/// </para>
+/// </summary>
+public sealed record CredibleClientLookupRequest(IReadOnlyList<string> CredibleClientIds);
+
+/// <summary>
+/// One Credible id the agency already holds.
+///
+/// <para>
+/// Deliberately thin. It answers "already imported?" and nothing else — no person id, no name,
+/// no date of birth. <paramref name="OwnerDisplayName"/> is filled only when the caller could
+/// already see that caseload, so a plain case manager learns that an id is taken without
+/// learning whose consumer it is.
+/// </para>
+/// </summary>
+public sealed record CredibleClientMatchDto(string CredibleClientId, string? OwnerDisplayName);
+
+/// <summary>The consumer's ownership as it stands after a transfer.</summary>
+public sealed record CaseloadOwnershipDto(int PersonId, int UserId, int Revision);
 
 public sealed record PersonContactDto(
     int Id,

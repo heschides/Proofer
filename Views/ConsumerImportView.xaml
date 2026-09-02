@@ -1,0 +1,119 @@
+<UserControl x:Class="Sati.Views.ConsumerImportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             TextElement.FontFamily="{StaticResource AppFont}">
+
+    <UserControl.Resources>
+        <!-- Problem rows are marked by their status TEXT as well as colour; the automation
+             description repeats it, so nothing here is carried by colour alone. -->
+        <Style x:Key="ImportStatusText"
+               TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource SurfaceMutedBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="12"
+            Margin="0,0,0,10">
+        <StackPanel>
+            <TextBlock Text="Review the imported fields"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       AutomationProperties.LiveSetting="Polite"
+                       Margin="0,0,0,8" />
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="Accept all"
+                        Command="{Binding AcceptAllCommand}"
+                        AutomationProperties.Name="Accept every field that was found"
+                        Padding="10,3" Margin="0,0,8,0" />
+                <Button Content="Clear"
+                        Command="{Binding ClearAllCommand}"
+                        AutomationProperties.Name="Clear every accepted field"
+                        Padding="10,3" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding AcceptedLabel}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{Binding Fields}"
+                          AutomationProperties.Name="Fields found in the export">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      IsChecked="{Binding IsAccepted, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanAccept}"
+                                      VerticalAlignment="Top"
+                                      Margin="0,2,8,0"
+                                      AutomationProperties.Name="{Binding AutomationDescription, Mode=OneWay}" />
+
+                            <StackPanel Grid.Column="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding StatusText}"
+                                               Style="{StaticResource ImportStatusText}"
+                                               Margin="8,2,0,0" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Value}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <!-- Shown only when the stored value differs from the cell, so a
+                                     conversion like "(F84.0) Autistic disorder" to "F84.0" is
+                                     visible rather than implied. -->
+                                <TextBlock FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Visibility="{Binding ShowsRawValue, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Run Text="from the export:" />
+                                    <Run Text="{Binding RawValue, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding Source}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Content="Fill the form"
+                        Command="{Binding ApplyCommand}"
+                        AutomationProperties.Name="Fill the client form with the accepted fields"
+                        Style="{StaticResource PrimaryButton}"
+                        Padding="14,4" Margin="0,0,8,0" />
+                <Button Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        AutomationProperties.Name="Discard this import"
+                        Padding="12,4" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

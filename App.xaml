@@ -915,6 +915,9 @@
             <DataTemplate DataType="{x:Type children:ProvidersViewModel}">
                 <views:ProvidersView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type children:ConsumerImportViewModel}">
+                <views:ConsumerImportView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type supervisorVms:TeamOverviewViewModel}">
                 <views:TeamOverviewView />
             </DataTemplate>
@@ -930,6 +933,12 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type supervisorVms:PendingApprovalsViewModel}">
                 <views:PendingApprovalsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:CaseloadDistributionViewModel}">
+                <views:CaseloadDistributionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type supervisorVms:CaseloadImportViewModel}">
+                <views:CaseloadImportView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type adminVms:AdminDashboardViewModel}">
                 <views:AdminDashboardView />

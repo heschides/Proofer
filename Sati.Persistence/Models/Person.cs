@@ -75,6 +75,20 @@ namespace Sati
         // every client has one recorded yet.
         public string? EvergreenId { get; set; }
 
+        // The client's id in the agency's Credible instance, captured when a consumer is
+        // imported from a Credible export. It is the dedupe and idempotency key for import:
+        // re-importing the same export must report rather than duplicate.
+        //
+        // Deliberately bounded rather than left to the nvarchar(max) convention that
+        // EvergreenId and MaineCareId follow. Dedupe wants a filtered unique index on
+        // (AgencyId, CredibleClientId) eventually, and an unbounded column cannot be indexed —
+        // that is what forced Form.Type to be narrowed in a later migration. Bounding it now
+        // costs nothing and leaves that index a one-step change.
+        //
+        // Not unique across agencies: two agencies run separate Credible instances whose ids
+        // collide numerically and mean different people.
+        public string? CredibleClientId { get; set; }
+
         // -------------------------------------------------------------------------
         // Contact & support details
         // -------------------------------------------------------------------------
@@ -586,6 +600,38 @@ namespace Sati
             Id = id,
             UserId = userId
         };
+
+        /// <summary>
+        /// Moves this consumer to another case manager's caseload.
+        ///
+        /// <para>
+        /// A named operation rather than an open setter on <see cref="UserId"/>, which stays
+        /// private precisely so a consumer cannot be reassigned by an ordinary property
+        /// assignment somewhere in a view model. Changing who holds a clinical record is an
+        /// authorization decision, and it should be as hard to do by accident as it is to
+        /// find in a diff.
+        /// </para>
+        ///
+        /// <para>
+        /// This enforces nothing about <i>who</i> may perform the move — that belongs to
+        /// <c>Sati.Contracts.V1.CaseloadTransferRules</c>, which both the API and the
+        /// desktop-local service consult before calling this. The entity's job is only to make
+        /// the mutation deliberate.
+        /// </para>
+        ///
+        /// <para>
+        /// It deliberately does <b>not</b> touch <see cref="Revision"/>. <c>userId</c> is a
+        /// tracked lifecycle field, so <c>PersonLifecycleLedger.RecordChanged</c> already sees
+        /// the move, writes the version row, and bumps the revision. Incrementing here as well
+        /// would advance it twice for one change and hand every other open copy of the record a
+        /// stale token for a transfer that happened once.
+        /// </para>
+        /// </summary>
+        public void TransferTo(int userId)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(userId, 0);
+            UserId = userId;
+        }
 
         public IReadOnlyList<string> EvaluateBillingWindow(
             DateTime noteDate,

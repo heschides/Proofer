@@ -52,6 +52,9 @@ namespace Sati.ViewModels
         // practice and network are derived from the agency directory on every read, and
         // that loading and resolution has nothing to do with the rest of this class.
         public ConsumerProvidersViewModel ConsumerProviders { get; }
+
+        /// <summary>The Credible import review panel. Fills this form; never saves.</summary>
+        public ConsumerImportViewModel ConsumerImport { get; }
         public AgencyReleaseViewModel AgencyRelease { get; }
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
@@ -164,6 +167,8 @@ namespace Sati.ViewModels
 
         [ObservableProperty]
         private string? evergreenId;
+        [ObservableProperty]
+        private string? credibleClientId;
 
         [ObservableProperty]
         private string? phoneNumber;
@@ -567,7 +572,8 @@ namespace Sati.ViewModels
                            DhhsFormsViewModel dhhsForms,
                            AgencyReleaseViewModel agencyRelease,
                            SsnPanelViewModel ssnPanel,
-                           ConsumerProvidersViewModel consumerProviders)
+                           ConsumerProvidersViewModel consumerProviders,
+                           ConsumerImportViewModel consumerImport)
         {
             _personService = personService;
             _sessionService = session;
@@ -583,6 +589,17 @@ namespace Sati.ViewModels
             SsnPanel = ssnPanel;
             AgencyRelease = agencyRelease;
             ConsumerProviders = consumerProviders;
+            ConsumerImport = consumerImport;
+
+            // The review panel hands over accepted values and nothing else; filling the form is
+            // this class's business, and saving stays with Submit.
+            //
+            // Null-checked because several existing tests construct this class with null! for the
+            // child view models they do not exercise. Subscribing unconditionally would make
+            // every one of them fail on a dependency they have no interest in.
+            if (consumerImport is not null)
+                consumerImport.DraftAccepted += ApplyImportedDraft;
+
             PeopleView = CollectionViewSource.GetDefaultView(People);
             PeopleView.Filter = MatchesConsumerFilter;
             _ = LoadHealthcareOptionsSafelyAsync();
@@ -732,6 +749,81 @@ namespace Sati.ViewModels
             IsClientEditorOpen = true;
             ClientWorkspaceTabIndex = 0;
         }
+
+        /// <summary>
+        /// Fills the new-client form from an accepted Credible import.
+        ///
+        /// <para>
+        /// It fills; it does not save. <see cref="Submit"/> remains the only writer, so an
+        /// imported consumer goes through exactly the validation, authorization, versioning and
+        /// audit a typed one does. That is the whole reason import feeds this form rather than
+        /// writing its own record, and it matters most in local Production, where nothing sits
+        /// between this class and the database.
+        /// </para>
+        ///
+        /// <para>
+        /// Only fields the reviewer accepted are present, so anything absent is left as the
+        /// user had it rather than blanked.
+        /// </para>
+        /// </summary>
+        public void ApplyImportedDraft(AcceptedImportDraft draft)
+        {
+            ArgumentNullException.ThrowIfNull(draft);
+            OpenEntryPanel();
+
+            var values = draft.Values;
+            if (values.TryGetValue(CredibleFields.FirstName, out var first)) FirstName = first;
+            if (values.TryGetValue(CredibleFields.LastName, out var last)) LastName = last;
+            if (values.TryGetValue(CredibleFields.MaineCareId, out var maineCare)) MaineCareId = maineCare;
+            if (values.TryGetValue(CredibleFields.DiagnosisCode, out var diagnosis)) DiagnosisCode = diagnosis;
+            if (values.TryGetValue(CredibleFields.PhoneNumber, out var phone)) PhoneNumber = phone;
+            if (values.TryGetValue(CredibleFields.Email, out var email)) Email = email;
+            if (values.TryGetValue(CredibleFields.BillingStreet, out var street)) BillingStreet = street;
+            if (values.TryGetValue(CredibleFields.BillingCity, out var city)) BillingCity = city;
+            if (values.TryGetValue(CredibleFields.BillingState, out var state)) BillingState = state;
+            if (values.TryGetValue(CredibleFields.BillingZip, out var zip)) BillingZip = zip;
+            if (values.TryGetValue(CredibleFields.CredibleClientId, out var clientId))
+                CredibleClientId = clientId;
+            else
+                CredibleClientId = draft.CredibleClientId;
+
+            if (values.TryGetValue(CredibleFields.BirthDate, out var birth) &&
+                DateTime.TryParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var parsedBirthDate))
+            {
+                BirthDate = parsedBirthDate;
+            }
+
+            if (values.TryGetValue(CredibleFields.Gender, out var gender) &&
+                Enum.TryParse<Gender>(gender, ignoreCase: false, out var parsedGender))
+            {
+                Gender = parsedGender;
+            }
+
+            if (values.TryGetValue(CredibleFields.HasGuardian, out var hasGuardian))
+                HasGuardian = string.Equals(hasGuardian, "true", StringComparison.Ordinal);
+
+            var guardianName = string.Join(' ', new[]
+            {
+                values.GetValueOrDefault(CredibleFields.GuardianFirstName),
+                values.GetValueOrDefault(CredibleFields.GuardianLastName)
+            }.Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
+            if (guardianName.Length > 0)
+                GuardianName = guardianName;
+
+            // No effective date, deliberately, and none is offered by the mapper. An imported
+            // effective date silently generates a full compliance cycle for every consumer in a
+            // batch, on the caseload-load path that already struggles; it is set later, by
+            // somebody who knows the case. See CREDIBLE_IMPORT_DESIGN.md.
+
+            // No SSN arrives here, by design. The review panel shows the number the export
+            // carried but will not accept it, because nothing writes it yet — see
+            // ImportFieldViewModel.IsRecordedSeparately. It is typed on the SSN panel after the
+            // consumer is saved, which is the only point at which there is a record to encrypt
+            // it against.
+            ClientSaveErrorMessage = string.Empty;
+        }
+
 
         [RelayCommand]
         private void BeginClientEdit()
@@ -883,6 +975,7 @@ namespace Sati.ViewModels
                 existing.HasGuardian = HasGuardian;
                 existing.GuardianName = GuardianName;
                 existing.EvergreenId = EvergreenId;
+                existing.CredibleClientId = CredibleClientId;
                 existing.PhoneNumber = PhoneNumber; existing.Address = Address;
                 existing.Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim();
                 existing.MaineCareId = MaineCareId;
@@ -950,6 +1043,7 @@ namespace Sati.ViewModels
                 person.HasGuardian = HasGuardian;
                 person.GuardianName = GuardianName;
                 person.EvergreenId = EvergreenId;
+                person.CredibleClientId = CredibleClientId;
                 person.PhoneNumber = PhoneNumber;
                 person.Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim();
                 person.Address = Address;
@@ -1062,6 +1156,7 @@ namespace Sati.ViewModels
             HasGuardian = person.HasGuardian;
             GuardianName = person.GuardianName;
             EvergreenId = person.EvergreenId;
+            CredibleClientId = person.CredibleClientId;
             PhoneNumber = person.PhoneNumber;
             Email = person.Email;
             Address = person.Address; PrimaryCareProvider = person.PrimaryCareProvider;
@@ -1528,6 +1623,7 @@ namespace Sati.ViewModels
             HasGuardian = false;
             GuardianName = string.Empty;
             EvergreenId = string.Empty;
+            CredibleClientId = null;
             PhoneNumber = string.Empty;
             Email = null;
             Address = string.Empty;

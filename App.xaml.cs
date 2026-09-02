@@ -183,6 +183,11 @@ namespace Sati
                         services.AddSingleton<PlatformHealthViewModel>();
                         services.AddTransient<UserManagementViewModel>();
                         services.AddTransient<PendingApprovalsViewModel>();
+                        services.AddTransient<CaseloadDistributionViewModel>();
+                        services.AddTransient<ConsumerImportViewModel>();
+                        services.AddTransient<CaseloadImportViewModel>();
+                        services.AddSingleton<IClientExportReader, CredibleExportReader>();
+                        services.AddSingleton<IExportFilePicker, Sati.Views.ExportFilePicker>();
 
                         // Modal windows and their ViewModels
                         services.AddTransient<LoginWindow>();

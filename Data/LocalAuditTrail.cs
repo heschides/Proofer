@@ -52,6 +52,8 @@ internal static class LocalAuditActions
     public const string IncidentStatusUpdated = "incident-status.updated";
     public const string BillingEdiGenerated = "billing-edi.generated";
     public const string BillingConfigurationUpdated = "billing-configuration.updated";
+    // Mirrors AuditActions.PersonReassigned on the API side.
+    public const string PersonReassigned = "person.reassigned";
     public const string PersonSsnUpdated = "person.ssn-updated";
     // A read is the disclosure, so it is recorded separately from whatever document
     // occasioned it. Mirrors AuditActions.PersonSsnDecrypted on the API side.

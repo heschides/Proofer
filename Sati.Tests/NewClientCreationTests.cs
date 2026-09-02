@@ -141,6 +141,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             null!,
+            null!,
             null!)
         {
             FirstName = "Jamie",
@@ -422,6 +423,7 @@ public sealed class NewClientCreationTests
             null!,
             null!,
             null!,
+            null!,
             null!);
     }
 
@@ -458,6 +460,11 @@ public sealed class NewClientCreationTests
         public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
         public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
             throw new NotSupportedException();
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
     }
 
     private sealed class CountingPersonService : IPersonService
@@ -479,6 +486,11 @@ public sealed class NewClientCreationTests
         public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
         public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
             throw new NotSupportedException();
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds) =>
+            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
     }
 
     private sealed class RecordingIncidentReporter : IIncidentReporter

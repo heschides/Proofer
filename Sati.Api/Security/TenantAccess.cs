@@ -32,13 +32,31 @@ internal static class TenantAccess
         if (!actor.HasSupervisorPermissions)
             return false;
 
-        return await db.Users.AsNoTracking().AnyAsync(
-            user => user.Id == targetUserId &&
-                    user.AgencyId == actor.AgencyId &&
-                    (user.Permissions & Sati.Contracts.V1.UserPermissions.CaseManagement) != 0 &&
-                    (actor.HasAgencyWideSupervisionPermissions ||
-                     user.SupervisorId == actor.UserId),
-            cancellationToken);
+        var target = await LoadParticipantAsync(db, targetUserId, cancellationToken);
+        return target is not null &&
+               CaseloadTransferRules.CanReachCaseloadOf(actor.ToAgencyActor(), target.Value);
+    }
+
+    /// <summary>
+    /// One user's caseload-authorization facts, or null if no such user exists.
+    ///
+    /// <para>
+    /// Projected rather than loaded whole so a password hash and salt never enter memory for a
+    /// question that does not need them.
+    /// </para>
+    /// </summary>
+    public static async Task<CaseloadParticipant?> LoadParticipantAsync(
+        ApiDbContext db,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await db.Users.AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new CaseloadParticipant(
+                user.Id, user.AgencyId, user.Permissions, user.SupervisorId))
+            .ToListAsync(cancellationToken);
+
+        return rows.Count == 1 ? rows[0] : null;
     }
 
     public static Task<bool> OwnsPersonAsync(
