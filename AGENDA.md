@@ -197,6 +197,8 @@ removed it immediately after migration. The allow-list was verified afterward as
       `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
       Destination hashes and checksum contents match the accepted artifacts; no existing file was
       overwritten and no publication temporary file remains.
+- [x] Release evidence commit `da66977` pushed. The checklist-closing commit was then pushed and
+      final local `master` confirmed equal to `origin/master`.
 
 ### Branches
 - [x] `master` and `origin/master` began at `cd22dda`; remote default confirmed as `master`.
