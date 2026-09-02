@@ -198,6 +198,20 @@ key against an older server.
       `claude/local-vs-github-workflow-dlcqpb` (1 unique commit): both hold work unrelated to this
       release.
 
+### Landed after publication - NOT in the 1.2.38 artifacts
+- `7c7d92b` added a `ScrollViewer` to the supervisor dashboard toolbar and a
+  `ReleaseUiStructureTests` assertion covering both dashboards. It was written while chasing a
+  reported "the bulk import option is missing", which turned out to be nobody's bug: the option
+  was on the Supervisor tab, where it is designed to be, and was simply not where it was being
+  looked for.
+- The change is still worth keeping. The toolbar was a bare horizontal `StackPanel`, which clips
+  silently once its children exceed the window width, and it had gained two entries in this
+  release with no guard.
+- **It is not in the published installers.** Source at 1.2.38 now produces different bytes than
+  `SatiDemoSetup-1.2.38.exe` and `SatiLocalSetup-1.2.38.exe`. Nothing was overwritten and the
+  published artifacts remain the accepted ones; this note exists so that a later build from
+  `master` calling itself 1.2.38 is not mistaken for them. It ships in the next release.
+
 ### Known gaps shipped deliberately
 - An SSN in an export is shown and refused rather than saved. Nothing writes an imported SSN yet;
   the row says so instead of appearing to capture it. See `CREDIBLE_IMPORT_DESIGN.md`.
