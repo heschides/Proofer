@@ -10,8 +10,8 @@
       refresh the Consumers workspace after Settings closes.
 - [x] Carry both assignments through shared validation, Local and API saves, optimistic
       concurrency, immutable person versions, and audit history.
-- [ ] Apply `AddVocationalRehabilitationAssignments` to hosted Demo through the controlled
-      migration path during a release.
+- [x] Applied `AddVocationalRehabilitationAssignments` to hosted Demo through the controlled
+      migration path in release 1.2.39.
 
 ## Existing-profile Credible updates — 2026-09-02
 
@@ -23,8 +23,8 @@
       or declined fields and every Sati-only field.
 - [x] Keep bulk folder matches report-and-skip. Bulk replacement remains a separate, deferred
       workflow requiring recovery and batch-audit design.
-- [ ] Apply `AddCredibleProfileUpdateSetting` to hosted Demo through the controlled migration path
-      during a release. Do not apply it from a workstation without the documented firewall process.
+- [x] Applied `AddCredibleProfileUpdateSetting` to hosted Demo through the controlled migration
+      path in release 1.2.39, using the documented user-managed exact-IP firewall process.
 
 ## Duplicate compliance form rows — 2026-09-01
 
@@ -151,19 +151,52 @@ removed it immediately after migration. The allow-list was verified afterward as
       0 columns and 0 history rows, proving idempotency; no blank VR assistant titles were found.
 - [x] `datt-workstation-temp` removed by Josh and verified absent. The SQL allow-list contains only
       `sati-demo-api-outbound-01` through `-03`.
-- [ ] Source commit and evidence commit identifiers.
-- [ ] API ZIP path, size, SHA-256, package inspection, deployment identifier, and publication result.
-- [ ] `/health/live`, `/health/ready`, `/health/version`, and contract-revision parity.
+- [x] Source commits `8a5cc185c1de495b016baad1595ca9cbdaaaf700` and
+      `cb061a3b8c265b10bd7d9bd9b2e56d6e3805b07f` pushed to `origin/master`. The latter adds the
+      compatibility fingerprints for the two persistence-relevant contract changes discovered
+      during final package inspection.
+- [x] Built
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\Sati.Api-1.2.39.zip`
+      from `cb061a3b8c265b10bd7d9bd9b2e56d6e3805b07f` (9,673,491 bytes; SHA-256
+      `4FC0373B5CC8E2DBD931ECED175B2FE0368F770A96FC2C7A589FEA7E729FD08A`; 70 entries). Package
+      inspection found 0 backslash paths, 0 forbidden configuration/key files, and both required
+      Demo history-reconciliation WebJob files. Published only to existing Demo App Service
+      `sati-demo-api-satilogica` in `rg-sati-demo`; OneDeploy deployment
+      `e45f97e926824f96ba3de82247b47f4a` completed successfully.
+- [x] Hosted `/health/live` and `/health/ready` returned healthy. `/health/version` reported
+      product `Sati.Api`, release `1.2.39`, and contract revision `E807EDE42231`, exactly matching
+      the packaged client/API contract. Readiness therefore also confirmed that
+      `SchemaDriftHealthCheck` accepted the migrated Demo schema. Health-only evidence is
+      `artifacts/release-1.2.39-demo-readiness.json`; authenticated Admin checks were explicitly
+      skipped because this workstation has no designated `SATI_DEMO_USERNAME` / password.
 
 ### Local Production machines
 - [x] Both known Local Production machines are on 1.2.38 before release, confirmed by Josh.
 - [ ] Record each machine after it launches 1.2.39 and applies the pending migrations locally.
 
 ### Artifacts
-- [ ] Demo installer path, byte size, SHA-256, five-launch acceptance, version, and cleanup.
-- [ ] Local installer path, byte size, SHA-256, LocalDB signature, integrated-security check,
-      acceptance, and cleanup.
-- [ ] Verified Local and Demo distribution paths and hashes.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.39.exe`
+      (100,909,056 bytes; SHA-256
+      `D0E9101FCBEBAFF70338F433453664A2EAC13D08438A726160C80AF04B1688D0`). All five installed
+      launches reached a responsive sign-in window, closed normally with exit code 0, reported
+      version 1.2.39.0, and isolated cleanup passed. Evidence is
+      `artifacts/release-1.2.39-demo-installer-acceptance.json`; this is a same-machine acceptance,
+      not a clean external-machine attestation.
+- [x] Generated and accepted
+      `C:\Users\SatiLogica\source\repos\heschides\Sati\artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.39.exe`
+      (203,245,322 bytes; SHA-256
+      `989C0D83B5E45135049ADBA3F676B3357F40BB3150961CAE513214D2194A0387`). Version 1.2.39.0,
+      Windows integrated security, and isolated cleanup passed. Embedded `SqlLocalDB.msi`
+      (SHA-256 `224D483992EF60368DAC70CEA174DCFAF43A3CA06ADA331C67DC6119A26490F6`) had a valid Microsoft
+      Corporation Authenticode signature before use. The generated installers themselves are not
+      represented as code-signed.
+- [x] Published both accepted installers and only their `.sha256` files through uniquely named,
+      hash-verified temporary siblings to
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop` and
+      `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files`.
+      Destination hashes and checksum contents match the accepted artifacts; no existing file was
+      overwritten and no publication temporary file remains.
 
 ### Branches
 - [x] `master` and `origin/master` began at `cd22dda`; remote default confirmed as `master`.
