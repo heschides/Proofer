@@ -92,17 +92,20 @@ public sealed class ImportedDraftApplicationTests
         Assert.True(string.IsNullOrEmpty(model.EffectiveDateText));
     }
 
-    // The demographic save must not carry an SSN, and it cannot be applied before the consumer
-    // exists: the value is encrypted against the person's id and agency as additional
-    // authenticated data, so there is nothing to bind it to yet.
+    // An accepted draft cannot carry an SSN — the review panel will not accept one, because
+    // nothing writes it yet. This pins the receiving end: no field of the form takes a value
+    // that looks like a Social Security number out of an import.
     [Fact]
-    public void TheSsnIsHeldApartFromTheFormRatherThanFilledIn()
+    public void NoFormFieldIsFilledWithAnSsn()
     {
         var model = CreateViewModel(new CountingPersonService());
 
         model.ApplyImportedDraft(Draft());
 
-        Assert.Equal("000001800", model.PendingImportedSsn);
+        Assert.NotEqual("000001800", model.MaineCareId);
+        Assert.NotEqual("000001800", model.EvergreenId);
+        Assert.NotEqual("000001800", model.CredibleClientId);
+        Assert.NotEqual("000001800", model.DiagnosisCode);
     }
 
     // Only accepted fields are present in the draft, so a field the reviewer declined must not
@@ -115,7 +118,6 @@ public sealed class ImportedDraftApplicationTests
 
         model.ApplyImportedDraft(new AcceptedImportDraft(
             new Dictionary<string, string> { [CredibleFields.FirstName] = "CREDIBLE" },
-            Ssn: null,
             CredibleClientId: null));
 
         Assert.Equal("CREDIBLE", model.FirstName);
@@ -156,7 +158,6 @@ public sealed class ImportedDraftApplicationTests
                 [CredibleFields.BillingZip] = "20850",
                 [CredibleFields.CredibleClientId] = "21864",
             },
-            Ssn: "000001800",
             CredibleClientId: "21864");
 
     private static NewClientViewModel CreateViewModel(IPersonService personService)

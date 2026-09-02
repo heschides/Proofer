@@ -162,10 +162,27 @@ public sealed class ConsumerImportViewModelTests : IDisposable
         Assert.False(handed.Values.ContainsKey(CredibleFields.LastName));
     }
 
-    // The demographic save must never carry an SSN. It is pulled out of the value set the entry
-    // form receives and held on its own, for the SSN route to apply once the consumer exists.
+    // Nothing writes an SSN yet, so the panel must not imply that accepting one does anything.
+    // Showing the number ticked and then discarding it is worse than not offering it: it tells a
+    // case manager the number was captured when nothing was written.
     [Fact]
-    public async Task TheSsnIsHandedOverSeparatelyAndNeverAmongTheFormValues()
+    public async Task TheSsnIsShownButCannotBeAccepted()
+    {
+        var model = Build();
+
+        await model.LoadAsync(WriteExport(Markup()));
+
+        var ssn = Field(model, CredibleFields.Ssn);
+        Assert.Equal("000001800", ssn.Value);
+        Assert.False(ssn.CanAccept);
+        Assert.False(ssn.IsAccepted);
+        Assert.Contains("SSN panel", ssn.StatusText);
+    }
+
+    // Even Accept All must not pick it up, and nothing must reach the form that fills a
+    // demographic save.
+    [Fact]
+    public async Task TheSsnNeverReachesTheAcceptedValuesEvenWhenAcceptingEverything()
     {
         var model = Build();
         AcceptedImportDraft? handed = null;
@@ -176,8 +193,8 @@ public sealed class ConsumerImportViewModelTests : IDisposable
         model.ApplyCommand.Execute(null);
 
         Assert.NotNull(handed);
-        Assert.Equal("000001800", handed.Ssn);
         Assert.False(handed.Values.ContainsKey(CredibleFields.Ssn));
+        Assert.DoesNotContain("000001800", string.Join("|", handed.Values.Values));
     }
 
     [Fact]

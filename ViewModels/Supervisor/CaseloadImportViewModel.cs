@@ -73,10 +73,17 @@ namespace Sati.ViewModels.Supervisor
         }
     }
 
-    /// <summary>The mapped values one file yielded, with the SSN kept out of the demographic set.</summary>
+    /// <summary>
+    /// The mapped values one file yielded.
+    ///
+    /// <para>
+    /// Carries no SSN. Bulk import cannot write one — the value is encrypted against the
+    /// consumer's id, which does not exist until the record is created — so the number is read
+    /// past and dropped rather than held on a view model with no use for it.
+    /// </para>
+    /// </summary>
     public sealed record AcceptedImportDraftValues(
         IReadOnlyDictionary<string, string> Values,
-        string? Ssn,
         string? CredibleClientId);
 
     /// <summary>
@@ -301,7 +308,8 @@ namespace Sati.ViewModels.Supervisor
                 .Where(field => field.Status == CredibleFieldStatus.Mapped && field.Value is not null)
                 .ToDictionary(field => field.SatiField, field => field.Value!, StringComparer.Ordinal);
 
-            values.Remove(CredibleFields.Ssn, out var ssn);
+            // Read past and dropped: nothing here can write it.
+            values.Remove(CredibleFields.Ssn);
             values.TryGetValue(CredibleFields.CredibleClientId, out var clientId);
             clientId ??= draft.CredibleClientId;
 
@@ -326,7 +334,7 @@ namespace Sati.ViewModels.Supervisor
                 name,
                 BulkImportDisposition.Ready,
                 detail,
-                new AcceptedImportDraftValues(values, ssn, clientId));
+                new AcceptedImportDraftValues(values, clientId));
         }
 
         /// <summary>

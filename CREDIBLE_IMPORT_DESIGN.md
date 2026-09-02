@@ -607,9 +607,13 @@ Steps 1–2 stand on their own merits — staff turnover and caseload rebalancin
 >       application frameset, and the options page.
 > - [ ] Write the operator-facing export procedure into the onboarding material: sections to tick,
 >       Hide Empty Profile Fields off, and save as HTML rather than print to PDF.
-> - [x] Single-consumer import button and field-level review screen. The SSN is held on
->       `NewClientViewModel.PendingImportedSsn`; wiring it through `SsnPanel` after the save
->       completes is still outstanding.
+> - [x] Single-consumer import button and field-level review screen.
+> - [ ] Write an imported SSN. The review panel shows the number the export carries and refuses
+>       to accept it, because the value is encrypted against a consumer id that does not exist
+>       until the record is saved. Nothing carries it in the meantime — an always-null field is
+>       a guard that does nothing. Wiring it means applying it through the SSN route immediately
+>       after `Submit` succeeds, with an honest story for the case where the consumer is created
+>       and the SSN write then fails.
 > - [ ] Bulk folder import: dry-run report, then sequential commit. Document hashes, not filenames.
 > - [ ] Add `person.imported` and `caseload-import.completed` to `AUDIT_EVENTS.md`, and add
 >       filenames to its forbidden-metadata list. **Not done** — an imported consumer currently

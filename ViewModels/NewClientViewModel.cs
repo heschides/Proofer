@@ -816,24 +816,14 @@ namespace Sati.ViewModels
             // batch, on the caseload-load path that already struggles; it is set later, by
             // somebody who knows the case. See CREDIBLE_IMPORT_DESIGN.md.
 
-            // The SSN never rides the demographic save. It is held for the reviewer to apply
-            // through the SSN panel once the consumer exists and has an id to encrypt against.
-            PendingImportedSsn = draft.Ssn;
-
+            // No SSN arrives here, by design. The review panel shows the number the export
+            // carried but will not accept it, because nothing writes it yet — see
+            // ImportFieldViewModel.IsRecordedSeparately. It is typed on the SSN panel after the
+            // consumer is saved, which is the only point at which there is a record to encrypt
+            // it against.
             ClientSaveErrorMessage = string.Empty;
         }
 
-        /// <summary>
-        /// An SSN carried in from an import, waiting for the consumer to be saved.
-        ///
-        /// <para>
-        /// It cannot be applied before then: the value is encrypted against the person's id and
-        /// agency as additional authenticated data, so there is nothing to bind it to until the
-        /// record exists. Held here rather than pushed into the demographic form, which must
-        /// never carry it.
-        /// </para>
-        /// </summary>
-        public string? PendingImportedSsn { get; private set; }
 
         [RelayCommand]
         private void BeginClientEdit()

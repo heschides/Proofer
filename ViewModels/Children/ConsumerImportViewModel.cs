@@ -24,17 +24,39 @@ namespace Sati.ViewModels.Children
             DisplayName = displayName;
             // Only a converted value can be accepted. Everything else is shown so the reviewer
             // knows what was NOT brought across, which is the point of listing it at all.
-            isAccepted = draft.Status == CredibleFieldStatus.Mapped;
+            isAccepted = CanAccept;
         }
 
         public CredibleFieldDraft Draft { get; }
         public string DisplayName { get; }
 
         public string SatiField => Draft.SatiField;
+
+        /// <summary>
+        /// The SSN is read out of the export and shown, but cannot be accepted into the form.
+        ///
+        /// <para>
+        /// It is encrypted against the consumer's id and agency as additional authenticated data,
+        /// so there is nothing to bind it to until the record exists — and the demographic save
+        /// must never carry it regardless. Applying it automatically after the save is the right
+        /// answer and is not built; see <c>CREDIBLE_IMPORT_DESIGN.md</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// Until it is, the row says so. An earlier version showed the number ticked and accepted
+        /// and then discarded it, which is worse than not offering it at all: it tells a case
+        /// manager the number was captured when nothing was written.
+        /// </para>
+        /// </summary>
+        public bool IsRecordedSeparately =>
+            string.Equals(SatiField, CredibleFields.Ssn, StringComparison.Ordinal);
+
         public string? Value => Draft.Value;
         public string? RawValue => Draft.RawValue;
         public string Source => $"{Draft.Section} / {Draft.Label}";
-        public bool CanAccept => Draft.Status == CredibleFieldStatus.Mapped;
+
+        public bool CanAccept =>
+            Draft.Status == CredibleFieldStatus.Mapped && !IsRecordedSeparately;
 
         // Shown when the converted value differs from what the cell held, so the conversion is
         // visible rather than implied.
@@ -43,12 +65,15 @@ namespace Sati.ViewModels.Children
 
         [ObservableProperty] private bool isAccepted;
 
-        public string StatusText => Draft.Status switch
+        public string StatusText => (IsRecordedSeparately, Draft.Status) switch
         {
-            CredibleFieldStatus.Mapped => "Found",
-            CredibleFieldStatus.Blank => "Empty in the export",
-            CredibleFieldStatus.LabelMissing => "Not in this export",
-            CredibleFieldStatus.SectionMissing => "Section not exported",
+            (true, CredibleFieldStatus.Mapped) =>
+                "In the export — type it on the SSN panel after saving",
+            (true, _) => "Not in this export",
+            (_, CredibleFieldStatus.Mapped) => "Found",
+            (_, CredibleFieldStatus.Blank) => "Empty in the export",
+            (_, CredibleFieldStatus.LabelMissing) => "Not in this export",
+            (_, CredibleFieldStatus.SectionMissing) => "Section not exported",
             _ => "Could not be read"
         };
 
@@ -61,16 +86,19 @@ namespace Sati.ViewModels.Children
             $"{DisplayName}. {StatusText}. {(Value is null ? "No value" : Value)}. From {Source}.";
     }
 
-    /// <summary>Everything the reviewer accepted, ready to fill the new-client form.</summary>
+    /// <summary>
+    /// Everything the reviewer accepted, ready to fill the new-client form.
+    ///
+    /// <para>
+    /// Carries no SSN. The number is read from the export and shown, but is not acceptable and is
+    /// not carried anywhere: nothing writes it yet, and holding a Social Security number on a view
+    /// model that has no use for it is PHI kept for no reason. When the SSN write path is built it
+    /// gets its own field here.
+    /// </para>
+    /// </summary>
     /// <param name="Values">Accepted field values, keyed by <see cref="CredibleFields"/> name.</param>
-    /// <param name="Ssn">
-    /// Held apart from <paramref name="Values"/> deliberately. The demographic save must not
-    /// carry an SSN — it goes through the SSN route, which encrypts it and audits the write
-    /// without the value.
-    /// </param>
     public sealed record AcceptedImportDraft(
         IReadOnlyDictionary<string, string> Values,
-        string? Ssn,
         string? CredibleClientId);
 
     /// <summary>
@@ -233,14 +261,14 @@ namespace Sati.ViewModels.Children
                 .Where(field => field.IsAccepted && field.Value is not null)
                 .ToDictionary(field => field.SatiField, field => field.Value!, StringComparer.Ordinal);
 
-            // Pulled out rather than left in the dictionary: whatever fills the demographic form
-            // must never be handed an SSN.
-            accepted.Remove(CredibleFields.Ssn, out var ssn);
+            // Belt and braces: the SSN is already unacceptable, so it cannot be in here. Removed
+            // anyway, because whatever fills the demographic form must never be handed one and
+            // that must not depend on a check made somewhere else.
+            accepted.Remove(CredibleFields.Ssn);
             accepted.TryGetValue(CredibleFields.CredibleClientId, out var clientId);
 
             DraftAccepted?.Invoke(new AcceptedImportDraft(
                 accepted,
-                ssn,
                 clientId ?? _draft?.CredibleClientId));
 
             IsOpen = false;
