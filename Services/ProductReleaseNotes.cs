@@ -6,31 +6,39 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Sati starts again";
+    public const string ReleaseName = "Bring a caseload with you";
     public const string ReleaseDate = "September 1, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "Fixes a 1.2.36 install that would not open",
+            "Start a consumer from a Credible export",
             [
-                "Sati 1.2.36 stopped at startup on computers using a local database, reporting that part of its update was already present. Nothing was written and no records were changed; the check that stops a risky update was reading one step incorrectly.",
-                "That check now recognises the step properly, and the update proceeds normally: back up, tidy duplicate compliance records, then update.",
-                "If a computer is still on 1.2.36 and will not open, installing 1.2.37 resolves it. Nothing needs to be undone first."
+                "The Add Client form has a From Credible button. Point it at a client's print view saved from Credible and Sati fills the form in for you.",
+                "Nothing is saved until you press Add Client, exactly as when you type a client in by hand. Before that you see every field Sati found, what the export actually said, and which section of the export it came from, and you can untick anything you do not want.",
+                "Fields Sati could not use are listed too, so you can see what did not come across rather than having to notice its absence.",
+                "Save the print view as a web page. A printed PDF loses which value belongs to which field, so Sati refuses one and says so."
             ]),
         new(
-            "Everything from 1.2.36 arrives with this release",
+            "Import a whole caseload during onboarding",
             [
-                "A completed 90-day review that kept appearing in the billing alert, because the client held three copies of the same record and only one was completed. Duplicates are merged on first launch, with an audit entry for every row removed, and the database now refuses to store a second copy.",
-                "A form is complete when it has a completion date. The separate complete/not-complete marker is gone, so the two can no longer disagree.",
-                "Compliance records are generated for every annual cycle from a client's effective date onward. Closed years are left open rather than assumed complete."
+                "Supervisors have an Import from Credible screen. Choose a folder of saved print views and Sati reads all of them and reports what it found before creating anything.",
+                "The report says how many are ready, how many are already in Sati, and which files it could not read. Nothing is written until you say so.",
+                "A consumer already in your agency is listed and skipped, never merged into. Running the same folder twice does not create duplicates.",
+                "The exports stay on your computer. Sati reads them where they are and never uploads them."
             ]),
         new(
-            "What to expect on the first launch after updating",
+            "Hand consumers to a case manager",
             [
-                "The first launch on a computer holding real records takes noticeably longer. Sati backs the database up, merges duplicate compliance records, and applies both schema updates before the sign-in window appears.",
-                "Quarterly reviews previously tracked only through review evidence, and historical years on any client entered with a backdated effective date, may appear open. Review them individually; do not bulk-close them or supply guessed dates.",
-                "If anything is wrong, Sati stops before writing and names the backup rather than starting against a half-updated database."
+                "Imported consumers land on your own caseload first. A new Distribute caseload screen moves them to the case managers you supervise, several at a time.",
+                "Each consumer moves on its own, so one that cannot be moved does not stop the rest, and you are told which and why.",
+                "Imported consumers arrive without an effective date, so no compliance records are generated for them yet. Set the effective date when the case manager who will carry the consumer picks them up."
+            ]),
+        new(
+            "What this release does not do yet",
+            [
+                "A Social Security number in an export is shown but not saved. Type it on the SSN panel after the consumer is created; Sati says so on the row rather than appearing to take it.",
+                "Only demographics, diagnosis, insurance identifiers and guardian details are read. Notes, medications, treatment plans and authorizations in an export are ignored."
             ]),
         new(
             "Still planned before commercial production",

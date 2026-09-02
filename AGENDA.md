@@ -90,6 +90,73 @@ each quarter, per client.
       board). So a Comprehensive Assessment completed on a date that is neither cannot be
       recorded truthfully without a database edit.
 
+## Release 1.2.38 — 2026-09-01
+
+"Bring a caseload with you." Credible export import — single consumer and bulk folder — plus the
+caseload ownership transfer and supervisor distribution screen it depends on. Designed in
+`CREDIBLE_IMPORT_DESIGN.md`; all six sequencing steps built and tested.
+
+**A schema-changing release.** Migration `20260901232228_AddPersonCredibleClientId` adds
+`People.CredibleClientId` (`nvarchar(32)`, nullable). Additive, no backfill, no data transformation.
+It is the dedupe key for import: re-running a folder must report rather than duplicate. Bounded
+rather than following the `nvarchar(max)` convention `EvergreenId` and `MaineCareId` use, so a
+future filtered unique index on `(AgencyId, CredibleClientId)` does not need a narrowing migration
+first — the mistake `Form.Type` had to be corrected for.
+
+**Authorization.** Invoked with the literal `invoke DATT!`. The Demo migration was authorized
+explicitly by Josh after the preflight report named it, and the temporary
+`datt-workstation-temp` SQL firewall rule for `72.95.106.10` was added by Josh. A general "I defer
+to your opinion" earlier in the same conversation was deliberately **not** treated as authorization
+for either — see `AGENTS.md` section 5.
+
+**New dependency.** AngleSharp 1.7.2, for reading saved Credible print views. Pure managed, no
+native components; the Local installer acceptance gate is what proves it packages onto a clean
+machine.
+
+**New API routes.** `PUT /api/v1/people/{personId}/owner` and
+`POST /api/v1/people/credible-matches`. Both recorded in `API_AUTHORIZATION.md`; the route
+inventory moves from 114 to 116. `SavePersonRequest` gained `CredibleClientId`, recorded as
+contract shape `person-credible-client-id-v1`, so a newer client cannot silently lose the dedupe
+key against an older server.
+
+### Validation
+- [x] Release build of the full solution: 0 errors, 10 warnings.
+- [x] Sati desktop/domain tests: 1,126 passed, 1 skipped
+      (`LocalAiModelCompetenceTests.ConfiguredModelCompletesGroundedWorkflowAcrossRepresentativeCurrentNoteInputs`
+      — the `SATI_RUN_LOCAL_AI_MODEL_EVAL` on-device model evaluation, a documented opt-in whose
+      prerequisite is genuinely absent).
+- [x] Sati API integration tests: 324 passed. Carika tests: 4 passed.
+- [x] `git diff --check` clean.
+
+### Demo deployment
+- [x] Temporary `datt-workstation-temp` firewall rule added by Josh for `72.95.106.10`.
+- [x] `SatiDemo` reachable and confirmed as `EnvironmentName = Demo`, with
+      `People.CredibleClientId` absent and no `__EFMigrationsHistory` row — a clean starting state.
+- [ ] Controlled Demo migration applied through an existence-guarded script: rollback-only dry run,
+      then for real, then once more to prove idempotency.
+- [ ] `datt-workstation-temp` removed by Josh immediately after the migration and verified absent.
+- [ ] API ZIP hash, deployment identifier.
+- [ ] `/health/live`, `/health/ready`, `/health/version`, contract revision parity.
+
+### Local Production machines
+- [ ] Both machines and the release each is on. Awaiting Josh. The desktop applies pending
+      migrations at launch, so a machine not opened since the last release has not received it.
+
+### Artifacts
+- [ ] Demo installer name, size, SHA-256, acceptance result, distribution path.
+- [ ] Local installer name, size, SHA-256, acceptance result, distribution path.
+
+### Known gaps shipped deliberately
+- An SSN in an export is shown and refused rather than saved. Nothing writes an imported SSN yet;
+  the row says so instead of appearing to capture it. See `CREDIBLE_IMPORT_DESIGN.md`.
+- No `person.imported` audit action. An imported consumer records `person.created`, which is
+  accurate; the gap is granularity, and closing it needs a contract change to answer a question
+  nobody has asked yet.
+- Bulk import and the distribution screen had not been exercised by a person before this release
+  pass; both are checked by hand against Demo before installers are published.
+
+---
+
 ## Release 1.2.37 — 2026-09-01
 
 "Sati starts again." A one-defect release fixing the 1.2.36 startup refusal described below, and
