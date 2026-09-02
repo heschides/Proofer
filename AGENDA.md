@@ -82,7 +82,8 @@ version.
         and its `.sha256`
 
       Both published hashes are identical to the accepted build artifacts.
-- [ ] Record the final evidence commit, its push, and clean equality with `origin/master`.
+- [x] Evidence commit `4cef43e75c6ee64ba8cc67523f5e7b967f321313` pushed to `origin/master`. The
+      working tree is clean and local `master` equals `origin/master`.
 
 ### Local Production machines
 
