@@ -96,9 +96,15 @@ no feature branch to merge.
       `0875b2389ab7cf2234ccad29c949e0e5b62c8a5f68d58e717ad2379daf2a9419`). Acceptance passed:
       installed version `1.2.41.0`, `integratedSecurity=True` with no SQL credentials in the Local
       configuration, cleanup passed. Generated installers are not code-signed.
-- [ ] Publish both installers and checksums to the distribution folders and verify hashes. Held
-      back deliberately: the request was to generate the installers, and publishing copies them
-      into the shared documents folders where other people pick them up.
+- [x] Published both installers and their `.sha256` files. Each was copied to a uniquely named
+      temporary sibling, hash-verified, renamed to the final versioned name, and verified again.
+      No destination file was overwritten and no temporary file remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.41.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.41.exe`
+        and its `.sha256`
+
+      Both published hashes were re-compared against the accepted build artifacts and match.
 - [ ] Decide whether to publish the Demo API at 1.2.41. Not required for compatibility; the
       readiness gate reports a version mismatch until it happens.
 - [ ] Consolidate `EasyEyesPreferenceService` and `IdleLockPreferenceService` onto one personal
