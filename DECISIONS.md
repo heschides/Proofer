@@ -2774,3 +2774,15 @@ gate considers satisfied.
 
 The existing tests missed this because they drove the panel with a stub event service. They proved
 the panel reacted; nothing proved the real generator ever produced anything.
+
+## The API package must be zipped by .NET 10, not by Windows PowerShell (2026-09-03)
+
+`ZipFile.CreateFromDirectory` running under Windows PowerShell 5.1 writes entry names with
+backslashes, because it is the .NET Framework implementation. App Service extracts those literally,
+producing a file named `App_Data\jobs\triggered\...` instead of the nested path, which silently
+costs the package its WebJob. The 1.2.41 package was built that way once, caught by the entry
+inspection, and discarded before it reached Azure.
+
+The packaging step now runs under .NET 10 and normalizes every entry name to a forward slash, and
+the backslash count is asserted rather than assumed. That check was already in the release
+evidence for a reason; this is the failure it was written for.

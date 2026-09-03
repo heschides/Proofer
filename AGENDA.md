@@ -105,8 +105,29 @@ no feature branch to merge.
         and its `.sha256`
 
       Both published hashes were re-compared against the accepted build artifacts and match.
-- [ ] Decide whether to publish the Demo API at 1.2.41. Not required for compatibility; the
-      readiness gate reports a version mismatch until it happens.
+- [x] Published the Demo API at 1.2.41. **No firewall rule was requested, added, or removed.** The
+      temporary exact-IP rule exists only to reach `SatiDemo` from a workstation for a controlled
+      migration; this release adds no migration, and `az webapp deploy` never touches SQL. That
+      distinction is the 2026-08-30 decision in `DECISIONS.md`. The allow-list was checked
+      afterwards and still holds exactly `sati-demo-api-outbound-01` through `-03`.
+- [x] `artifacts/Sati.Api-1.2.41.zip` (9,673,370 bytes; SHA-256
+      `E88087B5DBFA1A5F5B053217CABD9D4FFE5EF5F44543907239AB62B5B0234D23`; 70 entries). The packaged
+      `Sati.Api.dll` reports `1.2.41+d1802ed4fea1ebc8728540c768faa248acff00f0`. Inspection found 0
+      backslash paths, 0 forbidden configuration or key files, no `appsettings*.json`, and both
+      `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files.
+- [x] The first packaging attempt was discarded unpublished. `ZipFile.CreateFromDirectory` under
+      Windows PowerShell 5.1 wrote 20 backslash entry names, which App Service would extract as
+      files literally called `App_Data\jobs\...`. The package is now built under .NET 10 with entry
+      names normalized to forward slashes, and the count is asserted before use.
+- [x] OneDeploy deployment `5b1c29fdd16f4ccaa3823b6d2130844b` completed successfully to the
+      existing Demo App Service `sati-demo-api-satilogica` in `rg-sati-demo`.
+- [x] `/health/live` returned `{"status":"live"}`, `/health/ready` returned `Healthy`, and
+      `/health/version` reported product `Sati.Api`, release `1.2.41`, contract revision
+      `E807EDE42231` — unchanged, and equal to the client's `ApiSurface.Revision`. A healthy
+      readiness result also means `SchemaDriftHealthCheck` accepted the deployed schema, which is
+      the direct confirmation that no migration was owed. Evidence:
+      `artifacts/release-1.2.41-demo-readiness.json`; authenticated Admin checks were skipped
+      because this workstation has no designated `SATI_DEMO_USERNAME` and password.
 - [ ] Consolidate `EasyEyesPreferenceService` and `IdleLockPreferenceService` onto one personal
       preference store. Two near-identical file-IO implementations is one too many.
 
