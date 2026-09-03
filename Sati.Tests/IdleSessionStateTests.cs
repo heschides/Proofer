@@ -1,3 +1,4 @@
+using System.IO;
 using Sati.Services;
 using Sati.ViewModels;
 using Xunit;
@@ -138,5 +139,26 @@ public sealed class IdleSessionStateTests
 
         Assert.Equal(0, changes);
         Assert.True(state.IsOverlayVisible);
+    }
+
+    // The suggested-follow-up row was fully built and simply never surfaced. This ties
+    // the overlay's binding string to the members it names, so a rename cannot leave
+    // ShellWindow bound to a property that no longer exists.
+    [Fact]
+    public void TheShellBindingPathNamesRealMembers()
+    {
+        var idle = typeof(Sati.ViewModels.ShellViewModel).GetProperty("Idle");
+        Assert.NotNull(idle);
+        Assert.Equal(typeof(IdleSessionState), idle!.PropertyType);
+
+        var visible = idle.PropertyType.GetProperty("IsOverlayVisible");
+        Assert.NotNull(visible);
+        Assert.Equal(typeof(bool), visible!.PropertyType);
+
+        var root = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(typeof(IdleSessionStateTests).Assembly.Location)!,
+            "..", "..", "..", "..", ".."));
+        var shell = File.ReadAllText(Path.Combine(root, "Views", "ShellWindow.xaml"));
+        Assert.Contains($"Binding {idle.Name}.{visible.Name}", shell);
     }
 }
