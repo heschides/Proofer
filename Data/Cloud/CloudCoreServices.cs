@@ -32,11 +32,22 @@ public sealed class CloudPersonService(CloudApiClient api) : IPersonService
             $"/api/v1/people/{personId}/owner",
             new TransferCaseloadRequest(targetUserId, expectedRevision));
 
-    public async Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-        IReadOnlyList<string> credibleClientIds) =>
-        await api.PostAsync<CredibleClientLookupRequest, List<CredibleClientMatchDto>>(
+    public Task<PersonStatusDto> SetPersonStatusAsync(
+        int personId,
+        string status,
+        string? note,
+        int expectedRevision) =>
+        api.PutAsync<SetPersonStatusRequest, PersonStatusDto>(
+            $"/api/v1/people/{personId}/status",
+            new SetPersonStatusRequest(status, note, expectedRevision));
+
+    public async Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+        IReadOnlyList<string> credibleClientIds,
+        IReadOnlyList<string>? maineCareIds = null,
+        IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+        await api.PostAsync<CredibleClientLookupRequest, CredibleMatchLookupResult>(
             "/api/v1/people/credible-matches",
-            new CredibleClientLookupRequest(credibleClientIds));
+            new CredibleClientLookupRequest(credibleClientIds, maineCareIds, nameBirthDates));
 
     public async Task<List<Person>> GetAllPeopleAsync(int userId) =>
         (await api.GetAsync<List<PersonDto>>($"/api/v1/caseload?userId={userId}")).Select(CloudContractMapper.ToPerson).ToList();
@@ -235,7 +246,52 @@ public sealed class CloudIncentiveService(CloudApiClient api) : IIncentiveServic
 public sealed class CloudFormService(CloudApiClient api) : IFormService
 {
     public Task UpdateFormAsync(Form form) => SaveAsync(form);
-    public Task OpenFormAsync(Form form) => SaveAsync(form);
+    public Task AttestAsync(Form form, DateTime completedOn, int? evidenceNoteId = null) =>
+        AttestAsync(form, completedOn, evidenceNoteId, supervisorOverrideReason: null);
+
+    public async Task AttestAsync(
+        Form form,
+        DateTime completedOn,
+        int? evidenceNoteId,
+        string? supervisorOverrideReason)
+    {
+        var response = await api.PostAsync<AttestFormRequest, FormDto>(
+            $"/api/v1/people/{form.PersonId}/forms/{form.Type}/attestation",
+            new AttestFormRequest(form.Id, completedOn, evidenceNoteId, supervisorOverrideReason));
+        Apply(response, form);
+    }
+
+    public Task<FormPrerequisiteStatusDto> GetPrerequisiteStatusAsync(Form form) =>
+        api.GetAsync<FormPrerequisiteStatusDto>(
+            $"/api/v1/people/{form.PersonId}/forms/{form.Type}/prerequisite?formId={form.Id}");
+
+    public Task<DocumentArtifactDto> RecordExternalPrerequisiteAsync(Form form, string note)
+    {
+        var cycle = form.Person?.EffectiveDate is DateTime effectiveDate
+            ? FormAttestationRules.ResolveCycle(effectiveDate, form.DueDate)
+            : null;
+        if (cycle is null)
+            throw new InvalidOperationException("The form is not attached to a valid compliance cycle.");
+        var entry = AnnualDocumentCatalog.ForFormType(form.Type.ToString())
+            ?? throw new InvalidOperationException("This form does not have an external-document prerequisite.");
+        return api.PostAsync<RecordExternalDocumentRequest, DocumentArtifactDto>(
+            $"/api/v1/people/{form.PersonId}/documents/{entry.Kind}/external",
+            new RecordExternalDocumentRequest(cycle.Value.CycleStart, note));
+    }
+
+    public async Task RevokeAttestationAsync(Form form, string reason)
+    {
+        var response = await api.PostAsync<RevokeFormAttestationRequest, FormDto>(
+            $"/api/v1/people/{form.PersonId}/forms/{form.Type}/attestation/revoke",
+            new RevokeFormAttestationRequest(form.Id, reason));
+        Apply(response, form);
+    }
+
+    public Task OpenFormAsync(Form form)
+    {
+        form.OpenedDate = DateTime.Today;
+        return SaveAsync(form);
+    }
     public async Task DeleteFormsAsync(IEnumerable<Form> forms) =>
         _ = await api.PostAsync<DeleteFormsRequest, CountDto>(
             "/api/v1/forms/delete",
@@ -245,11 +301,33 @@ public sealed class CloudFormService(CloudApiClient api) : IFormService
     {
         var response = await api.PutAsync<UpdateFormRequest, FormDto>(
             $"/api/v1/forms/{form.Id}", new UpdateFormRequest(form.CompletedDate, form.OpenedDate));
+        Apply(response, form);
+    }
+
+    private static void Apply(FormDto response, Form form)
+    {
         form.OpenedDate = response.OpenedDate;
+        if (response.CompletedDate == form.CompletedDate)
+            return;
+
         if (response.CompletedDate is DateTime completed)
-            form.MarkComplete(completed);
+        {
+            form.Attest(FormAttestation.Attested(
+                completed,
+                AttestationActorKind.System,
+                actorUserId: null,
+                recordedAtUtc: DateTime.UtcNow,
+                prerequisiteStateJson: FormAttestationRules.NoPrerequisitesStateJson,
+                reason: "authoritative API response projection"));
+        }
         else
-            form.Reset();
+        {
+            form.RevokeAttestation(FormAttestation.Revoked(
+                AttestationActorKind.System,
+                actorUserId: null,
+                recordedAtUtc: DateTime.UtcNow,
+                reason: "authoritative API response projection"));
+        }
     }
 }
 

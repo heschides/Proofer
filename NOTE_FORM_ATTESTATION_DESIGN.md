@@ -1,6 +1,6 @@
 # Design — Evidence, prerequisites, and attestation for compliance forms
 
-**Status:** design only. Nothing in this document is implemented.
+**Status:** implementation steps 1–5 landed locally on 2026-09-03; not released or deployed.
 **Written:** 2026-09-03, against `master` @ `1e64cf7` (release 1.2.41).
 **Decided with Josh:** 2026-09-03. Answers recorded inline; deviations flagged in
 "Where I did not do what was asked".
@@ -286,12 +286,12 @@ exactly the kind of question `REGULATORY_CONCERNS.md` exists to hold open rather
 | `Q1R`–`Q4R` | None | The attestation *is* the review record. Per the 2026-08-31 decision, review items are evidence and are deliberately not derived. |
 | `PCP` | None | Evergreen holds the real plan. See 5.1. |
 | `ComprehensiveAssessment` | None | Same. See 5.1. |
-| `Reclassification` | None | Not discussed; open question O-3. |
+| `Reclassification` | Completed `ComprehensiveAssessment` form in the same cycle | Decided by Josh 2026-09-03. |
 | `SafetyPlan` | A `SafetyPlan` in `Final` status for the cycle, or external | Authored in Sati; see 5.3 |
 | `PrivacyPractices` | Live artifact for the cycle **and** a `DocumentAcknowledgment` (receipt or documented good-faith effort), or external | Rendered from template; see 5.4 |
 | `Release_Agency` | Live **non-Draft** artifact for the cycle, or external | `AgencyReleasePdfGenerator` |
 | `Release_DHHS` | Live **non-Draft** artifact for the cycle, or external | `DhhsFormFiller`, `FormKey.AuthorizationToRelease` |
-| `Release_Medical` | Live artifact for the cycle, or external | **No generator exists, so no Draft either.** Open question O-2. |
+| `Release_Medical` | Live **non-Draft** artifact for the cycle, or external | `MedicalReleasePdfGenerator`; decided by Josh 2026-09-03. |
 
 Rules:
 
@@ -302,9 +302,9 @@ Rules:
   recorded per cycle, not permanently, so next year asks again.
 - `ActorKind.System` bypasses prerequisites and requires a reason. This is for
   `FormDuplicateRepair` and the backfill, not for anything a user can reach.
-- An unmet prerequisite **blocks**. It does not warn. The check was asked for before the
-  attestation is accepted, and a check you can click past is not a check. There is no
-  supervisor override in this design; see open question O-5.
+- An unmet prerequisite **blocks** for a case manager. A Supervisor may override only for a
+  technical problem, must enter a reason, and produces a separate audit event. The override does
+  not bypass date validation and is not a billing or signature override; decided by Josh 2026-09-03.
 
 ### 5.1 Sati's comprehensive assessments and PCPs are development-only
 
@@ -366,12 +366,10 @@ due date, and adds no new prerequisite. It is layered on top of the mechanism in
 a second copy of it — the reminder and the hard block at attestation time both read the same
 live-artifact fact, so they cannot disagree about whether a release is done.
 
-**Scope.** `Release_Agency` and `Release_DHHS` support Draft immediately, because both already
-have generators that tolerate blank fields. `Release_Medical` does not, and cannot, until open
-question O-2 is resolved — there is nothing to draft without a generator. The reminder for a
-person still names the medical release as outstanding; it simply has no Draft to point at yet,
-only the external-record path. 5.3 puts the safety plan through the identical Draft/reminder
-mechanism described here, so the same PCP-or-packet-open reminder also names it when unfinished.
+**Scope.** `Release_Agency`, `Release_DHHS`, and `Release_Medical` support Draft. Agency and DHHS
+use their existing renderers; the medical form uses the Sati-owned `MedicalReleasePdfGenerator`
+chosen by Josh on 2026-09-03. Section 5.3 puts the safety plan through the identical Draft/reminder
+mechanism, so the same PCP-or-packet-open reminder also names it when unfinished.
 
 ### 5.3 The safety plan holds real content
 
@@ -460,10 +458,7 @@ render at packet-open even though completion still waits on the people, not the 
   case manager hasn't started it, in-progress content if they have. See 5.3.
 - `Release_Agency`, through the existing agency release workspace.
 - `Release_DHHS`, through the existing DHHS forms workspace.
-
-**Cannot render at all, Draft or complete:**
-
-- `Release_Medical`, which has no generator. Open question O-2.
+- `Release_Medical`, through the Sati-owned medical release generator.
 
 ### 6.2 Templates
 
@@ -513,9 +508,8 @@ whatever the case manager has so far — including nothing at all — the zip in
 alongside the two documents that render complete on their own. The point of "save locally" is
 handing the case manager everything there is to work with in one action, and a Draft is
 something to work with. Each Draft is named plainly in both the file name and the manifest
-(`Agency-Release-DRAFT-...`, `Safety-Plan-DRAFT-...`), so it cannot be mistaken for the finished,
-signed version sitting next to it in the same folder. `Release_Medical` still cannot appear,
-Draft or complete, until O-2 is resolved.
+(`Agency-Release-DRAFT-...`, `Medical-Release-DRAFT-...`, `Safety-Plan-DRAFT-...`), so it cannot
+be mistaken for the finished, signed version sitting next to it in the same folder.
 
 The zip contains each rendered PDF plus `MANIFEST.txt` listing, per document: display name,
 file name, SHA-256, template owner and version (or `SafetyPlan` id and version, for the plan),
@@ -746,7 +740,8 @@ New behavior:
 22. The release reminder appears once `Form.Attest(FormType.PCP, ...)` is called, and
     independently once `AnnualPacketWindow.IsOpen` becomes true — each trigger alone is
     sufficient, and neither depends on the other having fired.
-23. `Release_Medical` never appears as a Draft, since no generator exists for it yet (O-2).
+23. A `Release_Medical` Draft is generated and recorded, but does not satisfy its prerequisite;
+    the completed medical release supersedes it and does satisfy the prerequisite.
 24. A `SafetyPlan` in `Draft` status does not satisfy the `SafetyPlan` prerequisite; rendering it
     produces `Origin.Draft`.
 25. Submitting a `SafetyPlan` sets `Status = Final`, and rendering it after that produces
@@ -771,11 +766,13 @@ Each step is independently shippable and independently testable.
    problem and it is subtractive. Tests 1, 7, 11.
 3. **Generalize the Reviews attestation control to all twelve form types.** Retires the four
    date-synthesizing paths. Tests 2, 8, 9.
-4. **`DocumentArtifact` plus the prerequisite registry**, wired to the two generators that
-   already exist, including `Origin.Draft` for `Release_Agency`/`Release_DHHS`. Tests 3, 14, 15,
-   19, 20, 21, 23. Narrow `PUT /forms/{id}` and fix `OpenFormAsync`.
-5. **`DocumentTemplate` and the MigraDoc token-merge composer**, with Josh's privacy practices
-   template as its Sati default. Tests 13, 17.
+4. **`DocumentArtifact` plus the prerequisite registry**, wired to Agency, DHHS, and Medical
+   release generators, including `Origin.Draft`. Tests 3, 14, 15, 19, 20, 21, 23. Narrow
+   `PUT /forms/{id}` and fix `OpenFormAsync`. Implemented locally 2026-09-03.
+5. **`DocumentTemplate` and the MigraDoc token-merge composer.** Implemented locally 2026-09-03.
+   Josh authorized a generic provisional Privacy Practices default while the actual template is
+   unavailable. It is visibly marked for review and must be revisited before production use.
+   Tests 13, 17. Source format and tokens are documented in `DOCUMENT_TEMPLATES.md`.
 6. **`SafetyPlan`: entity, draft/document/submit routes, and the content-to-PDF renderer.**
    Structured content, not a template — its own step because it is the largest single addition
    here. Josh's safety-plan template supplies the section schema `SafetyPlanDocument` is built
@@ -812,18 +809,13 @@ takes a file, hashes it, and reports match or mismatch. That is roughly a day's 
 step 9 in the landing order. Without it, drop back to metadata-only rather than shipping a
 column that implies verification nobody can perform.
 
-**O-2. `Release_Medical` has no generator.** Three release form types drive compliance and only
-two can be produced. Three ways out: build a third generator; decide the DHHS authorization to
-release covers medical disclosure and retire `Release_Medical` as a distinct type; or leave its
-prerequisite satisfiable only by `RecordedAsExternal`. The third is cheapest and most honest
-today, but it means one of the three releases is permanently external, which is worth knowing
-before it ships. It also means the medical release is the one release the Draft/reminder
-mechanism in 5.2 cannot reach — the reminder will keep naming it as outstanding with nothing to
-draft, which is honest but may read as an unfinished feature rather than a deliberate gap unless
-the UI says so plainly. Resolving O-2 in favor of a real generator closes this at the same time.
+**O-2. Resolved 2026-09-03 — build a `Release_Medical` generator.** Josh chose a distinct Sati-owned
+medical release generator. It supports Draft and completed artifacts through the same release
+workspace and choice contract as the Agency Release. Regulatory review remains required before
+the generated wording is represented as legally or programmatically sufficient.
 
-**O-3. `Reclassification` was not discussed.** It currently has a 30-day anniversary offset and
-no document. `PrerequisiteKind.None` unless you say otherwise.
+**O-3. Resolved 2026-09-03 — Comprehensive Assessment is the prerequisite.** Reclassification may
+be attested only after the Comprehensive Assessment form in the same compliance cycle is complete.
 
 **O-4. The records request has no delivery channel, and there is an ordering problem.**
 `Provider` has no fax field, and records requests commonly go by fax. Adding one is trivial;
@@ -835,11 +827,10 @@ that the request requires the signed release attached, but if you would rather t
 render until the medical release is attested, that is a one-line change to the catalog and
 worth deciding now.
 
-**O-5. No override on an unmet prerequisite.** A hard block is what was asked for. The note
-system does have a supervisor compliance override, through `ComplianceOverride`,
-`OverrideReason`, and `OverrideApprovedById`, so the asymmetry is deliberate rather than
-accidental. If a supervisor should be able to accept an attestation with a missing document,
-that is an `ActorKind.Supervisor` path with a required reason and its own audit action.
+**O-5. Resolved 2026-09-03 — Supervisor technical-problem override.** A Supervisor may accept an
+attestation with an unmet prerequisite only after entering a reason describing the technical
+problem. The reason stays on the attestation ledger row and the action emits
+`form.prerequisite-overridden`. Case managers cannot override, and date rules still apply.
 
 **R-1. Resolved 2026-09-03 — was "a blank safety plan template can satisfy a prerequisite."**
 The original design put the safety plan in the same template-merge tier as the privacy notice, so

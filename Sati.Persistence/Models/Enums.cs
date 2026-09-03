@@ -94,6 +94,19 @@ namespace Sati
         Section29
     }
 
+    // Persisted as int — do not reorder or renumber existing members; append only.
+    // Ghost is a data-quality state about the record (should have been deleted inside
+    // the creation window and was not), not a service fact about a person, but it lives
+    // in the same enum for simplicity. Every clients-served count, report, and clinical
+    // or billing surface must exclude Ghost explicitly. See HANDOFF_CLIENT_DELETION_POLICY.md.
+    public enum PersonStatus
+    {
+        Active = 0,
+        NoLongerServed = 1,
+        Deceased = 2,
+        Ghost = 3
+    }
+
     public enum NoteStatus
     {
         Scheduled,

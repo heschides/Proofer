@@ -16,6 +16,7 @@ using Sati.Api.Data;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
 using Sati.Contracts.V1;
+using Sati.Models;
 
 namespace Sati.Api.Tests;
 
@@ -730,12 +731,24 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                     }
                 ]
             };
-            db.Forms.Add(new ServerForm
+            var form = new ServerForm
             {
                 PersonId = person.Id,
                 Type = "PCP",
-                DueDate = DateTime.Today.AddDays(30)
+                DueDate = DateTime.Today.AddDays(30),
+                CompletedDate = DateTime.Today
+            };
+            form.Attestations.Add(new ServerFormAttestation
+            {
+                Form = form,
+                Kind = "Attested",
+                CompletedOn = DateTime.Today,
+                ActorKind = "CaseManager",
+                ActorUserId = userId,
+                RecordedAtUtc = DateTime.UtcNow,
+                PrerequisiteStateJson = FormAttestationRules.NoPrerequisitesStateJson
             });
+            db.Forms.Add(form);
             db.Notes.Add(note);
             db.PersonContacts.Add(new ServerPersonContact
             {
@@ -817,6 +830,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         return new TestConsumerGraphSnapshot(
             await db.People.CountAsync(candidate => candidate.Id == personId),
             await db.Forms.CountAsync(candidate => candidate.PersonId == personId),
+            await db.FormAttestations.CountAsync(attestation => db.Forms.Any(form =>
+                form.Id == attestation.FormId && form.PersonId == personId)),
             await db.Notes.CountAsync(candidate => candidate.PersonId == personId),
             await db.PersonContacts.CountAsync(candidate => candidate.PersonId == personId),
             await db.PersonProviders.CountAsync(candidate => candidate.PersonId == personId),
@@ -849,6 +864,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             await db.ReviewItems.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
             await db.PersonContacts.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
             await db.PersonProviders.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
+            await db.FormAttestations.Where(attestation => db.Forms.Any(form =>
+                form.Id == attestation.FormId && form.PersonId == personId)).ExecuteDeleteAsync();
             await db.Forms.Where(candidate => candidate.PersonId == personId).ExecuteDeleteAsync();
             await db.AtRequestItems.Where(item => db.AtRequests.Any(request =>
                 request.Id == item.ATRequestId && request.PersonId == personId)).ExecuteDeleteAsync();
@@ -1020,6 +1037,86 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         return nextId;
     }
 
+    public async Task<string?> GetLatestFormAttestationReasonAsync(int formId)
+    {
+        await EnsureSeededAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        return await db.FormAttestations.AsNoTracking()
+            .Where(candidate => candidate.FormId == formId && candidate.Kind == "Attested")
+            .OrderByDescending(candidate => candidate.Id)
+            .Select(candidate => candidate.Reason)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<int> CreatePendingAttestationEvidenceAsync()
+    {
+        _ = await CreateNonCompliantReviewNoteAsync();
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var person = await db.People.AsNoTracking().SingleAsync(candidate => candidate.Id == 102);
+        var form = await db.Forms.AsNoTracking().SingleAsync(candidate =>
+            candidate.PersonId == 102 &&
+            candidate.Type == nameof(FormType.PCP) &&
+            candidate.DueDate == DateTime.Today.AddDays(-2));
+        var cycle = FormAttestationRules.ResolveCycle(person.EffectiveDate!.Value, form.DueDate)!.Value;
+        var eventDate = cycle.CycleStart > DateTime.Today.AddDays(-3)
+            ? cycle.CycleStart
+            : DateTime.Today.AddDays(-3);
+        var nextId = await db.Notes.MaxAsync(note => note.Id) + 1;
+        db.Notes.Add(new ServerNote
+        {
+            Id = nextId,
+            PersonId = person.Id,
+            AgencyId = person.AgencyId,
+            Narrative = "Pending attestation projection test",
+            EventDate = eventDate,
+            Minutes = 15,
+            Status = (int)NoteStatus.Logged,
+            NoteType = (int)NoteType.Form,
+            FormType = (int)FormType.PCP
+        });
+        await db.SaveChangesAsync();
+        return nextId;
+    }
+
+    public async Task DeleteDocumentArtifactsAsync(int personId, AnnualDocumentKind kind)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        await db.DocumentArtifacts
+            .Where(artifact => artifact.PersonId == personId && artifact.Kind == kind.ToString())
+            .ExecuteDeleteAsync();
+    }
+
+    public async Task<int> CreateOutstandingFormAsync(int personId, string type)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var person = await db.People.SingleAsync(candidate => candidate.Id == personId);
+        person.EffectiveDate ??= DateTime.Today.AddMonths(-1);
+        var cycleStart = AnnualDocumentCycle.CurrentStart(person.EffectiveDate.Value, DateTime.Today);
+        var dueDate = cycleStart.AddMonths(6);
+        var existing = await db.Forms.SingleOrDefaultAsync(form =>
+            form.PersonId == personId && form.Type == type && form.DueDate == dueDate);
+        if (existing is not null)
+        {
+            existing.CompletedDate = null;
+            await db.SaveChangesAsync();
+            return existing.Id;
+        }
+        var form = new ServerForm
+        {
+            PersonId = personId,
+            Type = type,
+            DueDate = dueDate,
+            CompletedDate = null
+        };
+        db.Forms.Add(form);
+        await db.SaveChangesAsync();
+        return form.Id;
+    }
+
     public async Task<int> CreateFutureIncompleteReviewNoteAsync()
     {
         await EnsureSeededAsync();
@@ -1139,6 +1236,7 @@ public sealed record TestConsumerSeed(int PersonId, int Revision);
 public sealed record TestConsumerGraphSnapshot(
     int People,
     int Forms,
+    int FormAttestations,
     int Notes,
     int Contacts,
     int PersonProviders,
@@ -1152,6 +1250,6 @@ public sealed record TestConsumerGraphSnapshot(
     int AuditEvents)
 {
     public int RelatedRecords =>
-        Forms + Notes + Contacts + Reviews + Appointments + Assessments +
+        Forms + FormAttestations + Notes + Contacts + Reviews + Appointments + Assessments +
         PersonProviders + AtRequests + AtRequestItems + PersonVersions;
 }

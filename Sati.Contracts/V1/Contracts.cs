@@ -96,7 +96,12 @@ public sealed record PersonDto(
     bool IsTestData = false,
     string? CredibleClientId = null,
     string? VrCounselorName = null,
-    string? VrAssistantName = null);
+    string? VrAssistantName = null,
+    DateTime CreatedAtUtc = default,
+    string Status = "Active",
+    string? StatusNote = null,
+    DateTime? StatusChangedAtUtc = null,
+    int? StatusChangedByUserId = null);
 
 public sealed record SavePersonFormRequest(
     int Id,
@@ -165,7 +170,19 @@ public sealed record SavePersonRequest(
 public sealed record TransferCaseloadRequest(int TargetUserId, int ExpectedRevision);
 
 /// <summary>
-/// Asks which of these Credible client ids the agency already holds.
+/// Moves a consumer between <c>PersonStatusRules</c> statuses. <see cref="Status"/> is one of
+/// <c>PersonStatusRules.AllStatuses</c>. See HANDOFF_CLIENT_DELETION_POLICY.md's archive
+/// semantics.
+/// </summary>
+public sealed record SetPersonStatusRequest(string Status, string? Note, int ExpectedRevision);
+
+/// <summary>The consumer's archive status as it stands after a change.</summary>
+public sealed record PersonStatusDto(int PersonId, string Status, string? StatusNote, int Revision);
+
+/// <summary>
+/// Asks which of these consumers the agency already holds, checked in the same precedence order
+/// as import matching: Credible client id, then MaineCare id, then normalized name and birth
+/// date. See CREDIBLE_IMPORT_DESIGN.md's "client_id is the dedupe key" section.
 ///
 /// <para>
 /// A POST rather than a query string on purpose. These are identifiers for real people, and a
@@ -173,7 +190,13 @@ public sealed record TransferCaseloadRequest(int TargetUserId, int ExpectedRevis
 /// browser history. The body keeps them out of all three.
 /// </para>
 /// </summary>
-public sealed record CredibleClientLookupRequest(IReadOnlyList<string> CredibleClientIds);
+public sealed record CredibleClientLookupRequest(
+    IReadOnlyList<string> CredibleClientIds,
+    IReadOnlyList<string>? MaineCareIds = null,
+    IReadOnlyList<PersonNameBirthDate>? NameBirthDates = null);
+
+/// <summary>One consumer's last name, first name and birth date, for the name+DOB match tier.</summary>
+public sealed record PersonNameBirthDate(string LastName, string FirstName, DateTime BirthDate);
 
 /// <summary>
 /// One Credible id the agency already holds.
@@ -186,6 +209,26 @@ public sealed record CredibleClientLookupRequest(IReadOnlyList<string> CredibleC
 /// </para>
 /// </summary>
 public sealed record CredibleClientMatchDto(string CredibleClientId, string? OwnerDisplayName);
+
+/// <summary>One MaineCare id the agency already holds. Same disclosure rule as <see cref="CredibleClientMatchDto"/>.</summary>
+public sealed record MaineCareIdMatchDto(string MaineCareId, string? OwnerDisplayName);
+
+/// <summary>One name+birth-date pair the agency already holds. Same disclosure rule as <see cref="CredibleClientMatchDto"/>.</summary>
+public sealed record NameBirthDateMatchDto(PersonNameBirthDate NameBirthDate, string? OwnerDisplayName);
+
+/// <summary>
+/// The three match tiers, each independent. A caller correlates a submitted identifier back to
+/// its own row locally — the response never says which submitted row triggered a match, only
+/// which values are already held, exactly as the single-tier <see cref="CredibleClientMatchDto"/>
+/// always has.
+/// </summary>
+public sealed record CredibleMatchLookupResult(
+    IReadOnlyList<CredibleClientMatchDto> CredibleClientMatches,
+    IReadOnlyList<MaineCareIdMatchDto> MaineCareIdMatches,
+    IReadOnlyList<NameBirthDateMatchDto> NameBirthDateMatches)
+{
+    public static readonly CredibleMatchLookupResult Empty = new([], [], []);
+}
 
 /// <summary>The consumer's ownership as it stands after a transfer.</summary>
 public sealed record CaseloadOwnershipDto(int PersonId, int UserId, int Revision);
@@ -465,7 +508,8 @@ public sealed record AdminPersonListItemDto(
     int Revision,
     int AssignedUserId,
     string AssignedUserDisplayName,
-    bool IsTestData = false);
+    bool IsTestData = false,
+    DateTime CreatedAtUtc = default);
 
 public sealed record DeleteTestConsumerRequest(
     int ExpectedRevision,
@@ -482,12 +526,46 @@ public sealed record TestConsumerDeletionResultDto(
     int AtRequestsDeleted,
     int AtRequestItemsDeleted,
     int PersonVersionsDeleted,
-    int PersonProvidersDeleted = 0)
+    int PersonProvidersDeleted = 0,
+    int FormAttestationsDeleted = 0,
+    int DocumentArtifactsDeleted = 0)
 {
     public int RelatedRecordsDeleted =>
         FormsDeleted + NotesDeleted + ContactsDeleted + ReviewsDeleted +
         AppointmentsDeleted + AssessmentsDeleted + AtRequestsDeleted +
-        AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted;
+        AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted +
+        FormAttestationsDeleted + DocumentArtifactsDeleted;
+}
+
+/// <summary>Rule-3 deletion: delete a consumer created within the window. See <c>ConsumerDeletionRules</c>.</summary>
+public sealed record DeleteConsumerInWindowRequest(int ExpectedRevision, string Attestation, string Reason);
+
+/// <summary>
+/// Counts of what rule-3 deletion removed, shown to the Admin before and after confirming. The
+/// itemized inventory behind these counts lives only in the audit tombstone
+/// (<c>consumer.deleted-in-window</c>), never in this response.
+/// </summary>
+public sealed record ConsumerDeletionResultDto(
+    int PersonId,
+    int FormsDeleted,
+    int NotesDeleted,
+    int ContactsDeleted,
+    int ReviewsDeleted,
+    int AppointmentsDeleted,
+    int AssessmentsDeleted,
+    int AtRequestsDeleted,
+    int AtRequestItemsDeleted,
+    int PersonVersionsDeleted,
+    int PersonProvidersDeleted,
+    int FormAttestationsDeleted,
+    int DocumentArtifactsDeleted,
+    int ClaimLinesDeleted)
+{
+    public int RelatedRecordsDeleted =>
+        FormsDeleted + NotesDeleted + ContactsDeleted + ReviewsDeleted +
+        AppointmentsDeleted + AssessmentsDeleted + AtRequestsDeleted +
+        AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted +
+        FormAttestationsDeleted + DocumentArtifactsDeleted + ClaimLinesDeleted;
 }
 
 public sealed record AdminActivityDto(
@@ -674,6 +752,21 @@ public sealed record ClientAiContextDto(
     IReadOnlyList<ClientAiContextSourceDto> Sources);
 
 public sealed record UpdateFormRequest(DateTime? CompletedDate, DateTime? OpenedDate);
+public sealed record AttestFormRequest(
+    int FormId,
+    DateTime CompletedOn,
+    int? EvidenceNoteId = null,
+    string? SupervisorOverrideReason = null);
+public sealed record RevokeFormAttestationRequest(int FormId, string Reason);
+public sealed record PendingAttestationDto(
+    int FormId,
+    int PersonId,
+    string FormType,
+    DateTime CycleStart,
+    DateTime CycleEnd,
+    DateTime DueDate,
+    int EvidenceNoteId,
+    DateTime EvidenceDate);
 public sealed record DeleteFormsRequest(IReadOnlyList<int> FormIds);
 
 public sealed record ApiErrorDto(string Code, string Message, string CorrelationId);

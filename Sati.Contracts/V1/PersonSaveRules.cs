@@ -161,6 +161,33 @@ public static class PersonSaveRules
             return;
         }
 
+        if (request.EffectiveDate is DateTime effectiveDate &&
+            newForms.Any(form => form.CompletedDate?.Date < effectiveDate.Date))
+        {
+            errors["forms"] = [FormAttestationRules.BeforeCycleMessage];
+            return;
+        }
+
+        if (newForms.Any(form => form.CompletedDate is not null &&
+                FormAttestationRules.PrerequisiteFor(form.Type) is
+                    PrerequisiteKind.DocumentArtifact or
+                    PrerequisiteKind.SafetyPlan or
+                    PrerequisiteKind.PrivacyPracticesAcknowledgment))
+        {
+            errors["forms"] =
+                ["A document-backed form must be created outstanding, then completed through its prerequisite and attestation workflow."];
+            return;
+        }
+
+        var reclassification = newForms.Single(form => form.Type == "Reclassification");
+        var assessment = newForms.Single(form => form.Type == "ComprehensiveAssessment");
+        if (reclassification.CompletedDate is not null && assessment.CompletedDate is null)
+        {
+            errors["forms"] =
+                ["The Comprehensive Assessment must be completed before Reclassification."];
+            return;
+        }
+
         if (newForms.Any(form => form.OpenedDate?.Date > today))
             errors["forms"] = ["A form opened date cannot be in the future."];
     }

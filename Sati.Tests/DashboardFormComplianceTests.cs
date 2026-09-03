@@ -12,7 +12,6 @@ public sealed class DashboardFormComplianceTests
     [Theory]
     [InlineData(CompletionPath.DashboardToggle)]
     [InlineData(CompletionPath.TaskBoard)]
-    [InlineData(CompletionPath.FormNoteCallback)]
     [InlineData(CompletionPath.ClientOverview)]
     public async Task EveryCompletionPathRefreshesMatrixAndRemovesLateReviewEvent(
         CompletionPath path)
@@ -39,10 +38,6 @@ public sealed class DashboardFormComplianceTests
                     form.DueDate.AddDays(-30),
                     DateTime.Today));
                 break;
-            case CompletionPath.FormNoteCallback:
-                harness.Dashboard.SelectedPerson = person;
-                await harness.Dashboard.MarkFormCompleteAsync(FormType.Q3R);
-                break;
             case CompletionPath.ClientOverview:
                 await harness.Dashboard.Clients.ToggleFormForAsync(person, FormType.Q3R);
                 break;
@@ -50,10 +45,17 @@ public sealed class DashboardFormComplianceTests
                 throw new ArgumentOutOfRangeException(nameof(path), path, null);
         }
 
-        var expectedCompletion = path is CompletionPath.DashboardToggle or CompletionPath.ClientOverview
-            ? form.DueDate.Date
-            : DateTime.Today;
-        Assert.Equal(expectedCompletion, form.CompletedDate);
+        var attestation = path == CompletionPath.ClientOverview
+            ? harness.Dashboard.Clients.Attestation
+            : harness.Dashboard.Attestation;
+        var explicitCompletion = DateTime.Today.AddDays(-2);
+        Assert.Null(form.CompletedDate);
+        Assert.True(attestation.IsVisible);
+        Assert.Null(attestation.CompletionDate);
+        attestation.CompletionDate = explicitCompletion;
+        await attestation.CompleteAttestationCommand.ExecuteAsync(null);
+
+        Assert.Equal(explicitCompletion, form.CompletedDate);
         Assert.Equal(FormCellStatus.Complete, harness.Dashboard.Matrix.Rows.Single().Q3R.Status);
         Assert.DoesNotContain(harness.Dashboard.UpcomingEvents,
             item => item.Kind == UpcomingEventKind.LateReview && item.Title.StartsWith("Q3 Review"));
@@ -146,7 +148,7 @@ public sealed class DashboardFormComplianceTests
                 settings);
             var form = person.GetCurrentCycleForm(type, DateTime.Today)!;
             form.DueDate = DateTime.Today.AddDays(-1);
-            form.Reset();
+            form.SetInitialCompletion(null);
 
             people.Items.Clear();
             people.Items.Add(person);
@@ -165,7 +167,6 @@ public sealed class DashboardFormComplianceTests
     {
         DashboardToggle,
         TaskBoard,
-        FormNoteCallback,
         ClientOverview
     }
 
@@ -182,9 +183,14 @@ public sealed class DashboardFormComplianceTests
             Task.FromResult(new JournalReminderResult(text));
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
         public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) =>
             Task.FromResult<List<PersonSummary>>([]);
     }
@@ -192,6 +198,18 @@ public sealed class DashboardFormComplianceTests
     private sealed class RecordingFormService : IFormService
     {
         public Task UpdateFormAsync(Form form) => Task.CompletedTask;
+        public Task AttestAsync(Form form, DateTime completedOn, int? evidenceNoteId = null)
+        {
+            form.Attest(FormAttestation.Attested(
+                completedOn, AttestationActorKind.CaseManager, 31, DateTime.UtcNow));
+            return Task.CompletedTask;
+        }
+        public Task RevokeAttestationAsync(Form form, string reason)
+        {
+            form.RevokeAttestation(FormAttestation.Revoked(
+                AttestationActorKind.CaseManager, 31, DateTime.UtcNow, reason));
+            return Task.CompletedTask;
+        }
         public Task OpenFormAsync(Form form) => Task.CompletedTask;
         public Task DeleteFormsAsync(IEnumerable<Form> forms) => Task.CompletedTask;
     }

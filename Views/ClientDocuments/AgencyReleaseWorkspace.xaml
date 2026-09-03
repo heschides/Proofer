@@ -40,16 +40,22 @@
                     <ColumnDefinition Width="2*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="AGENCY RELEASE OF INFORMATION"
+                    <TextBlock Text="{Binding WorkspaceTitle}"
                                FontSize="11" FontWeight="Bold"
                                Foreground="{DynamicResource AccentPressedBrush}" />
                     <TextBlock Text="{Binding PersonName}"
                                Margin="0,4,0,4" FontSize="20" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Prepare a clear, Sati-styled authorization for your agency to disclose or obtain information. Consumer identity, guardian, agency, and case-manager details come from the signed-in record."
+                    <TextBlock Text="{Binding WorkspaceDescription}"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="Release type" Style="{StaticResource LabelStyle}" Margin="0,7,0,0" />
+                    <ComboBox ItemsSource="{Binding ReleaseKindChoices}"
+                              SelectedItem="{Binding SelectedReleaseKind}"
+                              DisplayMemberPath="DisplayName"
+                              Width="220" HorizontalAlignment="Left"
+                              AutomationProperties.Name="Release document type" />
                 </StackPanel>
                 <Border Grid.Column="2"
                         Padding="12" CornerRadius="6"
@@ -289,7 +295,7 @@
                     <Button Content="Clear" Command="{Binding ClearCommand}" Padding="13,7" Margin="0,0,8,0"
                             Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
                             BorderBrush="{DynamicResource BorderBrush}" />
-                    <Button Content="Generate agency release PDF" Command="{Binding GenerateCommand}"
+                    <Button Content="{Binding GenerateButtonText}" Command="{Binding GenerateCommand}"
                             IsEnabled="{Binding CanGenerate}" Padding="16,7" FontWeight="SemiBold"
                             AutomationProperties.Name="Generate and save agency release PDF" />
                 </StackPanel>

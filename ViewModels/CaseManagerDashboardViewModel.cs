@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Identity.Client;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Sati.Services;
@@ -81,6 +82,10 @@ CalendarViewModel calendarViewModel,
             Reviews = reviewsViewModel;
             Providers = providersViewModel;
             ATRequests = atRequestViewModel;
+            Attestation = new FormAttestationViewModel(formService)
+            {
+                AttestationChangedAsync = AfterFormComplianceChangedAsync
+            };
             AuthorizedRepresentative = new ClientDocumentHubViewModel(
                 Clients, ClientDocumentHubMode.AuthorizedRepresentative);
             Releases = new ClientDocumentHubViewModel(
@@ -102,20 +107,9 @@ CalendarViewModel calendarViewModel,
             // scopes this whole page, and ReturnToNewNote leaves the client alone.
             noteEntryViewModel.EditorCleared += (s, e) => SelectedNote = null;
 
-            // Form side effects, awaited by the module BEFORE NoteSaved fires.
-            // Preserves the old split: new form notes → FormStatusRequested;
-            // edited form notes → MarkFormCompleteRequested.
-            noteEntryViewModel.FormNoteSavedAsync = async (formType, wasEdit) =>
-            {
-                if (wasEdit)
-                {
-                    if (MarkFormCompleteRequested is not null)
-                        await MarkFormCompleteRequested(formType);
-                }
-                else if (FormStatusRequested is not null)
-                    await FormStatusRequested(formType);
-            };
-
+            // Saving any note refreshes the dashboard. Form-tagged notes have no
+            // compliance side effect; the notes reload recomputes the derived
+            // pending-attestation suggestions from persisted evidence.
             noteEntryViewModel.NoteSaved += async (s, e) => await OnNoteSavedAsync();
 
             // Journal reminders. Either note-entry instance can write one — this
@@ -158,8 +152,6 @@ CalendarViewModel calendarViewModel,
         // Events
         // -------------------------------------------------------------------------
 
-        public Func<FormType, Task>? MarkFormCompleteRequested { get; set; }
-
         // -------------------------------------------------------------------------
         // Properties
         // -------------------------------------------------------------------------
@@ -187,7 +179,7 @@ CalendarViewModel calendarViewModel,
         public ATRequestViewModel ATRequests { get; }
         public ClientDocumentHubViewModel AuthorizedRepresentative { get; }
         public ClientDocumentHubViewModel Releases { get; }
-        public Func<FormType, Task>? FormStatusRequested { get; set; }
+        public FormAttestationViewModel Attestation { get; }
         public CalendarViewModel Calendar { get; }
         public StatisticsViewModel Statistics { get; }
         [ObservableProperty] private object? currentSubViewModel;
@@ -226,8 +218,11 @@ CalendarViewModel calendarViewModel,
 
         partial void OnSelectedPersonChanged(Person? value)
         {
+            Attestation.CancelCommand.Execute(null);
             _ = LoadNotesForPersonAsync(value);
             RefreshComplianceFlags();
+            PendingAttestations.Clear();
+            OnPropertyChanged(nameof(HasPendingAttestations));
         }
 
         partial void OnSortByDateChanged(bool value)
@@ -269,6 +264,8 @@ CalendarViewModel calendarViewModel,
         public ObservableCollection<Note> Notes { get; } = [];
         public ObservableCollection<Person> People { get; } = [];
         public ObservableCollection<UpcomingEvent> UpcomingEvents { get; } = [];
+        public ObservableCollection<PendingAttestation> PendingAttestations { get; } = [];
+        public bool HasPendingAttestations => PendingAttestations.Count > 0;
         public record EffectiveDateGroup(string Label, bool IsCurrent, List<string> ClientNames);
         public double DailyAverageUnits
         {
@@ -621,12 +618,8 @@ CalendarViewModel calendarViewModel,
             if (form is null)
                 return;
 
-            if (form.IsCompliant)
-                form.Reset();
-            else
-                form.MarkComplete(form.DueDate);
-            await _formService.UpdateFormAsync(form);
-            await AfterFormComplianceChangedAsync();
+            BeginAttestation(form, SelectedPerson);
+            await Task.CompletedTask;
         }
 
         [RelayCommand]
@@ -646,9 +639,13 @@ CalendarViewModel calendarViewModel,
             if (row is null)
                 return;
 
-            row.Form.Reset();
-            row.Form.OpenedDate = DateTime.Today;
-            await _formService.UpdateFormAsync(row.Form);
+            if (row.Form.IsCompliant)
+            {
+                BeginAttestation(row.Form, PersonFor(row.Form));
+                return;
+            }
+
+            await _formService.OpenFormAsync(row.Form);
             await AfterRowStatusChangeAsync(row);
         }
 
@@ -658,9 +655,8 @@ CalendarViewModel calendarViewModel,
             if (row is null)
                 return;
 
-            row.Form.MarkComplete(DateTime.Today);
-            await _formService.UpdateFormAsync(row.Form);
-            await AfterRowStatusChangeAsync(row);
+            BeginAttestation(row.Form, PersonFor(row.Form));
+            await Task.CompletedTask;
         }
 
         [RelayCommand]
@@ -669,7 +665,12 @@ CalendarViewModel calendarViewModel,
             if (row is null)
                 return;
 
-            row.Form.Reset();
+            if (row.Form.IsCompliant)
+            {
+                BeginAttestation(row.Form, PersonFor(row.Form));
+                return;
+            }
+
             row.Form.OpenedDate = null;
             await _formService.UpdateFormAsync(row.Form);
             await AfterRowStatusChangeAsync(row);
@@ -688,6 +689,7 @@ CalendarViewModel calendarViewModel,
         private async Task AfterFormComplianceChangedAsync()
         {
             RefreshComplianceFlags();
+            RefreshPendingAttestations();
             Matrix?.Rebuild(People, DateTime.Today);
             await LoadUpcomingEventsAsync();
         }
@@ -741,7 +743,7 @@ CalendarViewModel calendarViewModel,
 
 
         // The reload cascade that used to tail SubmitNewNoteAsync/SubmitEditedNoteAsync.
-        // Fires after the module has saved and awaited its form side effects.
+        // Fires after the module has persisted the note.
         // LoadPeopleAsync → SetPeople re-selects by Id inside the module; the mirror
         // then updates SelectedPerson here, which re-runs LoadNotesForPersonAsync and
         // RefreshComplianceFlags — grid and checkboxes track without explicit calls.
@@ -774,6 +776,7 @@ CalendarViewModel calendarViewModel,
                 Notes.Clear();
                 foreach (var note in notes)
                     Notes.Add(note);
+                RefreshPendingAttestations();
             }
             catch (Exception ex)
             {
@@ -879,20 +882,6 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(TabHasOverdue));
         }
 
-        public async Task MarkFormCompleteAsync(FormType formType)
-        {
-            if (SelectedPerson is null)
-                return;
-
-            var form = SelectedPerson.GetCurrentCycleForm(formType);
-            if (form is null)
-                return;
-
-            form.MarkComplete(DateTime.Today);
-            await _formService.UpdateFormAsync(form);
-            await AfterFormComplianceChangedAsync();
-        }
-
         public async Task OpenFormAsync(FormType formType)
         {
             if (SelectedPerson is null)
@@ -904,6 +893,62 @@ CalendarViewModel calendarViewModel,
 
             await _formService.OpenFormAsync(form);
             Matrix?.Rebuild(People, DateTime.Today);
+        }
+
+        [RelayCommand]
+        private void SelectPendingAttestation(PendingAttestation? pending)
+        {
+            if (pending is null || SelectedPerson is null)
+                return;
+            var form = SelectedPerson.Forms.SingleOrDefault(candidate => candidate.Id == pending.FormId);
+            if (form is not null)
+                BeginAttestation(form, SelectedPerson, pending.EvidenceNoteId);
+        }
+
+        private void BeginAttestation(Form form, Person? person, int? evidenceNoteId = null)
+        {
+            if (person?.EffectiveDate is not DateTime effectiveDate)
+                return;
+            Attestation.Begin(
+                form,
+                effectiveDate,
+                $"{Person.FormDisplayName(form.Type)} — {person.FullName}",
+                evidenceNoteId);
+        }
+
+        private Person? PersonFor(Form form) =>
+            People.FirstOrDefault(person => person.Id == form.PersonId) ?? form.Person;
+
+        private void RefreshPendingAttestations()
+        {
+            PendingAttestations.Clear();
+            if (SelectedPerson is not { EffectiveDate: DateTime effectiveDate } person)
+            {
+                OnPropertyChanged(nameof(HasPendingAttestations));
+                return;
+            }
+
+            var noteFacts = Notes
+                .Where(note => note.FormType.HasValue && note.EventDate.HasValue && note.Status.HasValue)
+                .Select(note => new NoteFact(
+                    note.Id,
+                    note.PersonId,
+                    note.FormType!.Value.ToString(),
+                    note.EventDate!.Value,
+                    note.Status!.Value.ToString()))
+                .ToList();
+            var formFacts = person.Forms.Select(form => new FormFact(
+                form.Id,
+                person.Id,
+                form.Type.ToString(),
+                form.DueDate,
+                form.CompletedDate)).ToList();
+            foreach (var pending in FormAttestationRules.PendingAttestations(
+                         noteFacts, formFacts, effectiveDate, DateTime.Today))
+            {
+                PendingAttestations.Add(pending);
+            }
+            OnPropertyChanged(nameof(HasPendingAttestations));
         }
 
         private void RefreshComplianceFlags()

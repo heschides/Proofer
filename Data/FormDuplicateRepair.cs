@@ -151,7 +151,12 @@ public static class FormDuplicateRepair
             if (group.DistinctCompletedDates.Count == 1 &&
                 survivor.CompletedDate?.Date != group.DistinctCompletedDates[0])
             {
-                survivor.MarkComplete(group.DistinctCompletedDates[0]);
+                // This repair runs before the FormAttestations migration creates its
+                // table. Set the legacy projection through EF; the migration then
+                // backfills the corresponding System attestation in the same startup.
+                context.Entry(survivor)
+                    .Property(form => form.CompletedDate)
+                    .CurrentValue = group.DistinctCompletedDates[0];
             }
 
             var earliestOpened = copies

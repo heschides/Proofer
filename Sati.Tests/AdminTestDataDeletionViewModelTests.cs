@@ -204,5 +204,22 @@ public sealed class AdminTestDataDeletionViewModelTests
             int personId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<LegalHoldDto> PlaceLegalHoldAsync(
+            PlaceLegalHoldRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<LegalHoldDto> ReleaseLegalHoldAsync(
+            int legalHoldId, string? releaseNote, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<List<LegalHoldDto>> GetLegalHoldsAsync(
+            int personId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<ConsumerDeletionResultDto> DeleteConsumerInWindowAsync(
+            int personId, int expectedRevision, string attestation, string reason,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

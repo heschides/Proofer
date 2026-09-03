@@ -2,7 +2,8 @@
 
 ## Compliance attestation and annual documents — designed 2026-09-03
 
-**Design only. Nothing implemented.** Full design in `NOTE_FORM_ATTESTATION_DESIGN.md`.
+**Steps 1–5 implemented locally on 2026-09-03; not released or deployed.** Full design in
+`NOTE_FORM_ATTESTATION_DESIGN.md`.
 
 The note-to-form bridge is a message box in `Views/ShellWindow.xaml.cs`. Saving a note tagged with
 a form type asks whether the form was completed today and stamps `DateTime.Today`, discarding the
@@ -18,19 +19,39 @@ metadata plus a SHA-256, never stored bytes. Templates are per agency with a Sat
 append-only versioned. The annual packet opens 30 days before the anniversary and renders only the
 documents needing no consumer input; the three releases stay deferred.
 
-- [ ] Steps 1 through 3 of the landing order: `FormAttestation` table and backfill, delete the
+- [x] Steps 1 through 3 of the landing order: `FormAttestation` table and backfill, delete the
       bridge, generalize the Reviews attestation control to all twelve form types. This closes the
       "no in-app control captures an arbitrary completion date for a non-review form" item below.
-- [ ] Steps 4 through 6: `DocumentArtifact` and the prerequisite registry, `DocumentTemplate` plus
-      the MigraDoc composer, then the packet and its manifest. Narrow `PUT /api/v1/forms/{id}`,
-      which currently accepts an arbitrary `CompletedDate` and is a full bypass of the registry.
-- [ ] Josh to provide the privacy practices, annual safety plan, and medical records request
-      templates. They become the Sati defaults.
-- [ ] Open questions O-1 through O-5 and risks R-1 through R-4 in the design need answers before
-      the steps they touch. O-1 in particular: a stored hash nothing can verify is decoration, so
-      either build the verify action or drop back to metadata-only.
-- [ ] No audit event exists today for any form-completion change, local or API. Six new actions are
-      specified in the design.
+- [x] Step 4: `DocumentArtifact` and the shared prerequisite registry, including metadata/hash
+      recording for generated Agency, DHHS, and Medical releases, Draft handling, external-record
+      capture, artifact supersession, Comprehensive Assessment before Reclassification, and a
+      reasoned Supervisor technical override. `PUT /api/v1/forms/{id}` is narrowed and
+      `CloudFormService.OpenFormAsync` records its opened date.
+- [x] Step 5: immutable published template versions, shared resolution/token validation, a
+      constrained MigraDoc composer, agency-Admin read/publish routes, and local/cloud privacy
+      generation with exact template-version provenance. Josh authorized a generic provisional
+      Privacy Practices default; it is visibly marked for agency/privacy/legal review.
+- [ ] Steps 6 through 9: structured safety plans, privacy acknowledgment, annual packet,
+      hash verification, and records-request recipient work.
+- [ ] Replace/review the provisional Privacy Practices wording when Josh has the actual template.
+      Confirm agency-specific legal effective date, privacy contact, complaint channels, uses,
+      rights, and additional applicable restrictions before production use.
+- [ ] Josh to provide the annual safety-plan section schema and medical records request template;
+      resolve safety-plan ownership and supervisor review (O-6/O-7) before step 6.
+- [ ] Open questions O-1, O-4, O-6, and O-7 and risks R-1 through R-4 in the design need answers
+      before the steps they touch. O-2, O-3, and O-5 were resolved by Josh on 2026-09-03. O-1 in
+      particular: a stored hash nothing can verify is decoration, so step 9 must build the verify
+      action before this feature is released.
+- [x] Form completion and revocation now emit `form.attested` and
+      `form.attestation-revoked`; the later document/safety-plan/packet actions remain with their
+      owning implementation steps.
+- [ ] Apply `20260903152847_AddFormAttestations` only through the controlled migration process.
+      It has not been applied to Demo; workstation access requires the temporary exact-IP firewall
+      rule that only Josh may add and remove.
+- [ ] Apply `20260903173950_AddDocumentArtifacts` through the same controlled migration process.
+      It has not been applied to Demo or Production.
+- [ ] Apply `20260903183358_AddDocumentTemplates` through the controlled migration process.
+      It creates the versioned table and provisional default; it has not been applied to any runtime database.
 - [ ] Sati's comprehensive assessments and PCPs are development-only; Evergreen holds the
       production records. Both map to no prerequisite until an Evergreen API integration exists,
       which is a `REGULATORY_CONCERNS.md` item first.
@@ -937,7 +958,7 @@ or table, so no Demo database migration or temporary SQL firewall rule applies.
       quarter and all-quarter views, and expose the state and dates in the detail pane.
 - [x] Add explicit completion/reset controls. Completion starts with a blank required date,
       preserves an entered late date, rejects a future date, and writes only through
-      `Form.MarkComplete`/`Reset` and `IFormService`.
+      `Form.Attest`/`RevokeAttestation` and `IFormService`.
 - [x] Centralize the post-form-change cascade so dashboard flags, the caseload matrix, and
       `UpcomingEvents` refresh after dashboard, task-board, form-note, Clients, and Reviews paths.
 - [x] Enforce the non-future completion rule in shared contracts, Local persistence, and the API;
@@ -946,8 +967,8 @@ or table, so no Demo database migration or temporary SQL firewall rule applies.
       windows, rejected future dates, the no-auto-derive boundary, and all completion cascades.
 - [ ] Before release, tell case managers that quarters tracked only as Review items remain open
       attestations and may form an operational backlog. Do not bulk-close them or invent dates.
-- [ ] Review the older dashboard and Clients quick-toggle convention that records `DueDate` as an
-      on-time completion assumption. It remains unchanged in this repair and is the weaker path.
+- [x] Replace the older dashboard and Clients quick-toggle convention that recorded `DueDate` with
+      the shared blank attestation capture. Completed in the 2026-09-03 steps 1–3 slice above.
 
 ## Release 1.2.34 — 2026-08-31
 
@@ -4034,3 +4055,6 @@ work; deployment and migration remain release-playbook actions.
 - [ ] Design a structured daily-task feature only if users need durable completion, assignment,
       linking, or reporting. It must start with its own entity, authorization, audit, concurrency,
       retention, and API contract; do not infer structure by parsing scratchpad text.
+# Safety-plan authoring (2026-09-03)
+
+The shared, versioned Safety Plan structure is now implemented locally in source with a Draft → Ready for review → Approved/Returned workflow. A plan is final only after same-agency supervisor approval; unapproved PDF output is marked draft and cannot satisfy the annual Safety Plan prerequisite. The scaffolded `AddSafetyPlans` migration has not been deployed to Demo or Production. A WPF authoring surface remains the next client-facing task.

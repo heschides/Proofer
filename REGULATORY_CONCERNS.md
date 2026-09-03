@@ -137,6 +137,30 @@ the only control.
   approval or claim submission, suspicious role combinations, and unusual override
   patterns.
 
+Sati's compliance-form control now records an authenticated staff attestation with an explicit
+completion date and preserves revocations as append-only rows. This is operational provenance,
+not an electronic-signature claim and not proof that a consumer, guardian, provider, OADS, or
+MaineCare accepted the underlying document. Questions 2, 6, 12, and 14 below still require formal
+review before the product describes these dates or attestations as satisfying an external legal or
+program requirement.
+
+The generated Medical Release is Sati-owned wording built from the same release-choice structure
+as the Agency Release. It is not represented as an official Maine form, a legally sufficient
+authorization, or an accepted substitute for an agency/payer form. Qualified legal and program
+review must confirm its wording, sensitive-information choices, revocation language, signature
+expectations, and retention before production use. Recording an external release or using the
+Supervisor technical-problem override establishes operational provenance only; neither proves
+consumer authorization.
+
+The provisional Privacy Practices default added on 2026-09-03 is a generic development template,
+not a determination that Sati or any agency is a HIPAA-covered entity and not a representation that
+the notice satisfies HIPAA, Maine law, or program requirements. Before operational use, the agency
+must review applicability, actual practices, privacy-officer details, legal effective date,
+complaint channels, rights and limitations, and additional restrictions on sensitive records.
+The [HHS model-notice guidance](https://www.hhs.gov/hipaa/for-professionals/privacy/guidance/model-notices-privacy-practices/index.html)
+is a review starting point, not an endorsement of this generic draft. Generation remains separate
+from receipt/acknowledgment and from any signature requirement.
+
 ## Privacy and data access
 
 - Cross-agency access should be limited to the minimum information needed for the
@@ -339,3 +363,6 @@ and stale-result suppression.
 
 This addresses in-process carryover only. It does not address disk cache contents, swap, crash
 dumps, or runtime telemetry, all of which remain open items in the paragraph above.
+# Safety-plan authoring and approval
+
+Safety-plan narratives may contain highly sensitive clinical information. The new shared structure and supervisor approval are product workflow controls, not a determination of clinical adequacy, consent, signature validity, emergency-response sufficiency, or regulatory compliance. Agency clinical leadership and counsel must review the structure, approval practice, retention, and emergency procedures before any real-world reliance.

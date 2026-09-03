@@ -35,4 +35,28 @@ public interface IAdminService
     Task<byte[]> ExportPersonHistoryPdfAsync(
         int personId,
         CancellationToken cancellationToken = default);
+
+    // Legal holds — the fail-closed gate rule-3 deletion checks before removing a record. See
+    // HANDOFF_CLIENT_DELETION_POLICY.md, A3. Deliberately narrower than OPERATIONS.md's full
+    // record-class/scope hold model; release is single-admin for v1, a documented shortfall
+    // against OPERATIONS.md's dual-control requirement.
+    Task<LegalHoldDto> PlaceLegalHoldAsync(
+        PlaceLegalHoldRequest request,
+        CancellationToken cancellationToken = default);
+    Task<LegalHoldDto> ReleaseLegalHoldAsync(
+        int legalHoldId,
+        string? releaseNote,
+        CancellationToken cancellationToken = default);
+    Task<List<LegalHoldDto>> GetLegalHoldsAsync(
+        int personId,
+        CancellationToken cancellationToken = default);
+
+    // Rule-3 deletion: permanently deletes an ordinary consumer created within
+    // ConsumerDeletionRules.DeletionWindowDays. See HANDOFF_CLIENT_DELETION_POLICY.md.
+    Task<ConsumerDeletionResultDto> DeleteConsumerInWindowAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        string reason,
+        CancellationToken cancellationToken = default);
 }

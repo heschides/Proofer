@@ -1,6 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Sati.ViewModels.Children;
@@ -17,7 +16,6 @@ namespace Sati.ViewModels
         private readonly IPersonService _personService;
         private readonly IReviewItemService _reviewItemService;
         private readonly ISettingsService _settingsService;
-        private readonly IFormService _formService;
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -35,23 +33,12 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private bool showAllQuarters;
 
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CompleteSelectedQuarterCommand))]
-        private DateTime? attestationCompletionDate;
-
-        [ObservableProperty]
-        private string attestationDateError = string.Empty;
-
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CompleteSelectedQuarterCommand))]
-        [NotifyCanExecuteChangedFor(nameof(ResetSelectedQuarterCommand))]
-        private bool isSavingAttestation;
-
         // -------------------------------------------------------------------------
         // Collections
         // -------------------------------------------------------------------------
 
         public ObservableCollection<ReviewClientRowViewModel> Rows { get; } = [];
+        public FormAttestationViewModel Attestation { get; }
 
         // The items shown in the detail pane — one quarter of one client.
         public ObservableCollection<ReviewCellViewModel> DetailCells { get; } = [];
@@ -101,14 +88,21 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsSelectedQuarterComplete));
             OnPropertyChanged(nameof(DetailAttestationStatus));
             OnPropertyChanged(nameof(DetailAttestationDates));
-            CompleteSelectedQuarterCommand.NotifyCanExecuteChanged();
-            ResetSelectedQuarterCommand.NotifyCanExecuteChanged();
-            AttestationCompletionDate = null;
-            AttestationDateError = string.Empty;
-
             DetailCells.Clear();
             if (value is null)
+            {
+                Attestation.CancelCommand.Execute(null);
                 return;
+            }
+
+            if (SelectedQuarterForm is Form form &&
+                value.Row.Person.EffectiveDate is DateTime effectiveDate)
+            {
+                Attestation.Begin(
+                    form,
+                    effectiveDate,
+                    $"Q{value.Quarter}R attestation — {value.Row.Person.FullName}");
+            }
 
             foreach (var cell in value.Row.CellsForQuarter(value.Quarter))
                 DetailCells.Add(cell);
@@ -126,7 +120,10 @@ namespace Sati.ViewModels
             _personService = personService;
             _reviewItemService = reviewItemService;
             _settingsService = settingsService;
-            _formService = formService;
+            Attestation = new FormAttestationViewModel(formService)
+            {
+                AttestationChangedAsync = PublishAttestationChangeAsync
+            };
         }
 
         // -------------------------------------------------------------------------
@@ -172,91 +169,12 @@ namespace Sati.ViewModels
             SelectedCell = selection;
         }
 
-        partial void OnAttestationCompletionDateChanged(DateTime? value)
-        {
-            AttestationDateError = value is DateTime date
-                ? FormCompletionRules.Validate(date, DateTime.Today) ?? string.Empty
-                : string.Empty;
-        }
-
-        private bool CanCompleteSelectedQuarter() =>
-            !IsSavingAttestation
-            && SelectedQuarterForm is { CompletedDate: null }
-            && AttestationCompletionDate is DateTime date
-            && FormCompletionRules.Validate(date, DateTime.Today) is null;
-
-        [RelayCommand(CanExecute = nameof(CanCompleteSelectedQuarter))]
-        private async Task CompleteSelectedQuarter()
-        {
-            var form = SelectedQuarterForm;
-            var completedOn = AttestationCompletionDate;
-            if (form is null || completedOn is null)
-                return;
-
-            var error = FormCompletionRules.Validate(completedOn.Value, DateTime.Today);
-            if (error is not null)
-            {
-                AttestationDateError = error;
-                return;
-            }
-
-            IsSavingAttestation = true;
-            form.MarkComplete(completedOn.Value.Date);
-            try
-            {
-                await _formService.UpdateFormAsync(form);
-            }
-            catch
-            {
-                form.Reset();
-                throw;
-            }
-            finally
-            {
-                IsSavingAttestation = false;
-            }
-
-            await PublishAttestationChangeAsync();
-            AttestationCompletionDate = null;
-        }
-
-        private bool CanResetSelectedQuarter() =>
-            !IsSavingAttestation && SelectedQuarterForm?.CompletedDate is not null;
-
-        [RelayCommand(CanExecute = nameof(CanResetSelectedQuarter))]
-        private async Task ResetSelectedQuarter()
-        {
-            var form = SelectedQuarterForm;
-            if (form?.CompletedDate is not DateTime previousCompletion)
-                return;
-
-            IsSavingAttestation = true;
-            form.Reset();
-            try
-            {
-                await _formService.UpdateFormAsync(form);
-            }
-            catch
-            {
-                form.MarkComplete(previousCompletion);
-                throw;
-            }
-            finally
-            {
-                IsSavingAttestation = false;
-            }
-
-            await PublishAttestationChangeAsync();
-        }
-
         private async Task PublishAttestationChangeAsync()
         {
             SelectedCell?.Row.NotifyAttestationChanged();
             OnPropertyChanged(nameof(IsSelectedQuarterComplete));
             OnPropertyChanged(nameof(DetailAttestationStatus));
             OnPropertyChanged(nameof(DetailAttestationDates));
-            CompleteSelectedQuarterCommand.NotifyCanExecuteChanged();
-            ResetSelectedQuarterCommand.NotifyCanExecuteChanged();
             if (FormComplianceChangedAsync is not null)
                 await FormComplianceChangedAsync();
         }

@@ -38,11 +38,13 @@ public sealed class FormComplianceIsDerivedTests
         Assert.False(form.IsCompliant);
         Assert.Null(form.CompletedDate);
 
-        form.MarkComplete(Due);
+        form.Attest(FormAttestation.Attested(
+            Due, AttestationActorKind.System, null, DateTime.UtcNow, reason: "test setup"));
         Assert.True(form.IsCompliant);
         Assert.Equal(Due, form.CompletedDate);
 
-        form.Reset();
+        form.RevokeAttestation(FormAttestation.Revoked(
+            AttestationActorKind.System, null, DateTime.UtcNow, "test reset"));
         Assert.False(form.IsCompliant);
         Assert.Null(form.CompletedDate);
     }
@@ -61,6 +63,8 @@ public sealed class FormComplianceIsDerivedTests
         var completedDate = typeof(Form).GetProperty(nameof(Form.CompletedDate));
         Assert.NotNull(completedDate);
         Assert.Null(completedDate!.GetSetMethod(nonPublic: false));
+        Assert.Null(typeof(Form).GetMethod("MarkComplete", BindingFlags.Public | BindingFlags.Instance));
+        Assert.Null(typeof(Form).GetMethod("Reset", BindingFlags.Public | BindingFlags.Instance));
 
         Assert.DoesNotContain(
             typeof(Form).GetConstructors(BindingFlags.Public | BindingFlags.Instance)

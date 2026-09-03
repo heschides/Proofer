@@ -253,7 +253,11 @@ public sealed class NewClientCreationTests
         Assert.Equal(fixture.Actor.AgencyId, stored.AgencyId);
         Assert.Equal(PersonSaveRules.FormTypes.Count, await db.Forms.CountAsync());
         Assert.Single(await db.PersonVersions.AsNoTracking().ToListAsync());
-        Assert.Single(await db.AuditEvents.AsNoTracking().ToListAsync());
+        var attestations = await db.FormAttestations.AsNoTracking().ToListAsync();
+        var auditEvents = await db.AuditEvents.AsNoTracking().ToListAsync();
+        Assert.Equal(person.Forms.Count(form => form.CompletedDate.HasValue), attestations.Count);
+        Assert.Single(auditEvents, audit => audit.Action == "person.created");
+        Assert.Equal(attestations.Count, auditEvents.Count(audit => audit.Action == "form.attested"));
     }
 
     [Fact]
@@ -324,6 +328,196 @@ public sealed class NewClientCreationTests
         Assert.Contains("isTestData", error.Errors.Keys);
         await using var db = fixture.Factory.CreateDbContext();
         Assert.False((await db.People.AsNoTracking().SingleAsync()).IsTestData);
+    }
+
+    // Foundation for the rule-3 deletion window (HANDOFF_CLIENT_DELETION_POLICY.md, A2): the
+    // window is computed from CreatedAtUtc, so a stamp that could drift or be forged would move
+    // a record's deletion eligibility.
+    [Fact]
+    public async Task CreatedAtUtcIsStampedAtCreationRatherThanLeftUnset()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var before = DateTime.UtcNow;
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Stamped", "Consumer", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        var after = DateTime.UtcNow;
+
+        await fixture.Service.AddPersonAsync(person);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        var stored = await db.People.AsNoTracking().SingleAsync();
+        Assert.InRange(stored.CreatedAtUtc, before, after);
+    }
+
+    // CreatedAtUtc has no public setter, so it cannot be forged the way IsTestData is above —
+    // but Rehydrate builds a Person with the CLR default until told otherwise, which is exactly
+    // what an edit-flow reconstruction produces. This proves the database column survives an
+    // edit even when the in-memory object carries that default rather than the real stamp,
+    // confirming EditPersonAsync's explicit IsModified=false guard rather than assuming the
+    // ordinary ViewModel flow always round-trips the real value correctly.
+    [Fact]
+    public async Task CreatedAtUtcSurvivesAnEditEvenWhenTheInMemoryObjectCarriesTheDefault()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Original", "Consumer", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await fixture.Service.AddPersonAsync(person);
+
+        await using (var seedCheck = fixture.Factory.CreateDbContext())
+        {
+            var seeded = await seedCheck.People.AsNoTracking().SingleAsync();
+            Assert.NotEqual(default, seeded.CreatedAtUtc);
+        }
+
+        var forged = Person.Rehydrate(person.Id, fixture.Actor.Id);
+        forged.FirstName = "Edited";
+        forged.LastName = "Consumer";
+        forged.BirthDate = new DateTime(1990, 4, 3);
+        forged.Bio = "Bio.";
+        forged.Waiver = WaiverType.None;
+        forged.Revision = person.Revision;
+        Assert.Equal(default, forged.CreatedAtUtc);
+
+        await fixture.Service.EditPersonAsync(forged);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        var stored = await db.People.AsNoTracking().SingleAsync();
+        Assert.NotEqual(default, stored.CreatedAtUtc);
+    }
+
+    // ---- Archive status ----
+
+    [Fact]
+    public async Task ACaseManagerCanMarkTheirOwnConsumerNoLongerServed()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Archived", "Consumer", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await fixture.Service.AddPersonAsync(person);
+
+        var result = await fixture.Service.SetPersonStatusAsync(
+            person.Id, PersonStatusRules.NoLongerServed, "Moved out of state.", person.Revision);
+
+        Assert.Equal(PersonStatusRules.NoLongerServed, result.Status);
+        await using var db = fixture.Factory.CreateDbContext();
+        var stored = await db.People.AsNoTracking().SingleAsync();
+        Assert.Equal(PersonStatus.NoLongerServed, stored.Status);
+        Assert.Equal("Moved out of state.", stored.StatusNote);
+        Assert.NotNull(stored.StatusChangedAtUtc);
+    }
+
+    // Only an Admin may set Ghost — that status asserts the record is not a real person, the same
+    // claim the rule-3 deletion attestation makes.
+    [Fact]
+    public async Task ACaseManagerCannotMarkAConsumerGhost()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Ordinary", "Consumer", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await fixture.Service.AddPersonAsync(person);
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.SetPersonStatusAsync(
+                person.Id, PersonStatusRules.Ghost, null, person.Revision));
+
+        Assert.Contains("status", error.Errors.Keys);
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.Equal(PersonStatus.Active, (await db.People.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task AnAdminCanMarkAConsumerGhost()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true, UserRole.Admin);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Should", "NotExist", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await fixture.Service.AddPersonAsync(person);
+
+        var result = await fixture.Service.SetPersonStatusAsync(
+            person.Id, PersonStatusRules.Ghost, "Never a real person.", person.Revision);
+
+        Assert.Equal(PersonStatusRules.Ghost, result.Status);
+    }
+
+    // A case manager cannot set status on a consumer outside their own caseload, even one in
+    // their own agency.
+    [Fact]
+    public async Task ACaseManagerCannotChangeStatusOutsideTheirOwnCaseload()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        await using (var seed = fixture.Factory.CreateDbContext())
+        {
+            seed.Users.Add(User.Create(
+                99, "other-case-manager", "Other", "hash", "salt", UserRole.CaseManager, null, 7));
+            await seed.SaveChangesAsync();
+        }
+        var person = Person.CreatePerson(
+            99, "Someone", "Elses", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await using (var seed = fixture.Factory.CreateDbContext())
+        {
+            person.AgencyId = 7;
+            seed.People.Add(person);
+            await seed.SaveChangesAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<PersonValidationException>(
+            () => fixture.Service.SetPersonStatusAsync(
+                person.Id, PersonStatusRules.NoLongerServed, null, person.Revision));
+
+        Assert.Contains("status", error.Errors.Keys);
+    }
+
+    // Archiving is a visibility and work-generation change, not a data change — notes and forms
+    // must survive it untouched.
+    [Fact]
+    public async Task ArchivingDestroysNothing()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var person = Person.CreatePerson(
+            fixture.Actor.Id, "Has", "Records",
+            "Bio.", new DateTime(1990, 4, 3), DateTime.Today.AddYears(-1), WaiverType.None,
+            new Settings());
+        await fixture.Service.AddPersonAsync(person);
+        int formCountBefore;
+        await using (var before = fixture.Factory.CreateDbContext())
+            formCountBefore = await before.Forms.AsNoTracking().CountAsync();
+        Assert.True(formCountBefore > 0);
+
+        await fixture.Service.SetPersonStatusAsync(
+            person.Id, PersonStatusRules.Deceased, null, person.Revision);
+
+        await using var db = fixture.Factory.CreateDbContext();
+        Assert.Equal(formCountBefore, await db.Forms.AsNoTracking().CountAsync());
+    }
+
+    // The caseload-load path is what feeds EnsureCurrentCycleForms, UpcomingEventsService, and
+    // the reviews grid — excluding archived people there is what makes all three exclusions hold
+    // without a separate change in each.
+    [Fact]
+    public async Task AnArchivedConsumerIsAbsentFromTheCaseloadLoad()
+    {
+        await using var fixture = await LocalPersonFixture.CreateAsync(true);
+        var kept = Person.CreatePerson(
+            fixture.Actor.Id, "Kept", "Active", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        var archived = Person.CreatePerson(
+            fixture.Actor.Id, "Removed", "FromView", "Bio.",
+            new DateTime(1990, 4, 3), null, WaiverType.None, new Settings());
+        await fixture.Service.AddPersonAsync(kept);
+        await fixture.Service.AddPersonAsync(archived);
+        await fixture.Service.SetPersonStatusAsync(
+            archived.Id, PersonStatusRules.NoLongerServed, null, archived.Revision);
+
+        var caseload = await fixture.Service.GetAllPeopleAsync(fixture.Actor.Id);
+
+        Assert.Single(caseload);
+        Assert.Equal(kept.Id, caseload[0].Id);
     }
 
     [Fact]
@@ -482,9 +676,14 @@ public sealed class NewClientCreationTests
             throw new NotSupportedException();
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
     }
 
     private sealed class CountingPersonService : IPersonService
@@ -508,9 +707,14 @@ public sealed class NewClientCreationTests
             throw new NotSupportedException();
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
     }
 
     private sealed class RecordingIncidentReporter : IIncidentReporter

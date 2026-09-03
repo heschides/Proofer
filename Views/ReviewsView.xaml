@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:Sati.Converters"
              xmlns:local="clr-namespace:Sati"
+             xmlns:views="clr-namespace:Sati.Views"
              Background="{DynamicResource WindowBackgroundBrush}">
 
     <UserControl.Resources>
@@ -757,68 +758,7 @@
                 <TextBlock Text="{Binding DetailHeader}"
                            Style="{StaticResource SectionHeader}" />
 
-                <Border Background="{DynamicResource SurfaceRaisedBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="5"
-                        Padding="12"
-                        Margin="0,0,0,14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="{Binding DetailAttestationStatus}"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       AutomationProperties.LiveSetting="Polite" />
-                            <TextBlock Text="{Binding DetailAttestationDates}"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Margin="0,3,16,0" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    IsEnabled="{Binding HasSelectedQuarterForm}"
-                                    Visibility="{Binding IsSelectedQuarterComplete, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="ACTUAL COMPLETION DATE"
-                                           Style="{StaticResource LabelStyle}" />
-                                <DatePicker Width="150"
-                                            SelectedDate="{Binding AttestationCompletionDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            AutomationProperties.Name="Quarterly review attestation completion date"
-                                            ToolTip="Choose the date the quarterly review actually occurred. This field is intentionally blank." />
-                                <TextBlock Text="{Binding AttestationDateError}"
-                                           Foreground="{DynamicResource DangerStrongBrush}"
-                                           FontSize="11"
-                                           Margin="0,4,0,0"
-                                           MaxWidth="250"
-                                           TextWrapping="Wrap"
-                                           AutomationProperties.LiveSetting="Assertive" />
-                            </StackPanel>
-                            <Button Content="Complete attestation"
-                                    Command="{Binding CompleteSelectedQuarterCommand}"
-                                    AutomationProperties.Name="Complete quarterly review attestation"
-                                    Padding="12,6"
-                                    Margin="10,17,0,0"
-                                    VerticalAlignment="Top" />
-                        </StackPanel>
-
-                        <Button Grid.Column="1"
-                                Content="Mark attestation incomplete"
-                                Command="{Binding ResetSelectedQuarterCommand}"
-                                AutomationProperties.Name="Mark quarterly review attestation incomplete"
-                                Padding="12,6"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding IsSelectedQuarterComplete, Converter={StaticResource BoolToVisibilityConverter}}" />
-                    </Grid>
-                </Border>
+                <views:FormAttestationControl DataContext="{Binding Attestation}" />
 
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>

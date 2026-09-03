@@ -32,6 +32,7 @@ public sealed class AdminTestDataDeletionApiTests(SatiApiFactory factory)
             Assert.Equal(seed.PersonId, result.PersonId);
             Assert.Equal(before.RelatedRecords, result.RelatedRecordsDeleted);
             Assert.Equal(1, result.FormsDeleted);
+            Assert.Equal(1, result.FormAttestationsDeleted);
             Assert.Equal(1, result.NotesDeleted);
             Assert.Equal(1, result.ContactsDeleted);
             Assert.Equal(1, result.ReviewsDeleted);

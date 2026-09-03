@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Sati.Api.Data;
 using Sati.Api.Infrastructure;
 using Sati.Api.Security;
+using Sati;
 using Sati.Contracts.V1;
 using Sati.Forms;
 
@@ -33,6 +34,7 @@ internal static class ApiEndpoints
         MapPeople(api);
         MapReviews(api);
         MapAssessments(api);
+        MapSafetyPlans(api);
         MapProviders(api);
         MapAtRequests(api);
         MapAiContext(api);
@@ -44,6 +46,8 @@ internal static class ApiEndpoints
         MapReports(api);
         MapBilling(api);
         MapForms(api);
+        MapDocuments(api);
+        MapDocumentTemplates(api);
         MapIncidents(api);
     }
 
@@ -388,7 +392,8 @@ internal static class ApiEndpoints
                     person.Revision,
                     user.Id,
                     user.DisplayName,
-                    person.IsTestData))
+                    person.IsTestData,
+                    person.CreatedAtUtc))
                 .ToListAsync(cancellationToken);
             return Results.Ok(people);
         });
@@ -467,6 +472,16 @@ internal static class ApiEndpoints
                 var personProvidersDeleted = await db.PersonProviders
                     .Where(link => link.PersonId == personId)
                     .ExecuteDeleteAsync(cancellationToken);
+                var documentArtifactsDeleted = await db.DocumentArtifacts
+                    .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                // Append-only clinical history is normally never deleted. The
+                // versioned Admin attestation makes synthetic test-data deletion
+                // the narrow exception, matching PersonVersion below.
+                var formAttestationsDeleted = await db.FormAttestations
+                    .Where(attestation => db.Forms.Any(form =>
+                        form.Id == attestation.FormId && form.PersonId == personId))
+                    .ExecuteDeleteAsync(cancellationToken);
                 var formsDeleted = await db.Forms
                     .Where(form => form.PersonId == personId)
                     .ExecuteDeleteAsync(cancellationToken);
@@ -511,7 +526,9 @@ internal static class ApiEndpoints
                     atRequestsDeleted,
                     atRequestItemsDeleted,
                     personVersionsDeleted,
-                    personProvidersDeleted);
+                    personProvidersDeleted,
+                    formAttestationsDeleted,
+                    documentArtifactsDeleted);
                 auditTrail.Record(
                     actor,
                     AuditActions.TestConsumerDeleted,
@@ -525,6 +542,8 @@ internal static class ApiEndpoints
                         notesDeleted = result.NotesDeleted,
                         contactsDeleted = result.ContactsDeleted,
                         personProvidersDeleted = result.PersonProvidersDeleted,
+                        formAttestationsDeleted = result.FormAttestationsDeleted,
+                        documentArtifactsDeleted = result.DocumentArtifactsDeleted,
                         reviewsDeleted = result.ReviewsDeleted,
                         appointmentsDeleted = result.AppointmentsDeleted,
                         assessmentsDeleted = result.AssessmentsDeleted,
@@ -550,6 +569,370 @@ internal static class ApiEndpoints
                     "The consumer was not deleted because a related record changed or is protected. Refresh and try again, or seek guidance in the help menu.",
                     string.Empty));
             }
+        });
+
+        // Legal holds — the fail-closed gate rule-3 deletion checks before removing a record.
+        // Deliberately narrower than OPERATIONS.md's full record-class/scope hold model; this
+        // exists only to gate consumer deletion. Release is single-admin for v1, a documented
+        // shortfall against OPERATIONS.md's dual-control requirement.
+        api.MapPost("/admin/legal-holds", async Task<IResult> (
+            PlaceLegalHoldRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+            if (string.IsNullOrWhiteSpace(request.Reason))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["reason"] = ["A reason is required to place a legal hold."]
+                });
+            }
+
+            var personExists = await db.People.AsNoTracking().AnyAsync(candidate =>
+                candidate.Id == request.PersonId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (!personExists)
+                return Results.NotFound();
+
+            var hold = new ServerLegalHold
+            {
+                AgencyId = actor.AgencyId,
+                PersonId = request.PersonId,
+                Reason = request.Reason.Trim(),
+                CaseReference = string.IsNullOrWhiteSpace(request.CaseReference) ? null : request.CaseReference.Trim(),
+                IssuedBy = string.IsNullOrWhiteSpace(request.IssuedBy) ? null : request.IssuedBy.Trim(),
+                EffectiveAtUtc = request.EffectiveAtUtc,
+                PlacedByUserId = actor.UserId
+            };
+            db.LegalHolds.Add(hold);
+            auditTrail.Record(
+                actor,
+                AuditActions.LegalHoldPlaced,
+                "LegalHold",
+                metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId, reason = hold.Reason }));
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ToLegalHoldDto(hold));
+        });
+
+        api.MapPost("/admin/legal-holds/{legalHoldId:int}/release", async Task<IResult> (
+            int legalHoldId,
+            ReleaseLegalHoldRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+
+            var hold = await db.LegalHolds.SingleOrDefaultAsync(candidate =>
+                candidate.Id == legalHoldId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (hold is null)
+                return Results.NotFound();
+            if (hold.IsReleased)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "legal_hold_already_released",
+                    "This legal hold has already been released.",
+                    string.Empty));
+            }
+
+            hold.IsReleased = true;
+            hold.ReleasedByUserId = actor.UserId;
+            hold.ReleasedAtUtc = DateTime.UtcNow;
+            hold.ReleaseNote = string.IsNullOrWhiteSpace(request.ReleaseNote) ? null : request.ReleaseNote.Trim();
+            auditTrail.Record(
+                actor,
+                AuditActions.LegalHoldReleased,
+                "LegalHold",
+                metadataJson: JsonSerializer.Serialize(new { legalHoldId, personId = hold.PersonId }));
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(ToLegalHoldDto(hold));
+        });
+
+        api.MapGet("/admin/legal-holds", async Task<IResult> (
+            int personId,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+
+            var holds = await db.LegalHolds.AsNoTracking()
+                .Where(hold => hold.PersonId == personId && hold.AgencyId == actor.AgencyId)
+                .OrderByDescending(hold => hold.PlacedAtUtc)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(holds.Select(ToLegalHoldDto).ToList());
+        });
+
+        // Rule-3 deletion: permanently deletes an ordinary consumer created within
+        // ConsumerDeletionRules.DeletionWindowDays. Extends the test-consumer-delete route's
+        // transaction shape and child-record cascade, gated on the creation-time window, the A1
+        // billing-integrity check, and the A3 legal-hold registry instead of IsTestData. Unlike
+        // test-consumer deletion, this deletes claim lines rather than refusing whenever one
+        // exists — A1 permits draft and synthetic billing inside the window. The audit event is
+        // a tombstone: an itemized inventory by id, date, and type, captured before any delete,
+        // with no narrative, name, MaineCareId, birth date, or address.
+        // See HANDOFF_CLIENT_DELETION_POLICY.md.
+        api.MapPost("/admin/consumers/{personId:int}/delete-in-window", async Task<IResult> (
+            int personId,
+            DeleteConsumerInWindowRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            ILegalHoldRegistry legalHoldRegistry,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+            if (personId <= 0 || request.ExpectedRevision <= 0)
+            {
+                return Results.BadRequest(new ApiErrorDto(
+                    "invalid_consumer_deletion", "Select a current consumer record and try again.",
+                    string.Empty));
+            }
+            if (!ConsumerDeletionRules.HasValidConsumerAttestation(request.Attestation))
+            {
+                return Results.BadRequest(new ApiErrorDto(
+                    "invalid_deletion_attestation",
+                    "The required deletion affirmation was not supplied.", string.Empty));
+            }
+            if (string.IsNullOrWhiteSpace(request.Reason))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["reason"] = ["A reason is required to delete a consumer."]
+                });
+            }
+
+            PreventSensitiveResponseCaching(httpContext);
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
+
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+            if (request.ExpectedRevision != person.Revision)
+                return StalePersonConflict();
+            if (!ConsumerDeletionRules.IsWithinDeletionWindow(person.CreatedAtUtc, DateTime.UtcNow))
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "consumer_outside_deletion_window",
+                    ConsumerDeletionRules.OutsideWindowMessage, string.Empty));
+            }
+
+            // A3: legal hold. Checked before any child row changes, and refused on anything but
+            // an explicit Clear — Active, Unavailable, and any registry exception fail closed.
+            var holdStatus = await legalHoldRegistry.GetStatusAsync(actor.AgencyId, personId, cancellationToken);
+            if (holdStatus != LegalHoldStatus.Clear)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "consumer_legal_hold",
+                    holdStatus == LegalHoldStatus.Active
+                        ? ConsumerDeletionRules.LegalHoldActiveMessage
+                        : ConsumerDeletionRules.LegalHoldUnavailableMessage,
+                    string.Empty));
+            }
+
+            // A1: billing integrity. Draft and synthetic billing is deletable inside the
+            // window; only billing that actually reached a payer blocks.
+            var billingPeriodIds = await db.ClaimLines.AsNoTracking()
+                .Where(claimLine => db.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+                .Select(claimLine => claimLine.BillingPeriodId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var billingFacts = new BillingIntegrityFacts(
+                HasTransmittedBillingSubmissionEvent: billingPeriodIds.Count > 0 &&
+                    await db.BillingSubmissionEvents.AsNoTracking().AnyAsync(submissionEvent =>
+                        billingPeriodIds.Contains(submissionEvent.BillingPeriodId) &&
+                        !submissionEvent.IsSynthetic &&
+                        submissionEvent.Stage >= BillingSubmissionStage.Transmitted,
+                        cancellationToken),
+                HasNonSyntheticRemittanceClaimOutcome: billingPeriodIds.Count > 0 &&
+                    await db.RemittanceClaimOutcomes.AsNoTracking().AnyAsync(outcome =>
+                        outcome.BillingPeriodId != null &&
+                        billingPeriodIds.Contains(outcome.BillingPeriodId.Value) &&
+                        !outcome.IsSynthetic,
+                        cancellationToken),
+                HasSubmittedOrNonDraftBillingPeriod: billingPeriodIds.Count > 0 &&
+                    await db.BillingPeriods.AsNoTracking().AnyAsync(period =>
+                        billingPeriodIds.Contains(period.Id) &&
+                        (period.SubmittedAt != null || period.Status != 0),
+                        cancellationToken));
+            if (ConsumerDeletionRules.HasTransmittedBilling(billingFacts))
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "consumer_transmitted_billing",
+                    ConsumerDeletionRules.TransmittedBillingMessage, string.Empty));
+            }
+
+            // Itemized tombstone, captured before any delete. Ids, dates, and types only —
+            // never narrative, name, MaineCareId, birth date, or address.
+            var noteRows = await db.Notes.AsNoTracking()
+                .Where(note => note.PersonId == personId)
+                .Select(note => new { note.Id, note.EventDate, note.Status, note.Minutes, note.NoteType })
+                .ToListAsync(cancellationToken);
+            var noteInventory = noteRows.Select(note => new
+            {
+                note.Id, eventDate = note.EventDate,
+                status = ContractMapper.NullableNameAt(ContractMapper.NoteStatusNames, note.Status),
+                note.Minutes, noteType = ContractMapper.NullableNameAt(ContractMapper.NoteTypeNames, note.NoteType)
+            }).ToList();
+
+            var claimLineRows = await db.ClaimLines.AsNoTracking()
+                .Where(claimLine => db.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+                .Select(claimLine => new
+                {
+                    claimLine.Id, claimLine.DateOfService, claimLine.ProcedureCode,
+                    claimLine.ProcedureModifier, claimLine.Units, claimLine.ChargeAmount,
+                    claimLine.BillingPeriodId
+                })
+                .ToListAsync(cancellationToken);
+
+            var formRows = await db.Forms.AsNoTracking()
+                .Where(form => form.PersonId == personId)
+                .Select(form => new { form.Id, form.Type, form.DueDate })
+                .ToListAsync(cancellationToken);
+            var formInventory = formRows.Select(form => new
+            { form.Id, type = form.Type, dueDate = form.DueDate }).ToList();
+
+            var reviewRows = await db.ReviewItems.AsNoTracking()
+                .Where(review => review.PersonId == personId)
+                .Select(review => new { review.Id, review.Category, review.RequestedDate })
+                .ToListAsync(cancellationToken);
+            var reviewInventory = reviewRows.Select(review => new
+            { review.Id, category = review.Category, requestedDate = review.RequestedDate }).ToList();
+
+            var assessmentRows = await db.ComprehensiveAssessments.AsNoTracking()
+                .Where(assessment => assessment.PersonId == personId)
+                .Select(assessment => new { assessment.Id, assessment.Status, assessment.CreatedAt })
+                .ToListAsync(cancellationToken);
+
+            var atRequestRows = await db.AtRequests.AsNoTracking()
+                .Where(request => request.PersonId == personId)
+                .Select(request => new { request.Id, request.Status, request.SubmittedDate })
+                .ToListAsync(cancellationToken);
+
+            var contactRows = await db.PersonContacts.AsNoTracking()
+                .Where(contact => contact.PersonId == personId)
+                .Select(contact => new { contact.Id, contact.Kind })
+                .ToListAsync(cancellationToken);
+
+            var personVersionInventory = await db.PersonVersions.AsNoTracking()
+                .Where(version => version.PersonId == personId)
+                .Select(version => new { version.Id, version.ChangeKind, version.ChangedAtUtc })
+                .ToListAsync(cancellationToken);
+
+            // Cascade delete, in dependency order. ClaimLines before Notes: A1 permits draft
+            // and synthetic claim lines inside the window, unlike test-consumer deletion, which
+            // never has to delete one because it refuses whenever any claim line exists.
+            var appointmentsDeleted = await db.Appointments
+                .Where(appointment => db.ReviewItems.Any(review =>
+                    review.Id == appointment.ReviewItemId && review.PersonId == personId))
+                .ExecuteDeleteAsync(cancellationToken);
+            var reviewsDeleted = await db.ReviewItems
+                .Where(review => review.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var contactsDeleted = await db.PersonContacts
+                .Where(contact => contact.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var personProvidersDeleted = await db.PersonProviders
+                .Where(link => link.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var documentArtifactsDeleted = await db.DocumentArtifacts
+                .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var formAttestationsDeleted = await db.FormAttestations
+                .Where(formAttestation => db.Forms.Any(form =>
+                    form.Id == formAttestation.FormId && form.PersonId == personId))
+                .ExecuteDeleteAsync(cancellationToken);
+            var formsDeleted = await db.Forms
+                .Where(form => form.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var atRequestItemsDeleted = await db.AtRequestItems
+                .Where(item => db.AtRequests.Any(request =>
+                    request.Id == item.ATRequestId && request.PersonId == personId))
+                .ExecuteDeleteAsync(cancellationToken);
+            var atRequestsDeleted = await db.AtRequests
+                .Where(request => request.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var assessmentsDeleted = await db.ComprehensiveAssessments
+                .Where(assessment => assessment.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var claimLinesDeleted = await db.ClaimLines
+                .Where(claimLine => db.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+                .ExecuteDeleteAsync(cancellationToken);
+            var notesDeleted = await db.Notes
+                .Where(note => note.PersonId == personId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var personVersionsDeleted = await db.PersonVersions
+                .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            var peopleDeleted = await db.People
+                .Where(candidate => candidate.Id == personId && candidate.Revision == request.ExpectedRevision &&
+                    candidate.AgencyId == actor.AgencyId)
+                .ExecuteDeleteAsync(cancellationToken);
+            if (peopleDeleted != 1)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "consumer_changed_during_delete",
+                    "This consumer changed while deletion was in progress. Refresh before trying again.",
+                    string.Empty));
+            }
+
+            var result = new ConsumerDeletionResultDto(
+                personId, formsDeleted, notesDeleted, contactsDeleted, reviewsDeleted, appointmentsDeleted,
+                assessmentsDeleted, atRequestsDeleted, atRequestItemsDeleted, personVersionsDeleted,
+                personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted);
+
+            auditTrail.Record(
+                actor,
+                AuditActions.ConsumerDeletedInWindow,
+                "Person",
+                personId,
+                JsonSerializer.Serialize(new
+                {
+                    attestationVersion = ConsumerDeletionRules.ConsumerAttestation,
+                    reason = request.Reason,
+                    createdAtUtc = person.CreatedAtUtc,
+                    deletedAtUtc = DateTime.UtcNow,
+                    billingIntegrityCheck = billingFacts,
+                    counts = result,
+                    notes = noteInventory,
+                    claimLines = claimLineRows,
+                    forms = formInventory,
+                    reviews = reviewInventory,
+                    assessments = assessmentRows,
+                    atRequests = atRequestRows,
+                    contacts = contactRows,
+                    personVersions = personVersionInventory
+                }));
+
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
+
+            return Results.Ok(result);
         });
 
         // Operational Demo seed only. This is deliberately not a broader permission
@@ -1164,7 +1547,9 @@ internal static class ApiEndpoints
                 return Results.Forbid();
 
             var people = await db.People.AsNoTracking()
-                .Where(x => x.UserId == targetUserId)
+                // 0 == Sati.PersonStatus.Active. Archived people are excluded from the caseload
+                // load path entirely — see HANDOFF_CLIENT_DELETION_POLICY.md's archive semantics.
+                .Where(x => x.UserId == targetUserId && x.Status == 0)
                 .OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ToListAsync(cancellationToken);
@@ -1316,7 +1701,8 @@ internal static class ApiEndpoints
             {
                 UserId = actor.UserId,
                 AgencyId = actor.AgencyId,
-                IsTestData = request.IsTestData
+                IsTestData = request.IsTestData,
+                CreatedAtUtc = DateTime.UtcNow
             };
             ApplyPerson(person, request, gender, waiver);
 
@@ -1324,6 +1710,7 @@ internal static class ApiEndpoints
             {
                 var settings = await GetOrCreateSettingsAsync(db, actor.AgencyId, cancellationToken);
                 person.Forms = BuildInitialForms(request.Forms, effectiveDate, settings);
+                AddInitialFormAttestations(db, auditTrail, actor, effectiveDate, person.Forms);
             }
 
             db.People.Add(person);
@@ -1386,6 +1773,7 @@ internal static class ApiEndpoints
                 {
                     form.PersonId = person.Id;
                     db.Forms.Add(form);
+                    AddInitialFormAttestations(db, auditTrail, actor, effectiveDate, [form]);
                 }
                 additionalChanges.Add(new PersonFieldChangeDto(
                     "forms",
@@ -1487,6 +1875,78 @@ internal static class ApiEndpoints
             return Results.Ok(new CaseloadOwnershipDto(person.Id, person.UserId, person.Revision));
         });
 
+        // Archives or restores a consumer. Non-destructive — changes visibility and work
+        // generation, never data. PersonStatusRules owns who may set which status; loaded here
+        // from the database rather than trusted from the request, the same pattern the /owner
+        // route above uses.
+        api.MapPut("/people/{personId:int}/status", async Task<IResult> (
+            int personId,
+            SetPersonStatusRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            PersonLifecycle lifecycle,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.SingleOrDefaultAsync(
+                candidate => candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                cancellationToken);
+            if (person is null)
+                return Results.NotFound();
+
+            var refusal = PersonStatusRules.Describe(
+                actor.HasAdminPermissions, person.UserId == actor.UserId, request.Status);
+            if (refusal is not null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["status"] = [refusal]
+                });
+            }
+
+            if (request.ExpectedRevision != person.Revision)
+                return StalePersonConflict();
+
+            var before = PersonLifecycle.Capture(person);
+            await lifecycle.EnsureBaselineAsync(person, cancellationToken);
+            var previousStatus = person.Status;
+            person.Status = Array.IndexOf(PersonStatusRules.AllStatuses, request.Status);
+            person.StatusNote = request.Note;
+            person.StatusChangedAtUtc = DateTime.UtcNow;
+            person.StatusChangedByUserId = actor.UserId;
+
+            // RecordChanged bumps Revision and writes history whenever status or its note
+            // differ; the audit event is narrower and fires only on an actual status
+            // transition, so a note-only edit is not misreported as an archive action.
+            if (lifecycle.RecordChanged(actor, person, before, "StatusChanged") &&
+                previousStatus != person.Status)
+            {
+                auditTrail.Record(
+                    actor,
+                    person.Status == 0 ? AuditActions.ConsumerUnarchived : AuditActions.ConsumerArchived,
+                    "Person",
+                    personId,
+                    JsonSerializer.Serialize(new
+                    {
+                        previousStatus = PersonStatusRules.AllStatuses[previousStatus],
+                        newStatus = request.Status
+                    }));
+            }
+
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StalePersonConflict();
+            }
+
+            return Results.Ok(new PersonStatusDto(
+                person.Id, request.Status, person.StatusNote, person.Revision));
+        });
+
         // Which of these Credible ids the agency already holds. The dedupe check behind bulk
         // import: re-running a folder must report rather than duplicate.
         //
@@ -1512,51 +1972,121 @@ internal static class ApiEndpoints
                 .Where(id => !string.IsNullOrEmpty(id))
                 .Distinct(StringComparer.Ordinal)
                 .Take(CredibleMatchLookupLimit + 1)
+                .Select(id => id!)
+                .ToList();
+            var mcIds = (request.MaineCareIds ?? [])
+                .Select(id => id?.Trim())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct(StringComparer.Ordinal)
+                .Take(CredibleMatchLookupLimit + 1)
+                .Select(id => id!)
+                .ToList();
+            var names = (request.NameBirthDates ?? [])
+                .Distinct()
+                .Take(CredibleMatchLookupLimit + 1)
                 .ToList();
 
-            if (ids.Count == 0)
-                return Results.Ok(new List<CredibleClientMatchDto>());
-            if (ids.Count > CredibleMatchLookupLimit)
+            if (ids.Count == 0 && mcIds.Count == 0 && names.Count == 0)
+                return Results.Ok(CredibleMatchLookupResult.Empty);
+            if (ids.Count > CredibleMatchLookupLimit || mcIds.Count > CredibleMatchLookupLimit ||
+                names.Count > CredibleMatchLookupLimit)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
                     ["credibleClientIds"] =
-                        [$"Look up at most {CredibleMatchLookupLimit} identifiers at a time."]
+                        [$"Look up at most {CredibleMatchLookupLimit} identifiers per tier at a time."]
                 });
             }
 
             PreventSensitiveResponseCaching(httpContext);
 
-            var matches = await (
-                from person in db.People.AsNoTracking()
-                join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
-                where person.AgencyId == actor.AgencyId &&
-                      person.CredibleClientId != null &&
-                      ids.Contains(person.CredibleClientId)
-                select new
-                {
-                    person.CredibleClientId,
-                    OwnerId = owner.Id,
-                    OwnerName = owner.DisplayName,
-                    owner.AgencyId,
-                    owner.Permissions,
-                    owner.SupervisorId
-                }).ToListAsync(cancellationToken);
-
             var agencyActor = actor.ToAgencyActor();
-            var result = matches
-                .Select(match => new CredibleClientMatchDto(
-                    match.CredibleClientId!,
-                    CaseloadTransferRules.CanReachOwnOrSupervisedCaseload(
-                        agencyActor,
-                        new CaseloadParticipant(
-                            match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId))
-                        ? match.OwnerName
-                        : null))
-                .DistinctBy(match => match.CredibleClientId, StringComparer.Ordinal)
-                .ToList();
+            bool CanDisclose(int ownerId, int ownerAgencyId, UserPermissions permissions, int? supervisorId) =>
+                CaseloadTransferRules.CanReachOwnOrSupervisedCaseload(
+                    agencyActor, new CaseloadParticipant(ownerId, ownerAgencyId, permissions, supervisorId));
 
-            return Results.Ok(result);
+            var credibleMatches = new List<CredibleClientMatchDto>();
+            if (ids.Count > 0)
+            {
+                var matches = await (
+                    from person in db.People.AsNoTracking()
+                    join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+                    where person.AgencyId == actor.AgencyId &&
+                          person.CredibleClientId != null &&
+                          ids.Contains(person.CredibleClientId)
+                    select new
+                    {
+                        person.CredibleClientId, OwnerId = owner.Id, OwnerName = owner.DisplayName,
+                        owner.AgencyId, owner.Permissions, owner.SupervisorId
+                    }).ToListAsync(cancellationToken);
+
+                credibleMatches = matches
+                    .Select(match => new CredibleClientMatchDto(
+                        match.CredibleClientId!,
+                        CanDisclose(match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId)
+                            ? match.OwnerName : null))
+                    .DistinctBy(match => match.CredibleClientId, StringComparer.Ordinal)
+                    .ToList();
+            }
+
+            var maineCareMatches = new List<MaineCareIdMatchDto>();
+            if (mcIds.Count > 0)
+            {
+                var matches = await (
+                    from person in db.People.AsNoTracking()
+                    join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+                    where person.AgencyId == actor.AgencyId &&
+                          person.MaineCareId != null &&
+                          mcIds.Contains(person.MaineCareId)
+                    select new
+                    {
+                        person.MaineCareId, OwnerId = owner.Id, OwnerName = owner.DisplayName,
+                        owner.AgencyId, owner.Permissions, owner.SupervisorId
+                    }).ToListAsync(cancellationToken);
+
+                maineCareMatches = matches
+                    .Select(match => new MaineCareIdMatchDto(
+                        match.MaineCareId!,
+                        CanDisclose(match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId)
+                            ? match.OwnerName : null))
+                    .DistinctBy(match => match.MaineCareId, StringComparer.Ordinal)
+                    .ToList();
+            }
+
+            // Name+DOB cannot be pushed to SQL as a normalized comparison, so it loads the
+            // agency's identity columns and matches in memory. Agency scale is 300-400 consumers
+            // (CREDIBLE_IMPORT_DESIGN.md), so this only runs once per bulk dry run and is cheap.
+            var nameBirthDateMatches = new List<NameBirthDateMatchDto>();
+            if (names.Count > 0)
+            {
+                var matches = await (
+                    from person in db.People.AsNoTracking()
+                    join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
+                    where person.AgencyId == actor.AgencyId &&
+                          person.LastName != null && person.FirstName != null
+                    select new
+                    {
+                        person.LastName, person.FirstName, person.BirthDate,
+                        OwnerId = owner.Id, OwnerName = owner.DisplayName,
+                        owner.AgencyId, owner.Permissions, owner.SupervisorId
+                    }).ToListAsync(cancellationToken);
+
+                nameBirthDateMatches = matches
+                    .Where(match => names.Any(candidate =>
+                        ProviderDirectoryRules.IsSameName(candidate.LastName, match.LastName) &&
+                        ProviderDirectoryRules.IsSameName(candidate.FirstName, match.FirstName) &&
+                        candidate.BirthDate.Date == match.BirthDate.Date))
+                    .Select(match => new NameBirthDateMatchDto(
+                        new PersonNameBirthDate(match.LastName!, match.FirstName!, match.BirthDate),
+                        CanDisclose(match.OwnerId, match.AgencyId, match.Permissions, match.SupervisorId)
+                            ? match.OwnerName : null))
+                    .DistinctBy(match => (match.NameBirthDate.LastName.ToUpperInvariant(),
+                        match.NameBirthDate.FirstName.ToUpperInvariant(), match.NameBirthDate.BirthDate.Date))
+                    .ToList();
+            }
+
+            return Results.Ok(new CredibleMatchLookupResult(
+                credibleMatches, maineCareMatches, nameBirthDateMatches));
         });
 
         api.MapGet("/people/{personId:int}/history", async Task<IResult> (
@@ -1784,16 +2314,42 @@ internal static class ApiEndpoints
                 });
             }
 
+            var unfilled = DhhsFormDefinition.UnfilledFields(form, subject).ToList();
+            var generatedAtUtc = DateTime.UtcNow;
+            await using var documentTransaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (form == DhhsFormDefinition.FormKey.AuthorizationToRelease)
+            {
+                var isDraft = (request.Checks is null || request.Checks.Count == 0) &&
+                    (request.Text is null || request.Text.Count == 0);
+                if (isDraft)
+                    unfilled.Add("Consumer authorization choices");
+                var cycleStart = AnnualDocumentCycle.CurrentStart(
+                    person.EffectiveDate ?? throw new InvalidOperationException("The consumer has no effective date."),
+                    generatedAtUtc.ToLocalTime());
+                var artifactFileName = $"{form}-{personId}-{SafeFileName($"{person.LastName}-{person.FirstName}")}.pdf";
+                await DocumentArtifactPersistence.StageGeneratedAsync(
+                    db, personId, actor.AgencyId, AnnualDocumentKind.ReleaseDhhs, cycleStart,
+                    isDraft ? DocumentArtifactOrigin.Draft : DocumentArtifactOrigin.GeneratedInSati,
+                    generatedAtUtc, actor.UserId, pdf, artifactFileName, unfilled, cancellationToken);
+                auditTrail.Record(actor, AuditActions.DocumentGenerated, "Person", personId,
+                    JsonSerializer.Serialize(new
+                    {
+                        kind = AnnualDocumentKind.ReleaseDhhs.ToString(),
+                        cycleStart = cycleStart.ToString("yyyy-MM-dd"),
+                        origin = isDraft ? DocumentArtifactOrigin.Draft.ToString() : DocumentArtifactOrigin.GeneratedInSati.ToString()
+                    }));
+            }
+
             PreventSensitiveResponseCaching(httpContext);
             auditTrail.Record(actor, AuditActions.DhhsFormGenerated, "Person", personId,
                 metadataJson: JsonSerializer.Serialize(new { Form = form.ToString() }));
             await db.SaveChangesAsync(cancellationToken);
+            await documentTransaction.CommitAsync(cancellationToken);
 
             // Which boxes could not be filled, as a header rather than a JSON wrapper,
             // so the body stays a PDF the client can hand straight to a save dialog. A
             // blank box is never an error — the form is still correct and usable, it
             // just needs a pen — so this is advisory, not a failure.
-            var unfilled = DhhsFormDefinition.UnfilledFields(form, subject);
             if (unfilled.Count > 0)
                 httpContext.Response.Headers["X-Sati-Unfilled-Fields"] = string.Join("|", unfilled);
 
@@ -1844,6 +2400,20 @@ internal static class ApiEndpoints
                 actor.Role);
             var generatedAtUtc = clock.UtcNow.UtcDateTime;
             var pdf = generator.Generate(subject, request, generatedAtUtc);
+            var cycleStart = AnnualDocumentCycle.CurrentStart(
+                person.EffectiveDate ?? throw new InvalidOperationException("The consumer has no effective date."),
+                generatedAtUtc.ToLocalTime());
+            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
+            var prefix = request.IsRevocation ? "Agency-Release-Revocation" : "Agency-Release";
+            if (request.IsDraft)
+                prefix += "-DRAFT";
+            var fileName = $"{prefix}-{personId}-{safeName}.pdf";
+            await using var documentTransaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await DocumentArtifactPersistence.StageGeneratedAsync(
+                db, personId, actor.AgencyId, AnnualDocumentKind.ReleaseAgency, cycleStart,
+                request.IsDraft ? DocumentArtifactOrigin.Draft : DocumentArtifactOrigin.GeneratedInSati,
+                generatedAtUtc, actor.UserId, pdf, fileName,
+                request.IsDraft ? ReleaseDraftBlankFields(request) : [], cancellationToken);
 
             PreventSensitiveResponseCaching(httpContext);
             auditTrail.Record(
@@ -1857,11 +2427,17 @@ internal static class ApiEndpoints
                     StaffAttestation = request.ConfirmedObtainedRoi,
                     Revocation = request.IsRevocation,
                 }));
+            auditTrail.Record(actor, AuditActions.DocumentGenerated, "Person", personId,
+                JsonSerializer.Serialize(new
+                {
+                    kind = AnnualDocumentKind.ReleaseAgency.ToString(),
+                    cycleStart = cycleStart.ToString("yyyy-MM-dd"),
+                    origin = request.IsDraft ? DocumentArtifactOrigin.Draft.ToString() : DocumentArtifactOrigin.GeneratedInSati.ToString()
+                }));
             await db.SaveChangesAsync(cancellationToken);
+            await documentTransaction.CommitAsync(cancellationToken);
 
-            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
-            var prefix = request.IsRevocation ? "Agency-Release-Revocation" : "Agency-Release";
-            return Results.File(pdf, "application/pdf", $"{prefix}-{personId}-{safeName}.pdf");
+            return Results.File(pdf, "application/pdf", fileName);
         });
 
         api.MapGet("/people/{personId:int}/contacts", async Task<IResult> (
@@ -2360,6 +2936,84 @@ internal static class ApiEndpoints
             return Results.Json(dto);
         });
     }
+
+    private static void MapSafetyPlans(RouteGroupBuilder api)
+    {
+        api.MapGet("/people/{personId:int}/safety-plans/latest", async Task<IResult> (int personId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken ct) =>
+        {
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, ct)) return Results.NotFound();
+            var plan = await db.SafetyPlans.AsNoTracking().Where(x => x.PersonId == personId && x.Status != "Superseded")
+                .OrderByDescending(x => x.CycleStart).ThenByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+            return Results.Json(plan is null ? null : ToSafetyPlan(plan));
+        });
+
+        api.MapPost("/people/{personId:int}/safety-plans/draft", async Task<IResult> (int personId, int authorUserId, DateTime cycleStart, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
+        {
+            var actor = Actor.From(principal);
+            if (authorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, personId, ct)) return Results.NotFound();
+            var cycle = cycleStart.Date;
+            var editable = await db.SafetyPlans.Where(x => x.PersonId == personId && x.AuthorUserId == actor.UserId && x.CycleStart == cycle && (x.Status == "Draft" || x.Status == "Returned"))
+                .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+            if (editable is not null) return Results.Ok(ToSafetyPlan(editable));
+            var version = (await db.SafetyPlans.Where(x => x.PersonId == personId && x.CycleStart == cycle).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
+            var now = DateTime.UtcNow;
+            var plan = new ServerSafetyPlan { PersonId = personId, AuthorUserId = actor.UserId, CycleStart = cycle, Version = version, CreatedAtUtc = now, UpdatedAtUtc = now, DocumentJson = SafetyPlanRules.EmptyDocumentJson() };
+            db.SafetyPlans.Add(plan); audit.Record(actor, AuditActions.SafetyPlanCreated, "SafetyPlan", null);
+            await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
+        });
+
+        api.MapPut("/safety-plans/{planId:int}/document", async Task<IResult> (int planId, SaveSafetyPlanDocumentRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
+        {
+            var errors = SafetyPlanRules.Validate(request.DocumentJson, false);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
+            if (plan is null || plan.AuthorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, plan.PersonId, ct)) return Results.NotFound();
+            if (plan.Status is not ("Draft" or "Returned")) return Results.Conflict(new ApiErrorDto("safety_plan_locked", "Only a draft or returned safety plan can be edited.", string.Empty));
+            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before saving.", string.Empty));
+            plan.DocumentJson = request.DocumentJson; plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
+            audit.Record(actor, AuditActions.SafetyPlanUpdated, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
+        });
+
+        api.MapPost("/safety-plans/{planId:int}/submit", async Task<IResult> (int planId, int authorUserId, int expectedRevision, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
+        {
+            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
+            if (plan is null || authorUserId != actor.UserId || plan.AuthorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, plan.PersonId, ct)) return Results.NotFound();
+            var errors = SafetyPlanRules.Validate(plan.DocumentJson, true); if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (plan.Status is not ("Draft" or "Returned")) return Results.Conflict(new ApiErrorDto("safety_plan_locked", "This safety plan is not editable.", string.Empty));
+            if (expectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before submitting.", string.Empty));
+            plan.Status = "ReadyForReview"; plan.ReturnReason = null; plan.SubmittedAtUtc = plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
+            audit.Record(actor, AuditActions.SafetyPlanSubmitted, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
+        });
+
+        api.MapPost("/safety-plans/{planId:int}/approve", async Task<IResult> (int planId, ReviewSafetyPlanRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
+        {
+            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
+            if (plan is null || !actor.HasSupervisorPermissions || !await CanReviewSafetyPlanAsync(db, actor, plan, ct)) return Results.NotFound();
+            if (plan.Status != "ReadyForReview") return Results.Conflict(new ApiErrorDto("safety_plan_not_ready", "Only a submitted safety plan may be approved.", string.Empty));
+            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before approving.", string.Empty));
+            plan.Status = "Approved"; plan.ApprovedAtUtc = plan.UpdatedAtUtc = DateTime.UtcNow; plan.ApprovedByUserId = actor.UserId; plan.Revision++;
+            audit.Record(actor, AuditActions.SafetyPlanApproved, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
+        });
+
+        api.MapPost("/safety-plans/{planId:int}/return", async Task<IResult> (int planId, ReviewSafetyPlanRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.ReturnReason) || request.ReturnReason.Trim().Length > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["returnReason"] = ["A return reason of 500 characters or fewer is required."] });
+            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
+            if (plan is null || !actor.HasSupervisorPermissions || !await CanReviewSafetyPlanAsync(db, actor, plan, ct)) return Results.NotFound();
+            if (plan.Status != "ReadyForReview") return Results.Conflict(new ApiErrorDto("safety_plan_not_ready", "Only a submitted safety plan may be returned.", string.Empty));
+            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before returning.", string.Empty));
+            plan.Status = "Returned"; plan.ReturnReason = request.ReturnReason.Trim(); plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
+            audit.Record(actor, AuditActions.SafetyPlanReturned, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
+        });
+    }
+
+    private static SafetyPlanDto ToSafetyPlan(ServerSafetyPlan plan) => new(plan.Id, plan.PersonId, plan.AuthorUserId, plan.CycleStart, plan.Status, plan.Version, plan.Revision, plan.CreatedAtUtc, plan.UpdatedAtUtc, plan.SubmittedAtUtc, plan.ApprovedAtUtc, plan.ApprovedByUserId, plan.ReturnReason, plan.DocumentJson);
+
+    private static Task<bool> CanReviewSafetyPlanAsync(ApiDbContext db, Actor actor, ServerSafetyPlan plan, CancellationToken ct) =>
+        (from person in db.People.AsNoTracking() join author in db.Users.AsNoTracking() on person.UserId equals author.Id
+         where person.Id == plan.PersonId && person.AgencyId == actor.AgencyId && author.AgencyId == actor.AgencyId && author.Id == plan.AuthorUserId
+         select person.Id).AnyAsync(ct);
 
     private static void MapProviders(RouteGroupBuilder api)
     {
@@ -4263,8 +4917,668 @@ internal static class ApiEndpoints
         });
     }
 
+    private static void MapDocumentTemplates(RouteGroupBuilder api)
+    {
+        api.MapGet("/agencies/{agencyId:int}/templates/{kind}", async Task<IResult> (
+            int agencyId, string kind, ClaimsPrincipal principal, ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+            if (agencyId != actor.AgencyId)
+                return Results.NotFound();
+            if (!Enum.TryParse<AnnualDocumentKind>(kind, true, out var documentKind) ||
+                DocumentTemplateRules.AllowedTokens(documentKind).Count == 0)
+                return Results.NotFound();
+            var templates = await db.DocumentTemplates.AsNoTracking()
+                .Where(template => template.Kind == documentKind.ToString() &&
+                    (template.AgencyId == agencyId || template.AgencyId == null))
+                .OrderByDescending(template => template.Version)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(templates.Select(ToDocumentTemplateDto).ToList());
+        });
+
+        api.MapPost("/agencies/{agencyId:int}/templates/{kind}", async Task<IResult> (
+            int agencyId, string kind, PublishDocumentTemplateRequest request,
+            ClaimsPrincipal principal, ApiDbContext db, AuditTrail auditTrail, ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+            if (agencyId != actor.AgencyId)
+                return Results.NotFound();
+            if (!Enum.TryParse<AnnualDocumentKind>(kind, true, out var documentKind) ||
+                DocumentTemplateRules.AllowedTokens(documentKind).Count == 0)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["kind"] = ["This document kind does not use a published template."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            var validation = DocumentTemplateRules.Validate(documentKind, request.Body);
+            if (validation.Count > 0)
+                return Results.ValidationProblem(validation.ToDictionary(item => item.Key, item => item.Value),
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+
+            var version = (await db.DocumentTemplates
+                .Where(template => template.AgencyId == agencyId && template.Kind == documentKind.ToString())
+                .MaxAsync(template => (int?)template.Version, cancellationToken) ?? 0) + 1;
+            var template = new ServerDocumentTemplate
+            {
+                AgencyId = agencyId,
+                Kind = documentKind.ToString(),
+                Version = version,
+                Body = request.Body.Trim(),
+                PublishedAtUtc = clock.UtcNow.UtcDateTime,
+                PublishedByUserId = actor.UserId
+            };
+            db.DocumentTemplates.Add(template);
+            auditTrail.Record(actor, AuditActions.DocumentTemplatePublished, "Agency", agencyId,
+                JsonSerializer.Serialize(new { kind = template.Kind, version }));
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsDuplicateTemplateVersion(exception))
+            {
+                return Results.Conflict(new ApiErrorDto("template_version_changed",
+                    "Another template version was published. Refresh and try again.", string.Empty));
+            }
+            return Results.Ok(ToDocumentTemplateDto(template));
+        });
+    }
+
+    private static DocumentTemplateDto ToDocumentTemplateDto(ServerDocumentTemplate template) => new(
+        template.Id, template.AgencyId, template.Kind, template.Version, template.Body,
+        template.PublishedAtUtc, template.PublishedByUserId, template.RetiredAtUtc,
+        DocumentTemplateRules.OwnerName(template.AgencyId));
+
+    private static bool IsDuplicateTemplateVersion(DbUpdateException exception) =>
+        exception.InnerException is SqlException sqlException &&
+        sqlException.Number is 2601 or 2627 &&
+        sqlException.Message.Contains("IX_DocumentTemplates_AgencyKindVersion", StringComparison.Ordinal)
+        || exception.InnerException?.Message.Contains(
+            "DocumentTemplates.AgencyId, DocumentTemplates.Kind, DocumentTemplates.Version",
+            StringComparison.Ordinal) == true;
+
+    private static void MapDocuments(RouteGroupBuilder api)
+    {
+        api.MapPost("/people/{personId:int}/documents/{kind}", async Task<IResult> (
+            int personId,
+            string kind,
+            RenderAnnualDocumentRequest request,
+            ClaimsPrincipal principal,
+            HttpContext httpContext,
+            ApiDbContext db,
+            AgencyReleasePdfGenerator agencyGenerator,
+            MedicalReleasePdfGenerator medicalGenerator,
+            SafetyPlanPdfGenerator safetyPlanGenerator,
+            DocumentTemplatePdfComposer templateComposer,
+            AuditTrail auditTrail,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enum.TryParse<AnnualDocumentKind>(kind, true, out var documentKind) ||
+                !Enum.IsDefined(documentKind) ||
+                documentKind is not (AnnualDocumentKind.ReleaseAgency or
+                    AnnualDocumentKind.ReleaseMedical or AnnualDocumentKind.PrivacyPractices or AnnualDocumentKind.SafetyPlan))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["kind"] = ["This document kind is not rendered by the release generator."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+            var isRelease = documentKind is AnnualDocumentKind.ReleaseAgency or AnnualDocumentKind.ReleaseMedical;
+            var release = request.Release;
+            if (isRelease && release is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["release"] = ["Release details are required."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+            if (release is not null)
+            {
+                var validation = AgencyReleaseRules.Validate(release);
+                if (validation.Count > 0)
+                    return Results.ValidationProblem(validation);
+            }
+
+            var actor = Actor.From(principal);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
+            var person = await db.People.AsNoTracking().SingleAsync(
+                candidate => candidate.Id == personId, cancellationToken);
+            if (person.EffectiveDate is not DateTime effectiveDate)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["person"] = ["The consumer has no effective date."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+            var agency = await db.Agencies.AsNoTracking().SingleAsync(
+                candidate => candidate.Id == actor.AgencyId, cancellationToken);
+            var generatedAtUtc = clock.UtcNow.UtcDateTime;
+            var cycleStart = request.CycleStart?.Date ??
+                AnnualDocumentCycle.CurrentStart(effectiveDate, generatedAtUtc.ToLocalTime());
+            if (AnnualDocumentCycle.CurrentStart(effectiveDate, cycleStart) != cycleStart)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["cycleStart"] = ["The document cycle must begin on the consumer's effective-date anniversary."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var subject = new AgencyReleaseSubject(
+                person.Id,
+                $"{person.FirstName} {person.LastName}".Trim(),
+                person.BirthDate,
+                person.HasGuardian ? person.GuardianName : null,
+                agency.Name,
+                ComposeAddress(agency.Street, agency.City, agency.State, agency.Zip),
+                agency.EdiContactPhone,
+                actor.DisplayName,
+                actor.Role);
+            byte[] pdf;
+            IReadOnlyCollection<string> blankFields;
+            string? templateOwner = null;
+            string? templateKey = null;
+            int? templateVersion = null;
+            var origin = release?.IsDraft == true && isRelease
+                ? DocumentArtifactOrigin.Draft
+                : DocumentArtifactOrigin.GeneratedInSati;
+            if (documentKind == AnnualDocumentKind.SafetyPlan)
+            {
+                var plan = await db.SafetyPlans.AsNoTracking().Where(x => x.PersonId == personId && x.CycleStart == cycleStart && x.Status != "Superseded")
+                    .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken);
+                if (plan is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["safetyPlan"] = ["Create the safety plan before rendering it."] }, statusCode: StatusCodes.Status422UnprocessableEntity);
+                var validation = SafetyPlanRules.Validate(plan.DocumentJson, plan.Status == "Approved");
+                if (validation.Count > 0) return Results.ValidationProblem(validation, statusCode: StatusCodes.Status422UnprocessableEntity);
+                var content = JsonSerializer.Deserialize<SafetyPlanDocument>(plan.DocumentJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+                pdf = safetyPlanGenerator.Generate(subject.ConsumerName ?? string.Empty, cycleStart, content, plan.Status, generatedAtUtc);
+                blankFields = content.Sections.Where(x => string.IsNullOrWhiteSpace(x.Text)).Select(x => x.Id).ToArray();
+                origin = plan.Status == "Approved" ? DocumentArtifactOrigin.GeneratedInSati : DocumentArtifactOrigin.Draft;
+            }
+            else if (documentKind == AnnualDocumentKind.PrivacyPractices)
+            {
+                var templates = await db.DocumentTemplates.AsNoTracking()
+                    .Where(template => template.Kind == documentKind.ToString() &&
+                        (template.AgencyId == actor.AgencyId || template.AgencyId == null))
+                    .ToListAsync(cancellationToken);
+                var selected = DocumentTemplateResolution.Resolve(actor.AgencyId, documentKind,
+                    templates.Select(template => new DocumentTemplateFact(
+                        template.Id, template.AgencyId, template.Kind, template.Version,
+                        template.PublishedAtUtc, template.RetiredAtUtc)));
+                if (selected is null)
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["template"] = ["No published template is available for this document."]
+                    }, statusCode: StatusCodes.Status422UnprocessableEntity);
+                var template = templates.Single(candidate => candidate.Id == selected.Id);
+                var rendered = templateComposer.Generate(documentKind, template.Body,
+                    new DocumentTemplateRenderContext(
+                        subject.AgencyName, subject.AgencyAddress, subject.AgencyPhone,
+                        subject.ConsumerName, subject.BirthDate,
+                        cycleStart, cycleStart.AddYears(1).AddDays(-1),
+                        subject.CaseManagerName, subject.CaseManagerRole), generatedAtUtc);
+                pdf = rendered.Pdf;
+                blankFields = rendered.BlankFields;
+                templateOwner = DocumentTemplateRules.OwnerName(template.AgencyId);
+                templateKey = template.Kind;
+                templateVersion = template.Version;
+            }
+            else
+            {
+                pdf = documentKind == AnnualDocumentKind.ReleaseMedical
+                    ? medicalGenerator.Generate(subject, release!, generatedAtUtc)
+                    : agencyGenerator.Generate(subject, release!, generatedAtUtc);
+                blankFields = release!.IsDraft ? ReleaseDraftBlankFields(release) : [];
+            }
+            var safeName = SafeFileName($"{person.LastName}-{person.FirstName}");
+            var prefix = documentKind switch
+            {
+                AnnualDocumentKind.ReleaseMedical => "Medical-Release",
+                AnnualDocumentKind.PrivacyPractices => "Privacy-Practices",
+                AnnualDocumentKind.SafetyPlan => "Safety-Plan",
+                _ => "Agency-Release"
+            };
+            if (isRelease && release!.IsRevocation)
+                prefix += "-Revocation";
+            if (origin == DocumentArtifactOrigin.Draft)
+                prefix += "-DRAFT";
+            var fileName = $"{prefix}-{personId}-{safeName}.pdf";
+
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await DocumentArtifactPersistence.StageGeneratedAsync(
+                db, personId, actor.AgencyId, documentKind, cycleStart,
+                origin,
+                generatedAtUtc, actor.UserId, pdf, fileName,
+                blankFields, cancellationToken, templateOwner, templateKey, templateVersion);
+            auditTrail.Record(actor, AuditActions.DocumentGenerated, "Person", personId,
+                JsonSerializer.Serialize(new
+                {
+                    kind = documentKind.ToString(),
+                    cycleStart = cycleStart.ToString("yyyy-MM-dd"),
+                    origin = origin.ToString(),
+                    templateOwner,
+                    templateKey,
+                    templateVersion
+                }));
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            PreventSensitiveResponseCaching(httpContext);
+            return Results.File(pdf, "application/pdf", fileName);
+        });
+
+        api.MapPost("/people/{personId:int}/documents/{kind}/external", async Task<IResult> (
+            int personId,
+            string kind,
+            RecordExternalDocumentRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enum.TryParse<AnnualDocumentKind>(kind, true, out var documentKind) ||
+                !Enum.IsDefined(documentKind) ||
+                AnnualDocumentCatalog.ForKind(documentKind).SatisfiesFormType is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["kind"] = ["Unknown prerequisite document kind."] });
+            var noteError = AnnualDocumentRules.ValidateExternalNote(request.Note);
+            if (noteError is not null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = [noteError] });
+
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId, cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+            if (person.EffectiveDate is not DateTime effectiveDate ||
+                AnnualDocumentCycle.CurrentStart(effectiveDate, request.CycleStart) != request.CycleStart.Date)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["cycleStart"] = ["The document cycle must begin on the consumer's effective-date anniversary."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var artifact = await DocumentArtifactPersistence.StageExternalAsync(
+                db, personId, actor.AgencyId, documentKind, request.CycleStart,
+                clock.UtcNow.UtcDateTime, actor.UserId, request.Note, cancellationToken);
+            auditTrail.Record(actor, AuditActions.DocumentRecordedExternal, "Person", personId,
+                JsonSerializer.Serialize(new
+                {
+                    kind = documentKind.ToString(),
+                    cycleStart = request.CycleStart.Date.ToString("yyyy-MM-dd")
+                }));
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Results.Ok(DocumentArtifactPersistence.ToDto(artifact));
+        });
+
+        api.MapGet("/people/{personId:int}/documents", async Task<IResult> (
+            int personId,
+            DateTime cycleStart,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId, cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+            var artifacts = await db.DocumentArtifacts.AsNoTracking()
+                .Where(artifact => artifact.PersonId == personId &&
+                    artifact.CycleStart == cycleStart.Date && artifact.SupersededByArtifactId == null)
+                .OrderBy(artifact => artifact.Kind)
+                .ToListAsync(cancellationToken);
+            return Results.Ok(artifacts.Select(DocumentArtifactPersistence.ToDto).ToList());
+        });
+    }
+
     private static void MapForms(RouteGroupBuilder api)
     {
+        api.MapGet("/people/{personId:int}/forms/{type}/prerequisite", async Task<IResult> (
+            int personId,
+            string type,
+            int formId,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == personId && candidate.AgencyId == actor.AgencyId, cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+            var form = await db.Forms.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == formId && candidate.PersonId == personId && candidate.Type == type,
+                cancellationToken);
+            if (form is null || person.EffectiveDate is not DateTime effectiveDate)
+                return Results.NotFound();
+            var cycle = FormAttestationRules.ResolveCycle(effectiveDate, form.DueDate);
+            if (cycle is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["form"] = ["The form has no valid compliance cycle."] });
+            var artifacts = await db.DocumentArtifacts.AsNoTracking()
+                .Where(artifact => artifact.PersonId == personId &&
+                    artifact.CycleStart == cycle.Value.CycleStart.Date && artifact.SupersededByArtifactId == null)
+                .Select(artifact => new ArtifactFact(
+                    artifact.Id, artifact.PersonId, artifact.Kind, artifact.CycleStart,
+                    artifact.Origin == nameof(DocumentArtifactOrigin.Draft),
+                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal)))
+                .ToListAsync(cancellationToken);
+            var forms = await db.Forms.AsNoTracking().Where(candidate => candidate.PersonId == personId)
+                .Select(candidate => new FormFact(
+                    candidate.Id, candidate.PersonId, candidate.Type, candidate.DueDate, candidate.CompletedDate))
+                .ToListAsync(cancellationToken);
+            var actorKind = actor.UserId == person.UserId
+                ? AttestationActorKind.CaseManager
+                : AttestationActorKind.Supervisor;
+            var decision = FormAttestationRules.Evaluate(
+                form.Type, DateTime.Today, cycle.Value.CycleStart, DateTime.Today,
+                actorKind, artifacts, forms);
+            var prerequisite = FormAttestationRules.PrerequisiteFor(form.Type);
+            return Results.Ok(new FormPrerequisiteStatusDto(
+                prerequisite.ToString(),
+                decision.UnmetPrerequisites.Count == 0,
+                decision.UnmetPrerequisites.Count == 0
+                    ? prerequisite == PrerequisiteKind.None
+                        ? "No additional document prerequisite applies."
+                        : "The prerequisite is satisfied."
+                    : string.Join(" ", decision.UnmetPrerequisites.Select(item => item.Message)),
+                MatchingArtifactIds(form.Type, artifacts),
+                actorKind == AttestationActorKind.Supervisor && actor.HasSupervisorPermissions));
+        });
+
+        api.MapPost("/people/{personId:int}/forms/{type}/attestation", async Task<IResult> (
+            int personId,
+            string type,
+            AttestFormRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking()
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                    cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+
+            var form = await db.Forms.SingleOrDefaultAsync(candidate =>
+                candidate.Id == request.FormId &&
+                candidate.PersonId == personId &&
+                candidate.Type == type,
+                cancellationToken);
+            if (form is null)
+                return Results.NotFound();
+            if (form.CompletedDate is not null)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "form_attestation_changed",
+                    "This form already has a live attestation. Refresh it before trying again.",
+                    string.Empty));
+            }
+
+            var cycle = person.EffectiveDate is DateTime effectiveDate
+                ? FormAttestationRules.ResolveCycle(effectiveDate, form.DueDate)
+                : null;
+            if (cycle is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["form"] = ["The form is not attached to a valid compliance cycle."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var actorKind = actor.UserId == person.UserId
+                ? AttestationActorKind.CaseManager
+                : AttestationActorKind.Supervisor;
+            var artifactFacts = await db.DocumentArtifacts.AsNoTracking()
+                .Where(artifact => artifact.PersonId == personId &&
+                    artifact.CycleStart == cycle.Value.CycleStart.Date &&
+                    artifact.SupersededByArtifactId == null)
+                .Select(artifact => new ArtifactFact(
+                    artifact.Id,
+                    artifact.PersonId,
+                    artifact.Kind,
+                    artifact.CycleStart,
+                    artifact.Origin == nameof(DocumentArtifactOrigin.Draft),
+                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal)))
+                .ToListAsync(cancellationToken);
+            var formFacts = await db.Forms.AsNoTracking()
+                .Where(candidate => candidate.PersonId == personId)
+                .Select(candidate => new FormFact(
+                    candidate.Id, candidate.PersonId, candidate.Type,
+                    candidate.DueDate, candidate.CompletedDate))
+                .ToListAsync(cancellationToken);
+            var decision = FormAttestationRules.Evaluate(
+                form.Type,
+                request.CompletedOn,
+                cycle.Value.CycleStart,
+                DateTime.Today,
+                actorKind,
+                artifactFacts,
+                formFacts,
+                request.SupervisorOverrideReason);
+            if (!decision.Accepted)
+            {
+                var errorKey = decision.DateError is null ? "prerequisite" : "completedOn";
+                var messages = decision.DateError is not null
+                    ? new[] { decision.DateError }
+                    : decision.UnmetPrerequisites.Select(item => item.Message).ToArray();
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    [errorKey] = messages
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            if (request.EvidenceNoteId is int evidenceNoteId)
+            {
+                var evidenceIsValid = await db.Notes.AsNoTracking().AnyAsync(note =>
+                    note.Id == evidenceNoteId &&
+                    note.PersonId == personId &&
+                    note.FormType == (int)Enum.Parse<FormType>(form.Type) &&
+                    note.EventDate != null &&
+                    note.EventDate.Value.Date >= cycle.Value.CycleStart.Date &&
+                    note.EventDate.Value.Date < cycle.Value.CycleEnd.Date &&
+                    (note.Status == (int)NoteStatus.Pending ||
+                     note.Status == (int)NoteStatus.Logged ||
+                     note.Status == (int)NoteStatus.Approved),
+                    cancellationToken);
+                if (!evidenceIsValid)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["evidenceNoteId"] = ["The cited note is not matching form evidence."]
+                    }, statusCode: StatusCodes.Status422UnprocessableEntity);
+                }
+            }
+
+            var prerequisiteArtifactIds = MatchingArtifactIds(form.Type, artifactFacts);
+            var prerequisiteStateJson = FormAttestationRules.PrerequisiteStateJson(
+                decision, prerequisiteArtifactIds, request.SupervisorOverrideReason);
+            form.ApplyAttestation(request.CompletedOn);
+            db.FormAttestations.Add(new ServerFormAttestation
+            {
+                FormId = form.Id,
+                Kind = "Attested",
+                CompletedOn = request.CompletedOn.Date,
+                ActorKind = actorKind.ToString(),
+                ActorUserId = actor.UserId,
+                RecordedAtUtc = DateTime.UtcNow,
+                EvidenceNoteId = request.EvidenceNoteId,
+                PrerequisiteStateJson = prerequisiteStateJson,
+                Reason = decision.SupervisorOverrideAccepted
+                    ? request.SupervisorOverrideReason?.Trim()
+                    : null
+            });
+            auditTrail.Record(
+                actor,
+                AuditActions.FormAttested,
+                "Form",
+                form.Id,
+                JsonSerializer.Serialize(new
+                {
+                    formType = form.Type,
+                    cycleStart = cycle.Value.CycleStart.ToString("yyyy-MM-dd"),
+                    completedOn = request.CompletedOn.Date.ToString("yyyy-MM-dd"),
+                    actorKind = actorKind.ToString(),
+                    prerequisiteArtifactIds,
+                    supervisorOverride = decision.SupervisorOverrideAccepted
+                }));
+            if (decision.SupervisorOverrideAccepted)
+            {
+                auditTrail.Record(
+                    actor,
+                    AuditActions.FormPrerequisiteOverridden,
+                    "Form",
+                    form.Id,
+                    JsonSerializer.Serialize(new
+                    {
+                        formType = form.Type,
+                        cycleStart = cycle.Value.CycleStart.ToString("yyyy-MM-dd"),
+                        unmetPrerequisites = decision.UnmetPrerequisites
+                            .Select(item => item.Kind.ToString())
+                            .Distinct()
+                            .Order()
+                            .ToArray()
+                    }));
+            }
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "form_attestation_changed",
+                    "This form's attestation changed in another session. Refresh it and try again.",
+                    string.Empty));
+            }
+            return Results.Ok(ContractMapper.ToForm(form));
+        });
+
+        api.MapPost("/people/{personId:int}/forms/{type}/attestation/revoke", async Task<IResult> (
+            int personId,
+            string type,
+            RevokeFormAttestationRequest request,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Reason))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["reason"] = ["A reason is required to revoke an attestation."]
+                }, statusCode: StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking()
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                    cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+            var form = await db.Forms.SingleOrDefaultAsync(candidate =>
+                candidate.Id == request.FormId && candidate.PersonId == personId && candidate.Type == type,
+                cancellationToken);
+            if (form is null)
+                return Results.NotFound();
+            if (form.CompletedDate is null)
+                return Results.Ok(ContractMapper.ToForm(form));
+
+            var actorKind = actor.UserId == person.UserId
+                ? AttestationActorKind.CaseManager
+                : AttestationActorKind.Supervisor;
+            form.ApplyRevocation();
+            db.FormAttestations.Add(new ServerFormAttestation
+            {
+                FormId = form.Id,
+                Kind = "Revoked",
+                ActorKind = actorKind.ToString(),
+                ActorUserId = actor.UserId,
+                RecordedAtUtc = DateTime.UtcNow,
+                Reason = request.Reason.Trim()
+            });
+            auditTrail.Record(
+                actor,
+                AuditActions.FormAttestationRevoked,
+                "Form",
+                form.Id,
+                JsonSerializer.Serialize(new { formType = form.Type, actorKind = actorKind.ToString() }));
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "form_attestation_changed",
+                    "This form's attestation changed in another session. Refresh it and try again.",
+                    string.Empty));
+            }
+            return Results.Ok(ContractMapper.ToForm(form));
+        });
+
+        api.MapGet("/people/{personId:int}/attestations/pending", async Task<IResult> (
+            int personId,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            var person = await db.People.AsNoTracking()
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.Id == personId && candidate.AgencyId == actor.AgencyId,
+                    cancellationToken);
+            if (person is null ||
+                !await TenantAccess.CanAccessUserAsync(db, actor, person.UserId, cancellationToken))
+                return Results.NotFound();
+            var forms = await db.Forms.AsNoTracking()
+                .Where(candidate => candidate.PersonId == personId)
+                .Select(candidate => new FormFact(
+                    candidate.Id,
+                    candidate.PersonId,
+                    candidate.Type,
+                    candidate.DueDate,
+                    candidate.CompletedDate))
+                .ToListAsync(cancellationToken);
+            var notes = await db.Notes.AsNoTracking()
+                .Where(candidate => candidate.PersonId == personId &&
+                                    candidate.FormType != null &&
+                                    candidate.EventDate != null &&
+                                    candidate.Status != null)
+                .ToListAsync(cancellationToken);
+            var facts = notes.Select(note => new NoteFact(
+                note.Id,
+                note.PersonId,
+                Enum.GetName(typeof(FormType), note.FormType!.Value) ?? string.Empty,
+                note.EventDate!.Value,
+                Enum.GetName(typeof(NoteStatus), note.Status!.Value) ?? string.Empty))
+                .ToList();
+            var pending = FormAttestationRules.PendingAttestations(
+                facts, forms, person.EffectiveDate, DateTime.Today)
+                .Select(item => new PendingAttestationDto(
+                    item.FormId, item.PersonId, item.FormType, item.CycleStart, item.CycleEnd,
+                    item.DueDate, item.EvidenceNoteId, item.EvidenceDate))
+                .ToList();
+            return Results.Ok(pending);
+        });
+
         api.MapPost("/forms/delete", async Task<IResult> (
             DeleteFormsRequest request,
             ClaimsPrincipal principal,
@@ -4289,6 +5603,14 @@ internal static class ApiEndpoints
                                   select form.Id).ToListAsync(cancellationToken);
             if (ownedIds.Count != ids.Count)
                 return Results.NotFound();
+            if (await db.FormAttestations.AsNoTracking()
+                    .AnyAsync(attestation => ownedIds.Contains(attestation.FormId), cancellationToken))
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "form_history_locked",
+                    "A form with attestation history cannot be deleted.",
+                    string.Empty));
+            }
 
             var deleted = await db.Forms.Where(form => ownedIds.Contains(form.Id))
                 .ExecuteDeleteAsync(cancellationToken);
@@ -4319,7 +5641,13 @@ internal static class ApiEndpoints
                 });
             }
 
-            form.ApplyCompletion(request.CompletedDate);
+            if (request.CompletedDate?.Date != form.CompletedDate?.Date)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["completedDate"] = ["A completion date can be changed only through an attestation or revocation."]
+                });
+            }
             form.OpenedDate = request.OpenedDate?.Date;
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.Ok(ContractMapper.ToForm(form));
@@ -4438,6 +5766,58 @@ internal static class ApiEndpoints
             });
         }
         return forms;
+    }
+
+    private static void AddInitialFormAttestations(
+        ApiDbContext db,
+        AuditTrail auditTrail,
+        Actor actor,
+        DateTime effectiveDate,
+        IEnumerable<ServerForm> forms)
+    {
+        foreach (var form in forms.Where(candidate =>
+                     candidate.CompletedDate is not null && candidate.Attestations.Count == 0))
+        {
+            var completedOn = form.CompletedDate!.Value.Date;
+            var cycle = FormAttestationRules.ResolveCycle(effectiveDate, form.DueDate)
+                ?? throw new InvalidOperationException(
+                    "A completed form is not attached to a valid compliance cycle.");
+            var decision = FormAttestationRules.Evaluate(
+                form.Type, completedOn, cycle.CycleStart, DateTime.Today,
+                AttestationActorKind.CaseManager, [],
+                forms.Select(candidate => new FormFact(
+                    candidate.Id, candidate.PersonId, candidate.Type,
+                    candidate.DueDate, candidate.CompletedDate)).ToList());
+            if (!decision.Accepted)
+            {
+                throw new InvalidOperationException(decision.DateError ?? string.Join(" ",
+                    decision.UnmetPrerequisites.Select(item => item.Message)));
+            }
+            var attestation = new ServerFormAttestation
+            {
+                Form = form,
+                Kind = "Attested",
+                CompletedOn = completedOn,
+                ActorKind = AttestationActorKind.CaseManager.ToString(),
+                ActorUserId = actor.UserId,
+                RecordedAtUtc = DateTime.UtcNow,
+                PrerequisiteStateJson = FormAttestationRules.NoPrerequisitesStateJson
+            };
+            form.Attestations.Add(attestation);
+            db.FormAttestations.Add(attestation);
+            auditTrail.Record(
+                actor,
+                AuditActions.FormAttested,
+                "Form",
+                metadataJson: JsonSerializer.Serialize(new
+                {
+                    formType = form.Type,
+                    cycleStart = cycle.CycleStart.ToString("yyyy-MM-dd"),
+                    completedOn = completedOn.ToString("yyyy-MM-dd"),
+                    actorKind = AttestationActorKind.CaseManager.ToString(),
+                    prerequisiteArtifactIds = Array.Empty<int>()
+                }));
+        }
     }
 
     private static DateTime ComputeFormDueDate(
@@ -4733,6 +6113,11 @@ internal static class ApiEndpoints
             "stale_test_consumer",
             "This consumer changed after you selected them. Refresh the Admin dashboard and review the current record before trying again.",
             string.Empty));
+
+    private static LegalHoldDto ToLegalHoldDto(ServerLegalHold hold) => new(
+        hold.Id, hold.PersonId, hold.Reason, hold.CaseReference, hold.IssuedBy,
+        hold.EffectiveAtUtc, hold.PlacedByUserId, hold.PlacedAtUtc,
+        hold.IsReleased, hold.ReleasedByUserId, hold.ReleasedAtUtc, hold.ReleaseNote);
 
     private static IResult StaleNoteConflict() =>
         Results.Conflict(new ApiErrorDto(
@@ -5339,6 +6724,35 @@ internal static class ApiEndpoints
             .Select(part => part!.Trim())
             .ToArray();
         return present.Length == 0 ? null : string.Join(", ", present);
+    }
+
+    private static IReadOnlyList<string> ReleaseDraftBlankFields(AgencyReleaseRequest request)
+    {
+        var fields = new List<string>();
+        if (request.AuthorizationGranted is null) fields.Add(nameof(request.AuthorizationGranted));
+        if (string.IsNullOrWhiteSpace(request.ContactName)) fields.Add(nameof(request.ContactName));
+        if (request.InformationCategories is null || request.InformationCategories.Count == 0) fields.Add(nameof(request.InformationCategories));
+        if (request.StartDate is null) fields.Add(nameof(request.StartDate));
+        if (request.ExpirationDate is null) fields.Add(nameof(request.ExpirationDate));
+        if (string.IsNullOrWhiteSpace(request.Scope)) fields.Add(nameof(request.Scope));
+        if (request.IncludeDrugAlcohol is null) fields.Add(nameof(request.IncludeDrugAlcohol));
+        if (request.IncludeMentalHealth is null) fields.Add(nameof(request.IncludeMentalHealth));
+        if (request.IncludeHivAids is null) fields.Add(nameof(request.IncludeHivAids));
+        return fields;
+    }
+
+    private static int[] MatchingArtifactIds(
+        string formType,
+        IReadOnlyCollection<ArtifactFact> artifacts)
+    {
+        var entry = AnnualDocumentCatalog.ForFormType(formType);
+        return entry is null
+            ? []
+            : artifacts.Where(artifact =>
+                    artifact.Kind.Equals(entry.Kind.ToString(), StringComparison.OrdinalIgnoreCase) &&
+                    !artifact.IsDraft)
+                .Select(artifact => artifact.ArtifactId)
+                .Distinct().Order().ToArray();
     }
 
 }

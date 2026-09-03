@@ -143,10 +143,8 @@ namespace Sati.ViewModels
             NotesView.Filter = FilterNotes;
 
             // Second host. Its own transient instance — drafts here never bleed
-            // into the dashboard's copy. FormNoteSavedAsync stays null by intent:
-            // form-completion side effects need the dashboard's SelectedPerson
-            // context, so a form note edited from NotesLog does not touch form
-            // state (matches pre-refactor behavior).
+            // into the dashboard's copy. Form-tagged notes are evidence only, so
+            // saving here and from the dashboard now has identical behavior.
             //
             // On save: refresh this grid, then bubble to the dashboard via the
             // existing NoteStatusChanged seam so productivity and the board track.

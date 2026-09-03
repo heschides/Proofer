@@ -30,10 +30,10 @@ public partial class AgencyReleaseWorkspace : UserControl
 
     private async void SavePdf(object? sender, AgencyReleasePdfReadyEventArgs e) =>
         await PdfFileSaver.SaveAsync(
-            "Save agency release",
+            "Save release",
             e.SuggestedFileName,
             e.Content,
-            "The agency release was saved. Store and transmit it only through agency-approved protected locations.");
+            "The release was saved. Store and transmit it only through agency-approved protected locations.");
 
     private void ShowProblem(object? sender, AgencyReleaseProblemEventArgs e) =>
         MessageBox.Show(Window.GetWindow(this), e.Message, e.Title, MessageBoxButton.OK, MessageBoxImage.Warning);

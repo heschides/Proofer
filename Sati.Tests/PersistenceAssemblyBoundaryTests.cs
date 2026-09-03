@@ -35,7 +35,7 @@ public sealed class PersistenceAssemblyBoundaryTests
             .Where(id => id is not null)
             .ToList();
 
-        Assert.Equal(87, migrationIds.Count);
+        Assert.Equal(93, migrationIds.Count);
         Assert.Contains("20260812090000_TenantScopeSettingsAndProviders", migrationIds);
         Assert.Contains("20260830224423_AddUserPermissions", migrationIds);
         Assert.Contains("20260830231500_SeparateAgencyWideSupervision", migrationIds);
@@ -44,5 +44,10 @@ public sealed class PersistenceAssemblyBoundaryTests
         Assert.Contains("20260901232228_AddPersonCredibleClientId", migrationIds);
         Assert.Contains("20260902140636_AddCredibleProfileUpdateSetting", migrationIds);
         Assert.Contains("20260902142303_AddVocationalRehabilitationAssignments", migrationIds);
+        Assert.Contains("20260903152847_AddFormAttestations", migrationIds);
+        Assert.Contains("20260903173950_AddDocumentArtifacts", migrationIds);
+        Assert.Contains("20260903175219_AddPersonCreatedAtAndStatus", migrationIds);
+        Assert.Contains(migrationIds, id => id!.EndsWith("_AddLegalHolds", StringComparison.Ordinal));
+        Assert.Contains(migrationIds, id => id!.EndsWith("_AddSafetyPlans", StringComparison.Ordinal));
     }
 }

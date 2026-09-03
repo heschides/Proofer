@@ -7,7 +7,9 @@ internal static class ContractMapper
 {
     private static readonly string[] GenderNames = ["Unknown", "Male", "Female", "NonBinary"];
     private static readonly string[] WaiverNames = ["None", "Section21", "Section29"];
-    private static readonly string[] NoteStatusNames =
+    // Mirrors Sati.PersonStatus. Append-only — see that enum's own comment.
+    private static readonly string[] PersonStatusNames = ["Active", "NoLongerServed", "Deceased", "Ghost"];
+    internal static readonly string[] NoteStatusNames =
     [
         "Scheduled", "Pending", "Logged", "HeldForCompliance", "Cancelled", "Delayed",
         "Approved", "Returned", "Abandoned", "ComplianceBlocked"
@@ -15,8 +17,8 @@ internal static class ContractMapper
     // Ordinals mirror the append-only desktop enum. Reminder is last so existing
     // persisted values keep their meaning; NoteSchedulingPolicy normalizes its
     // non-billable shape before this value reaches persistence.
-    private static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other", "Reminder"];
-    private static readonly string[] FormTypeNames =
+    internal static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other", "Reminder"];
+    internal static readonly string[] FormTypeNames =
     [
         "Q1R", "Q2R", "Q3R", "Q4R", "PCP", "ComprehensiveAssessment", "Reclassification",
         "SafetyPlan", "PrivacyPractices", "Release_Agency", "Release_DHHS", "Release_Medical"
@@ -84,7 +86,12 @@ internal static class ContractMapper
         person.IsTestData,
         person.CredibleClientId,
         person.VrCounselorName,
-        person.VrAssistantName);
+        person.VrAssistantName,
+        person.CreatedAtUtc,
+        NameAt(PersonStatusNames, person.Status, "Active"),
+        person.StatusNote,
+        person.StatusChangedAtUtc,
+        person.StatusChangedByUserId);
 
     public static FormDto ToForm(ServerForm form) => new(
         form.Id,
@@ -315,9 +322,9 @@ internal static class ContractMapper
     public static int ParseNoteType(string? value) => Array.IndexOf(NoteTypeNames, value);
     public static int ParseFormType(string? value) => Array.IndexOf(FormTypeNames, value);
 
-    private static string NameAt(string[] names, int index, string fallback) =>
+    internal static string NameAt(string[] names, int index, string fallback) =>
         index >= 0 && index < names.Length ? names[index] : fallback;
 
-    private static string? NullableNameAt(string[] names, int? index) =>
+    internal static string? NullableNameAt(string[] names, int? index) =>
         index.HasValue && index.Value >= 0 && index.Value < names.Length ? names[index.Value] : null;
 }

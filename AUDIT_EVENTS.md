@@ -1,6 +1,6 @@
 # Audit events
 
-*Current as of 2026-08-28.*
+*Current as of 2026-09-03.*
 
 Sati records a small, append-only event when a protected action succeeds. The event answers
 “who did what, to which record, for which agency, and during which request?” It is not a second
@@ -35,6 +35,9 @@ for content; the audit event is only its activity index.
 - `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
 - `at-request.published`, `at-request.reopened`
+- `form.attested`, `form.attestation-revoked`, `form.prerequisite-overridden`
+- `document.generated`, `document.recorded-external`
+- `document-template.published`
 - `provider.merged`
 - `audit.exported`
 - `platform-incidents.viewed`, `incident-status.updated`
@@ -44,6 +47,26 @@ manager's attestation; `at-request.reopened` records that an attestation was dis
 the discarded signer and timestamp in its metadata so the trail does not simply go quiet. Reopening
 is its own action rather than an implicit consequence of a status change, because a reviewer reading
 the trail should not have to infer that a signature was removed.
+
+The two form actions bracket the live compliance projection. `form.attested` records form type,
+cycle start, the explicitly entered completion date, actor kind, and prerequisite artifact ids;
+`form.attestation-revoked` records form type and actor kind. A revocation's required explanation
+stays on the protected append-only `FormAttestation` row rather than being copied into general
+audit metadata. The ledger row, `Form.CompletedDate` projection, and audit event share one EF Core
+transaction. Existing completions backfilled by migration carry a System attestation reason of
+`pre-attestation record`; the historical completion date itself is not changed.
+
+`document.generated` records document kind, cycle start, and origin; it never carries PDF bytes,
+consumer names, release selections, or other document content. `document.recorded-external`
+records kind and cycle start, while the required verification/location note remains only on the
+protected `DocumentArtifact`. `form.prerequisite-overridden` records form type and the kinds of
+unmet prerequisites. The Supervisor's required technical-problem explanation remains on the
+protected attestation ledger row rather than being copied into broad audit metadata.
+
+`document-template.published` records the agency, document kind, and newly assigned version.
+Template source and merged consumer values are excluded. Privacy-document generation additionally
+records template owner, key, and version in `document.generated` and on the artifact. Published
+template rows reject tracked edits/deletes in both contexts; replacing wording appends a version.
 
 `note.reassigned` records a successful correction from one client to another on the same case
 manager's own caseload. Its metadata contains only the previous and new Person IDs; client names
@@ -71,7 +94,8 @@ broaden assignment or agency scope.
 
 - Only an Admin can call `GET /api/v1/audit-events`.
 - The API always restricts the query to the actor's agency and limits the date window and row count.
-- Both application database contexts reject tracked updates or deletes of `AuditEvent` rows.
+- Both application database contexts reject tracked updates or deletes of `AuditEvent` and
+  `FormAttestation` rows. The attestation-to-form relationship is restricted rather than cascading.
 - Production SQL-principal separation, retention classes, the legal-hold gate, export controls, and
   monitoring expectations are defined in `OPERATIONS.md`. Enforcement remains `PolicyOnly` until
   legal-hold controls exist; application-level append-only enforcement does not make a database
@@ -150,7 +174,8 @@ or ordinary retention work. The local and API implementations both require that 
 the exact versioned deletion attestation, Admin role, actor-agency ownership, and the selected Person
 revision.
 
-Deletion runs in one serializable transaction and explicitly removes the consumer-owned forms,
+Deletion runs in one serializable transaction and explicitly removes the consumer-owned forms and
+their synthetic-only attestation rows,
 notes, contacts, consumer-provider links, reviews and appointments, assessments, AT requests and
 their items, and Person versions before removing the Person row. A claim line referencing any of
 the consumer's notes blocks the entire operation. The existing `AuditEvent` ledger is never deleted;
@@ -163,3 +188,6 @@ The WPF client's Admin tab is the supported human-facing entry point. It summari
 renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the protected PDF export. It also reports database/retention status and creates a
 reason-gated, bounded agency audit CSV whose use is itself recorded. The UI does not broaden access: cloud requests remain subject to the API's
 Admin and tenant checks, and the transitional local service repeats the Admin/agency restrictions.
+# Safety-plan workflow events
+
+`safety-plan.created`, `safety-plan.updated`, `safety-plan.submitted`, `safety-plan.approved`, and `safety-plan.returned` identify the lifecycle transition and safety-plan record. They intentionally do not copy plan narrative or a return reason into audit metadata.

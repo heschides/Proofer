@@ -1,6 +1,8 @@
 ﻿using Sati.Data;
 using Sati.Models;
 
+using Sati.Contracts.V1;
+
 namespace Sati
 {
     public class Person : IEventSource
@@ -65,6 +67,22 @@ namespace Sati
         // authenticated Admin may set this at birth; ordinary profile edits cannot
         // change it. The Admin test-data deletion command requires it.
         public bool IsTestData { get; set; }
+
+        // Set once, at creation, by CreatePerson or Rehydrate — the only two writers,
+        // same as Id and UserId. Never exposed as an editable field, so there is no
+        // path (accidental or otherwise) for an edit to move a record's deletion
+        // window. A row that predates this column is backfilled to a fixed sentinel
+        // far enough in the past that it is permanently outside any window, rather
+        // than a guessed real creation date. See HANDOFF_CLIENT_DELETION_POLICY.md, A2.
+        public DateTime CreatedAtUtc { get; private set; }
+
+        // Archive state. Active people appear on caseloads and generate compliance
+        // work; the others do not. See HANDOFF_CLIENT_DELETION_POLICY.md's archive
+        // semantics — this is a visibility and work-generation change, not a data one.
+        public PersonStatus Status { get; set; } = PersonStatus.Active;
+        public string? StatusNote { get; set; }
+        public DateTime? StatusChangedAtUtc { get; set; }
+        public int? StatusChangedByUserId { get; set; }
         public string? MaineCareId { get; set; }
         public string? DiagnosisCode { get; set; }
         public int? PlaceOfService { get; set; }
@@ -208,7 +226,8 @@ namespace Sati
                 Bio = bio.Trim(),
                 BirthDate = birthdate,
                 EffectiveDate = effective,
-                Waiver = waiver
+                Waiver = waiver,
+                CreatedAtUtc = DateTime.UtcNow
             };
 
             if (effective is null)
@@ -256,8 +275,13 @@ namespace Sati
         // THE single answer to "was this document already satisfied when its cycle
         // began, and if so, since when."
         //
-        // An annual document is in force from the day its cycle started, because the
-        // cycle started BY it being signed — that is what an admission or a renewal
+        // A non-review form with no prerequisite is in force from the day its cycle
+        // started. Document-backed forms stay outstanding until their artifact is
+        // prepared and a human attests; inventing that evidence during person creation
+        // would bypass FormAttestationRules.
+        //
+        // Historically every annual document was treated as in force because the
+        // cycle was assumed to have started BY it being signed — what an admission or renewal
         // is. Reviews are never assumed: a quarterly review is an attestation that
         // work happened, and no date can be inferred for work nobody has recorded.
         //
@@ -285,6 +309,7 @@ namespace Sati
         private static DateTime? InForceSince(
             FormType type, DateTime cycleStart, DateTime cycleEnd, DateTime today) =>
             !IsReviewType(type) &&
+            FormAttestationRules.PrerequisiteFor(type.ToString()) == PrerequisiteKind.None &&
             cycleStart.Date <= today.Date &&
             today.Date < cycleEnd.Date
                 ? cycleStart.Date
@@ -429,10 +454,10 @@ namespace Sati
             _ => 30
         };
 
-        // Ensures forms exist for the current AND next cycle. Current-cycle annual
-        // non-reviews are created already satisfied, dated from the cycle start,
-        // because the cycle started by those documents being signed. Next-cycle
-        // annuals are created outstanding and are satisfied during the prep window as
+        // Ensures forms exist for the current AND next cycle. Current-cycle forms
+        // with no prerequisite are created already satisfied, dated from the cycle
+        // start. Document-backed forms remain outstanding until their prerequisite
+        // and attestation exist. Next-cycle annuals are satisfied during the prep window as
         // renewals are signed — if the cycle rolls over with them still open, missed
         // prep is correctly flagged. Reviews are outstanding in both cycles.
         // InForceSince owns that whole distinction.
@@ -597,10 +622,15 @@ namespace Sati
         // Network hydration seam for the HTTP-backed Demo client. Only identity is
         // set here; CloudContractMapper applies the safe DTO fields afterward.
         // This never accepts password, tenant, or persistence-only material.
-        public static Person Rehydrate(int id, int userId) => new()
+        //
+        // createdAtUtc defaults to the CLR default (0001-01-01), not DateTime.UtcNow:
+        // this is a bare identity stub, and an unspecified creation date must read as
+        // permanently outside the deletion window, not as "just created."
+        public static Person Rehydrate(int id, int userId, DateTime createdAtUtc = default) => new()
         {
             Id = id,
-            UserId = userId
+            UserId = userId,
+            CreatedAtUtc = createdAtUtc
         };
 
         /// <summary>

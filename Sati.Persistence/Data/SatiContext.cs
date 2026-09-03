@@ -16,6 +16,9 @@ namespace Sati.Data
         public DbSet<Person> People { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Form> Forms { get; set; }
+        public DbSet<FormAttestation> FormAttestations { get; set; }
+        public DbSet<DocumentArtifact> DocumentArtifacts { get; set; }
+        public DbSet<DocumentTemplate> DocumentTemplates { get; set; }
         public DbSet<Note> Notes { get; set; }
         public DbSet<Settings> Settings { get; set; }
         public DbSet<Scratchpad> Scratchpad { get; set; }
@@ -37,9 +40,11 @@ namespace Sati.Data
         public DbSet<PersonContact> PersonContacts { get; set; }
         public DbSet<PersonProvider> PersonProviders { get; set; }
         public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
+        public DbSet<SafetyPlan> SafetyPlans { get; set; }
         public DbSet<AuditEvent> AuditEvents { get; set; }
         public DbSet<PersonVersion> PersonVersions { get; set; }
         public DbSet<IncidentGroup> IncidentGroups { get; set; }
+        public DbSet<LegalHold> LegalHolds { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -66,6 +71,10 @@ namespace Sati.Data
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<PersonVersion>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<FormAttestation>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<DocumentTemplate>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<BillingSubmissionEvent>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<RemittanceClaimOutcome>()
@@ -73,7 +82,7 @@ namespace Sati.Data
                 ChangeTracker.Entries<RemittanceDeposit>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
             {
-                throw new InvalidOperationException("Audit, Person history, and billing exchange records are append-only.");
+                throw new InvalidOperationException("Audit, form-attestation, document-template, Person history, and billing exchange records are append-only.");
             }
         }
 
@@ -196,6 +205,20 @@ namespace Sati.Data
                 entity.HasOne<User>().WithMany().HasForeignKey(a => a.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<SafetyPlan>(entity =>
+            {
+                entity.HasKey(plan => plan.Id);
+                entity.Property(plan => plan.CycleStart).HasColumnType("date");
+                entity.Property(plan => plan.Status).IsRequired().HasMaxLength(30);
+                entity.Property(plan => plan.ReturnReason).HasMaxLength(500);
+                entity.Property(plan => plan.DocumentJson).IsRequired();
+                entity.Property(plan => plan.Revision).IsConcurrencyToken();
+                entity.HasIndex(plan => new { plan.PersonId, plan.CycleStart, plan.Version }).IsUnique();
+                entity.HasOne(plan => plan.Person).WithMany().HasForeignKey(plan => plan.PersonId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(plan => plan.AuthorUser).WithMany().HasForeignKey(plan => plan.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>().WithMany().HasForeignKey(plan => plan.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<AuditEvent>(entity =>
             {
                 entity.HasKey(a => a.Id);
@@ -254,6 +277,8 @@ namespace Sati.Data
                 // does not need a narrowing migration first. See Person.CredibleClientId.
                 entity.Property(p => p.CredibleClientId).HasMaxLength(PersonSaveRules.CredibleClientIdMaxLength);
                 entity.Property(p => p.IsTestData).HasDefaultValue(false);
+                entity.Property(p => p.Status).HasDefaultValue(PersonStatus.Active);
+                entity.Property(p => p.StatusNote).HasMaxLength(500);
                 entity.Property(p => p.FirstName)
                       .IsRequired()
                       .HasMaxLength(50);
@@ -397,6 +422,10 @@ namespace Sati.Data
                 entity.Property(f => f.Type)
                       .HasConversion<string>()
                       .HasMaxLength(FormTypeMaxLength);
+                // Two clients must not both attest from the same outstanding state.
+                // Using the existing projection as the concurrency token adds no
+                // schema column and makes the update conditional on what was read.
+                entity.Property(f => f.CompletedDate).IsConcurrencyToken();
                 // A person has exactly one form of a given type for a given due
                 // date. AddMissingFormsForCycle decides whether to insert by reading
                 // the person's own Forms collection first, which is a check-then-
@@ -417,6 +446,96 @@ namespace Sati.Data
                       .WithMany(p => p.Forms)
                       .HasForeignKey(f => f.PersonId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<FormAttestation>(entity =>
+            {
+                entity.HasKey(attestation => attestation.Id);
+                entity.Property(attestation => attestation.Kind)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+                entity.Property(attestation => attestation.ActorKind)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+                entity.Property(attestation => attestation.CompletedOn)
+                      .HasColumnType("date");
+                entity.Property(attestation => attestation.PrerequisiteStateJson)
+                      .HasMaxLength(4_000);
+                entity.Property(attestation => attestation.Reason)
+                      .HasMaxLength(500);
+                entity.HasIndex(attestation => new { attestation.FormId, attestation.RecordedAtUtc });
+                entity.HasOne(attestation => attestation.Form)
+                      .WithMany(form => form.Attestations)
+                      .HasForeignKey(attestation => attestation.FormId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>()
+                      .WithMany()
+                      .HasForeignKey(attestation => attestation.ActorUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // EvidenceNoteId is deliberately not a foreign key. Deleting a note
+                // removes evidence from the pending projection but never revokes the
+                // separate human attestation it may have prompted.
+            });
+
+            modelBuilder.Entity<DocumentArtifact>(entity =>
+            {
+                entity.HasKey(artifact => artifact.Id);
+                entity.Property(artifact => artifact.Kind).HasConversion<string>().HasMaxLength(40);
+                entity.Property(artifact => artifact.Origin).HasConversion<string>().HasMaxLength(30);
+                entity.Property(artifact => artifact.CycleStart).HasColumnType("date");
+                entity.Property(artifact => artifact.ContentSha256).HasColumnType("char(64)");
+                entity.Property(artifact => artifact.SuggestedFileName).HasMaxLength(260);
+                entity.Property(artifact => artifact.TemplateOwner).HasMaxLength(50);
+                entity.Property(artifact => artifact.TemplateKey).HasMaxLength(100);
+                entity.Property(artifact => artifact.BlankFieldsJson).IsRequired().HasMaxLength(4_000);
+                entity.Property(artifact => artifact.ExternalNote).HasMaxLength(1_000);
+                entity.HasIndex(artifact => new { artifact.PersonId, artifact.Kind, artifact.CycleStart })
+                    .IsUnique()
+                    .HasFilter("[SupersededByArtifactId] IS NULL")
+                    .HasDatabaseName("IX_DocumentArtifacts_OneLivePerCycle");
+                entity.HasOne(artifact => artifact.Person)
+                    .WithMany()
+                    .HasForeignKey(artifact => artifact.PersonId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Agency>()
+                    .WithMany()
+                    .HasForeignKey(artifact => artifact.AgencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(artifact => artifact.GeneratedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<DocumentTemplate>(entity =>
+            {
+                entity.HasKey(template => template.Id);
+                entity.Property(template => template.Kind).HasConversion<string>().HasMaxLength(40);
+                entity.Property(template => template.Body).IsRequired().HasMaxLength(DocumentTemplateRules.BodyMaxLength);
+                entity.HasIndex(template => new { template.AgencyId, template.Kind, template.Version })
+                    .IsUnique()
+                    .HasFilter(null)
+                    .HasDatabaseName("IX_DocumentTemplates_AgencyKindVersion");
+                entity.HasOne<Agency>()
+                    .WithMany()
+                    .HasForeignKey(template => template.AgencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(template => template.PublishedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasData(new
+                {
+                    Id = 1,
+                    AgencyId = (int?)null,
+                    Kind = AnnualDocumentKind.PrivacyPractices,
+                    Version = SatiDefaultDocumentTemplates.PrivacyPracticesVersion,
+                    Body = SatiDefaultDocumentTemplates.PrivacyPracticesBody,
+                    PublishedAtUtc = SatiDefaultDocumentTemplates.PublishedAtUtc,
+                    PublishedByUserId = (int?)null,
+                    RetiredAtUtc = (DateTime?)null
+                });
             });
 
             modelBuilder.Entity<ReviewItem>(entity =>
@@ -718,6 +837,33 @@ namespace Sati.Data
                 entity.HasOne<Agency>()
                       .WithMany()
                       .HasForeignKey(incident => incident.AgencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<LegalHold>(entity =>
+            {
+                entity.HasKey(hold => hold.Id);
+                // The only query the deletion gate runs: unreleased holds for one person.
+                entity.HasIndex(hold => new { hold.PersonId, hold.IsReleased });
+                entity.Property(hold => hold.Reason).IsRequired().HasMaxLength(500);
+                entity.Property(hold => hold.CaseReference).HasMaxLength(100);
+                entity.Property(hold => hold.IssuedBy).HasMaxLength(150);
+                entity.Property(hold => hold.ReleaseNote).HasMaxLength(500);
+                entity.HasOne<Agency>()
+                      .WithMany()
+                      .HasForeignKey(hold => hold.AgencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Person>()
+                      .WithMany()
+                      .HasForeignKey(hold => hold.PersonId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>()
+                      .WithMany()
+                      .HasForeignKey(hold => hold.PlacedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>()
+                      .WithMany()
+                      .HasForeignKey(hold => hold.ReleasedByUserId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
         }

@@ -34,6 +34,7 @@ public sealed class CredibleProfileMappingTests
         Assert.Equal("1990-01-02", Value(draft, CredibleFields.BirthDate));
         Assert.Equal("12345678A", Value(draft, CredibleFields.MaineCareId));
         Assert.Equal("21864", Value(draft, CredibleFields.CredibleClientId));
+        Assert.Equal("1 Choice Hotels Circle", Value(draft, CredibleFields.Address));
         Assert.Equal("1 Choice Hotels Circle", Value(draft, CredibleFields.BillingStreet));
         Assert.Equal("Alexander", Value(draft, CredibleFields.BillingCity));
         Assert.Equal("MD", Value(draft, CredibleFields.BillingState));

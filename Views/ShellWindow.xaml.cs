@@ -149,34 +149,6 @@ namespace Sati.Views
                 await _shellViewModel.NotesViewModel.Clients.ReloadProfileSettingsAsync();
             };
 
-            _caseManagerDashboardViewModel.MarkFormCompleteRequested = async formType =>
-            {
-                var result = MessageBox.Show(
-                    $"Did you complete the {formType} today?",
-                    "Form Status",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                    await _caseManagerDashboardViewModel.MarkFormCompleteAsync(formType);
-                else if (result == MessageBoxResult.No)
-                    await _caseManagerDashboardViewModel.OpenFormAsync(formType);
-            };
-
-            _caseManagerDashboardViewModel.FormStatusRequested = async formType =>
-            {
-                var result = MessageBox.Show(
-                    $"Did you complete the {formType} today?",
-                    "Form Status",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                    await _caseManagerDashboardViewModel.MarkFormCompleteAsync(formType);
-                else if (result == MessageBoxResult.No)
-                    await _caseManagerDashboardViewModel.OpenFormAsync(formType);
-            };
-
             shellViewModel.Scratchpad.OpenScratchpadHistoryRequested += async (s, e) =>
             {
                 var win = scratchpadHistoryWindowFactory();

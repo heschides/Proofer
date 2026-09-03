@@ -162,6 +162,7 @@ namespace Sati
                         // made every Demo start fail service-provider validation.
                         services.AddSingleton<ATRequestPdfExporter>();
                         services.AddSingleton<Sati.Forms.AgencyReleasePdfGenerator>();
+                        services.AddSingleton<Sati.Forms.MedicalReleasePdfGenerator>();
 
                         if (dataEnvironment.UsesCloudApi)
                             AddCloudDataServices(services, dataEnvironment);
@@ -218,6 +219,7 @@ namespace Sati
                         services.AddTransient<NewClientViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.DhhsFormsViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.AgencyReleaseViewModel>();
+                        services.AddSingleton<Sati.Forms.DocumentTemplatePdfComposer>();
 
                         // Transient by intent: injected into two singleton hosts
                         // (CaseManagerDashboardViewModel, NotesWindowViewModel),
@@ -392,6 +394,7 @@ namespace Sati
             services.AddSingleton<DatabaseIdentityValidator>();
             services.AddTransient<IPersonService, PersonService>();
             services.AddTransient<IAdminService, AdminService>();
+            services.AddTransient<ILegalHoldRegistry, LocalLegalHoldRegistry>();
             services.AddTransient<IIncidentReporter, LocalIncidentReporter>();
             services.AddTransient<IPlatformHealthService, LocalPlatformHealthService>();
             services.AddSingleton<PersonAuditPdfExporter>();
@@ -425,6 +428,7 @@ namespace Sati
             services.AddSingleton<LocalSsnStore>();
             services.AddTransient<IApiCompatibilityService, LocalApiCompatibilityService>();
             services.AddTransient<IAgencyReleaseService, AgencyReleaseService>();
+            services.AddTransient<IDocumentTemplateService, DocumentTemplateService>();
             services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
             services.AddDbContextFactory<SatiContext>((serviceProvider, options) =>
@@ -471,6 +475,7 @@ namespace Sati
             services.AddTransient<IDhhsFormService, CloudDhhsFormService>();
             services.AddTransient<IApiCompatibilityService, CloudApiCompatibilityService>();
             services.AddTransient<IAgencyReleaseService, CloudAgencyReleaseService>();
+            services.AddTransient<IDocumentTemplateService, CloudDocumentTemplateService>();
             services.AddTransient<IComprehensiveAssessmentService, CloudComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, CloudPersonCenteredPlanSourceService>();
             services.AddTransient<IConsumerBillingLossReportService, CloudConsumerBillingLossReportService>();

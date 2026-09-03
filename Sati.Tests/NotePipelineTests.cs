@@ -1023,7 +1023,7 @@ public sealed class NotePipelineTests
                      })
             {
                 var form = new Form(type, dueDate, DateTime.Today);
-                form.MarkComplete(effective);
+                form.SetInitialCompletion(effective);
                 forms.Add(form);
             }
             return forms;

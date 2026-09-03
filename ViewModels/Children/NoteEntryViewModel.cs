@@ -24,13 +24,8 @@ namespace Sati.ViewModels.Children
     //
     // The module owns the full submit pipeline: validation, compliance gate,
     // billing-window check, the ComplianceBlocked/HeldForCompliance fork, and
-    // note persistence. Hosts learn about outcomes two ways:
-    //
-    //   FormNoteSavedAsync — a Func<> callback property, not an event, because
-    //     the host's form side effects must be AWAITED before NoteSaved fires;
-    //     otherwise the host's refresh races the form update and misses it.
-    //     One host per instance, so a single-assignment Func is sufficient.
-    //   NoteSaved — plain event, "refresh whatever you own." Fired last.
+    // note persistence. Hosts learn about successful saves through NoteSaved.
+    // A form-tagged note is evidence only and never changes compliance state.
     public partial class NoteEntryViewModel : ObservableObject
     {
         // -------------------------------------------------------------------------
@@ -129,8 +124,6 @@ namespace Sati.ViewModels.Children
         // Awaited before NoteSaved when a Form-type note lands as Pending/Logged.
         // Args: the form type, and whether this was an edit (hosts may route new
         // vs. edited form notes differently).
-        public Func<FormType, bool, Task>? FormNoteSavedAsync { get; set; }
-
         public event EventHandler? NoteSaved;
 
         // The view owns the confirmation window. The ViewModel supplies the exact
@@ -146,7 +139,7 @@ namespace Sati.ViewModels.Children
         public event EventHandler? EditorCleared;
 
         // Awaited BEFORE a reminder is written, for the same reason
-        // FormNoteSavedAsync is a Func and not an event: ordering is the point.
+        // JournalWriteStartingAsync is a Func and not an event: ordering is the point.
         // The host owns the client page whose journal text box writes the same
         // column, and that page saves on a debounce — so its pending edit has to
         // reach the database before the server prepends the entry, or the next
@@ -1898,8 +1891,6 @@ namespace Sati.ViewModels.Children
             }
 
             var wasEdit = IsEditing && _editingNote is not null;
-            FormType? savedFormType = null;
-
             if (wasEdit)
             {
                 var note = _editingNote!;
@@ -1936,7 +1927,6 @@ namespace Sati.ViewModels.Children
                     throw;
                 }
                 note.Person = selectedPerson;
-                savedFormType = note.FormType;
             }
             else
             {
@@ -1948,15 +1938,7 @@ namespace Sati.ViewModels.Children
                     note.CaseManagerJustification = caseManagerJustification;
 
                 await _noteService.AddNoteAsync(note);
-                savedFormType = note.FormType;
             }
-
-            // Form side effects run and complete BEFORE hosts refresh, so the
-            // reload sees the updated form state.
-            if (savedFormType.HasValue &&
-                Status is NoteStatus.Pending or NoteStatus.Logged &&
-                FormNoteSavedAsync is not null)
-                await FormNoteSavedAsync(savedFormType.Value, wasEdit);
 
             // Same shape as the New Note button: the note goes, the client stays,
             // so the next note for this person needs no re-selection.

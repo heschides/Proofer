@@ -4,6 +4,7 @@
              xmlns:sati="clr-namespace:Sati;assembly=Sati.Persistence"
              xmlns:vm="clr-namespace:Sati.ViewModels"
              xmlns:models="clr-namespace:Sati.Models;assembly=Sati.Persistence"
+             xmlns:views="clr-namespace:Sati.Views"
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
 
@@ -272,6 +273,41 @@
                               Command="{Binding ToggleFormCommand}"
                               CommandParameter="{x:Static sati:FormType.Release_Medical}" />
                 </Grid>
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceRaisedBrush}"
+                        CornerRadius="4"
+                        Visibility="{Binding HasPendingAttestations, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="DOCUMENTED, WAITING FOR ATTESTATION"
+                                   Style="{StaticResource LabelStyle}" />
+                        <ItemsControl ItemsSource="{Binding PendingAttestations}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding DataContext.SelectPendingAttestationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            HorizontalContentAlignment="Left"
+                                            Margin="0,2,0,0"
+                                            Padding="8,5"
+                                            AutomationProperties.Name="Open pending form attestation">
+                                        <TextBlock>
+                                            <Run Text="{Binding FormType, Mode=OneWay}" />
+                                            <Run Text=" documented " />
+                                            <Run Text="{Binding EvidenceDate, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
+                                            <Run Text=" — cycle began " />
+                                            <Run Text="{Binding CycleStart, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
+                                            <Run Text="; due " />
+                                            <Run Text="{Binding DueDate, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <views:FormAttestationControl DataContext="{Binding Attestation}" />
 
                 <Separator Margin="0,12,0,12" />
 

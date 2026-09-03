@@ -15,6 +15,12 @@ public partial class AgencyReleaseViewModel : ObservableObject
     public AgencyReleaseViewModel(IAgencyReleaseService service)
     {
         _service = service;
+        ReleaseKindChoices =
+        [
+            new(AnnualDocumentKind.ReleaseAgency, "Agency release"),
+            new(AnnualDocumentKind.ReleaseMedical, "Medical release")
+        ];
+        selectedReleaseKind = ReleaseKindChoices[0];
         YesNoChoices = [new("Yes", true), new("No", false)];
         ScopeChoices =
         [
@@ -39,9 +45,16 @@ public partial class AgencyReleaseViewModel : ObservableObject
     }
 
     public IReadOnlyList<YesNoChoice> YesNoChoices { get; }
+    public IReadOnlyList<ReleaseKindChoice> ReleaseKindChoices { get; }
     public IReadOnlyList<AgencyReleaseScopeChoice> ScopeChoices { get; }
     public IReadOnlyList<string> ContactTypeChoices { get; }
     public IReadOnlyList<AgencyReleaseCategoryOption> InformationCategories { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WorkspaceTitle))]
+    [NotifyPropertyChangedFor(nameof(WorkspaceDescription))]
+    [NotifyPropertyChangedFor(nameof(GenerateButtonText))]
+    private ReleaseKindChoice selectedReleaseKind;
 
     [ObservableProperty]
     private string personName = "Select a consumer";
@@ -121,6 +134,15 @@ public partial class AgencyReleaseViewModel : ObservableObject
 
     public bool HasPerson => _personId.HasValue;
     public bool CanGenerate => HasPerson && !IsBusy;
+    public string WorkspaceTitle => SelectedReleaseKind.Kind == AnnualDocumentKind.ReleaseMedical
+        ? "MEDICAL RELEASE OF INFORMATION"
+        : "AGENCY RELEASE OF INFORMATION";
+    public string WorkspaceDescription => SelectedReleaseKind.Kind == AnnualDocumentKind.ReleaseMedical
+        ? "Prepare Sati's medical release for a healthcare recipient. Consumer identity, guardian, agency, and case-manager details come from the signed-in record."
+        : "Prepare Sati's agency release to disclose or obtain information. Consumer identity, guardian, agency, and case-manager details come from the signed-in record.";
+    public string GenerateButtonText => SelectedReleaseKind.Kind == AnnualDocumentKind.ReleaseMedical
+        ? "Generate medical release PDF"
+        : "Generate agency release PDF";
 
     public event EventHandler<AgencyReleasePdfReadyEventArgs>? PdfReady;
     public event EventHandler<AgencyReleaseProblemEventArgs>? Problem;
@@ -199,26 +221,31 @@ public partial class AgencyReleaseViewModel : ObservableObject
         var version = _personVersion;
         IsBusy = true;
         ValidationMessage = string.Empty;
-        StatusMessage = "Preparing the Sati agency release...";
+        var documentName = SelectedReleaseKind.Kind == AnnualDocumentKind.ReleaseMedical
+            ? "medical release"
+            : "agency release";
+        StatusMessage = $"Preparing the Sati {documentName}...";
         try
         {
-            var result = await _service.GenerateAsync(personId, request);
+            var result = SelectedReleaseKind.Kind == AnnualDocumentKind.ReleaseMedical
+                ? await _service.GenerateMedicalAsync(personId, request)
+                : await _service.GenerateAsync(personId, request);
             if (version != _personVersion || _personId != personId)
                 return;
 
             StatusMessage = request.ConfirmedObtainedRoi
-                ? "The agency release and staff attestation are ready to save. Consumer signature lines remain blank."
-                : "The agency release draft is ready to save. No staff attestation was recorded.";
+                ? $"The {documentName} and staff attestation are ready to save. Consumer signature lines remain blank."
+                : $"The {documentName} draft is ready to save. No staff attestation was recorded.";
             PdfReady?.Invoke(this, new AgencyReleasePdfReadyEventArgs(result.Pdf, result.FileName));
         }
         catch (Exception ex)
         {
             if (version != _personVersion || _personId != personId)
                 return;
-            StatusMessage = "The agency release could not be generated.";
+            StatusMessage = $"The {documentName} could not be generated.";
             Problem?.Invoke(this, new AgencyReleaseProblemEventArgs(
-                "Agency Release Not Generated",
-                $"The agency release could not be generated.\n\n{ex.Message}"));
+                "Release Not Generated",
+                $"The {documentName} could not be generated.\n\n{ex.Message}"));
         }
         finally
         {
@@ -258,7 +285,8 @@ public partial class AgencyReleaseViewModel : ObservableObject
         ReleaseWithoutReviewChoice?.Value,
         IsRevocation,
         IsRevocation && RevokedOn is DateTime revoked ? DateOnly.FromDateTime(revoked) : null,
-        DidObtainRoi);
+        DidObtainRoi,
+        IsDraft: !DidObtainRoi);
 
     private void ResetInputs()
     {
@@ -292,6 +320,7 @@ public partial class AgencyReleaseViewModel : ObservableObject
 
 public sealed record YesNoChoice(string DisplayName, bool Value);
 public sealed record AgencyReleaseScopeChoice(string DisplayName, AgencyReleaseScope Value);
+public sealed record ReleaseKindChoice(AnnualDocumentKind Kind, string DisplayName);
 
 public partial class AgencyReleaseCategoryOption(string value, string displayName) : ObservableObject
 {

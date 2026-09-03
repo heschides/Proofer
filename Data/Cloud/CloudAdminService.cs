@@ -67,4 +67,32 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
         int personId,
         CancellationToken cancellationToken = default) =>
         api.GetBytesAsync($"/api/v1/people/{personId}/history.pdf", cancellationToken);
+
+    public Task<LegalHoldDto> PlaceLegalHoldAsync(
+        PlaceLegalHoldRequest request, CancellationToken cancellationToken = default) =>
+        api.PostAsync<PlaceLegalHoldRequest, LegalHoldDto>(
+            "/api/v1/admin/legal-holds", request, cancellationToken);
+
+    public Task<LegalHoldDto> ReleaseLegalHoldAsync(
+        int legalHoldId, string? releaseNote, CancellationToken cancellationToken = default) =>
+        api.PostAsync<ReleaseLegalHoldRequest, LegalHoldDto>(
+            $"/api/v1/admin/legal-holds/{legalHoldId}/release",
+            new ReleaseLegalHoldRequest(releaseNote),
+            cancellationToken);
+
+    public Task<List<LegalHoldDto>> GetLegalHoldsAsync(
+        int personId, CancellationToken cancellationToken = default) =>
+        api.GetAsync<List<LegalHoldDto>>(
+            $"/api/v1/admin/legal-holds?personId={personId}", cancellationToken);
+
+    public Task<ConsumerDeletionResultDto> DeleteConsumerInWindowAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        api.PostAsync<DeleteConsumerInWindowRequest, ConsumerDeletionResultDto>(
+            $"/api/v1/admin/consumers/{personId}/delete-in-window",
+            new DeleteConsumerInWindowRequest(expectedRevision, attestation, reason),
+            cancellationToken);
 }

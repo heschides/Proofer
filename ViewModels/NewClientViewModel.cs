@@ -56,6 +56,7 @@ namespace Sati.ViewModels
         /// <summary>The Credible import review panel. Fills this form; never saves.</summary>
         public ConsumerImportViewModel ConsumerImport { get; }
         public AgencyReleaseViewModel AgencyRelease { get; }
+        public FormAttestationViewModel Attestation { get; }
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
         // keystroke — Stop()+Start() on every edit means it fires once typing pauses,
@@ -318,6 +319,7 @@ namespace Sati.ViewModels
 
         partial void OnSelectedPersonChanged(Person? value)
         {
+            Attestation?.CancelCommand.Execute(null);
             OnPropertyChanged(nameof(HasSelectedPerson));
             OnPropertyChanged(nameof(ShowClientWorkspace));
             OnPropertyChanged(nameof(SelectedPersonServices));
@@ -617,6 +619,10 @@ namespace Sati.ViewModels
             AgencyRelease = agencyRelease;
             ConsumerProviders = consumerProviders;
             ConsumerImport = consumerImport;
+            Attestation = new FormAttestationViewModel(formService)
+            {
+                AttestationChangedAsync = AfterAttestationChangedAsync
+            };
 
             // The review panel hands over accepted values and nothing else; filling the form is
             // this class's business, and saving stays with Submit.
@@ -838,6 +844,7 @@ namespace Sati.ViewModels
             if (values.TryGetValue(CredibleFields.DiagnosisCode, out var diagnosis)) DiagnosisCode = diagnosis;
             if (values.TryGetValue(CredibleFields.PhoneNumber, out var phone)) PhoneNumber = phone;
             if (values.TryGetValue(CredibleFields.Email, out var email)) Email = email;
+            if (values.TryGetValue(CredibleFields.Address, out var address)) Address = address;
             if (values.TryGetValue(CredibleFields.BillingStreet, out var street)) BillingStreet = street;
             if (values.TryGetValue(CredibleFields.BillingCity, out var city)) BillingCity = city;
             if (values.TryGetValue(CredibleFields.BillingState, out var state)) BillingState = state;
@@ -1178,18 +1185,19 @@ namespace Sati.ViewModels
             var form = person.GetCurrentCycleForm(type);
             if (form is null) return;
 
-            // Toggle through the sanctioned door. Marking compliant uses the form's
-            // own DueDate as the completion date — the on-time assumption, matching the
-            // creation dialog's default. A detail-panel toggle is almost always "this
-            // was done on schedule"; the precise-late-date case lives in the dialog.
-            if (form.IsCompliant)
-                form.Reset();
-            else
-                form.MarkComplete(form.DueDate);
+            if (person.EffectiveDate is not DateTime effectiveDate)
+                return;
+            Attestation.Begin(
+                form,
+                effectiveDate,
+                $"{Person.FormDisplayName(form.Type)} — {person.FullName}");
+            await Task.CompletedTask;
+        }
 
-            await _formService.UpdateFormAsync(form);
+        private async Task AfterAttestationChangedAsync()
+        {
             RefreshComplianceFlags();
-            RefreshUpcomingItems(person);
+            RefreshUpcomingItems(SelectedPerson);
             if (FormComplianceChangedAsync is not null)
                 await FormComplianceChangedAsync();
         }

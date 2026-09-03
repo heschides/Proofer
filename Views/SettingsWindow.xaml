@@ -1075,7 +1075,7 @@
                            Margin="0,32,0,8" />
                 <Separator />
 
-                <TextBlock Text="Marks every form due on or before the cutoff that has no completion date as complete, stamping the due date. This also reconciles legacy compliant rows with missing dates. Dry run first — it writes a report to your Desktop and changes nothing — then type the exact count and press Commit."
+                <TextBlock Text="Marks every form due on or before the cutoff that has no completion date as complete using the one completion date entered below. Dry run first — it writes a report to your Desktop and changes nothing — then type the exact count and press Commit."
                            TextWrapping="Wrap"
                            FontSize="11"
                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -1084,6 +1084,14 @@
                 <TextBlock Text="CUTOFF DATE (inclusive, yyyy-MM-dd)"
                            Style="{StaticResource LabelStyle}" />
                 <TextBox AutomationProperties.Name="Bulk completion cutoff date" Text="{Binding BulkCompleteCutoff, UpdateSourceTrigger=PropertyChanged}"
+                         Width="140"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,12" />
+
+                <TextBlock Text="ACTUAL COMPLETION DATE (yyyy-MM-dd)"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox AutomationProperties.Name="Bulk completion actual completion date"
+                         Text="{Binding BulkCompleteCompletionDate, UpdateSourceTrigger=PropertyChanged}"
                          Width="140"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,12" />

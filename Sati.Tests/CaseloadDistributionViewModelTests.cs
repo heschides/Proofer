@@ -217,9 +217,15 @@ public sealed class CaseloadDistributionViewModelTests
             return Task.FromResult(new CaseloadOwnershipDto(personId, targetUserId, expectedRevision + 1));
         }
 
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
 
         public Task<Person> AddPersonAsync(Person person) => throw new NotSupportedException();
         public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();

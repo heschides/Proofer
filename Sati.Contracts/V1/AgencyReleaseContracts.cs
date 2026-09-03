@@ -79,7 +79,8 @@ public sealed record AgencyReleaseRequest(
     bool? ReleaseWithoutReview,
     bool IsRevocation = false,
     DateOnly? RevokedOn = null,
-    bool ConfirmedObtainedRoi = false);
+    bool ConfirmedObtainedRoi = false,
+    bool IsDraft = false);
 
 public sealed record AgencyReleaseResult(byte[] Pdf, string FileName);
 
@@ -100,6 +101,8 @@ public static class AgencyReleaseRules
     public static IReadOnlyDictionary<string, string[]> Validate(AgencyReleaseRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.IsDraft)
+            return ValidateDraft(request);
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         void Add(string field, string message)
@@ -189,6 +192,54 @@ public static class AgencyReleaseRules
             Add(nameof(request.RevokedOn), "A revocation date is required when revoking the authorization.");
         if (request.ConfirmedObtainedRoi && request.AuthorizationGranted != true)
             Add(nameof(request.ConfirmedObtainedRoi), "An authorization that was not granted cannot be recorded as obtained.");
+
+        return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
+    }
+
+    private static IReadOnlyDictionary<string, string[]> ValidateDraft(AgencyReleaseRequest request)
+    {
+        var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        void Add(string field, string message)
+        {
+            if (!errors.TryGetValue(field, out var values))
+                errors[field] = values = [];
+            values.Add(message);
+        }
+        void CheckLength(string field, string? value, string label)
+        {
+            if (value?.Trim().Length > MaxTextLength)
+                Add(field, $"{label} must be {MaxTextLength} characters or fewer.");
+        }
+
+        CheckLength(nameof(request.ContactType), request.ContactType, "Contact type");
+        CheckLength(nameof(request.ContactName), request.ContactName, "Contact name");
+        CheckLength(nameof(request.Relationship), request.Relationship, "Relationship");
+        CheckLength(nameof(request.ContactAddress), request.ContactAddress, "Contact address");
+        CheckLength(nameof(request.ContactCity), request.ContactCity, "Contact city");
+        CheckLength(nameof(request.ContactState), request.ContactState, "Contact state");
+        CheckLength(nameof(request.ContactFax), request.ContactFax, "Contact fax");
+        CheckLength(nameof(request.ContactPhone), request.ContactPhone, "Contact phone");
+        CheckLength(nameof(request.ContactEmail), request.ContactEmail, "Contact email");
+        CheckLength(nameof(request.OtherInformation), request.OtherInformation, "Other information");
+
+        var categories = request.InformationCategories?
+            .Where(value => !string.IsNullOrWhiteSpace(value)).ToList() ?? [];
+        foreach (var category in categories.Where(category =>
+                     !AgencyReleaseInformation.All.Contains(category, StringComparer.Ordinal)))
+            Add(nameof(request.InformationCategories), $"'{category}' is not a recognized information category.");
+        if (categories.Count != categories.Distinct(StringComparer.Ordinal).Count())
+            Add(nameof(request.InformationCategories), "An information category cannot be selected more than once.");
+
+        if (request.StartDate is DateOnly start && request.ExpirationDate is DateOnly expiration && expiration < start)
+            Add(nameof(request.ExpirationDate), "Expiration date cannot be before the start date.");
+        if (!string.IsNullOrWhiteSpace(request.Scope) &&
+            !Enum.TryParse<AgencyReleaseScope>(request.Scope, out _))
+            Add(nameof(request.Scope), "Choose one-time or multiple disclosures.");
+
+        if (request.IncludeDrugAlcohol == true || request.IncludeMentalHealth == true || request.IncludeHivAids == true)
+            Add("SensitiveConsent", "A draft cannot record sensitive-information consent.");
+        if (request.ConfirmedObtainedRoi)
+            Add(nameof(request.ConfirmedObtainedRoi), "A draft cannot include a staff attestation that authorization was obtained.");
 
         return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
     }

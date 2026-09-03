@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
 using Xunit;
@@ -70,7 +71,12 @@ public sealed class SuggestedFollowUpRealServiceTests
 
         foreach (var form in person.Forms.Where(f => f.DueDate.Date == first!.Date))
         {
-            form.MarkComplete(today);
+            form.Attest(FormAttestation.Attested(
+                today,
+                AttestationActorKind.System,
+                actorUserId: null,
+                recordedAtUtc: DateTime.UtcNow,
+                reason: "test setup"));
         }
 
         var second = service.NextFormSuggestion(person, settings, today);

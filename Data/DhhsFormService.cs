@@ -150,6 +150,7 @@ public sealed class DhhsFormService(
             ?? throw new InvalidOperationException("A form cannot be filled without a signed-in user.");
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var agencyId = actor.AgencyId;
 
         // Scoped to the signed-in case manager's own caseload and agency, the same
@@ -200,6 +201,43 @@ public sealed class DhhsFormService(
                 agency?.Zip);
 
         var pdf = new DhhsFormFiller().Fill(form, subject, selections);
+        var blankFields = DhhsFormDefinition.UnfilledFields(form, subject).ToList();
+        if (form == DhhsFormDefinition.FormKey.AuthorizationToRelease)
+        {
+            var isDraft = (selections.Checks?.Count ?? 0) == 0 &&
+                (selections.Text?.Count ?? 0) == 0;
+            if (isDraft)
+                blankFields.Add("Consumer authorization choices");
+            var fileName = SuggestedFileName(form, person.LastName, person.FirstName, personId);
+            var cycleStart = AnnualDocumentCycle.CurrentStart(
+                person.EffectiveDate ?? throw new InvalidOperationException("The consumer has no effective date."),
+                DateTime.Today);
+            await DocumentArtifactStore.StageGeneratedAsync(
+                context,
+                personId,
+                actor.AgencyId,
+                AnnualDocumentKind.ReleaseDhhs,
+                cycleStart,
+                isDraft ? DocumentArtifactOrigin.Draft : DocumentArtifactOrigin.GeneratedInSati,
+                DateTime.UtcNow,
+                actor.Id,
+                pdf,
+                fileName,
+                blankFields,
+                cancellationToken);
+            LocalAuditTrail.Record(
+                context,
+                actor,
+                LocalAuditActions.DocumentGenerated,
+                "Person",
+                personId,
+                System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    kind = AnnualDocumentKind.ReleaseDhhs.ToString(),
+                    cycleStart = cycleStart.ToString("yyyy-MM-dd"),
+                    origin = isDraft ? DocumentArtifactOrigin.Draft.ToString() : DocumentArtifactOrigin.GeneratedInSati.ToString()
+                }));
+        }
 
         // Generating a release form is a disclosure whichever environment produced it,
         // so the local path records the same action name the API route does.
@@ -211,11 +249,12 @@ public sealed class DhhsFormService(
             personId,
             $"{{\"Form\":\"{form}\"}}");
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new DhhsFormResult(
             pdf,
             SuggestedFileName(form, person.LastName, person.FirstName, personId),
-            DhhsFormDefinition.UnfilledFields(form, subject));
+            blankFields);
     }
 
     internal static string SuggestedFileName(

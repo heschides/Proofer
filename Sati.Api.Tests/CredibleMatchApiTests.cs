@@ -24,9 +24,9 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
         var id = await CreateConsumerWithCredibleIdAsync(client);
 
-        var matches = await LookupAsync(client, [id, "no-such-id"]);
+        var result = await LookupAsync(client, [id, "no-such-id"]);
 
-        var match = Assert.Single(matches);
+        var match = Assert.Single(result.CredibleClientMatches);
         Assert.Equal(id, match.CredibleClientId);
     }
 
@@ -35,9 +35,9 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
     {
         using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
 
-        var matches = await LookupAsync(client, ["definitely-not-imported"]);
+        var result = await LookupAsync(client, ["definitely-not-imported"]);
 
-        Assert.Empty(matches);
+        Assert.Empty(result.CredibleClientMatches);
     }
 
     // Tenant isolation. Agency two's consumer must be invisible to agency one even though the
@@ -50,9 +50,9 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         using var agencyTwo = await factory.CreateAuthenticatedClientAsync("case-manager-two");
         var id = await CreateConsumerWithCredibleIdAsync(agencyTwo);
 
-        var matches = await LookupAsync(agencyOne, [id]);
+        var result = await LookupAsync(agencyOne, [id]);
 
-        Assert.Empty(matches);
+        Assert.Empty(result.CredibleClientMatches);
     }
 
     // The caller's own consumer, so the owner is theirs to know about.
@@ -62,7 +62,7 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
         var id = await CreateConsumerWithCredibleIdAsync(client);
 
-        var match = Assert.Single(await LookupAsync(client, [id]));
+        var match = Assert.Single((await LookupAsync(client, [id])).CredibleClientMatches);
 
         Assert.Equal("case-manager-one", match.OwnerDisplayName);
     }
@@ -76,7 +76,7 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         using var supervisor = await factory.CreateAuthenticatedClientAsync("supervisor-one");
         var id = await CreateConsumerWithCredibleIdAsync(caseManager);
 
-        var match = Assert.Single(await LookupAsync(supervisor, [id]));
+        var match = Assert.Single((await LookupAsync(supervisor, [id])).CredibleClientMatches);
 
         Assert.Equal("case-manager-one", match.OwnerDisplayName);
     }
@@ -94,7 +94,7 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         using var other = await factory.CreateAuthenticatedClientAsync("supervisee-of-demoted-one");
         var id = await CreateConsumerWithCredibleIdAsync(owner);
 
-        var match = Assert.Single(await LookupAsync(other, [id]));
+        var match = Assert.Single((await LookupAsync(other, [id])).CredibleClientMatches);
 
         Assert.Equal(id, match.CredibleClientId);
         Assert.Null(match.OwnerDisplayName);
@@ -105,9 +105,11 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
     {
         using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
 
-        var matches = await LookupAsync(client, []);
+        var result = await LookupAsync(client, []);
 
-        Assert.Empty(matches);
+        Assert.Empty(result.CredibleClientMatches);
+        Assert.Empty(result.MaineCareIdMatches);
+        Assert.Empty(result.NameBirthDateMatches);
     }
 
     // A runaway guard on a caller-supplied list. Bulk import chunks its lookups well below this.
@@ -135,15 +137,64 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    // A consumer hand-entered before Credible import existed has no Credible id on file at all —
+    // the id-only tier cannot see them. MaineCare id is the second tier for exactly this case.
+    [Fact]
+    public async Task AConsumerWithNoCredibleIdIsStillFoundByMaineCareId()
+    {
+        using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var maineCareId = $"mc-{Guid.NewGuid():N}"[..15];
+        await CreateConsumerWithoutCredibleIdAsync(client, maineCareId: maineCareId);
+
+        var result = await LookupAsync(client, [], maineCareIds: [maineCareId]);
+
+        var match = Assert.Single(result.MaineCareIdMatches);
+        Assert.Equal(maineCareId, match.MaineCareId);
+        Assert.Empty(result.CredibleClientMatches);
+    }
+
+    // Third tier: neither a Credible id nor a MaineCare id on file, only a name and birth date.
+    [Fact]
+    public async Task AConsumerWithOnlyANameAndBirthDateIsStillFound()
+    {
+        using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var lastName = Guid.NewGuid().ToString("N")[..10];
+        await CreateConsumerWithoutCredibleIdAsync(client, lastName: lastName);
+
+        var result = await LookupAsync(client, [],
+            nameBirthDates: [new PersonNameBirthDate(lastName, "Credible", new DateTime(1990, 4, 3))]);
+
+        var match = Assert.Single(result.NameBirthDateMatches);
+        Assert.Equal(lastName, match.NameBirthDate.LastName);
+    }
+
+    // Tenant isolation must hold on every tier, not only the Credible-id one.
+    [Fact]
+    public async Task AMaineCareIdHeldByAnotherAgencyIsNotReported()
+    {
+        using var agencyOne = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        using var agencyTwo = await factory.CreateAuthenticatedClientAsync("case-manager-two");
+        var maineCareId = $"mc-{Guid.NewGuid():N}"[..15];
+        await CreateConsumerWithoutCredibleIdAsync(agencyTwo, maineCareId: maineCareId);
+
+        var result = await LookupAsync(agencyOne, [], maineCareIds: [maineCareId]);
+
+        Assert.Empty(result.MaineCareIdMatches);
+    }
+
     // ---- Helpers ----
 
-    private static async Task<IReadOnlyList<CredibleClientMatchDto>> LookupAsync(
-        HttpClient client, IReadOnlyList<string> ids)
+    private static async Task<CredibleMatchLookupResult> LookupAsync(
+        HttpClient client,
+        IReadOnlyList<string> ids,
+        IReadOnlyList<string>? maineCareIds = null,
+        IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null)
     {
         var response = await client.PostAsJsonAsync(
-            "/api/v1/people/credible-matches", new CredibleClientLookupRequest(ids));
+            "/api/v1/people/credible-matches",
+            new CredibleClientLookupRequest(ids, maineCareIds, nameBirthDates));
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<List<CredibleClientMatchDto>>())!;
+        return (await response.Content.ReadFromJsonAsync<CredibleMatchLookupResult>())!;
     }
 
     private static async Task<string> CreateConsumerWithCredibleIdAsync(HttpClient client)
@@ -158,6 +209,20 @@ public sealed class CredibleMatchApiTests(SatiApiFactory factory)
             });
         response.EnsureSuccessStatusCode();
         return id;
+    }
+
+    private static async Task CreateConsumerWithoutCredibleIdAsync(
+        HttpClient client, string? maineCareId = null, string? lastName = null)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/people",
+            ValidRequest() with
+            {
+                LastName = lastName ?? Guid.NewGuid().ToString("N")[..10],
+                MaineCareId = maineCareId,
+                CredibleClientId = null
+            });
+        response.EnsureSuccessStatusCode();
     }
 
     private static SavePersonRequest ValidRequest() => new(

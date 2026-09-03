@@ -1725,7 +1725,8 @@ attestation is versioned in `Sati.Contracts.V1`, the selected Person revision is
 local and API paths repeat the marker, Admin, and agency checks. UI visibility is not the permission
 control.
 
-The operation explicitly deletes forms, notes, contacts, consumer-provider links, quarterly reviews
+The operation explicitly deletes forms and their synthetic-only attestation rows, notes, contacts,
+consumer-provider links, quarterly reviews
 and appointments, Comprehensive Assessments, AT requests and items, and Person lifecycle versions
 in one serializable transaction. A billing claim line blocks the operation before any delete.
 `AuditEvent` rows remain, and success appends `test-data.consumer-deleted` with the Person ID,
@@ -2420,10 +2421,9 @@ invented on-time date can make late-period service appear billable. An explicitl
 date is preserved exactly. Future dates are rejected by the shared `FormCompletionRules` owner in
 the UI, Local persistence, and API, so bypassing the desktop cannot create contradictory state.
 
-The dashboard and Clients quick toggles remain unchanged: they still record `DueDate` as their
-documented on-time assumption. That is the weaker workflow and is tracked for a later deliberate
-review. It was not broadened into this defect repair, because changing those existing paths would
-alter historical billing behavior beyond the reported Reviews-tab gap.
+At this point the dashboard and Clients quick toggles still recorded `DueDate` as their documented
+on-time assumption. The 2026-09-03 all-form attestation decision below supersedes that temporary
+exception and replaces both toggles with the blank shared capture.
 
 All form-compliance changes now converge on one dashboard refresh cascade. Checkbox properties,
 the matrix, and upcoming/late-review events refresh together; external workspace changes reload
@@ -2434,6 +2434,78 @@ event so a save command cannot report completion while dependent screens still s
 Logged date; pre-filling the due date in the evidence-rich Reviews workflow; and validating only
 in WPF. Each either confuses evidence with attestation, invents a billing fact, or permits a direct
 API caller to bypass record-integrity rules.
+
+## 2026-09-03 — Form evidence never completes a form; explicit attestations do
+
+The quarterly decision now applies to all twelve form types. A form-tagged note is evidence that
+can appear in a derived pending-attestation list; saving, editing, moving, or deleting that note
+does not mutate `Form.CompletedDate`. The pending projection resolves the form from the note's
+person, type, and event-date cycle rather than the current dashboard selection and today's cycle.
+
+All ordinary completion paths use one shared attestation control. Its date starts blank, must not
+be in the future or before the form's cycle start, and is passed unchanged to the persistence
+boundary. The dashboard checkbox, task board, Clients workspace, Reviews workspace, and bulk tool
+no longer invent `Today` or `DueDate`. The admission confirmation remains a creation-only exception:
+it captures a per-row date before a new Person graph has ever been saved.
+
+Every persisted completion or reasoned revocation appends a `FormAttestation` row and a
+PHI-minimized `form.attested` or `form.attestation-revoked` audit event in the same transaction.
+`Form.CompletedDate` remains the fast, authoritative projection used by billing and presentation;
+`Form.IsCompliant` remains derived from it. Ledger rows cannot be changed or deleted, their Form
+foreign key is restricted rather than cascading, and a form with attestation history cannot be
+deleted. Existing completed forms receive a System row with reason `pre-attestation record` in the
+`AddFormAttestations` migration without changing their recorded completion dates.
+
+`CompletedDate` is an optimistic-concurrency token. Two sessions starting from the same outstanding
+form cannot both attest successfully: one commits, and the other receives the typed
+`form_attestation_changed` conflict. All three new routes validate the persisted actor and call
+`TenantAccess.CanAccessUserAsync` before a caller-controlled caseload id reaches a feature query.
+
+`PUT /api/v1/forms/{id}` is now an opened-date endpoint in practice: a requested completion change
+is rejected. This closes the direct bypass before document prerequisites land. At this point the
+next design slice remained blocked on annual-document choices; the following decision records
+Josh's answers rather than inventing them.
+
+## 2026-09-03 — Provisional Privacy Practices default and versioned templates
+
+Josh subsequently authorized generic Privacy Practices wording while the actual agency template
+is unavailable. The seeded Sati-default version is visibly provisional and requires later agency,
+privacy, and legal review. Its cycle label is a preparation date, not a claim about the legal
+effective date of an approved notice. Generating the notice does not record receipt or complete
+the Privacy Practices form; the separate acknowledgment gate remains a later implementation step.
+
+Published template source is immutable. An agency Administrator appends the next version rather
+than editing an existing one. The latest non-retired agency version wins over the latest Sati
+default, and each artifact retains the exact owner/key/version used at generation. Default rows
+are seeded through controlled migrations, not editable through an agency API. Template retirement
+is reserved in the schema but no retirement mutation is exposed in this slice.
+
+The source is a deliberately constrained text format: headings, paragraphs, bullets, pipe tables,
+page breaks, and a closed token list. It is neither HTML nor executable code. Validation lives in
+`Sati.Contracts.V1`; the shared `Sati.Forms` MigraDoc composer only renders accepted source.
+`DOCUMENT_TEMPLATES.md` describes the format and the unresolved production-review requirements.
+
+## 2026-09-03 — Document prerequisites are server facts, with a narrow technical override
+
+Josh resolved the three choices blocking the document-prerequisite slice. Sati owns a distinct
+Medical Release generator, Reclassification requires a completed Comprehensive Assessment in the
+same compliance cycle, and a Supervisor may override an unmet prerequisite only for a technical
+problem with a required explanation. The override is stored with the attestation and emits its own
+`form.prerequisite-overridden` audit event; it is not a consumer signature, a billing override, or
+permission to bypass the attestation-date rules.
+
+`DocumentArtifact` stores metadata rather than PDF bytes. Generated documents record kind, cycle,
+origin, generator, timestamp, filename, byte count, SHA-256, and known blank fields. An externally
+prepared document records the same cycle identity plus a required note. Regeneration supersedes the
+prior live row, and a filtered unique index permits only one live artifact per person, kind, and
+cycle. A Draft is recorded but never satisfies a release prerequisite.
+
+`AnnualDocumentCatalog` and `FormAttestationRules` in `Sati.Contracts.V1` are the shared rule
+owners. The API re-derives artifacts, assessment state, actor role, and tenant scope before accepting
+an attestation; caller assertions are not trusted. Agency, DHHS, and Medical release generation now
+write artifact metadata in the same transaction as their PHI-minimized audit event. The Medical
+Release uses Sati-owned wording and the existing release-choice structure; legal/program review is
+still required before representing it as an accepted official form.
 
 ## 2026-09-01 — The login agenda is once daily, local, and read-only
 
@@ -2786,3 +2858,6 @@ inspection, and discarded before it reached Azure.
 The packaging step now runs under .NET 10 and normalizes every entry name to a forward slash, and
 the backslash count is asserted rather than assumed. That check was already in the release
 evidence for a reason; this is the failure it was written for.
+# 2026-09-03 — Safety plans require supervisor approval before final status
+
+Sati uses one shared seven-section safety-plan structure. The assigned case manager may draft and submit it; a same-agency supervisor must approve it before it is final or satisfies the annual Safety Plan prerequisite. Return reasons and plan narrative are retained in the plan record and are not copied into audit metadata.

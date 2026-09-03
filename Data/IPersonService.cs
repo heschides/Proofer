@@ -45,13 +45,25 @@ namespace Sati.Data
             int targetUserId,
             int expectedRevision);
 
-        // Which of these Credible ids the agency already holds. The dedupe check behind bulk
-        // import; agency-scoped, because the duplicate an importing supervisor most needs to
-        // catch is one already sitting on a case manager's caseload rather than their own.
+        // Archives or restores a consumer. Sati.Contracts.V1.PersonStatusRules owns who may set
+        // which status; both implementations load the facts it decides over themselves rather
+        // than trusting the caller. Non-destructive — see HANDOFF_CLIENT_DELETION_POLICY.md.
+        Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId,
+            string status,
+            string? note,
+            int expectedRevision);
+
+        // Which of these consumers the agency already holds, by Credible id, MaineCare id, or
+        // normalized name+birth date — the dedupe check behind bulk import; agency-scoped,
+        // because the duplicate an importing supervisor most needs to catch is one already
+        // sitting on a case manager's caseload rather than their own.
         //
-        // Returns no name and no person id — only the ids that matched, and the owner's display
-        // name where the caller could already see that caseload.
-        Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds);
+        // Returns no name and no person id — only the values that matched, and the owner's
+        // display name where the caller could already see that caseload.
+        Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null);
     }
 }

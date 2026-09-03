@@ -57,9 +57,13 @@ builder.Services.AddSingleton<DatabaseIdentityValidator>();
 builder.Services.AddScoped<ValidatedActorFilter>();
 builder.Services.AddScoped<AuditTrail>();
 builder.Services.AddScoped<PersonLifecycle>();
+builder.Services.AddScoped<ILegalHoldRegistry, ApiLegalHoldRegistry>();
 builder.Services.AddSingleton<PersonAuditPdfGenerator>();
 builder.Services.AddSingleton<DhhsFormFiller>();
 builder.Services.AddSingleton<AgencyReleasePdfGenerator>();
+builder.Services.AddSingleton<MedicalReleasePdfGenerator>();
+builder.Services.AddSingleton<DocumentTemplatePdfComposer>();
+builder.Services.AddSingleton<SafetyPlanPdfGenerator>();
 
 // SSN protection. A configured key gives the real Key Vault wrapper; an unconfigured
 // one gives a wrapper that fails closed, so an environment that stores no SSNs still

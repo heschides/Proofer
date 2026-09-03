@@ -11,7 +11,8 @@ namespace Sati.Data;
 public sealed class AdminService(
     IDbContextFactory<SatiContext> contextFactory,
     ISessionService sessionService,
-    PersonAuditPdfExporter pdfExporter) : IAdminService
+    PersonAuditPdfExporter pdfExporter,
+    ILegalHoldRegistry legalHoldRegistry) : IAdminService
 {
     public async Task<AdminOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default)
     {
@@ -170,6 +171,335 @@ public sealed class AdminService(
             incident.LastActorRole);
     }
 
+    public async Task<LegalHoldDto> PlaceLegalHoldAsync(
+        PlaceLegalHoldRequest request, CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            throw new ArgumentException("A reason is required to place a legal hold.", nameof(request));
+
+        await using var context = contextFactory.CreateDbContext();
+        var personExists = await context.People.AsNoTracking().AnyAsync(candidate =>
+            candidate.Id == request.PersonId && candidate.AgencyId == actor.AgencyId,
+            cancellationToken);
+        if (!personExists)
+            throw new InvalidOperationException("This consumer was not found in your agency.");
+
+        var hold = new LegalHold
+        {
+            AgencyId = actor.AgencyId,
+            PersonId = request.PersonId,
+            Reason = request.Reason.Trim(),
+            CaseReference = string.IsNullOrWhiteSpace(request.CaseReference) ? null : request.CaseReference.Trim(),
+            IssuedBy = string.IsNullOrWhiteSpace(request.IssuedBy) ? null : request.IssuedBy.Trim(),
+            EffectiveAtUtc = request.EffectiveAtUtc
+        };
+        hold.PlacedByUserId = actor.Id;
+        context.LegalHolds.Add(hold);
+        LocalAuditTrail.Record(
+            context, actor, LocalAuditActions.LegalHoldPlaced, "LegalHold",
+            metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId, reason = hold.Reason }));
+        await context.SaveChangesAsync(cancellationToken);
+        return ToLegalHoldDto(hold);
+    }
+
+    public async Task<LegalHoldDto> ReleaseLegalHoldAsync(
+        int legalHoldId, string? releaseNote, CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        await using var context = contextFactory.CreateDbContext();
+        var hold = await context.LegalHolds.SingleOrDefaultAsync(candidate =>
+            candidate.Id == legalHoldId && candidate.AgencyId == actor.AgencyId,
+            cancellationToken) ??
+            throw new InvalidOperationException("This legal hold was not found in your agency.");
+        if (hold.IsReleased)
+            throw new InvalidOperationException("This legal hold has already been released.");
+
+        hold.IsReleased = true;
+        hold.ReleasedByUserId = actor.Id;
+        hold.ReleasedAtUtc = DateTime.UtcNow;
+        hold.ReleaseNote = string.IsNullOrWhiteSpace(releaseNote) ? null : releaseNote.Trim();
+        LocalAuditTrail.Record(
+            context, actor, LocalAuditActions.LegalHoldReleased, "LegalHold",
+            metadataJson: JsonSerializer.Serialize(new { legalHoldId, personId = hold.PersonId }));
+        await context.SaveChangesAsync(cancellationToken);
+        return ToLegalHoldDto(hold);
+    }
+
+    public async Task<List<LegalHoldDto>> GetLegalHoldsAsync(
+        int personId, CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        await using var context = contextFactory.CreateDbContext();
+        return await context.LegalHolds.AsNoTracking()
+            .Where(hold => hold.PersonId == personId && hold.AgencyId == actor.AgencyId)
+            .OrderByDescending(hold => hold.PlacedAtUtc)
+            .Select(hold => new LegalHoldDto(
+                hold.Id, hold.PersonId, hold.Reason, hold.CaseReference, hold.IssuedBy,
+                hold.EffectiveAtUtc, hold.PlacedByUserId, hold.PlacedAtUtc,
+                hold.IsReleased, hold.ReleasedByUserId, hold.ReleasedAtUtc, hold.ReleaseNote))
+            .ToListAsync(cancellationToken);
+    }
+
+    private static LegalHoldDto ToLegalHoldDto(LegalHold hold) => new(
+        hold.Id, hold.PersonId, hold.Reason, hold.CaseReference, hold.IssuedBy,
+        hold.EffectiveAtUtc, hold.PlacedByUserId, hold.PlacedAtUtc,
+        hold.IsReleased, hold.ReleasedByUserId, hold.ReleasedAtUtc, hold.ReleaseNote);
+
+    /// <summary>
+    /// Rule-3 deletion, in local Production: permanently deletes an ordinary consumer created
+    /// inside <see cref="ConsumerDeletionRules.DeletionWindowDays"/> days.
+    ///
+    /// <para>
+    /// Extends <see cref="DeleteTestConsumerAsync"/>'s transaction shape and child-record
+    /// cascade, but gates on the creation-time window, the A1 billing-integrity check, and the
+    /// A3 legal-hold registry instead of <c>IsTestData</c>. Unlike test-consumer deletion, this
+    /// command deletes claim lines rather than refusing whenever one exists — A1 permits draft
+    /// and synthetic billing inside the window, so claim lines belonging only to those must be
+    /// removable along with everything else.
+    /// </para>
+    ///
+    /// <para>
+    /// The audit event is a tombstone: an itemized inventory by id, date, and type, captured
+    /// before any delete, with no narrative, name, MaineCareId, birth date, or address. See
+    /// HANDOFF_CLIENT_DELETION_POLICY.md's audit section for why the exclusion is load-bearing.
+    /// </para>
+    /// </summary>
+    public async Task<ConsumerDeletionResultDto> DeleteConsumerInWindowAsync(
+        int personId,
+        int expectedRevision,
+        string attestation,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = CurrentAdmin();
+        if (personId <= 0 || expectedRevision <= 0)
+            throw new ArgumentException("Select a current consumer record and try again.");
+        if (!ConsumerDeletionRules.HasValidConsumerAttestation(attestation))
+            throw new ArgumentException("The required deletion affirmation was not supplied.", nameof(attestation));
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A reason is required to delete a consumer.", nameof(reason));
+
+        await using var context = contextFactory.CreateDbContext();
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var actorIsCurrentAdmin = await context.Users.AsNoTracking().AnyAsync(candidate =>
+            candidate.Id == actor.Id && candidate.AgencyId == actor.AgencyId &&
+            (candidate.Permissions & UserPermissions.Administration) != 0,
+            cancellationToken);
+        if (!actorIsCurrentAdmin)
+            throw new UnauthorizedAccessException("Only a current Admin can delete a consumer.");
+
+        var person = await context.People.AsNoTracking().SingleOrDefaultAsync(candidate =>
+            candidate.Id == personId && candidate.AgencyId == actor.AgencyId &&
+            context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId),
+            cancellationToken);
+        if (person is null)
+            throw new InvalidOperationException("This consumer was not found in your agency.");
+        if (person.Revision != expectedRevision)
+            throw new InvalidOperationException(
+                "This consumer changed after you selected them. Refresh and review the current record before trying again.");
+        if (!ConsumerDeletionRules.IsWithinDeletionWindow(person.CreatedAtUtc, DateTime.UtcNow))
+            throw new InvalidOperationException(ConsumerDeletionRules.OutsideWindowMessage);
+
+        // A3: legal hold. Checked before any child row changes, and refused on anything but an
+        // explicit Clear — Active, Unavailable, and any registry exception all fail closed.
+        var holdStatus = await legalHoldRegistry.GetStatusAsync(actor.AgencyId, personId, cancellationToken);
+        if (holdStatus != LegalHoldStatus.Clear)
+        {
+            throw new InvalidOperationException(holdStatus == LegalHoldStatus.Active
+                ? ConsumerDeletionRules.LegalHoldActiveMessage
+                : ConsumerDeletionRules.LegalHoldUnavailableMessage);
+        }
+
+        // A1: billing integrity. Draft and synthetic billing is deletable inside the window;
+        // only billing that actually reached a payer blocks.
+        var billingPeriodIds = await context.ClaimLines.AsNoTracking()
+            .Where(claimLine => context.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+            .Select(claimLine => claimLine.BillingPeriodId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var billingFacts = new BillingIntegrityFacts(
+            HasTransmittedBillingSubmissionEvent: billingPeriodIds.Count > 0 &&
+                await context.BillingSubmissionEvents.AsNoTracking().AnyAsync(submissionEvent =>
+                    billingPeriodIds.Contains(submissionEvent.BillingPeriodId) &&
+                    !submissionEvent.IsSynthetic &&
+                    submissionEvent.Stage >= BillingSubmissionStage.Transmitted,
+                    cancellationToken),
+            HasNonSyntheticRemittanceClaimOutcome: billingPeriodIds.Count > 0 &&
+                await context.RemittanceClaimOutcomes.AsNoTracking().AnyAsync(outcome =>
+                    outcome.BillingPeriodId != null &&
+                    billingPeriodIds.Contains(outcome.BillingPeriodId.Value) &&
+                    !outcome.IsSynthetic,
+                    cancellationToken),
+            HasSubmittedOrNonDraftBillingPeriod: billingPeriodIds.Count > 0 &&
+                await context.BillingPeriods.AsNoTracking().AnyAsync(period =>
+                    billingPeriodIds.Contains(period.Id) &&
+                    (period.SubmittedAt != null || period.Status != BillingStatus.Draft),
+                    cancellationToken));
+        if (ConsumerDeletionRules.HasTransmittedBilling(billingFacts))
+            throw new InvalidOperationException(ConsumerDeletionRules.TransmittedBillingMessage);
+
+        // Itemized tombstone, captured before any delete. Ids, dates, and types only — never
+        // narrative, name, MaineCareId, birth date, or address. This is the one remaining
+        // evidence the record existed; see AUDIT_EVENTS.md's exclusion principle.
+        var noteRows = await context.Notes.AsNoTracking()
+            .Where(note => note.PersonId == personId)
+            .Select(note => new { note.Id, note.EventDate, note.Status, note.Minutes, note.NoteType })
+            .ToListAsync(cancellationToken);
+        var noteInventory = noteRows.Select(note => new
+        {
+            note.Id, eventDate = note.EventDate, status = note.Status?.ToString(),
+            note.Minutes, noteType = note.NoteType?.ToString()
+        }).ToList();
+
+        var claimLineRows = await context.ClaimLines.AsNoTracking()
+            .Where(claimLine => context.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+            .Select(claimLine => new
+            {
+                claimLine.Id, claimLine.DateOfService, claimLine.ProcedureCode,
+                claimLine.ProcedureModifier, claimLine.Units, claimLine.ChargeAmount,
+                claimLine.BillingPeriodId
+            })
+            .ToListAsync(cancellationToken);
+
+        var formRows = await context.Forms.AsNoTracking()
+            .Where(form => form.PersonId == personId)
+            .Select(form => new { form.Id, form.Type, form.DueDate })
+            .ToListAsync(cancellationToken);
+        var formInventory = formRows.Select(form => new
+        { form.Id, type = form.Type.ToString(), dueDate = form.DueDate }).ToList();
+
+        var reviewRows = await context.ReviewItems.AsNoTracking()
+            .Where(review => review.PersonId == personId)
+            .Select(review => new { review.Id, review.Category, review.RequestedDate })
+            .ToListAsync(cancellationToken);
+        var reviewInventory = reviewRows.Select(review => new
+        { review.Id, category = review.Category.ToString(), requestedDate = review.RequestedDate }).ToList();
+
+        var assessmentRows = await context.ComprehensiveAssessments.AsNoTracking()
+            .Where(assessment => assessment.PersonId == personId)
+            .Select(assessment => new { assessment.Id, assessment.Status, assessment.CreatedAt })
+            .ToListAsync(cancellationToken);
+        var assessmentInventory = assessmentRows.Select(assessment => new
+        { assessment.Id, status = assessment.Status.ToString(), createdAt = assessment.CreatedAt }).ToList();
+
+        var atRequestRows = await context.ATRequests.AsNoTracking()
+            .Where(request => request.PersonId == personId)
+            .Select(request => new { request.Id, request.Status, request.SubmittedDate })
+            .ToListAsync(cancellationToken);
+        var atRequestInventory = atRequestRows.Select(request => new
+        { request.Id, status = request.Status.ToString(), submittedDate = request.SubmittedDate }).ToList();
+
+        var contactRows = await context.PersonContacts.AsNoTracking()
+            .Where(contact => contact.PersonId == personId)
+            .Select(contact => new { contact.Id, contact.Kind })
+            .ToListAsync(cancellationToken);
+        var contactInventory = contactRows.Select(contact => new
+        { contact.Id, kind = contact.Kind.ToString() }).ToList();
+
+        var personVersionInventory = await context.PersonVersions.AsNoTracking()
+            .Where(version => version.PersonId == personId)
+            .Select(version => new { version.Id, version.ChangeKind, version.ChangedAtUtc })
+            .ToListAsync(cancellationToken);
+
+        // Cascade delete, in dependency order. ClaimLines before Notes: A1 permits draft and
+        // synthetic claim lines inside the window, unlike test-consumer deletion, which never
+        // has to delete one because it refuses whenever any claim line exists at all.
+        var appointmentsDeleted = await context.Appointments
+            .Where(appointment => context.ReviewItems.Any(review =>
+                review.Id == appointment.ReviewItemId && review.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var reviewsDeleted = await context.ReviewItems
+            .Where(review => review.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var contactsDeleted = await context.PersonContacts
+            .Where(contact => contact.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var personProvidersDeleted = await context.PersonProviders
+            .Where(link => link.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var documentArtifactsDeleted = await context.DocumentArtifacts
+            .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var formAttestationsDeleted = await context.FormAttestations
+            .Where(formAttestation => context.Forms.Any(form =>
+                form.Id == formAttestation.FormId && form.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var formsDeleted = await context.Forms
+            .Where(form => form.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var atRequestItemsDeleted = await context.ATRequestItems
+            .Where(item => context.ATRequests.Any(request =>
+                request.Id == item.ATRequestId && request.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var atRequestsDeleted = await context.ATRequests
+            .Where(request => request.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var assessmentsDeleted = await context.ComprehensiveAssessments
+            .Where(assessment => assessment.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var claimLinesDeleted = await context.ClaimLines
+            .Where(claimLine => context.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var notesDeleted = await context.Notes
+            .Where(note => note.PersonId == personId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // PersonVersion is normally append-only. This is the one narrow exception, shared with
+        // test-consumer deletion: the version ledger contains copies of the deleted record and
+        // has a restrictive FK, while the independent AuditEvent ledger remains intact.
+        var personVersionsDeleted = await context.PersonVersions
+            .Where(version => version.PersonId == personId && version.AgencyId == actor.AgencyId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var peopleDeleted = await context.People
+            .Where(candidate => candidate.Id == personId && candidate.Revision == expectedRevision &&
+                candidate.AgencyId == actor.AgencyId &&
+                context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId))
+            .ExecuteDeleteAsync(cancellationToken);
+        if (peopleDeleted != 1)
+        {
+            throw new InvalidOperationException(
+                "This consumer changed while deletion was in progress. Refresh before trying again.");
+        }
+
+        var result = new ConsumerDeletionResultDto(
+            personId, formsDeleted, notesDeleted, contactsDeleted, reviewsDeleted, appointmentsDeleted,
+            assessmentsDeleted, atRequestsDeleted, atRequestItemsDeleted, personVersionsDeleted,
+            personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted);
+
+        LocalAuditTrail.Record(
+            context,
+            actor,
+            LocalAuditActions.ConsumerDeletedInWindow,
+            "Person",
+            personId,
+            JsonSerializer.Serialize(new
+            {
+                attestationVersion = ConsumerDeletionRules.ConsumerAttestation,
+                reason,
+                createdAtUtc = person.CreatedAtUtc,
+                deletedAtUtc = DateTime.UtcNow,
+                billingIntegrityCheck = billingFacts,
+                counts = result,
+                notes = noteInventory,
+                claimLines = claimLineRows,
+                forms = formInventory,
+                reviews = reviewInventory,
+                assessments = assessmentInventory,
+                atRequests = atRequestInventory,
+                contacts = contactInventory,
+                personVersions = personVersionInventory
+            }));
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
     public async Task<byte[]> ExportAuditCsvAsync(
         DateTime fromUtc,
         DateTime toUtc,
@@ -240,7 +570,8 @@ public sealed class AdminService(
                 person.Revision,
                 user.Id,
                 user.DisplayName,
-                person.IsTestData))
+                person.IsTestData,
+                person.CreatedAtUtc))
             .ToListAsync(cancellationToken);
     }
 
@@ -300,6 +631,13 @@ public sealed class AdminService(
         var personProvidersDeleted = await context.PersonProviders
             .Where(link => link.PersonId == personId)
             .ExecuteDeleteAsync(cancellationToken);
+        var documentArtifactsDeleted = await context.DocumentArtifacts
+            .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var formAttestationsDeleted = await context.FormAttestations
+            .Where(attestation => context.Forms.Any(form =>
+                form.Id == attestation.FormId && form.PersonId == personId))
+            .ExecuteDeleteAsync(cancellationToken);
         var formsDeleted = await context.Forms
             .Where(form => form.PersonId == personId)
             .ExecuteDeleteAsync(cancellationToken);
@@ -344,7 +682,9 @@ public sealed class AdminService(
             atRequestsDeleted,
             atRequestItemsDeleted,
             personVersionsDeleted,
-            personProvidersDeleted);
+            personProvidersDeleted,
+            formAttestationsDeleted,
+            documentArtifactsDeleted);
         LocalAuditTrail.Record(
             context,
             actor,
@@ -359,6 +699,8 @@ public sealed class AdminService(
                 notesDeleted = result.NotesDeleted,
                 contactsDeleted = result.ContactsDeleted,
                 personProvidersDeleted = result.PersonProvidersDeleted,
+                formAttestationsDeleted = result.FormAttestationsDeleted,
+                documentArtifactsDeleted = result.DocumentArtifactsDeleted,
                 reviewsDeleted = result.ReviewsDeleted,
                 appointmentsDeleted = result.AppointmentsDeleted,
                 assessmentsDeleted = result.AssessmentsDeleted,

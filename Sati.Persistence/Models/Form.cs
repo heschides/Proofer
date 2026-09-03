@@ -9,6 +9,7 @@ namespace Sati.Models
         public int PersonId { get; set; }
         public DateTime? CompletedDate { get; private set; }
         public DateTime? OpenedDate { get; set; }
+        public List<FormAttestation> Attestations { get; private set; } = [];
 
         // Compliance IS the completion date. It used to be a separate stored column,
         // and the two could disagree: 147 rows in SatiProduction held IsCompliant = 1
@@ -67,13 +68,47 @@ namespace Sati.Models
         // between two fields — there is only one field. What they still buy is a
         // greppable list of everywhere completion is decided.
         //
-        // MarkComplete takes a real date by value, never nullable: the caller captured
-        // it — the dialog's per-row picker, the board's "today", a cycle's start date.
-        // It is not synthesized here, because the late-vs-on-time distinction
+        // Attest takes a ledger row whose date the caller explicitly captured. It is
+        // not synthesized here, because the late-vs-on-time distinction
         // (CompletedDate vs DueDate) is a billing fact the entity has no business
         // guessing.
-        public void MarkComplete(DateTime completedOn) => CompletedDate = completedOn;
+        public void Attest(FormAttestation attestation)
+        {
+            ArgumentNullException.ThrowIfNull(attestation);
+            if (attestation.Kind != FormAttestationKind.Attested ||
+                attestation.CompletedOn is not DateTime completedOn)
+            {
+                throw new ArgumentException("An attestation row is required.", nameof(attestation));
+            }
 
-        public void Reset() => CompletedDate = null;
+            Attestations.Add(attestation);
+            MarkComplete(completedOn);
+        }
+
+        public void RevokeAttestation(FormAttestation revocation)
+        {
+            ArgumentNullException.ThrowIfNull(revocation);
+            if (revocation.Kind != FormAttestationKind.Revoked)
+                throw new ArgumentException("A revocation row is required.", nameof(revocation));
+
+            Attestations.Add(revocation);
+            Reset();
+        }
+
+        /// <summary>
+        /// Adjusts the admission-time assumption before a new Person graph has ever
+        /// been persisted. Existing forms cannot use this seam; they require an
+        /// append-only attestation or revocation.
+        /// </summary>
+        public void SetInitialCompletion(DateTime? completedOn)
+        {
+            if (Id != 0 || Attestations.Count != 0)
+                throw new InvalidOperationException(
+                    "Only a new, unattested form can change its initial completion assumption.");
+            CompletedDate = completedOn?.Date;
+        }
+
+        private void MarkComplete(DateTime completedOn) => CompletedDate = completedOn.Date;
+        private void Reset() => CompletedDate = null;
     }
 }

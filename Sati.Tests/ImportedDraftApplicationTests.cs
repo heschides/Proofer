@@ -49,6 +49,7 @@ public sealed class ImportedDraftApplicationTests
         Assert.Equal("F84.0", model.DiagnosisCode);
         Assert.Equal("3016529500", model.PhoneNumber);
         Assert.Equal("demo@credibleinc.test", model.Email);
+        Assert.Equal("1 Choice Hotels Circle", model.Address);
         Assert.Equal("1 Choice Hotels Circle", model.BillingStreet);
         Assert.Equal("Alexander", model.BillingCity);
         Assert.Equal("MD", model.BillingState);
@@ -196,6 +197,7 @@ public sealed class ImportedDraftApplicationTests
                 [CredibleFields.GuardianLastName] = "Jones",
                 [CredibleFields.PhoneNumber] = "3016529500",
                 [CredibleFields.Email] = "demo@credibleinc.test",
+                [CredibleFields.Address] = "1 Choice Hotels Circle",
                 [CredibleFields.BillingStreet] = "1 Choice Hotels Circle",
                 [CredibleFields.BillingCity] = "Alexander",
                 [CredibleFields.BillingState] = "MD",
@@ -292,8 +294,13 @@ public sealed class ImportedDraftApplicationTests
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(
             int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
     }
 }

@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-09-01, covering all 116 protected routes. Every route added,
+*Route inventory current as of 2026-09-03, covering all 129 protected routes. Every route added,
 removed, or rescoped must be reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
@@ -143,8 +143,17 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Billing | `GET /billing/claim-lines/draft` | Billing period user's `AgencyId` | Billing permission; period owner joined to actor agency. |
 | Billing | `POST /billing/periods/{periodId}/submit` | Billing period user's `AgencyId` | Billing permission in same agency. |
 | Billing | `POST /billing/periods/{periodId}/edi` | Billing period user's `AgencyId` | Billing permission; period, every source note/person, and generated file must remain in actor agency. |
-| Forms | `POST /forms/delete` | Form person's assigned user and agency | Own caseload only; all requested IDs must be owned. |
-| Forms | `PUT /forms/{id}` | Form person's assigned user and agency | Own caseload only. |
+| Forms | `POST /forms/delete` | Form person's assigned user and agency | Own caseload only; all requested IDs must be owned. Refuses any form carrying append-only attestation history. |
+| Forms | `PUT /forms/{id}` | Form person's assigned user and agency | Own caseload only. Changes `OpenedDate`; any attempt to change `CompletedDate` is rejected because completion belongs to attestation/revocation. |
+| Forms | `POST /people/{personId}/forms/{type}/attestation` | Form person's assigned user and agency | Accessible case manager only through `TenantAccess.CanAccessUserAsync`; Form id, person id, and type must identify the same row. Server rechecks date/cycle/evidence rules, writes actor from validated identity, and returns typed 409 on a concurrent attestation change. |
+| Forms | `POST /people/{personId}/forms/{type}/attestation/revoke` | Form person's assigned user and agency | Same accessible-caseload gate; a nonblank reason is required and the actor is server-derived. A successful live revocation is append-only and audited. |
+| Forms | `GET /people/{personId}/forms/{type}/prerequisite` | Form person's assigned user and agency | Same accessible-caseload gate; form id, person id, and type must match before the API derives the live prerequisite state. |
+| Forms | `GET /people/{personId}/attestations/pending` | Person's assigned user and agency | Accessible case manager only through `TenantAccess.CanAccessUserAsync`; derives suggestions from eligible notes and forms after the gate. |
+| Annual documents | `POST /people/{personId}/documents/{kind}` | Person's assigned user and agency | Accessible case manager only; renders Agency/Medical releases or Privacy Practices, derives identity and applicable template server-side, and records artifact metadata including exact template provenance. Privacy generation does not create acknowledgment or completion. |
+| Annual documents | `POST /people/{personId}/documents/{kind}/external` | Person's assigned user and agency | Accessible case manager only; validates a supported prerequisite kind, cycle anniversary, and required external-record note before recording the artifact. |
+| Annual documents | `GET /people/{personId}/documents` | Person's assigned user and agency | Accessible case manager only; lists live artifact metadata for one requested cycle after tenant validation. |
+| Document templates | `GET /agencies/{agencyId}/templates/{kind}` | Actor's agency | Administration permission only; requested agency must equal actor agency. Returns that agency's versions and Sati-default versions, never another agency's. |
+| Document templates | `POST /agencies/{agencyId}/templates/{kind}` | Actor's agency | Same Administration/agency gate; validates closed tokens and source bounds, derives author/version/timestamp, appends an immutable version plus audit event, and returns typed 409 on a version collision. Cannot publish a global default. |
 | Incidents | `POST /incidents` | Authenticated actor's `AgencyId` | Reports only a validated PHI-minimized envelope; agency is derived from the token, never the request. |
 | Incidents | `GET /admin/incidents` | Incident `AgencyId` | Administration permission; actor agency only. |
 | Incidents | `PUT /admin/incidents/{incidentId}/status` | Incident `AgencyId` | Administration permission; same-agency status transition is audited. |
@@ -179,3 +188,6 @@ The table was reconciled against the routes registered in `ApiEndpoints.cs` on 2
 re-checked mechanically during the permissions audit the same day: the two sets match exactly at
 114 routes, in both directions. Re-run that comparison when routes change; a route inventory that
 silently falls behind the code is worse than no inventory.
+# Safety-plan routes (2026-09-03)
+
+`GET /api/v1/people/{personId}/safety-plans/latest`, draft creation, document save, and submit require the assigned case manager through `TenantAccess.OwnsPersonAsync`. Approval and return require a supervisor permission plus a server-side same-agency check on the plan's assigned consumer and author. A caller-controlled author id is compared with the validated actor before access is granted.

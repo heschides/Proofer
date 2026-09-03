@@ -93,7 +93,7 @@ public sealed class ReviewAttestationTests
         var quarter = person.GetCurrentQuarter(today)!.Value;
         var form = person.GetCurrentCycleForm(QuarterType(quarter), today)!;
         form.DueDate = today.AddDays(-10);
-        form.Reset();
+        form.SetInitialCompletion(null);
         var people = new FixedPersonService(person);
         var session = new SessionService();
         session.SetUser(User.Create(
@@ -122,17 +122,17 @@ public sealed class ReviewAttestationTests
         var row = Assert.Single(viewModel.Rows);
         viewModel.SelectCellCommand.Execute(SelectionFor(row, quarter));
 
-        Assert.Null(viewModel.AttestationCompletionDate);
-        Assert.False(viewModel.CompleteSelectedQuarterCommand.CanExecute(null));
+        Assert.Null(viewModel.Attestation.CompletionDate);
+        Assert.False(viewModel.Attestation.CompleteAttestationCommand.CanExecute(null));
 
-        viewModel.AttestationCompletionDate = today.AddDays(1);
-        Assert.False(viewModel.CompleteSelectedQuarterCommand.CanExecute(null));
-        Assert.Equal(FormCompletionRules.FutureDateMessage, viewModel.AttestationDateError);
+        viewModel.Attestation.CompletionDate = today.AddDays(1);
+        Assert.False(viewModel.Attestation.CompleteAttestationCommand.CanExecute(null));
+        Assert.Equal(FormCompletionRules.FutureDateMessage, viewModel.Attestation.CompletionDateError);
 
         var explicitLateDate = today.AddDays(-2);
-        viewModel.AttestationCompletionDate = explicitLateDate;
-        Assert.True(viewModel.CompleteSelectedQuarterCommand.CanExecute(null));
-        await viewModel.CompleteSelectedQuarterCommand.ExecuteAsync(null);
+        viewModel.Attestation.CompletionDate = explicitLateDate;
+        Assert.True(viewModel.Attestation.CompleteAttestationCommand.CanExecute(null));
+        await viewModel.Attestation.CompleteAttestationCommand.ExecuteAsync(null);
 
         Assert.Same(form, Assert.Single(formService.Saved));
         Assert.Equal(explicitLateDate, form.CompletedDate);
@@ -177,9 +177,14 @@ public sealed class ReviewAttestationTests
             Task.FromResult(new JournalReminderResult(text));
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(int personId, int targetUserId, int expectedRevision) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds) =>
-            Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>([]);
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            Task.FromResult(CredibleMatchLookupResult.Empty);
         public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) =>
             Task.FromResult<List<PersonSummary>>([]);
     }
@@ -216,6 +221,22 @@ public sealed class ReviewAttestationTests
 
         public Task UpdateFormAsync(Form form)
         {
+            Saved.Add(form);
+            return Task.CompletedTask;
+        }
+
+        public Task AttestAsync(Form form, DateTime completedOn, int? evidenceNoteId = null)
+        {
+            form.Attest(FormAttestation.Attested(
+                completedOn, AttestationActorKind.CaseManager, 31, DateTime.UtcNow));
+            Saved.Add(form);
+            return Task.CompletedTask;
+        }
+
+        public Task RevokeAttestationAsync(Form form, string reason)
+        {
+            form.RevokeAttestation(FormAttestation.Revoked(
+                AttestationActorKind.CaseManager, 31, DateTime.UtcNow, reason));
             Saved.Add(form);
             return Task.CompletedTask;
         }

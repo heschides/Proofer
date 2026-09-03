@@ -670,6 +670,140 @@ namespace Sati.Migrations
                     b.ToTable("RemittanceDeposits");
                 });
 
+            modelBuilder.Entity("Sati.Models.DocumentArtifact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BlankFieldsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<long?>("ByteCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentSha256")
+                        .HasColumnType("char(64)");
+
+                    b.Property<DateTime>("CycleStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ExternalNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("GeneratedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SuggestedFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int?>("SupersededByArtifactId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TemplateKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TemplateOwner")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("TemplateVersion")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgencyId");
+
+                    b.HasIndex("GeneratedByUserId");
+
+                    b.HasIndex("PersonId", "Kind", "CycleStart")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DocumentArtifacts_OneLivePerCycle")
+                        .HasFilter("[SupersededByArtifactId] IS NULL");
+
+                    b.ToTable("DocumentArtifacts");
+                });
+
+            modelBuilder.Entity("Sati.Models.DocumentTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PublishedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RetiredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublishedByUserId");
+
+                    b.HasIndex("AgencyId", "Kind", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DocumentTemplates_AgencyKindVersion");
+
+                    b.ToTable("DocumentTemplates");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Body = "# Notice of Privacy Practices\n\nPROVISIONAL SATI DEFAULT - AGENCY PRIVACY AND LEGAL REVIEW REQUIRED\n\nPrepared for cycle beginning: {{cycle.start}}\n\nThis notice describes general ways {{agency.name}} may use and share information about {{consumer.full_name}}, and how the individual or authorized representative may exercise privacy rights. It is a generic starting point and must be replaced or approved by the agency before production use.\n\n## Our responsibilities\n\n- Protect the privacy and security of health and service information.\n- Follow the privacy practices described in the agency's current approved notice.\n- Notify affected people when required after a breach of unsecured information.\n- Provide the current notice when privacy practices materially change.\n\n## How information may be used or shared\n\nInformation may be used or shared as permitted or required by applicable law for treatment and service coordination, payment, health-care operations, public-health and safety duties, oversight, legal proceedings, and other specifically authorized purposes. Uses or disclosures requiring written authorization will not occur without that authorization, and an authorization may be revoked as allowed by law.\n\n## Individual privacy rights\n\n- Ask to inspect or obtain a copy of records, subject to lawful limits.\n- Ask for a correction or amendment.\n- Ask for confidential communications or certain restrictions.\n- Ask for an accounting of qualifying disclosures.\n- Receive a paper copy of the agency's approved notice.\n- Make a privacy complaint without retaliation.\n\n## Questions or complaints\n\nContact {{agency.name}} at {{agency.address}} or {{agency.phone}} to ask questions, exercise a privacy right, or make a complaint. The agency's approved notice must identify any additional external complaint process that applies.\n\n## Receipt\n\nReceiving this notice does not authorize a release of information. Receipt or a documented good-faith effort to provide the notice is recorded separately by authorized staff.\n\nPrepared for: {{consumer.full_name}}\nDate of birth: {{consumer.birth_date}}\nCase manager: {{case_manager.name}}, {{case_manager.role}}\nCoverage cycle: {{cycle.start}} through {{cycle.end}}",
+                            Kind = "PrivacyPractices",
+                            PublishedAtUtc = new DateTime(2026, 9, 3, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1
+                        });
+                });
+
             modelBuilder.Entity("Sati.Models.ExemptDate", b =>
                 {
                     b.Property<int>("Id")
@@ -703,6 +837,7 @@ namespace Sati.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime?>("CompletedDate")
+                        .IsConcurrencyToken()
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("DueDate")
@@ -726,6 +861,56 @@ namespace Sati.Migrations
                         .HasDatabaseName("IX_Forms_PersonId_Type_DueDate");
 
                     b.ToTable("Forms");
+                });
+
+            modelBuilder.Entity("Sati.Models.FormAttestation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("EvidenceNoteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FormId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PrerequisiteStateJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("FormId", "RecordedAtUtc");
+
+                    b.ToTable("FormAttestations");
                 });
 
             modelBuilder.Entity("Sati.Models.Incentive", b =>
@@ -847,6 +1032,68 @@ namespace Sati.Migrations
                         .IsUnique();
 
                     b.ToTable("IncidentGroups");
+                });
+
+            modelBuilder.Entity("Sati.Models.LegalHold", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CaseReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("EffectiveAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsReleased")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("IssuedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("PlacedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PlacedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReleaseNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReleasedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgencyId");
+
+                    b.HasIndex("PlacedByUserId");
+
+                    b.HasIndex("ReleasedByUserId");
+
+                    b.HasIndex("PersonId", "IsReleased");
+
+                    b.ToTable("LegalHolds");
                 });
 
             modelBuilder.Entity("Sati.Models.Note", b =>
@@ -1242,6 +1489,70 @@ namespace Sati.Migrations
                     b.ToTable("ProviderContacts");
                 });
 
+            modelBuilder.Entity("Sati.Models.SafetyPlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CycleStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("PersonId", "CycleStart", "Version")
+                        .IsUnique();
+
+                    b.ToTable("SafetyPlans");
+                });
+
             modelBuilder.Entity("Sati.Models.Scratchpad", b =>
                 {
                     b.Property<int>("Id")
@@ -1619,6 +1930,9 @@ namespace Sati.Migrations
                     b.Property<bool>("CaseManagerIsRepPayee")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CredibleClientId")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
@@ -1745,6 +2059,21 @@ namespace Sati.Migrations
 
                     b.Property<byte[]>("SsnWrappedKey")
                         .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("StatusChangedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("StatusChangedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StatusNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
@@ -1933,6 +2262,42 @@ namespace Sati.Migrations
                     b.Navigation("BillingPeriod");
                 });
 
+            modelBuilder.Entity("Sati.Models.DocumentArtifact", b =>
+                {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("GeneratedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
+            modelBuilder.Entity("Sati.Models.DocumentTemplate", b =>
+                {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Sati.Models.ExemptDate", b =>
                 {
                     b.HasOne("Sati.Models.User", "User")
@@ -1955,6 +2320,22 @@ namespace Sati.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("Sati.Models.FormAttestation", b =>
+                {
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sati.Models.Form", "Form")
+                        .WithMany("Attestations")
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Form");
+                });
+
             modelBuilder.Entity("Sati.Models.Incentive", b =>
                 {
                     b.HasOne("Sati.Models.User", "User")
@@ -1973,6 +2354,32 @@ namespace Sati.Migrations
                         .HasForeignKey("AgencyId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Sati.Models.LegalHold", b =>
+                {
+                    b.HasOne("Sati.Models.Agency", null)
+                        .WithMany()
+                        .HasForeignKey("AgencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("PlacedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReleasedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Sati.Models.Note", b =>
@@ -2055,6 +2462,30 @@ namespace Sati.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Sati.Models.SafetyPlan", b =>
+                {
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sati.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("Sati.Models.ScratchpadComment", b =>
                 {
                     b.HasOne("Sati.Models.Scratchpad", "Scratchpad")
@@ -2135,6 +2566,11 @@ namespace Sati.Migrations
             modelBuilder.Entity("Sati.Models.Billing.BillingPeriod", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Sati.Models.Form", b =>
+                {
+                    b.Navigation("Attestations");
                 });
 
             modelBuilder.Entity("Sati.Models.Scratchpad", b =>

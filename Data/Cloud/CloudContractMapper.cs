@@ -27,7 +27,11 @@ internal static class CloudContractMapper
 
     public static Person ToPerson(PersonDto dto)
     {
-        var person = Person.Rehydrate(dto.Id, dto.UserId);
+        var person = Person.Rehydrate(dto.Id, dto.UserId, dto.CreatedAtUtc);
+        person.Status = Parse<PersonStatus>(dto.Status);
+        person.StatusNote = dto.StatusNote;
+        person.StatusChangedAtUtc = dto.StatusChangedAtUtc;
+        person.StatusChangedByUserId = dto.StatusChangedByUserId;
         person.FirstName = dto.FirstName;
         person.LastName = dto.LastName;
         person.BirthDate = dto.BirthDate;

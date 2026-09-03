@@ -38,6 +38,11 @@ internal static class AuditActions
     public const string AssessmentCreated = "assessment.created";
     public const string AssessmentUpdated = "assessment.updated";
     public const string AssessmentSubmitted = "assessment.submitted";
+    public const string SafetyPlanCreated = "safety-plan.created";
+    public const string SafetyPlanUpdated = "safety-plan.updated";
+    public const string SafetyPlanSubmitted = "safety-plan.submitted";
+    public const string SafetyPlanApproved = "safety-plan.approved";
+    public const string SafetyPlanReturned = "safety-plan.returned";
     public const string SettingsUpdated = "settings.updated";
     public const string ScratchpadUpdated = "scratchpad.updated";
     public const string PersonCreated = "person.created";
@@ -69,4 +74,15 @@ internal static class AuditActions
     public const string AuditExported = "audit.exported";
     public const string PlatformIncidentsViewed = "platform-incidents.viewed";
     public const string IncidentStatusUpdated = "incident-status.updated";
+    public const string FormAttested = "form.attested";
+    public const string FormAttestationRevoked = "form.attestation-revoked";
+    public const string FormPrerequisiteOverridden = "form.prerequisite-overridden";
+    public const string DocumentGenerated = "document.generated";
+    public const string DocumentRecordedExternal = "document.recorded-external";
+    public const string DocumentTemplatePublished = "document-template.published";
+    public const string ConsumerArchived = "consumer.archived";
+    public const string ConsumerUnarchived = "consumer.unarchived";
+    public const string LegalHoldPlaced = "legal-hold.placed";
+    public const string LegalHoldReleased = "legal-hold.released";
+    public const string ConsumerDeletedInWindow = "consumer.deleted-in-window";
 }

@@ -71,7 +71,7 @@ public sealed class DailyAgendaBuilderTests
     {
         var incomplete = new Form(FormType.Q3R, Today.AddDays(-4));
         var completed = new Form(FormType.SafetyPlan, Today.AddDays(-8));
-        completed.MarkComplete(Today.AddDays(-2));
+        completed.SetInitialCompletion(Today.AddDays(-2));
         var person = PersonWithForms("Alex", incomplete, completed);
         var before = person.Forms
             .Select(form => (form.IsCompliant, form.CompletedDate))

@@ -12,11 +12,28 @@ public sealed class CloudAgencyReleaseService(CloudApiClient client) : IAgencyRe
     {
         AgencyReleaseRules.EnsureValid(request);
         var pdf = await client.PostBytesAsync(
-            $"/api/v1/people/{personId}/agency-release.pdf",
-            request,
+            $"/api/v1/people/{personId}/documents/{AnnualDocumentKind.ReleaseAgency}",
+            new RenderAnnualDocumentRequest(Release: request),
             cancellationToken);
         return new AgencyReleaseResult(
             pdf,
-            AgencyReleaseService.SuggestedFileName(personId, null, null, request.IsRevocation));
+            AgencyReleaseService.SuggestedFileName(
+                personId, null, null, request.IsRevocation, draft: request.IsDraft));
+    }
+
+    public async Task<AgencyReleaseResult> GenerateMedicalAsync(
+        int personId,
+        AgencyReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        AgencyReleaseRules.EnsureValid(request);
+        var pdf = await client.PostBytesAsync(
+            $"/api/v1/people/{personId}/documents/{AnnualDocumentKind.ReleaseMedical}",
+            new RenderAnnualDocumentRequest(Release: request),
+            cancellationToken);
+        return new AgencyReleaseResult(
+            pdf,
+            AgencyReleaseService.SuggestedFileName(
+                personId, null, null, request.IsRevocation, AnnualDocumentKind.ReleaseMedical, request.IsDraft));
     }
 }

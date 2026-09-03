@@ -1,0 +1,106 @@
+<UserControl x:Class="Sati.Views.FormAttestationControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Visibility="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+    <Border Background="{DynamicResource SurfaceRaisedBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="5"
+            Padding="12"
+            Margin="0,8,0,8">
+        <StackPanel>
+            <TextBlock Text="{Binding ContextLabel}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       AutomationProperties.HeadingLevel="Level3" />
+            <TextBlock Text="{Binding StatusText}"
+                       Margin="0,3,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="{Binding PrerequisiteSummary}"
+                       Margin="0,3,0,8"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="{Binding PrerequisiteError}"
+                       Foreground="{DynamicResource DangerStrongBrush}"
+                       FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Assertive" />
+
+            <StackPanel Visibility="{Binding CanRecordExternal, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Margin="0,0,0,10">
+                <TextBlock Text="EXTERNAL DOCUMENT NOTE" Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding ExternalDocumentNote, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="280" MaxLength="1000"
+                         AutomationProperties.Name="External prerequisite document note"
+                         AutomationProperties.HelpText="Identify where the external document is held or how it was verified. Do not paste clinical narrative." />
+                <Button Content="Record document as external"
+                        Command="{Binding RecordExternalDocumentCommand}"
+                        HorizontalAlignment="Left" Margin="0,6,0,0" Padding="12,6"
+                        AutomationProperties.Name="Record prerequisite document as external" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding CanSupervisorOverride, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Margin="0,0,0,10">
+                <TextBlock Text="SUPERVISOR TECHNICAL-PROBLEM OVERRIDE" Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding SupervisorOverrideReason, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="280" MaxLength="500"
+                         AutomationProperties.Name="Supervisor technical problem override reason"
+                         AutomationProperties.HelpText="Required. Explain the technical problem preventing the prerequisite from being recorded." />
+                <TextBlock Text="Use this only when a technical problem prevents the prerequisite from being recorded. The reason and supervisor identity are audited."
+                           FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource WarningBrush}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="ACTUAL COMPLETION DATE"
+                           Style="{StaticResource LabelStyle}" />
+                <DatePicker Width="170"
+                            HorizontalAlignment="Left"
+                            SelectedDate="{Binding CompletionDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            AutomationProperties.Name="Form attestation completion date"
+                            AutomationProperties.HelpText="Choose the date the form was actually completed. This field starts blank." />
+                <TextBlock Text="{Binding CompletionDateError}"
+                           Foreground="{DynamicResource DangerStrongBrush}"
+                           FontSize="11"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap"
+                           AutomationProperties.LiveSetting="Assertive" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Complete attestation"
+                            Command="{Binding CompleteAttestationCommand}"
+                            AutomationProperties.Name="Complete form attestation"
+                            Padding="12,6" />
+                    <Button Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            Margin="8,0,0,0"
+                            Padding="12,6" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsComplete, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="WHY IS THIS ATTESTATION BEING REVOKED?"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBox Text="{Binding RevocationReason, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="280"
+                         MaxLength="500"
+                         AutomationProperties.Name="Form attestation revocation reason" />
+                <TextBlock Text="{Binding RevocationReasonError}"
+                           Foreground="{DynamicResource DangerStrongBrush}"
+                           FontSize="11"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap"
+                           AutomationProperties.LiveSetting="Assertive" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Revoke attestation"
+                            Command="{Binding RevokeAttestationCommand}"
+                            AutomationProperties.Name="Revoke form attestation"
+                            Padding="12,6" />
+                    <Button Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            Margin="8,0,0,0"
+                            Padding="12,6" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

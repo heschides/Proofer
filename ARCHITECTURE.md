@@ -83,20 +83,25 @@ Where both the selected profile and export carry a Credible client id, different
 any form field changes. The setting does not enable bulk replacement: folder import continues to
 report and skip existing ids.
 
-## Quarterly review evidence and attestation
+## Form evidence and attestation
 
-`ReviewItem` and quarterly `Form` records deliberately answer different questions. A
-`ReviewItem` records gathered evidence and its Requested/Received/Logged dates. The current-cycle
-`Q1R`-`Q4R` `Form` records the case manager's separate attestation that the quarterly review
-occurred. Logging the final evidence item never completes the form.
+Evidence and `Form` records deliberately answer different questions. A form-tagged case note or
+quarterly `ReviewItem` says work was documented. A current-cycle `Form` records the separate human
+attestation that the form itself was completed. Saving or deleting evidence never completes or
+revokes a form.
 
-The Reviews workspace displays both facts. Evidence tiles retain their existing workflow, while
-each quarter's attestation status comes from `FormCellStatusCalculator`, the same timing-to-status
-owner used by the caseload matrix. Completing an attestation requires an explicitly selected,
-non-future date; the picker starts blank and the entered date is passed unchanged to
-`Form.MarkComplete`. `FormCompletionRules` is the shared future-date validator used by the WPF
-capture, Local `FormService`, and `PUT /api/v1/forms/{id}`. The API applies the accepted value
-through `ServerForm.ApplyCompletion`, keeping `IsCompliant` and `CompletedDate` synchronized.
+The Reviews workspace, dashboard, and Clients workspace share one `FormAttestationControl` for all
+twelve form types. The date picker starts blank. `FormAttestationRules` in `Sati.Contracts.V1`
+rejects future dates and dates before the form's cycle start in the WPF capture, Local
+`FormService`, and API. `PUT /api/v1/forms/{id}` can change only `OpenedDate`; only the attestation
+and revocation routes can change persisted completion state.
+
+`FormAttestation` is an append-only ledger. `Form.CompletedDate` remains the authoritative scalar
+read by billing and the UI, but it is now the projection of the latest attestation/revocation.
+Every accepted change appends the ledger row and a PHI-minimized audit event in the same save.
+`EvidenceNoteId` is a nullable citation, deliberately not a foreign key, so deleting evidence does
+not rewrite attestation history. `CompletedDate` is also an optimistic-concurrency token: two
+simultaneous writes cannot both succeed from the same prior state.
 
 Every form-compliance mutation converges on
 `CaseManagerDashboardViewModel.AfterFormComplianceChangedAsync`: checkbox flags, the caseload
@@ -104,10 +109,32 @@ matrix, and `UpcomingEvents` refresh together. Changes initiated by the Clients 
 workspace first reload the dashboard's person snapshot, then use that same cascade. People and
 upcoming-event loads take `LatestRequestTracker` identities before publishing shared UI state.
 
-The older dashboard and Clients quick toggles still use the form's due date as an explicit
-on-time assumption. The Reviews workspace does not: it is where the evidence dates are visible,
-and requires the actual date. Revisiting the weaker quick-toggle assumption is tracked separately;
-it was not silently changed as part of this defect fix.
+The pending-attestation list is derived from eligible form-tagged notes and outstanding forms by
+person, form type, and the cycle containing the note's event date. It is not a stored prompt and
+does not depend on which dashboard person happened to be selected when the note was saved.
+
+Document-backed forms add a separate server fact. `DocumentArtifact` stores metadata for a generated,
+Draft, or externally recorded annual document; PDF bytes remain only in the response/save flow.
+`AnnualDocumentCatalog` maps document kinds to form types, while `FormAttestationRules` decides
+whether the live artifact, same-cycle Comprehensive Assessment, or reasoned Supervisor technical
+override permits attestation. A Draft never satisfies a release prerequisite. Regeneration
+supersedes the previous live row, and the database permits only one live artifact for each person,
+kind, and cycle.
+
+Agency, DHHS, and Medical release generation records artifact metadata and a PHI-minimized audit
+event in the same transaction. Both local and cloud form services can record an external document
+with a required note, but every API route first revalidates agency and accessible-caseload scope.
+The Medical Release is a distinct Sati-owned PDF generator that shares the release-choice contract;
+it is not represented as a state-issued or independently approved form.
+
+`DocumentTemplate` stores immutable published source versions. `DocumentTemplateResolution` and
+`DocumentTemplateRules` in `Sati.Contracts.V1` own agency-over-default precedence, the closed token
+set, and source validation. `DocumentTemplatePdfComposer` in `Sati.Forms` handles only rendering:
+headings, paragraphs, bullets, simple tables, explicit page breaks, and one-pass token substitution.
+`IDocumentTemplateService` has local EF and cloud HTTP implementations; template administration is
+agency-Admin-only, while privacy rendering uses the same accessible-caseload gate as other documents.
+The artifact freezes template owner/key/version. The provisional Sati default is seeded by migration;
+ordinary agency routes cannot change it. See `DOCUMENT_TEMPLATES.md` for the source language.
 
 ## Agency authorization model
 
@@ -527,6 +554,8 @@ preflight procedures are reproducible through `scripts/Publish-Demo.ps1`,
 |--------|-----------|---------|
 | `Person` | `Sati` | Central domain entity. Owns compliance logic, form generation, billing window evaluation. |
 | `Form` | `Sati.Models` | Represents a single compliance document for one person in one cycle. |
+| `FormAttestation` | `Sati.Models` | Append-only evidence of an attestation or reasoned revocation; projects the live completion date onto `Form`. |
+| `DocumentArtifact` | `Sati.Models` | Metadata and supersession history for a generated, Draft, or externally recorded annual document; stores hashes, not document bytes. |
 | `Note` | `Sati.Models` | Service note — visit, contact, form completion, or other. |
 | `User` | `Sati.Models` | Staff member. Has role, supervisor chain, and agency affiliation. |
 | `Agency` | `Sati.Models` | Billing/provider entity. Referenced by both `Person` and `User`. |
@@ -597,25 +626,21 @@ records generated under the old 120-day setting.
 
 ### Compliance State
 
-**Single source of truth: `Form.MarkComplete(DateTime)` and `Form.Reset()`**
+**Single source of truth: `Form.Attest(FormAttestation)` and
+`Form.RevokeAttestation(FormAttestation)`**
 
-- `Form.IsCompliant` has `private set`. The only sanctioned writers are these two methods.
-- **Semantics (important, repeatedly confused):** `IsCompliant` means **not overdue**, NOT complete.
-  A form born compliant simply isn't past due yet; it flips to non-compliant when its due date
-  passes without completion. `CompletedDate is null` is the predicate for "not done." A form can be
-  compliant (not overdue) and incomplete (`CompletedDate is null`) at the same time — that's the
-  normal state of a not-yet-due form.
+- `Form.IsCompliant` is derived as `CompletedDate.HasValue`; there is no stored compliance flag.
+- `CompletedDate` has a private setter. `MarkComplete` and `Reset` are private entity helpers called
+  only while appending an attestation or revocation. `SetInitialCompletion` is guarded to new,
+  unattested forms and exists only for the admission confirmation before the Person graph is saved.
 - New-client generation does not use the legacy "compliant with no completion date" state. When
   the admission workflow assumes an in-force annual document exists, it records the effective date
   as its completion date; the confirmation dialog lets the case manager correct that assumption.
 - EF Core materializes entities via the `protected Form()` parameterless constructor,
   which does not touch `IsCompliant`.
-- **Cascade rule:** Any code path that changes a form's completion state MUST go through
-  `MarkComplete` or `Reset`. No direct property assignment. No exceptions.
-
-**Resolved (ViewModel review):** No services-layer path writes `IsCompliant` directly. See the
-ViewModels "compliance state writes — confirmed safe" note. `FormService.UpdateFormAsync` remains
-a raw update with no guard (still a latent risk if a future caller mutates state directly).
+- **Cascade rule:** persisted completion changes go through attestation/revocation. Both database
+  contexts reject updates or deletes of ledger rows, the Form relationship uses restricted delete,
+  and form deletion refuses any row with attestation history.
 
 ### Form Generation
 
@@ -872,10 +897,10 @@ wrapper or delete it.
 
 ## Maintenance Tools (added 2026-06-29 — temporary UI, keepable services)
 
-Both mirror the same **two-key latch** safety pattern: `DryRunAsync` computes + writes a timestamped
-Desktop report and arms a latch; `CommitAsync(...)` refuses unless a dry run ran *this session* and
-the caller passes back the exact count (and, for bulk-complete, the exact cutoff). Transient DI, so a
-fresh instance starts un-armed — a stale dry run can't authorize a commit.
+Both mirror the same latch safety pattern: `DryRunAsync` computes + writes a timestamped Desktop
+report and arms a latch; `CommitAsync(...)` refuses unless a dry run ran *this session* and the
+caller passes back the exact reviewed values. Bulk completion pins count, cutoff, and the explicitly
+entered completion date. Transient DI means a fresh instance starts un-armed.
 
 ### `FormDueDateBackfill` (`Sati.Data`)
 - Corrects stored `Form.DueDate` from old (cycleStart-anchored) values to the current calculator's
@@ -887,8 +912,9 @@ fresh instance starts un-armed — a stale dry run can't authorize a commit.
 - **Run 2026-06-29: 4,095 changed, 0 anomalies.** Reusable for future imports / provider swaps.
 
 ### `FormBulkCompletion` (`Sati.Data`)
-- Marks every form due ≤ a cutoff and not already compliant as complete via `Form.MarkComplete`
-  (stamping the due date). One-time reconciliation against an external tracking sheet.
+- Marks every form due ≤ a cutoff and not already complete using one explicitly entered date,
+  validated for every affected cycle. Each write is a System attestation with a fixed reason and a
+  separate audit event; the tool no longer stamps each form's due date.
 - **Run 2026-06-29: 308 marked (all reviews), cutoff 2026-06-10 inclusive.**
 
 ---
@@ -1098,6 +1124,8 @@ rather than in either client.
 | Owner | Rule |
 |---|---|
 | `BillingComplianceGate` | Whether a client's paperwork permits billing, with reasons. |
+| `FormAttestationRules` | Attestation date legality, form-note evidence eligibility, person/type/event-cycle resolution, and the derived pending-attestation list. |
+| `AnnualDocumentCatalog` | Annual-document identity, display names, form-prerequisite mapping, and later packet eligibility. |
 | `BillingRules` | Payer-neutral unit arithmetic, charge rounding, NPI and procedure-code format. |
 | `NoteWorkflow` | Which note status may become which, for the case manager, the supervisor, and the overdue sweep — and therefore which notes can reach approval and billing at all. |
 | `NoteSchedulingPolicy` | Future dates become non-billable Scheduled Reminders, with service, form, visit, and justification fields removed before persistence. |
@@ -1229,7 +1257,7 @@ Previously excluded as "stateless, low-risk." One live bug surfaced and was fixe
 | If you change... | You must also check... |
 |-----------------|----------------------|
 | `FormType` enum (add/reorder) | `Person.GenerateFormList`, `EvaluateComplianceGate`, `EvaluateBillingWindow`, `FormDueDateCalculator`, `Person.FormDisplayName`, `[Description]` attributes, `UpcomingEventService`, any `FormType` switches in ViewModels |
-| `Form.MarkComplete` / `Form.Reset` signatures | Every caller in services and ViewModels; `FormService.UpdateFormAsync` (invariant risk) |
+| `Form.Attest` / `Form.RevokeAttestation` or the `FormAttestation` shape | `FormAttestationRules`, both database contexts and API routes, `IFormService`, shared attestation control, audit actions, migration/backfill, billing-window regression tests |
 | `Settings` anniversary-offset or deadline properties | `FormDueDateCalculator` (now **does** accept `Settings`), `Person.GetOpenDaysBefore`, `UpcomingEventService`, `SettingsService` seed, `SettingsViewModel` + XAML if user-editable |
 | **Cycle-membership convention** | `Person.FormBelongsToCycle` (the one definition), and confirm `BuildFormRows` is still deliberately excluded |
 | `Person.GetCurrentCycleBoundaries` logic | `GetCurrentCycleForm`, `EvaluateComplianceGate`, `EnsureCurrentCycleForms`, `AddMissingFormsForCycle`, `FormBelongsToCycle` |
@@ -1695,3 +1723,6 @@ per-machine presentation state, not agency policy and not a clinical record. Dis
 already-shown-today paths return before settings, event, or assessment reads. Query failures are
 logged and cannot block sign-in. The modal uses dynamic theme resources, a Demo indicator,
 non-color status text, stable automation names, keyboard defaults, and initial checkbox focus.
+# Safety-plan ownership
+
+`SafetyPlanRules` in `Sati.Contracts.V1` owns the shared document schema and submission-completeness rule. `SafetyPlans` stores versioned clinical content behind the API; `SafetyPlanPdfGenerator` produces a status-labeled PDF. The API remains authoritative for author identity, tenant access, review transitions, approval, audit events, and artifact status.

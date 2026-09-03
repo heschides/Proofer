@@ -2112,6 +2112,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0"
@@ -2388,6 +2389,8 @@
                                                Margin="20,0,0,4" />
                                 </StackPanel>
                             </Grid>
+                        <views:FormAttestationControl Grid.Row="2"
+                                                      DataContext="{Binding Attestation}" />
                     </Grid>
 
                     <!-- NOTES HISTORY + JOURNAL — split the bottom-right cell so the

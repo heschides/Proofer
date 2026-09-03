@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using Sati.Contracts.V1;
 using Sati.Data.Cloud;
+using Sati.Models;
 using Xunit;
 
 namespace Sati.Tests;
@@ -94,7 +95,7 @@ public sealed class CloudApiRouteTests
         await service.GenerateAsync(PersonId, ValidReleaseRequest());
 
         Assert.Equal(
-            $"https://api.invalid/api/v1/people/{PersonId}/agency-release.pdf",
+            $"https://api.invalid/api/v1/people/{PersonId}/documents/{AnnualDocumentKind.ReleaseAgency}",
             recorder.LastUri?.ToString());
     }
 
@@ -112,6 +113,29 @@ public sealed class CloudApiRouteTests
             service.GenerateAsync(PersonId, ValidReleaseRequest() with { ContactName = null }));
 
         Assert.Null(recorder.LastUri);
+    }
+
+    [Fact]
+    public async Task OpeningAFormWritesTodaysOpenedDateToTheVersionedRoute()
+    {
+        var today = DateTime.Today;
+        var responseJson = $$"""
+            {"id":44,"type":"Q1R","dueDate":"{{today.AddDays(10):yyyy-MM-dd}}","isCompliant":false,"personId":{{PersonId}},"completedDate":null,"openedDate":"{{today:yyyy-MM-dd}}"}
+            """;
+        var recorder = new UriRecorder(JsonBody(responseJson));
+        var service = new CloudFormService(ClientFor(recorder));
+        var form = new Form(FormType.Q1R, today.AddDays(10))
+        {
+            Id = 44,
+            PersonId = PersonId
+        };
+
+        await service.OpenFormAsync(form);
+
+        Assert.Equal($"https://api.invalid/api/v1/forms/{form.Id}", recorder.LastUri?.ToString());
+        Assert.Equal(HttpMethod.Put, recorder.LastMethod);
+        Assert.Contains($"\"openedDate\":\"{today:yyyy-MM-dd}", recorder.LastBody);
+        Assert.Equal(today, form.OpenedDate);
     }
 
     private static AgencyReleaseRequest ValidReleaseRequest() => new(
@@ -150,13 +174,19 @@ public sealed class CloudApiRouteTests
     private sealed class UriRecorder(HttpContent content) : HttpMessageHandler
     {
         public Uri? LastUri { get; private set; }
+        public HttpMethod? LastMethod { get; private set; }
+        public string? LastBody { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastUri = request.RequestUri;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            LastMethod = request.Method;
+            LastBody = request.Content is null
+                ? null
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         }
     }
 }

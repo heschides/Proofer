@@ -13,4 +13,10 @@ public interface IAgencyReleaseService
         int personId,
         AgencyReleaseRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<AgencyReleaseResult> GenerateMedicalAsync(
+        int personId,
+        AgencyReleaseRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Medical-release generation is not available on this data path.");
 }

@@ -113,6 +113,7 @@ public sealed record CredibleLayoutProfile(
             new("CONSUMER INFO", "Consumer is Own Guardian?", CredibleFields.HasGuardian,
                 CredibleValueKind.InvertedYesNo),
 
+            new("Consumer Address", "address1", CredibleFields.Address),
             new("Consumer Address", "address1", CredibleFields.BillingStreet),
             new("Consumer Address", "City", CredibleFields.BillingCity),
             new("Consumer Address", "State", CredibleFields.BillingState),
@@ -157,6 +158,13 @@ public static class CredibleFields
     public const string GuardianLastName = "guardianLastName";
     public const string PhoneNumber = "phoneNumber";
     public const string Email = "email";
+
+    /// <summary>
+    /// The human-facing mailing address. Reads the same <c>address1</c> cell as
+    /// <see cref="BillingStreet"/> — one Credible field feeds two Sati fields with different
+    /// jobs. See <c>Person.Address</c> vs <c>Person.BillingStreet</c>.
+    /// </summary>
+    public const string Address = "address";
     public const string BillingStreet = "billingStreet";
     public const string BillingCity = "billingCity";
     public const string BillingState = "billingState";

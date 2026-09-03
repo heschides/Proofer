@@ -381,7 +381,8 @@ public sealed class AdminTestDataDeletionTests
         {
             var session = new SessionService();
             session.SetUser(actor);
-            return new AdminService(Factory, session, new PersonAuditPdfExporter());
+            return new AdminService(
+                Factory, session, new PersonAuditPdfExporter(), new LocalLegalHoldRegistry(Factory));
         }
 
         public async Task<GraphSnapshot> SnapshotAsync()

@@ -43,11 +43,24 @@ public sealed class AgencyReleasePdfGenerator
         AgencyReleaseSubject subject,
         AgencyReleaseRequest request,
         DateTime generatedAtUtc)
+        => Generate(subject, request, generatedAtUtc, medicalRelease: false);
+
+    internal byte[] GenerateMedical(
+        AgencyReleaseSubject subject,
+        AgencyReleaseRequest request,
+        DateTime generatedAtUtc)
+        => Generate(subject, request, generatedAtUtc, medicalRelease: true);
+
+    private static byte[] Generate(
+        AgencyReleaseSubject subject,
+        AgencyReleaseRequest request,
+        DateTime generatedAtUtc,
+        bool medicalRelease)
     {
         ArgumentNullException.ThrowIfNull(subject);
         AgencyReleaseRules.EnsureValid(request);
 
-        var document = CreateDocument(subject, request, generatedAtUtc);
+        var document = CreateDocument(subject, request, generatedAtUtc, medicalRelease);
         var renderer = new PdfDocumentRenderer { Document = document };
         renderer.RenderDocument();
         renderer.PdfDocument.Info.CreationDate = DateTime.SpecifyKind(generatedAtUtc, DateTimeKind.Utc);
@@ -60,11 +73,14 @@ public sealed class AgencyReleasePdfGenerator
     private static Document CreateDocument(
         AgencyReleaseSubject subject,
         AgencyReleaseRequest request,
-        DateTime generatedAtUtc)
+        DateTime generatedAtUtc,
+        bool medicalRelease)
     {
         var document = new Document();
-        document.Info.Title = $"Agency release - {Safe(subject.ConsumerName)}";
-        document.Info.Subject = "Authorization to release or obtain information";
+        document.Info.Title = $"{(medicalRelease ? "Medical" : "Agency")} release - {Safe(subject.ConsumerName)}";
+        document.Info.Subject = medicalRelease
+            ? "Authorization to release or obtain medical information"
+            : "Authorization to release or obtain information";
         document.Info.Author = "Sati";
 
         var normal = document.Styles[StyleNames.Normal]
@@ -82,8 +98,8 @@ public sealed class AgencyReleasePdfGenerator
         section.PageSetup.LeftMargin = Unit.FromInch(0.7);
         section.PageSetup.RightMargin = Unit.FromInch(0.7);
 
-        AddHeaderAndFooter(section, subject);
-        AddTitle(section, subject, request, generatedAtUtc);
+        AddHeaderAndFooter(section, subject, medicalRelease);
+        AddTitle(section, subject, request, generatedAtUtc, medicalRelease);
         AddIdentity(section, subject);
         AddRecipient(section, request);
         AddAuthorization(section, request);
@@ -95,7 +111,7 @@ public sealed class AgencyReleasePdfGenerator
         return document;
     }
 
-    private static void AddHeaderAndFooter(Section section, AgencyReleaseSubject subject)
+    private static void AddHeaderAndFooter(Section section, AgencyReleaseSubject subject, bool medicalRelease)
     {
         var header = section.Headers.Primary.AddParagraph();
         header.Format.Font.Name = "Arial";
@@ -105,7 +121,7 @@ public sealed class AgencyReleasePdfGenerator
         header.Format.Borders.Bottom.Color = Teal;
         header.Format.SpaceAfter = Unit.FromPoint(5);
         header.AddFormattedText("SATI", TextFormat.Bold);
-        header.AddText($"  |  {Safe(subject.AgencyName)}  |  Agency release");
+        header.AddText($"  |  {Safe(subject.AgencyName)}  |  {(medicalRelease ? "Medical" : "Agency")} release");
 
         var footer = section.Footers.Primary.AddParagraph();
         footer.Format.Font.Name = "Arial";
@@ -115,7 +131,9 @@ public sealed class AgencyReleasePdfGenerator
         footer.Format.Borders.Top.Width = Unit.FromPoint(0.5);
         footer.Format.Borders.Top.Color = Border;
         footer.Format.SpaceBefore = Unit.FromPoint(5);
-        footer.AddText("CONFIDENTIAL - AUTHORIZATION TO RELEASE INFORMATION  |  Page ");
+        footer.AddText(medicalRelease
+            ? "CONFIDENTIAL - AUTHORIZATION TO RELEASE MEDICAL INFORMATION  |  Page "
+            : "CONFIDENTIAL - AUTHORIZATION TO RELEASE INFORMATION  |  Page ");
         footer.AddPageField();
         footer.AddText(" of ");
         footer.AddNumPagesField();
@@ -125,7 +143,8 @@ public sealed class AgencyReleasePdfGenerator
         Section section,
         AgencyReleaseSubject subject,
         AgencyReleaseRequest request,
-        DateTime generatedAtUtc)
+        DateTime generatedAtUtc,
+        bool medicalRelease)
     {
         var eyebrow = section.AddParagraph(request.IsRevocation
             ? "REVOCATION OF AUTHORIZATION"
@@ -135,7 +154,7 @@ public sealed class AgencyReleasePdfGenerator
         eyebrow.Format.Font.Color = Teal;
         eyebrow.Format.SpaceBefore = Unit.FromPoint(8);
 
-        var title = section.AddParagraph("Release of Information");
+        var title = section.AddParagraph(medicalRelease ? "Medical Release of Information" : "Release of Information");
         title.Format.Font.Bold = true;
         title.Format.Font.Size = 23;
         title.Format.Font.Color = Navy;
@@ -148,18 +167,23 @@ public sealed class AgencyReleasePdfGenerator
         subtitle.Format.SpaceAfter = Unit.FromPoint(8);
 
         var granted = request.AuthorizationGranted == true;
+        var authorizationRecorded = request.AuthorizationGranted is not null;
         var callout = section.AddParagraph();
-        callout.Format.Shading.Color = granted ? PaleTeal : PaleDanger;
+        callout.Format.Shading.Color = granted ? PaleTeal : authorizationRecorded ? PaleDanger : PaleWarning;
         callout.Format.Borders.Left.Width = Unit.FromPoint(3);
-        callout.Format.Borders.Left.Color = granted ? Teal : Danger;
+        callout.Format.Borders.Left.Color = granted ? Teal : authorizationRecorded ? Danger : Warning;
         callout.Format.LeftIndent = Unit.FromPoint(9);
         callout.Format.RightIndent = Unit.FromPoint(9);
         callout.Format.SpaceBefore = Unit.FromPoint(3);
         callout.Format.SpaceAfter = Unit.FromPoint(10);
-        callout.AddFormattedText(granted ? "Authorization granted. " : "Authorization not granted. ", TextFormat.Bold);
+        callout.AddFormattedText(
+            granted ? "Authorization granted. " : authorizationRecorded ? "Authorization not granted. " : "Prepared draft. ",
+            TextFormat.Bold);
         callout.AddText(granted
             ? "The selections below record the consumer's stated direction. Required signatures remain separate."
-            : "This document records that the consumer or legally responsible person did not authorize disclosure.");
+            : authorizationRecorded
+                ? "This document records that the consumer or legally responsible person did not authorize disclosure."
+                : "Consumer authorization choices have not yet been recorded.");
 
         var generated = section.AddParagraph(
             $"Prepared {generatedAtUtc:yyyy-MM-dd HH:mm} UTC by {Safe(subject.CaseManagerName)} ({Safe(subject.CaseManagerRole)})." );
@@ -195,9 +219,9 @@ public sealed class AgencyReleasePdfGenerator
         AddKeyValueRow(
             table,
             "Disclosure scope",
-            Enum.Parse<AgencyReleaseScope>(request.Scope!).ToString() == nameof(AgencyReleaseScope.OneTime)
-                ? "One-time disclosure"
-                : "Multiple disclosures",
+            Enum.TryParse<AgencyReleaseScope>(request.Scope, out var scope)
+                ? scope == AgencyReleaseScope.OneTime ? "One-time disclosure" : "Multiple disclosures"
+                : "Not provided",
             "Authorization",
             YesNo(request.AuthorizationGranted));
         AddKeyValueRow(table, "Start date", FormatDate(request.StartDate), "Expiration date", FormatDate(request.ExpirationDate));
@@ -454,7 +478,12 @@ public sealed class AgencyReleasePdfGenerator
         row.Cells[2].AddParagraph(dateLabel).Format.Font.Size = 7.5;
     }
 
-    private static string YesNo(bool? value) => value == true ? "Yes" : "No";
+    private static string YesNo(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        null => "Not provided"
+    };
 
     private static string FormatDate(DateTime? value) =>
         value is DateTime date && date != default

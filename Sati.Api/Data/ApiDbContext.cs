@@ -8,6 +8,9 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerUser> Users => Set<ServerUser>();
     public DbSet<ServerPerson> People => Set<ServerPerson>();
     public DbSet<ServerForm> Forms => Set<ServerForm>();
+    public DbSet<ServerFormAttestation> FormAttestations => Set<ServerFormAttestation>();
+    public DbSet<ServerDocumentArtifact> DocumentArtifacts => Set<ServerDocumentArtifact>();
+    public DbSet<ServerDocumentTemplate> DocumentTemplates => Set<ServerDocumentTemplate>();
     public DbSet<ServerNote> Notes => Set<ServerNote>();
     public DbSet<ServerSettings> Settings => Set<ServerSettings>();
     public DbSet<ServerScratchpad> Scratchpads => Set<ServerScratchpad>();
@@ -27,12 +30,14 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerReviewItem> ReviewItems => Set<ServerReviewItem>();
     public DbSet<ServerAppointment> Appointments => Set<ServerAppointment>();
     public DbSet<ServerComprehensiveAssessment> ComprehensiveAssessments => Set<ServerComprehensiveAssessment>();
+    public DbSet<ServerSafetyPlan> SafetyPlans => Set<ServerSafetyPlan>();
     public DbSet<ServerProvider> Providers => Set<ServerProvider>();
     public DbSet<ServerAtRequest> AtRequests => Set<ServerAtRequest>();
     public DbSet<ServerAtRequestItem> AtRequestItems => Set<ServerAtRequestItem>();
     public DbSet<ServerAuditEvent> AuditEvents => Set<ServerAuditEvent>();
     public DbSet<ServerPersonVersion> PersonVersions => Set<ServerPersonVersion>();
     public DbSet<ServerIncidentGroup> IncidentGroups => Set<ServerIncidentGroup>();
+    public DbSet<ServerLegalHold> LegalHolds => Set<ServerLegalHold>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,6 +74,8 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.VrAssistantName)
                 .HasMaxLength(PersonSaveRules.VrStaffNameMaxLength);
             entity.Property(x => x.IsTestData).HasDefaultValue(false);
+            entity.Property(x => x.Status).HasDefaultValue(0);
+            entity.Property(x => x.StatusNote).HasMaxLength(500);
             entity.Property(x => x.CaseManagerIsDhhsRepresentative);
             entity.Property(x => x.UsesModivcare);
             entity.Property(x => x.RepPayeeMonthlyIncome).HasColumnType("decimal(18,2)");
@@ -90,6 +97,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             // indexed. Declaring 50 here would let the server accept a value the
             // column cannot hold.
             entity.Property(x => x.Type).HasMaxLength(40);
+            entity.Property(x => x.CompletedDate).IsConcurrencyToken();
             // Mirrors IX_Forms_PersonId_Type_DueDate from the Sati.Persistence chain,
             // which owns the migration that creates it. Declared here so the server's
             // model matches the database it writes to: a person has exactly one form
@@ -97,6 +105,87 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.HasIndex(x => new { x.PersonId, x.Type, x.DueDate })
                   .IsUnique()
                   .HasDatabaseName("IX_Forms_PersonId_Type_DueDate");
+        });
+
+        modelBuilder.Entity<ServerFormAttestation>(entity =>
+        {
+            entity.ToTable("FormAttestations");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasMaxLength(20);
+            entity.Property(x => x.ActorKind).HasMaxLength(20);
+            entity.Property(x => x.CompletedOn).HasColumnType("date");
+            entity.Property(x => x.PrerequisiteStateJson).HasMaxLength(4_000);
+            entity.Property(x => x.Reason).HasMaxLength(500);
+            entity.HasIndex(x => new { x.FormId, x.RecordedAtUtc });
+            entity.HasOne(x => x.Form)
+                .WithMany(x => x.Attestations)
+                .HasForeignKey(x => x.FormId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>()
+                .WithMany()
+                .HasForeignKey(x => x.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ServerDocumentArtifact>(entity =>
+        {
+            entity.ToTable("DocumentArtifacts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasMaxLength(40);
+            entity.Property(x => x.Origin).HasMaxLength(30);
+            entity.Property(x => x.CycleStart).HasColumnType("date");
+            entity.Property(x => x.ContentSha256).HasColumnType("char(64)");
+            entity.Property(x => x.SuggestedFileName).HasMaxLength(260);
+            entity.Property(x => x.TemplateOwner).HasMaxLength(50);
+            entity.Property(x => x.TemplateKey).HasMaxLength(100);
+            entity.Property(x => x.BlankFieldsJson).IsRequired().HasMaxLength(4_000);
+            entity.Property(x => x.ExternalNote).HasMaxLength(1_000);
+            entity.HasIndex(x => new { x.PersonId, x.Kind, x.CycleStart })
+                .IsUnique()
+                .HasFilter("[SupersededByArtifactId] IS NULL")
+                .HasDatabaseName("IX_DocumentArtifacts_OneLivePerCycle");
+            entity.HasOne<ServerPerson>()
+                .WithMany()
+                .HasForeignKey(x => x.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerAgency>()
+                .WithMany()
+                .HasForeignKey(x => x.AgencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>()
+                .WithMany()
+                .HasForeignKey(x => x.GeneratedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ServerDocumentTemplate>(entity =>
+        {
+            entity.ToTable("DocumentTemplates");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasMaxLength(40);
+            entity.Property(x => x.Body).IsRequired().HasMaxLength(DocumentTemplateRules.BodyMaxLength);
+            entity.HasIndex(x => new { x.AgencyId, x.Kind, x.Version })
+                .IsUnique()
+                .HasFilter(null)
+                .HasDatabaseName("IX_DocumentTemplates_AgencyKindVersion");
+            entity.HasOne<ServerAgency>()
+                .WithMany()
+                .HasForeignKey(x => x.AgencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>()
+                .WithMany()
+                .HasForeignKey(x => x.PublishedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(new ServerDocumentTemplate
+            {
+                Id = 1,
+                AgencyId = null,
+                Kind = AnnualDocumentKind.PrivacyPractices.ToString(),
+                Version = SatiDefaultDocumentTemplates.PrivacyPracticesVersion,
+                Body = SatiDefaultDocumentTemplates.PrivacyPracticesBody,
+                PublishedAtUtc = SatiDefaultDocumentTemplates.PublishedAtUtc,
+                PublishedByUserId = null
+            });
         });
 
         modelBuilder.Entity<ServerNote>(entity =>
@@ -322,6 +411,17 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasIndex(x => new { x.PersonId, x.Version }).IsUnique();
         });
+        modelBuilder.Entity<ServerSafetyPlan>(entity =>
+        {
+            entity.ToTable("SafetyPlans");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CycleStart).HasColumnType("date");
+            entity.Property(x => x.Status).HasMaxLength(30);
+            entity.Property(x => x.ReturnReason).HasMaxLength(500);
+            entity.Property(x => x.DocumentJson).IsRequired();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasIndex(x => new { x.PersonId, x.CycleStart, x.Version }).IsUnique();
+        });
 
         modelBuilder.Entity<ServerProvider>(entity =>
         {
@@ -395,6 +495,34 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
                 .HasForeignKey(x => x.AgencyId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<ServerLegalHold>(entity =>
+        {
+            entity.ToTable("LegalHolds");
+            entity.HasKey(x => x.Id);
+            // The only query the deletion gate runs: unreleased holds for one person.
+            entity.HasIndex(x => new { x.PersonId, x.IsReleased });
+            entity.Property(x => x.Reason).IsRequired().HasMaxLength(500);
+            entity.Property(x => x.CaseReference).HasMaxLength(100);
+            entity.Property(x => x.IssuedBy).HasMaxLength(150);
+            entity.Property(x => x.ReleaseNote).HasMaxLength(500);
+            entity.HasOne<ServerAgency>()
+                .WithMany()
+                .HasForeignKey(x => x.AgencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerPerson>()
+                .WithMany()
+                .HasForeignKey(x => x.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>()
+                .WithMany()
+                .HasForeignKey(x => x.PlacedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>()
+                .WithMany()
+                .HasForeignKey(x => x.ReleasedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<ServerPersonVersion>(entity =>
         {
             entity.ToTable("PersonVersions");
@@ -433,6 +561,10 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerPersonVersion>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerFormAttestation>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerDocumentTemplate>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerBillingSubmissionEvent>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerRemittanceClaimOutcome>()
@@ -440,7 +572,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             ChangeTracker.Entries<ServerRemittanceDeposit>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
         {
-            throw new InvalidOperationException("Audit, Person history, and billing exchange records are append-only.");
+            throw new InvalidOperationException("Audit, form-attestation, document-template, Person history, and billing exchange records are append-only.");
         }
     }
 }
@@ -475,6 +607,11 @@ internal sealed class ServerPerson
     public int Waiver { get; set; }
     public int? AgencyId { get; set; }
     public bool IsTestData { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public int Status { get; set; }
+    public string? StatusNote { get; set; }
+    public DateTime? StatusChangedAtUtc { get; set; }
+    public int? StatusChangedByUserId { get; set; }
     public string? MaineCareId { get; set; }
     public string? DiagnosisCode { get; set; }
     public int? PlaceOfService { get; set; }
@@ -537,13 +674,63 @@ internal sealed class ServerForm
     public int PersonId { get; set; }
     public DateTime? CompletedDate { get; set; }
     public DateTime? OpenedDate { get; set; }
+    public List<ServerFormAttestation> Attestations { get; set; } = [];
 
     // Derived, matching Sati.Models.Form. The stored column was dropped in
     // AddDerivedFormCompliance: a second field for the same fact is a rule with no
     // owner, and the two disagreed on 147 rows.
     public bool IsCompliant => CompletedDate.HasValue;
 
-    public void ApplyCompletion(DateTime? completedOn) => CompletedDate = completedOn?.Date;
+    public void ApplyAttestation(DateTime completedOn) => CompletedDate = completedOn.Date;
+    public void ApplyRevocation() => CompletedDate = null;
+}
+
+internal sealed class ServerFormAttestation
+{
+    public long Id { get; set; }
+    public int FormId { get; set; }
+    public ServerForm Form { get; set; } = null!;
+    public string Kind { get; set; } = string.Empty;
+    public DateTime? CompletedOn { get; set; }
+    public string ActorKind { get; set; } = string.Empty;
+    public int? ActorUserId { get; set; }
+    public DateTime RecordedAtUtc { get; set; }
+    public int? EvidenceNoteId { get; set; }
+    public string? PrerequisiteStateJson { get; set; }
+    public string? Reason { get; set; }
+}
+
+internal sealed class ServerDocumentArtifact
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public int AgencyId { get; set; }
+    public string Kind { get; set; } = string.Empty;
+    public DateTime CycleStart { get; set; }
+    public string Origin { get; set; } = string.Empty;
+    public DateTime GeneratedAtUtc { get; set; }
+    public int GeneratedByUserId { get; set; }
+    public string? ContentSha256 { get; set; }
+    public long? ByteCount { get; set; }
+    public string? SuggestedFileName { get; set; }
+    public string? TemplateOwner { get; set; }
+    public string? TemplateKey { get; set; }
+    public int? TemplateVersion { get; set; }
+    public string BlankFieldsJson { get; set; } = "[]";
+    public string? ExternalNote { get; set; }
+    public int? SupersededByArtifactId { get; set; }
+}
+
+internal sealed class ServerDocumentTemplate
+{
+    public int Id { get; set; }
+    public int? AgencyId { get; set; }
+    public string Kind { get; set; } = string.Empty;
+    public int Version { get; set; }
+    public string Body { get; set; } = string.Empty;
+    public DateTime PublishedAtUtc { get; set; }
+    public int? PublishedByUserId { get; set; }
+    public DateTime? RetiredAtUtc { get; set; }
 }
 
 internal sealed class ServerNote
@@ -876,6 +1063,24 @@ internal sealed class ServerComprehensiveAssessment
     public string DocumentJson { get; set; } = "{}";
 }
 
+internal sealed class ServerSafetyPlan
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public int AuthorUserId { get; set; }
+    public DateTime CycleStart { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int Version { get; set; } = 1;
+    public int Revision { get; set; } = 1;
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+    public DateTime? SubmittedAtUtc { get; set; }
+    public DateTime? ApprovedAtUtc { get; set; }
+    public int? ApprovedByUserId { get; set; }
+    public string? ReturnReason { get; set; }
+    public string DocumentJson { get; set; } = "{}";
+}
+
 internal sealed class ServerProvider
 {
     public int Id { get; set; }
@@ -1000,4 +1205,21 @@ internal sealed class ServerIncidentGroup
     public DateTime LastSeenUtc { get; set; }
     public string LastReference { get; set; } = string.Empty;
     public string LastActorRole { get; set; } = string.Empty;
+}
+
+internal sealed class ServerLegalHold
+{
+    public int Id { get; set; }
+    public int AgencyId { get; set; }
+    public int PersonId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string? CaseReference { get; set; }
+    public string? IssuedBy { get; set; }
+    public DateTime EffectiveAtUtc { get; set; }
+    public int PlacedByUserId { get; set; }
+    public DateTime PlacedAtUtc { get; set; } = DateTime.UtcNow;
+    public bool IsReleased { get; set; }
+    public int? ReleasedByUserId { get; set; }
+    public DateTime? ReleasedAtUtc { get; set; }
+    public string? ReleaseNote { get; set; }
 }

@@ -54,9 +54,9 @@ namespace Sati.ViewModels
         public void Commit()
         {
             if (IsCompliant && CompletedDate is DateTime date)
-                _form.MarkComplete(date);
+                _form.SetInitialCompletion(date);
             else
-                _form.Reset();
+                _form.SetInitialCompletion(null);
         }
     }
 }

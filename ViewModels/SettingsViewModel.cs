@@ -504,13 +504,14 @@ namespace Sati.ViewModels
         // ====================================================================
         // TEMPORARY MAINTENANCE — BULK FORM COMPLETION
         // One-time: mark every form due on/before the cutoff with no completion
-        // date as complete, stamping the due date. Remove this region and
+        // date as complete, using one explicitly entered completion date. Remove this region and
         // its controls in SettingsWindow.xaml with the rest of the scaffolding.
         // ====================================================================
 
         // Cutoff, editable in the maintenance UI. Defaults to the agreed value;
         // bound as text so the box starts populated but you can change it.
         [ObservableProperty] private string bulkCompleteCutoff = "2026-08-01";
+        [ObservableProperty] private string bulkCompleteCompletionDate = string.Empty;
 
         [ObservableProperty] private string bulkCompleteConfirmCount = string.Empty;
         [ObservableProperty] private string bulkCompleteStatus = string.Empty;
@@ -530,9 +531,15 @@ namespace Sati.ViewModels
                 return;
             }
 
+            if (!DateTime.TryParse(BulkCompleteCompletionDate, out var completionDate))
+            {
+                BulkCompleteStatus = "Completion date is required (use yyyy-MM-dd).";
+                return;
+            }
+
             try
             {
-                var report = await _bulkCompletion.DryRunAsync(cutoff);
+                var report = await _bulkCompletion.DryRunAsync(cutoff, completionDate);
                 BulkCompleteStatus =
                     $"Dry run complete. {report.FormsMarked} forms would be marked complete "
                     + $"(cutoff {report.Cutoff:yyyy-MM-dd}, inclusive); "
@@ -562,6 +569,12 @@ namespace Sati.ViewModels
                 return;
             }
 
+            if (!DateTime.TryParse(BulkCompleteCompletionDate, out var completionDate))
+            {
+                BulkCompleteStatus = "Completion date is required (use yyyy-MM-dd).";
+                return;
+            }
+
             if (!int.TryParse(BulkCompleteConfirmCount, out var typed))
             {
                 BulkCompleteStatus = "Enter the exact count from the dry run to commit.";
@@ -570,7 +583,7 @@ namespace Sati.ViewModels
 
             try
             {
-                var report = await _bulkCompletion.CommitAsync(cutoff, typed);
+                var report = await _bulkCompletion.CommitAsync(cutoff, completionDate, typed);
                 BulkCompleteStatus =
                     $"COMMITTED. {report.FormsMarked} forms marked complete. "
                     + $"Report: {report.ReportFilePath}";

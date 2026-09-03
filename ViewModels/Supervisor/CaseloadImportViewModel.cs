@@ -5,6 +5,7 @@ using Sati.Data;
 using Sati.Models;
 using Sati.Services;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 
 namespace Sati.ViewModels.Supervisor
@@ -344,21 +345,46 @@ namespace Sati.ViewModels.Supervisor
         /// A match is reported and skipped, never merged. Merging into an existing clinical
         /// record on the strength of an identifier match is not recoverable if the match is wrong.
         /// </para>
+        ///
+        /// <para>
+        /// Checked in the same three-tier order the design specifies — Credible client id, then
+        /// MaineCare id, then normalized name and birth date — because a consumer hand-entered
+        /// before Credible import existed carries no Credible id at all, and an id-only check
+        /// cannot see them. See CREDIBLE_IMPORT_DESIGN.md, "client_id is the dedupe key."
+        /// </para>
         /// </summary>
         private async Task<string?> MarkAlreadyImportedAsync(List<BulkImportRowViewModel> rows)
         {
-            var ids = rows
-                .Where(row => row.IsReady && row.Values?.CredibleClientId is not null)
-                .Select(row => row.Values!.CredibleClientId!)
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-            if (ids.Count == 0)
+            var readyRows = rows.Where(row => row.IsReady && row.Values is not null).ToList();
+            if (readyRows.Count == 0)
                 return null;
 
-            IReadOnlyList<CredibleClientMatchDto> matches;
+            var ids = readyRows
+                .Select(row => row.Values!.CredibleClientId)
+                .Where(id => id is not null)
+                .Select(id => id!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var maineCareIds = readyRows
+                .Select(row => row.Values!.Values.GetValueOrDefault(CredibleFields.MaineCareId))
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var nameBirthDates = readyRows
+                .Select(row => NameBirthDateOf(row.Values!.Values))
+                .Where(candidate => candidate is not null)
+                .Select(candidate => candidate!)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0 && maineCareIds.Count == 0 && nameBirthDates.Count == 0)
+                return null;
+
+            CredibleMatchLookupResult result;
             try
             {
-                matches = await _personService.FindCredibleMatchesAsync(ids);
+                result = await _personService.FindCredibleMatchesAsync(ids, maineCareIds, nameBirthDates);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -367,28 +393,77 @@ namespace Sati.ViewModels.Supervisor
                        "list before importing, or some may be created twice.";
             }
 
-            var byId = matches.ToDictionary(
+            var byClientId = result.CredibleClientMatches.ToDictionary(
                 match => match.CredibleClientId, match => match.OwnerDisplayName,
                 StringComparer.Ordinal);
+            var byMaineCareId = result.MaineCareIdMatches.ToDictionary(
+                match => match.MaineCareId, match => match.OwnerDisplayName,
+                StringComparer.Ordinal);
+            var byNameBirthDate = result.NameBirthDateMatches.ToDictionary(
+                match => NameBirthDateKey(match.NameBirthDate), match => match.OwnerDisplayName);
 
             for (var index = 0; index < rows.Count; index++)
             {
                 var row = rows[index];
-                var id = row.Values?.CredibleClientId;
-                if (id is null || !byId.TryGetValue(id, out var owner))
+                if (row.Values is null)
                     continue;
+
+                var clientId = row.Values.CredibleClientId;
+                var maineCareId = row.Values.Values.GetValueOrDefault(CredibleFields.MaineCareId);
+                var nameBirthDate = NameBirthDateOf(row.Values.Values);
+
+                string? owner;
+                string tierNote;
+                if (clientId is not null && byClientId.TryGetValue(clientId, out owner))
+                {
+                    tierNote = "";
+                }
+                else if (!string.IsNullOrWhiteSpace(maineCareId) &&
+                         byMaineCareId.TryGetValue(maineCareId, out owner))
+                {
+                    tierNote = " (matched by MaineCare ID)";
+                }
+                else if (nameBirthDate is { } candidate &&
+                         byNameBirthDate.TryGetValue(NameBirthDateKey(candidate), out owner))
+                {
+                    tierNote = " (matched by name and date of birth)";
+                }
+                else
+                {
+                    continue;
+                }
 
                 rows[index] = new BulkImportRowViewModel(
                     row.FileName,
                     BulkImportDisposition.AlreadyImported,
                     owner is null
-                        ? "Already imported into this agency."
-                        : $"Already on {owner}'s caseload.",
+                        ? $"Already imported into this agency{tierNote}."
+                        : $"Already on {owner}'s caseload{tierNote}.",
                     null);
             }
 
             return null;
         }
+
+        private static PersonNameBirthDate? NameBirthDateOf(IReadOnlyDictionary<string, string> values)
+        {
+            if (!values.TryGetValue(CredibleFields.LastName, out var lastName) ||
+                string.IsNullOrWhiteSpace(lastName))
+                return null;
+            if (!values.TryGetValue(CredibleFields.FirstName, out var firstName) ||
+                string.IsNullOrWhiteSpace(firstName))
+                return null;
+            if (!values.TryGetValue(CredibleFields.BirthDate, out var birthDateText) ||
+                !DateTime.TryParseExact(birthDateText, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var birthDate))
+                return null;
+
+            return new PersonNameBirthDate(lastName, firstName, birthDate);
+        }
+
+        private static string NameBirthDateKey(PersonNameBirthDate value) =>
+            $"{value.LastName.Trim().ToUpperInvariant()}|{value.FirstName.Trim().ToUpperInvariant()}" +
+            $"|{value.BirthDate:yyyy-MM-dd}";
 
         private static Person BuildPerson(AcceptedImportDraftValues draft, User actor)
         {

@@ -68,4 +68,18 @@ internal static class LocalAuditActions
     // rows. Deleting a billing-relevant record leaves evidence even though the
     // deletion is automated and no one is signed in when it runs.
     public const string FormDuplicateRemoved = "form.duplicate-removed";
+    public const string FormAttested = "form.attested";
+    public const string FormAttestationRevoked = "form.attestation-revoked";
+    public const string FormPrerequisiteOverridden = "form.prerequisite-overridden";
+    public const string DocumentGenerated = "document.generated";
+    public const string DocumentRecordedExternal = "document.recorded-external";
+    public const string DocumentTemplatePublished = "document-template.published";
+    // Mirrors AuditActions.ConsumerArchived / ConsumerUnarchived on the API side.
+    public const string ConsumerArchived = "consumer.archived";
+    public const string ConsumerUnarchived = "consumer.unarchived";
+    // Mirrors AuditActions.LegalHoldPlaced / LegalHoldReleased on the API side.
+    public const string LegalHoldPlaced = "legal-hold.placed";
+    public const string LegalHoldReleased = "legal-hold.released";
+    // Rule-3 deletion tombstone. Mirrors AuditActions.ConsumerDeletedInWindow on the API side.
+    public const string ConsumerDeletedInWindow = "consumer.deleted-in-window";
 }

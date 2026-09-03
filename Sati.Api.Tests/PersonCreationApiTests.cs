@@ -116,6 +116,35 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
         Assert.True(people!.Single(person => person.Id == created.Id).IsTestData);
     }
 
+    // Foundation for the rule-3 deletion window (HANDOFF_CLIENT_DELETION_POLICY.md, A2).
+    [Fact]
+    public async Task CreatedAtUtcIsStampedOnCreationAndSurvivesAnOrdinaryEdit()
+    {
+        using var client = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var before = DateTime.UtcNow;
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/people",
+            ValidRequest() with { LastName = Guid.NewGuid().ToString("N")[..10] });
+        var created = await createResponse.Content.ReadFromJsonAsync<PersonDto>();
+        var after = DateTime.UtcNow;
+
+        Assert.InRange(created!.CreatedAtUtc, before, after);
+
+        var editResponse = await client.PutAsJsonAsync(
+            $"/api/v1/people/{created.Id}",
+            ValidRequest() with
+            {
+                LastName = created.LastName!,
+                FirstName = "Edited",
+                ExpectedRevision = created.Revision
+            });
+        var edited = await editResponse.Content.ReadFromJsonAsync<PersonDto>();
+
+        Assert.Equal(HttpStatusCode.OK, editResponse.StatusCode);
+        Assert.Equal(created.CreatedAtUtc, edited!.CreatedAtUtc);
+    }
+
     [Theory]
     [InlineData("first", "firstName")]
     [InlineData("last", "lastName")]
@@ -170,10 +199,10 @@ public sealed class PersonCreationApiTests(SatiApiFactory factory)
     {
         using var owner = await factory.CreateAuthenticatedClientAsync("case-manager-one");
         var effective = DateTime.Today.AddMonths(-2);
-        var forms = PersonSaveRules.FormTypes.Select((type, index) =>
-            index < 4
-                ? new SavePersonFormRequest(0, type, false, null, null)
-                : new SavePersonFormRequest(0, type, true, effective, null)).ToList();
+        var forms = PersonSaveRules.FormTypes.Select(type =>
+            FormAttestationRules.PrerequisiteFor(type) == PrerequisiteKind.None
+                ? new SavePersonFormRequest(0, type, true, effective, null)
+                : new SavePersonFormRequest(0, type, false, null, null)).ToList();
 
         var response = await owner.PostAsJsonAsync(
             "/api/v1/people",

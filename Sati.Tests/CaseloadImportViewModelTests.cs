@@ -119,6 +119,62 @@ public sealed class CaseloadImportViewModelTests : IDisposable
         Assert.Contains(model.Rows, row => row.Detail.Contains("Jane Doe"));
     }
 
+    // The gap the address demo actually hit: a consumer hand-entered before Credible import
+    // existed has no Credible id on file at all, so the id-only tier cannot see them. MaineCare
+    // id is the second tier for exactly this case.
+    [Fact]
+    public async Task AConsumerWithNoCredibleIdOnFileIsStillCaughtByMaineCareId()
+    {
+        WriteExport("alpha.html", "1001", "ALPHA", maineCareId: "99998888A");
+        var people = new RecordingPersonService();
+        people.ExistingMaineCareMatches.Add(new MaineCareIdMatchDto("99998888A", "Jane Doe"));
+        var model = Build(people);
+
+        await model.DryRunAsync(_folder);
+
+        Assert.Equal(0, model.ReadyCount);
+        Assert.Equal(1, model.AlreadyImportedCount);
+        Assert.Contains(model.Rows, row =>
+            row.Detail.Contains("Jane Doe") && row.Detail.Contains("MaineCare ID"));
+    }
+
+    // Third tier: neither a Credible id nor a MaineCare id on file, only a name and birth date.
+    [Fact]
+    public async Task AConsumerWithOnlyANameAndBirthDateOnFileIsStillCaughtByNameAndDob()
+    {
+        WriteExport("alpha.html", "1001", "ALPHA", lastName: "SMITH", maineCareId: "");
+        var people = new RecordingPersonService();
+        people.ExistingNameBirthDateMatches.Add(new NameBirthDateMatchDto(
+            new PersonNameBirthDate("SMITH", "ALPHA", new DateTime(1990, 1, 2)), "Jane Doe"));
+        var model = Build(people);
+
+        await model.DryRunAsync(_folder);
+
+        Assert.Equal(0, model.ReadyCount);
+        Assert.Equal(1, model.AlreadyImportedCount);
+        Assert.Contains(model.Rows, row =>
+            row.Detail.Contains("Jane Doe") && row.Detail.Contains("name and date of birth"));
+    }
+
+    // Precedence: when a row's Credible id already matches, that must win even if a coincidental
+    // name+DOB collision exists elsewhere in the agency — the Credible id is the reliable tier.
+    [Fact]
+    public async Task ACredibleIdMatchTakesPrecedenceOverANameAndDobCollision()
+    {
+        WriteExport("alpha.html", "1001", "ALPHA", lastName: "SMITH");
+        var people = new RecordingPersonService();
+        people.ExistingMatches.Add(new CredibleClientMatchDto("1001", "Credible Match"));
+        people.ExistingNameBirthDateMatches.Add(new NameBirthDateMatchDto(
+            new PersonNameBirthDate("SMITH", "ALPHA", new DateTime(1990, 1, 2)), "Name Match"));
+        var model = Build(people);
+
+        await model.DryRunAsync(_folder);
+
+        var row = Assert.Single(model.Rows);
+        Assert.Contains("Credible Match", row.Detail);
+        Assert.DoesNotContain("Name Match", row.Detail);
+    }
+
     // Re-running the same folder must report, not duplicate. This is the whole reason the
     // Credible id is captured.
     [Fact]
@@ -263,18 +319,20 @@ public sealed class CaseloadImportViewModelTests : IDisposable
             new CredibleExportReader(), new StubPicker(), people, session);
     }
 
-    private void WriteExport(string fileName, string clientId, string firstName) =>
+    private void WriteExport(
+        string fileName, string clientId, string firstName,
+        string lastName = "TEST", string maineCareId = "12345678A", string dob = "01/02/1990") =>
         File.WriteAllText(Path.Combine(_folder, fileName),
             $$"""
             <html><body><form action="./client_printview.aspx?client_id={{clientId}}"><table>
               <tr><td class="shc" colspan="4"><b>CONSUMER INFO</b></td></tr>
               <tr>
                 <td class="lc"><b>First Name</b></td><td class="vc">{{firstName}}</td>
-                <td class="lc"><b>Last Name</b></td><td class="vc">TEST</td>
+                <td class="lc"><b>Last Name</b></td><td class="vc">{{lastName}}</td>
               </tr>
               <tr>
-                <td class="lc"><b>MaineCare ID</b></td><td class="vc">12345678A</td>
-                <td class="lc"><b>DOB</b></td><td class="vc">01/02/1990</td>
+                <td class="lc"><b>MaineCare ID</b></td><td class="vc">{{maineCareId}}</td>
+                <td class="lc"><b>DOB</b></td><td class="vc">{{dob}}</td>
               </tr>
               <tr><td class="lc"><b>Consumer ID</b></td><td class="vc">{{clientId}}</td></tr>
             </table></form></body></html>
@@ -295,6 +353,8 @@ public sealed class CaseloadImportViewModelTests : IDisposable
     {
         public List<Person> Created { get; } = [];
         public List<CredibleClientMatchDto> ExistingMatches { get; } = [];
+        public List<MaineCareIdMatchDto> ExistingMaineCareMatches { get; } = [];
+        public List<NameBirthDateMatchDto> ExistingNameBirthDateMatches { get; } = [];
         public bool FailMatchLookup { get; set; }
         public string? FailForFirstName { get; set; }
 
@@ -304,23 +364,44 @@ public sealed class CaseloadImportViewModelTests : IDisposable
                 return Task.FromException<Person>(new InvalidOperationException("simulated failure"));
 
             Created.Add(person);
-            // Mirrors the real world: once created, the id is one the agency holds.
+            // Mirrors the real world: once created, its identifiers are ones the agency holds.
             if (person.CredibleClientId is not null)
                 ExistingMatches.Add(new CredibleClientMatchDto(person.CredibleClientId, "Supervisor"));
+            if (person.MaineCareId is not null)
+                ExistingMaineCareMatches.Add(new MaineCareIdMatchDto(person.MaineCareId, "Supervisor"));
+            if (person.LastName is not null && person.FirstName is not null)
+                ExistingNameBirthDateMatches.Add(new NameBirthDateMatchDto(
+                    new PersonNameBirthDate(person.LastName, person.FirstName, person.BirthDate),
+                    "Supervisor"));
             return Task.FromResult(person);
         }
 
-        public Task<IReadOnlyList<CredibleClientMatchDto>> FindCredibleMatchesAsync(
-            IReadOnlyList<string> credibleClientIds)
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null)
         {
             if (FailMatchLookup)
-                return Task.FromException<IReadOnlyList<CredibleClientMatchDto>>(
+                return Task.FromException<CredibleMatchLookupResult>(
                     new InvalidOperationException("lookup unavailable"));
 
-            return Task.FromResult<IReadOnlyList<CredibleClientMatchDto>>(
+            var mcIds = maineCareIds ?? [];
+            var names = nameBirthDates ?? [];
+            return Task.FromResult(new CredibleMatchLookupResult(
                 ExistingMatches
                     .Where(match => credibleClientIds.Contains(match.CredibleClientId))
-                    .ToList());
+                    .ToList(),
+                ExistingMaineCareMatches
+                    .Where(match => mcIds.Contains(match.MaineCareId))
+                    .ToList(),
+                ExistingNameBirthDateMatches
+                    .Where(match => names.Any(candidate =>
+                        string.Equals(candidate.LastName, match.NameBirthDate.LastName,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(candidate.FirstName, match.NameBirthDate.FirstName,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        candidate.BirthDate.Date == match.NameBirthDate.BirthDate.Date))
+                    .ToList()));
         }
 
         public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
@@ -333,5 +414,8 @@ public sealed class CaseloadImportViewModelTests : IDisposable
             throw new NotSupportedException();
         public Task<CaseloadOwnershipDto> TransferOwnershipAsync(
             int personId, int targetUserId, int expectedRevision) => throw new NotSupportedException();
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision) =>
+            throw new NotSupportedException();
     }
 }
