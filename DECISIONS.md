@@ -2860,4 +2860,93 @@ the backslash count is asserted rather than assumed. That check was already in t
 evidence for a reason; this is the failure it was written for.
 # 2026-09-03 — Safety plans require supervisor approval before final status
 
-Sati uses one shared seven-section safety-plan structure. The assigned case manager may draft and submit it; a same-agency supervisor must approve it before it is final or satisfies the annual Safety Plan prerequisite. Return reasons and plan narrative are retained in the plan record and are not copied into audit metadata.
+Sati uses one shared seven-section safety-plan structure. The assigned case manager may draft and submit it; a non-author supervisor with actual caseload access must approve it before it is final or satisfies the annual Safety Plan prerequisite. Agency equality alone does not grant review access. Return reasons and plan narrative are retained in the plan record and are not copied into audit metadata.
+
+## 2026-09-03 — Annual packet, exact-copy receipts, and staff-sent requests
+
+Josh confirmed: medical-records requests are **download only; staff send them**, addressed to the
+current linked primary-care provider and included only after the cycle's medical release is
+attested. Missing address/phone inherit from the provider's organization chain; no fax or delivery
+integration was added. Staff must verify recipient, requested scope/date range and authorization.
+
+Packet generation uses the existing metadata-only artifact policy. A completed or external release
+cannot be reconstructed into its exact signed/saved bytes from a hash, so those documents are
+omitted explicitly in the manifest with retrieval instructions; they are not replaced by blank
+drafts. The packet generates identity-only drafts when no completed release is recorded. The safety
+plan is rendered from saved structured content and its source id/version are recorded. Downloading
+a PDF/ZIP never attests a form. No draft-release request store or sending job was introduced.
+
+Each new privacy PDF is a new artifact. Receipt or documented good-faith effort references that
+exact artifact, so generating it again requires another acknowledgment; previous receipts remain
+historical evidence. The verifier compares both SHA-256 and byte count with any accessible recorded
+artifact, including superseded history, without uploading file contents.
+
+The packet-opening window is its own agency setting (30 days by default, 0–180 supported), not a
+derivation from per-form due/open offsets. Anniversary calculation uses the original enrollment
+date to preserve February 29 across leap years. Packet prerequisite reads and artifact replacement
+share one serializable transaction. Reminders are read-time UI state, not persisted notifications.
+
+## 2026-09-03 — Explicit API writes are not automatically replayed
+
+The release-prep tests reproduced HTTP 500 on packet generation when SQLite used EF's same retry/
+transaction guard as deployed SQL Server. `SingleAttemptWriteFilter` establishes an execution scope
+before protected write endpoints begin explicit transactions. It deliberately makes one attempt:
+an ambiguous commit must not silently create another receipt/artifact/audit event. Read-only
+endpoints retain retry behavior. This does not implement client idempotency keys or promise that a
+failed response means no write committed; clients should reload before retrying. The factory now
+uses a retry-shaped strategy in every API integration test so the mismatch cannot hide again.
+
+## 2026-09-03 — Ordinary-client deletion within a 20-day window, and a real (narrow) legal-hold registry
+
+A workflow demo surfaced two gaps: a batch import created duplicate consumers with no way to
+merge or remove one, and the "delete a consumer created in error" command Josh remembered
+designing turned out to be authorized (`HANDOFF_CLIENT_DELETION_POLICY.md`, 2026-08-31) but never
+built. This entry records what shipped, which extends and **supersedes** the test-consumer
+decision's sentence that the marker-and-attestation command "does not create an ordinary-client
+deletion policy" — it now does, bounded by time rather than by a creation-time marker.
+
+**The window is 20 days, not the 14 the handoff doc specified.** Josh widened it when asked
+directly during implementation; `ConsumerDeletionRules.DeletionWindowDays` and every reference in
+the handoff doc were updated together so the two do not disagree.
+
+**Rule 3 (deletion) and Rule 4 (archive) are both built**, exactly as HANDOFF_CLIENT_DELETION_POLICY.md
+designed: `Person.CreatedAtUtc` (immutable, set once at creation — `private set`, not merely a
+runtime check, so an edit-built `Person` cannot carry it at all) and `Person.Status`
+(`Active`/`NoLongerServed`/`Deceased`/Admin-only `Ghost`) gate the two commands, and both are
+excluded from `GetAllPeopleAsync` and everything downstream of it once archived. `ConsumerDeletionRules`
+owns the window and the A1 billing-integrity predicate (a pure function over a counts record, per
+the handoff doc's own requirement) — draft and synthetic billing artifacts remain deletable inside
+the window; only billing that reached a payer blocks. The deletion command's audit event
+(`consumer.deleted-in-window`) is an itemized tombstone — id, date, and type per note, claim line,
+form, review item, assessment, AT request, contact, and `PersonVersion` — with narrative, name,
+MaineCareId, birth date, and address deliberately excluded; a test asserts sentinel PHI values
+never reach the audit metadata.
+
+**The legal-hold registry is real, not the interim always-`Unavailable` stub the handoff doc
+specified**, per Josh's explicit direction: an unreleased row in a new `LegalHold` table blocks
+deletion; any query failure still maps to `Unavailable`, never `Clear`, so the fail-closed
+property the handoff doc required is unchanged — only the "always fail closed because nothing is
+implemented yet" stub was replaced with "fail closed by construction, backed by a real table."
+
+**Three deliberate, tracked narrowings, not oversights:**
+
+- The registry is scoped to gating this one command. It is not `OPERATIONS.md`'s general
+  record-class/scope hold model and does not by itself satisfy that gate for any other retention
+  or purge job.
+- Hold release is single-admin. `OPERATIONS.md`'s legal-hold gate requires a second approver for
+  release; building that now would have meant either delaying a capability Josh needed immediately
+  or shipping dual control without the UI/workflow to use it well. AGENDA.md tracks it as follow-up
+  work, not a silently accepted gap.
+- The deletion tombstone's required Admin reason is an intentional, narrow exception to
+  `AUDIT_EVENTS.md`'s own rule against copying free-text reasons into `MetadataJson` — caught during
+  the docs pass when the same bug turned up (and was fixed) in legal-hold placement, where the
+  reason durably survives on the `LegalHold` row instead. A deleted Person leaves no row for it to
+  survive on; dropping it would leave an irreversible action with no recorded justification at all.
+  `AUDIT_EVENTS.md` carries the full rationale and the mitigation (an on-screen warning against
+  typing identifying detail into the field, not server-side enforcement).
+
+**Rejected:** shipping strictly to the handoff doc's original interim stub. An Admin would have
+had the full window/billing/archive machinery built and still been unable to delete anything,
+which does not solve the problem the demo surfaced. Building a real registry — deliberately
+narrow, explicitly short of the dual-control requirement, both documented rather than assumed —
+was judged the better trade for an internal compliance control with one caller today.

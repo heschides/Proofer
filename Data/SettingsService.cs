@@ -80,6 +80,8 @@ namespace Sati.Data
                 throw new SettingsSaveException(
                     "The billing-compliance requirement selection is invalid.",
                     new ArgumentOutOfRangeException(nameof(settings)));
+            if (settings.AnnualPacketOpenDaysBefore is < 0 or > 180)
+                throw new ArgumentException("Annual packet opening must be 0–180 days.");
             if (string.IsNullOrWhiteSpace(settings.VrAssistantTitle) ||
                 settings.VrAssistantTitle.Trim().Length > VocationalRehabilitationProfile.AssistantTitleMaxLength)
                 throw new SettingsSaveException(

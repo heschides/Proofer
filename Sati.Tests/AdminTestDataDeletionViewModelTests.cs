@@ -94,6 +94,103 @@ public sealed class AdminTestDataDeletionViewModelTests
         Assert.Equal(0, service.DeleteCalls);
     }
 
+    // ---- Rule-3 deletion: DeleteConsumerInWindowCommand ----
+
+    [Fact]
+    public void ARecentlyCreatedConsumerWithNoReasonCannotRunTheCommand()
+    {
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var recent = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
+        SelectTestConsumer(viewModel, recent);
+
+        Assert.True(viewModel.IsSelectedPersonWithinDeletionWindow);
+        Assert.False(viewModel.DeleteConsumerInWindowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void AConsumerOutsideTheWindowCannotRunTheCommandEvenWithAReason()
+    {
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var stale = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-25) };
+        SelectTestConsumer(viewModel, stale);
+        viewModel.ConsumerDeletionReason = "Duplicate from a batch import.";
+
+        Assert.False(viewModel.IsSelectedPersonWithinDeletionWindow);
+        Assert.False(viewModel.DeleteConsumerInWindowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ConfirmationPromptsForTheExactDisplayNameAndCancelWritesNothing()
+    {
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var recent = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
+        SelectTestConsumer(viewModel, recent);
+        viewModel.ConsumerDeletionReason = "Duplicate from a batch import.";
+        AdminConsumerDeletionConfirmationEventArgs? shown = null;
+        viewModel.ConsumerDeletionConfirmationRequested += (_, args) => shown = args;
+
+        await viewModel.DeleteConsumerInWindowCommand.ExecuteAsync(null);
+
+        Assert.NotNull(shown);
+        Assert.Equal(recent.PersonId, shown.PersonId);
+        Assert.Equal(recent.DisplayName, shown.RequiredConfirmationText);
+        Assert.Contains("cannot be undone", shown.Message);
+        Assert.False(shown.Confirmed);
+        Assert.Equal(0, service.WindowDeleteCalls);
+    }
+
+    [Fact]
+    public async Task ExplicitConfirmationDeletesWithTheTypedReasonThenRefreshesAndReportsSuccess()
+    {
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var recent = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
+        SelectTestConsumer(viewModel, recent);
+        viewModel.ConsumerDeletionReason = "Duplicate from a batch import.";
+        viewModel.ConsumerDeletionConfirmationRequested += (_, args) => args.Confirmed = true;
+
+        await viewModel.DeleteConsumerInWindowCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, service.WindowDeleteCalls);
+        Assert.Equal(recent.PersonId, service.WindowDeletedPersonId);
+        Assert.Equal(recent.Revision, service.WindowDeletedRevision);
+        Assert.Equal(ConsumerDeletionRules.ConsumerAttestation, service.WindowAttestation);
+        Assert.Equal("Duplicate from a batch import.", service.WindowReason);
+        Assert.Empty(viewModel.People);
+        Assert.Null(viewModel.SelectedPerson);
+        Assert.True(viewModel.HasNotice);
+        Assert.Contains("Deleted", viewModel.NoticeMessage);
+        Assert.Contains("audit event was retained", viewModel.NoticeMessage);
+        Assert.False(viewModel.HasError);
+        Assert.Equal(string.Empty, viewModel.ConsumerDeletionReason);
+    }
+
+    [Fact]
+    public async Task ServiceRefusalKeepsSelectionAndShowsWhatWasNotDeleted()
+    {
+        var service = new RecordingAdminService
+        {
+            WindowDeleteFailure = ConsumerDeletionRules.TransmittedBillingMessage
+        };
+        var viewModel = CreateViewModel(service);
+        var recent = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
+        SelectTestConsumer(viewModel, recent);
+        viewModel.ConsumerDeletionReason = "Duplicate from a batch import.";
+        viewModel.ConsumerDeletionConfirmationRequested += (_, args) => args.Confirmed = true;
+
+        await viewModel.DeleteConsumerInWindowCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, service.WindowDeleteCalls);
+        Assert.Equal(recent.PersonId, viewModel.SelectedPerson?.PersonId);
+        Assert.True(viewModel.HasError);
+        Assert.Contains("The consumer was not deleted", viewModel.StatusMessage);
+        Assert.Contains("reached a payer", viewModel.StatusMessage);
+        Assert.False(viewModel.HasNotice);
+    }
+
     private static AdminDashboardViewModel CreateViewModel(RecordingAdminService service)
     {
         var session = new SessionService();
@@ -127,6 +224,13 @@ public sealed class AdminTestDataDeletionViewModelTests
         public string? Attestation { get; private set; }
         public string? DeleteFailure { get; init; }
         private bool Deleted { get; set; }
+
+        public int WindowDeleteCalls { get; private set; }
+        public int WindowDeletedPersonId { get; private set; }
+        public int WindowDeletedRevision { get; private set; }
+        public string? WindowAttestation { get; private set; }
+        public string? WindowReason { get; private set; }
+        public string? WindowDeleteFailure { get; init; }
 
         public Task<TestConsumerDeletionResultDto> DeleteTestConsumerAsync(
             int personId,
@@ -219,7 +323,18 @@ public sealed class AdminTestDataDeletionViewModelTests
 
         public Task<ConsumerDeletionResultDto> DeleteConsumerInWindowAsync(
             int personId, int expectedRevision, string attestation, string reason,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            WindowDeleteCalls++;
+            WindowDeletedPersonId = personId;
+            WindowDeletedRevision = expectedRevision;
+            WindowAttestation = attestation;
+            WindowReason = reason;
+            if (WindowDeleteFailure is not null)
+                throw new InvalidOperationException(WindowDeleteFailure);
+            Deleted = true;
+            return Task.FromResult(new ConsumerDeletionResultDto(
+                personId, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        }
     }
 }

@@ -314,7 +314,8 @@ public sealed class FormService(
                 artifact.Kind.ToString(),
                 artifact.CycleStart,
                 artifact.Origin == DocumentArtifactOrigin.Draft,
-                artifact.Origin == DocumentArtifactOrigin.RecordedAsExternal))
+                artifact.Origin == DocumentArtifactOrigin.RecordedAsExternal,
+                context.DocumentAcknowledgments.Any(receipt => receipt.DocumentArtifactId == artifact.Id)))
             .ToListAsync(cancellationToken);
 
     private static async Task<List<FormFact>> LoadFormFactsAsync(SatiContext context, int personId) =>

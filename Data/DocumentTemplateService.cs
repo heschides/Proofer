@@ -62,7 +62,7 @@ public sealed class DocumentTemplateService(
         var now = DateTime.UtcNow;
         var rendered = composer.Generate(kind, template.Body, new DocumentTemplateRenderContext(
             agency.Name, AgencyReleaseService.ComposeAddress(agency.Street, agency.City, agency.State, agency.Zip),
-            agency.EdiContactPhone, person.FullName, person.BirthDate, start, start.AddYears(1).AddDays(-1),
+            agency.EdiContactPhone, person.FullName, person.BirthDate, start, AnnualDocumentCycle.EndInclusive(effective, start),
             actor.DisplayName, actor.Role.ToString()), now);
         var fileName = $"Privacy-Practices-{personId}.pdf";
         var owner = DocumentTemplateRules.OwnerName(template.AgencyId);

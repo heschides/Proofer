@@ -22,7 +22,8 @@ public sealed record ArtifactFact(
     string Kind,
     DateTime CycleStart,
     bool IsDraft,
-    bool IsExternal = false);
+    bool IsExternal = false,
+    bool IsAcknowledged = false);
 
 public sealed record NoteFact(
     int NoteId,
@@ -236,7 +237,7 @@ public static class FormAttestationRules
             PrerequisiteKind.SafetyPlan => matching.Any(artifact => !artifact.IsDraft),
             // Privacy acknowledgement remains external until its dedicated acknowledgement step.
             PrerequisiteKind.PrivacyPracticesAcknowledgment =>
-                matching.Any(artifact => !artifact.IsDraft && artifact.IsExternal),
+                matching.Any(artifact => !artifact.IsDraft && (artifact.IsExternal || artifact.IsAcknowledged)),
             _ => false
         };
 

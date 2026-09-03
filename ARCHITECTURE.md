@@ -1726,3 +1726,30 @@ non-color status text, stable automation names, keyboard defaults, and initial c
 # Safety-plan ownership
 
 `SafetyPlanRules` in `Sati.Contracts.V1` owns the shared document schema and submission-completeness rule. `SafetyPlans` stores versioned clinical content behind the API; `SafetyPlanPdfGenerator` produces a status-labeled PDF. The API remains authoritative for author identity, tenant access, review transitions, approval, audit events, and artifact status.
+
+The same owner now controls all lifecycle transitions: Draft -> ReadyForReview -> Approved/Returned.
+Reviewed/submitted content is locked; a revision creates another row instead of overwriting it.
+`ISafetyPlanService` has local and HTTP implementations and feeds a view-independent WPF authoring
+model. Review scope is the assigned user's authorized supervision scope, not just agency equality.
+
+## Annual packet and receipt boundary — 2026-09-03
+
+`IAnnualDocumentService` feeds the Annual Documents workspace and read-time profile/dashboard
+reminders. Local implementations use short-lived contexts; Demo uses HTTP services. Shared
+`AnnualPacketWindow`, `DocumentAcknowledgmentRules`, `DocumentVerification`, `RecordsRecipient`
+and `AnnualDocumentReminder` own their respective policy calculations in `Sati.Contracts.V1`.
+`AnnualPacketComposer` in `Sati.Forms` is pure rendering from authorized snapshots; it does no
+database or network access. Packet writes use one serializable transaction, including the medical
+release prerequisite read, and validate each PDF's fingerprint against its recorded artifact.
+
+`DocumentAcknowledgment` is append-only and references the exact Privacy Practices artifact;
+regeneration requires another receipt. Safety artifacts identify the source plan id/version.
+No PDF bytes are retained in the database. Previously completed/external releases are listed in
+the manifest for retrieval from their original saved/signed copies rather than reconstructed.
+Medical requests are downloads only; there is no sending service or scheduled packet job.
+
+`SingleAttemptWriteFilter` establishes an EF execution scope around protected non-read endpoints.
+This allows explicit multi-save transactions under SQL Server's configured retry provider without
+automatically replaying an ambiguous commit. The caller must reload before retrying a failed write.
+GET/HEAD retain the configured database retry behavior. API integration tests use a retry-shaped
+SQLite strategy to exercise EF's transaction guard, which ordinary SQLite tests do not detect.

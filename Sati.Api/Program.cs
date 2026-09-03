@@ -64,6 +64,7 @@ builder.Services.AddSingleton<AgencyReleasePdfGenerator>();
 builder.Services.AddSingleton<MedicalReleasePdfGenerator>();
 builder.Services.AddSingleton<DocumentTemplatePdfComposer>();
 builder.Services.AddSingleton<SafetyPlanPdfGenerator>();
+builder.Services.AddSingleton<AnnualPacketComposer>();
 
 // SSN protection. A configured key gives the real Key Vault wrapper; an unconfigured
 // one gives a wrapper that fails closed, so an environment that stores no SSNs still

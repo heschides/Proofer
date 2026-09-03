@@ -26,6 +26,8 @@ public partial class AdminDashboardView : UserControl
         viewModel.CsvReady += SaveCsv;
         viewModel.TestConsumerDeletionConfirmationRequested -= ConfirmTestConsumerDeletion;
         viewModel.TestConsumerDeletionConfirmationRequested += ConfirmTestConsumerDeletion;
+        viewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
+        viewModel.ConsumerDeletionConfirmationRequested += ConfirmConsumerDeletionInWindow;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -35,12 +37,14 @@ public partial class AdminDashboardView : UserControl
             oldViewModel.PdfReady -= SavePdf;
             oldViewModel.CsvReady -= SaveCsv;
             oldViewModel.TestConsumerDeletionConfirmationRequested -= ConfirmTestConsumerDeletion;
+            oldViewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
         }
         if (e.NewValue is AdminDashboardViewModel newViewModel)
         {
             newViewModel.PdfReady += SavePdf;
             newViewModel.CsvReady += SaveCsv;
             newViewModel.TestConsumerDeletionConfirmationRequested += ConfirmTestConsumerDeletion;
+            newViewModel.ConsumerDeletionConfirmationRequested += ConfirmConsumerDeletionInWindow;
         }
     }
 
@@ -51,6 +55,7 @@ public partial class AdminDashboardView : UserControl
             viewModel.PdfReady -= SavePdf;
             viewModel.CsvReady -= SaveCsv;
             viewModel.TestConsumerDeletionConfirmationRequested -= ConfirmTestConsumerDeletion;
+            viewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
         }
     }
 
@@ -66,6 +71,25 @@ public partial class AdminDashboardView : UserControl
             e.Message,
             "Delete",
             isDestructive: true)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        e.Confirmed = dialog.ShowDialog() == true;
+    }
+
+    private void ConfirmConsumerDeletionInWindow(
+        object? sender,
+        AdminConsumerDeletionConfirmationEventArgs e)
+    {
+        var displayName = string.IsNullOrWhiteSpace(e.DisplayName)
+            ? $"consumer #{e.PersonId}"
+            : e.DisplayName;
+        var dialog = new TypedConfirmationDialog(
+            $"Permanently delete {displayName}?",
+            e.Message,
+            e.Prompt,
+            e.RequiredConfirmationText,
+            "Delete")
         {
             Owner = Window.GetWindow(this)
         };

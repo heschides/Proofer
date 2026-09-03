@@ -58,7 +58,8 @@ public static class ApiSurface
         "form-attestation-prerequisite-v1",
         "annual-document-artifact-v1",
         "document-template-v1",
-        "safety-plan-v1"
+        "safety-plan-v2",
+        "annual-packet-and-receipt-v1"
     ];
 
     /// <summary>
@@ -103,6 +104,7 @@ public static class ApiSurface
         "GET /api/v1/notes/monthly",
         "GET /api/v1/notes/year/{year:int}",
         "GET /api/v1/people/{personId:int}/appointments/latest",
+        "GET /api/v1/people/{personId:int}/annual-documents",
         "GET /api/v1/people/{personId:int}/attestations/pending",
         "GET /api/v1/people/{personId:int}/assessments/latest",
         "GET /api/v1/people/{personId:int}/at-requests",
@@ -162,10 +164,13 @@ public static class ApiSurface
         "POST /api/v1/people",
         "POST /api/v1/people/credible-matches",
         "POST /api/v1/people/{personId:int}/agency-release.pdf",
+        "POST /api/v1/people/{personId:int}/annual-packet",
         "POST /api/v1/people/{personId:int}/assessments/draft",
         "POST /api/v1/people/{personId:int}/contacts",
         "POST /api/v1/people/{personId:int}/documents/{kind}",
         "POST /api/v1/people/{personId:int}/documents/{kind}/external",
+        "POST /api/v1/people/{personId:int}/documents/privacy-practices/acknowledgment",
+        "POST /api/v1/people/{personId:int}/documents/verify",
         "POST /api/v1/people/{personId:int}/forms/{type}/attestation",
         "POST /api/v1/people/{personId:int}/forms/{type}/attestation/revoke",
         "POST /api/v1/people/{personId:int}/forms.pdf",

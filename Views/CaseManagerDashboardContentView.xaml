@@ -274,6 +274,9 @@
                               CommandParameter="{x:Static sati:FormType.Release_Medical}" />
                 </Grid>
 
+                <TextBlock Text="{Binding AnnualDocumentReminderText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           AutomationProperties.Name="Annual document preparation beside pending attestations" />
                 <Border Margin="0,8,0,0"
                         Padding="8"
                         Background="{DynamicResource SurfaceRaisedBrush}"

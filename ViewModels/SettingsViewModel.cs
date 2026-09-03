@@ -408,6 +408,7 @@ namespace Sati.ViewModels
 
         // Agency-configurable display title for the staff member assisting the
         // VR counselor. Consumer rows store the assigned name, not this label.
+        [ObservableProperty] private int annualPacketOpenDaysBefore = 30;
         [ObservableProperty] private string vrAssistantTitle =
             VocationalRehabilitationProfile.DefaultAssistantTitle;
 
@@ -683,6 +684,7 @@ namespace Sati.ViewModels
 
             SalesTaxRate = _settings.SalesTaxRate;
             AllowCredibleProfileUpdates = _settings.AllowCredibleProfileUpdates;
+            AnnualPacketOpenDaysBefore = _settings.AnnualPacketOpenDaysBefore;
             VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(
                 _settings.VrAssistantTitle);
             DefaultPassthroughProviderId = _settings.DefaultPassthroughProviderId;
@@ -783,6 +785,7 @@ namespace Sati.ViewModels
             _settings.SalesTaxRate = SalesTaxRate;
             _settings.AllowCredibleProfileUpdates = AllowCredibleProfileUpdates;
             _settings.VrAssistantTitle = VrAssistantTitle;
+            _settings.AnnualPacketOpenDaysBefore = AnnualPacketOpenDaysBefore;
             _settings.DefaultPassthroughProviderId = DefaultPassthroughProviderId;
             _settings.ProductivityThreshold = ProductivityThreshold;
             _settings.BaseIncentive = BaseIncentive;

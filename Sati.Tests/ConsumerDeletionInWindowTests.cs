@@ -20,6 +20,33 @@ namespace Sati.Tests;
 public sealed class ConsumerDeletionInWindowTests
 {
     [Fact]
+    public async Task NewAnnualDocumentChildrenAreIncludedInAuthorizedDeletion()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var id = await fixture.SeedDeletableConsumerAsync();
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var person = await db.People.SingleAsync(x => x.Id == id);
+            var artifact = DocumentArtifact.Generated(id, person.AgencyId!.Value, AnnualDocumentKind.PrivacyPractices,
+                DateTime.Today, DocumentArtifactOrigin.GeneratedInSati, DateTime.UtcNow, person.UserId, [1], "synthetic.pdf", []);
+            db.DocumentArtifacts.Add(artifact);
+            db.SafetyPlans.Add(new SafetyPlan { PersonId = id, AuthorUserId = person.UserId, CycleStart = DateTime.Today,
+                DocumentJson = SafetyPlanRules.EmptyDocumentJson() });
+            await db.SaveChangesAsync();
+            db.DocumentAcknowledgments.Add(new DocumentAcknowledgment { DocumentArtifactId = artifact.Id,
+                RecordedByUserId = person.UserId, RecordedAtUtc = DateTime.UtcNow, ReceivedOn = DateTime.Today });
+            await db.SaveChangesAsync();
+        }
+        var result = await fixture.AdminService.DeleteConsumerInWindowAsync(id, 1,
+            ConsumerDeletionRules.ConsumerAttestation, "Synthetic record cleanup.");
+        Assert.Equal(1, result.SafetyPlansDeleted);
+        Assert.Equal(1, result.DocumentAcknowledgmentsDeleted);
+        await using var verify = fixture.Factory.CreateDbContext();
+        Assert.Empty(await verify.DocumentAcknowledgments.ToListAsync());
+        Assert.Empty(await verify.SafetyPlans.ToListAsync());
+    }
+
+    [Fact]
     public async Task ADeletableConsumerWithPermissiveContentIsFullyDeleted()
     {
         await using var fixture = await Fixture.CreateAsync();

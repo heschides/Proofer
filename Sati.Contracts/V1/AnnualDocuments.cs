@@ -47,10 +47,14 @@ public static class AnnualDocumentCatalog
 
 public static class AnnualDocumentCycle
 {
+    // Advance the original enrollment date, not a February-28 anniversary produced by clamping.
+    public static DateTime EndInclusive(DateTime effectiveDate, DateTime cycleStart) =>
+        effectiveDate.AddYears(cycleStart.Year - effectiveDate.Year + 1).Date.AddDays(-1);
+
     public static DateTime CurrentStart(DateTime effectiveDate, DateTime onDate)
     {
         var start = effectiveDate.AddYears(onDate.Year - effectiveDate.Year).Date;
-        return start > onDate.Date ? start.AddYears(-1).Date : start;
+        return start > onDate.Date ? effectiveDate.AddYears(onDate.Year - effectiveDate.Year - 1).Date : start;
     }
 }
 
@@ -70,7 +74,9 @@ public sealed record DocumentArtifactDto(
     string? ExternalNote,
     string? TemplateOwner = null,
     string? TemplateKey = null,
-    int? TemplateVersion = null);
+    int? TemplateVersion = null,
+    int? SourceContentId = null,
+    int? SourceContentVersion = null);
 
 public sealed record RecordExternalDocumentRequest(DateTime CycleStart, string Note);
 

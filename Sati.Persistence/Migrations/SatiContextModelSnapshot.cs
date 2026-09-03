@@ -670,6 +670,39 @@ namespace Sati.Migrations
                     b.ToTable("RemittanceDeposits");
                 });
 
+            modelBuilder.Entity("Sati.Models.DocumentAcknowledgment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DocumentArtifactId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GoodFaithEffortReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReceivedOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RecordedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentArtifactId");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.ToTable("DocumentAcknowledgments");
+                });
+
             modelBuilder.Entity("Sati.Models.DocumentArtifact", b =>
                 {
                     b.Property<int>("Id")
@@ -716,6 +749,12 @@ namespace Sati.Migrations
                         .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceContentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceContentVersion")
                         .HasColumnType("int");
 
                     b.Property<string>("SuggestedFileName")
@@ -1633,6 +1672,11 @@ namespace Sati.Migrations
                     b.Property<bool>("AllowCredibleProfileUpdates")
                         .HasColumnType("bit");
 
+                    b.Property<int>("AnnualPacketOpenDaysBefore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(30);
+
                     b.Property<decimal>("BaseIncentive")
                         .HasColumnType("decimal(18,2)");
 
@@ -2260,6 +2304,21 @@ namespace Sati.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("BillingPeriod");
+                });
+
+            modelBuilder.Entity("Sati.Models.DocumentAcknowledgment", b =>
+                {
+                    b.HasOne("Sati.Models.DocumentArtifact", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentArtifactId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sati.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Sati.Models.DocumentArtifact", b =>

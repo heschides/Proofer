@@ -36,6 +36,7 @@ public partial class AdminDashboardViewModel(
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private string noticeMessage = string.Empty;
     [ObservableProperty] private DateTime? lastRefreshedAt;
+    [ObservableProperty] private string consumerDeletionReason = string.Empty;
 
     public bool HasError => !string.IsNullOrWhiteSpace(StatusMessage);
     public bool HasNotice => !string.IsNullOrWhiteSpace(NoticeMessage);
@@ -45,9 +46,16 @@ public partial class AdminDashboardViewModel(
         ? "Not loaded"
         : $"Updated {LastRefreshedAt:MMM d, h:mm tt}";
 
+    // Purely a display hint — CanDeleteConsumerInWindow re-derives the same check, and the
+    // service re-derives it again server-side. See CLAUDE.md: UI visibility is not security.
+    public bool IsSelectedPersonWithinDeletionWindow =>
+        SelectedPerson is not null &&
+        ConsumerDeletionRules.IsWithinDeletionWindow(SelectedPerson.CreatedAtUtc, DateTime.UtcNow);
+
     public event EventHandler<AdminPdfReadyEventArgs>? PdfReady;
     public event EventHandler<AdminCsvReadyEventArgs>? CsvReady;
     public event EventHandler<AdminTestConsumerDeletionConfirmationEventArgs>? TestConsumerDeletionConfirmationRequested;
+    public event EventHandler<AdminConsumerDeletionConfirmationEventArgs>? ConsumerDeletionConfirmationRequested;
 
     public async Task InitializeAsync()
     {
@@ -106,8 +114,11 @@ public partial class AdminDashboardViewModel(
     partial void OnSelectedPersonChanged(AdminPersonListItemDto? value)
     {
         OnPropertyChanged(nameof(HasSelectedPerson));
+        OnPropertyChanged(nameof(IsSelectedPersonWithinDeletionWindow));
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         DeleteTestConsumerCommand.NotifyCanExecuteChanged();
+        DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
+        ConsumerDeletionReason = string.Empty;
         _historyCancellation?.Cancel();
         _historyCancellation?.Dispose();
         _historyCancellation = new CancellationTokenSource();
@@ -120,7 +131,11 @@ public partial class AdminDashboardViewModel(
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
         UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
         DeleteTestConsumerCommand.NotifyCanExecuteChanged();
+        DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnConsumerDeletionReasonChanged(string value) =>
+        DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
 
     partial void OnAuditExportReasonChanged(string value) =>
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
@@ -261,6 +276,71 @@ public partial class AdminDashboardViewModel(
             NoticeMessage = result.RelatedRecordsDeleted == 1
                 ? $"Deleted test consumer {person.DisplayName} and 1 related test record. The audit event was retained."
                 : $"Deleted test consumer {person.DisplayName} and {result.RelatedRecordsDeleted} related test records. The audit event was retained.";
+        }
+    }
+
+    private bool CanDeleteConsumerInWindow() =>
+        SelectedPerson is not null && !IsBusy &&
+        ConsumerDeletionRules.IsWithinDeletionWindow(SelectedPerson.CreatedAtUtc, DateTime.UtcNow) &&
+        !string.IsNullOrWhiteSpace(ConsumerDeletionReason);
+
+    /// <summary>
+    /// Rule-3 deletion: permanently deletes an ordinary consumer created within the window.
+    /// Unlike <see cref="DeleteTestConsumerAsync"/>, this needs no creation-time marker — it is
+    /// bounded by time and by the billing-integrity and legal-hold gates the service enforces.
+    /// See HANDOFF_CLIENT_DELETION_POLICY.md.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanDeleteConsumerInWindow))]
+    private async Task DeleteConsumerInWindowAsync()
+    {
+        var person = SelectedPerson;
+        if (person is null)
+            return;
+
+        var confirmation = new AdminConsumerDeletionConfirmationEventArgs(
+            person.PersonId,
+            person.DisplayName,
+            "This permanently deletes this consumer and everything attached to their record — " +
+            "notes, forms, reviews, assessments, AT requests, contacts, and any draft billing. " +
+            "This cannot be undone.",
+            $"Type \"{person.DisplayName}\" to confirm.",
+            person.DisplayName);
+        ConsumerDeletionConfirmationRequested?.Invoke(this, confirmation);
+        if (!confirmation.Confirmed)
+            return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
+        ConsumerDeletionResultDto? result = null;
+        try
+        {
+            _historyCancellation?.Cancel();
+            result = await adminService.DeleteConsumerInWindowAsync(
+                person.PersonId,
+                person.Revision,
+                ConsumerDeletionRules.ConsumerAttestation,
+                ConsumerDeletionReason);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The consumer was not deleted. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (result is null)
+            return;
+
+        ConsumerDeletionReason = string.Empty;
+        await RefreshAsync();
+        if (!HasError)
+        {
+            NoticeMessage = result.RelatedRecordsDeleted == 1
+                ? $"Deleted {person.DisplayName} and 1 related record. The audit event was retained."
+                : $"Deleted {person.DisplayName} and {result.RelatedRecordsDeleted} related records. The audit event was retained.";
         }
     }
 
@@ -405,5 +485,20 @@ public sealed class AdminTestConsumerDeletionConfirmationEventArgs(
     public int PersonId { get; } = personId;
     public string DisplayName { get; } = displayName;
     public string Message { get; } = message;
+    public bool Confirmed { get; set; }
+}
+
+public sealed class AdminConsumerDeletionConfirmationEventArgs(
+    int personId,
+    string displayName,
+    string message,
+    string prompt,
+    string requiredConfirmationText) : EventArgs
+{
+    public int PersonId { get; } = personId;
+    public string DisplayName { get; } = displayName;
+    public string Message { get; } = message;
+    public string Prompt { get; } = prompt;
+    public string RequiredConfirmationText { get; } = requiredConfirmationText;
     public bool Confirmed { get; set; }
 }

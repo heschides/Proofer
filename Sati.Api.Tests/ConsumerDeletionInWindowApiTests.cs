@@ -27,6 +27,21 @@ public sealed class ConsumerDeletionInWindowApiTests(SatiApiFactory factory)
         using var admin = await factory.CreateAuthenticatedClientAsync("admin-one");
         var person = await CreateConsumerAsync(admin);
 
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var artifact = new ServerDocumentArtifact { PersonId = person.Id, AgencyId = 1, Kind = "PrivacyPractices",
+                CycleStart = DateTime.Today, Origin = "GeneratedInSati", GeneratedAtUtc = DateTime.UtcNow,
+                GeneratedByUserId = person.UserId, BlankFieldsJson = "[]" };
+            db.DocumentArtifacts.Add(artifact);
+            db.SafetyPlans.Add(new ServerSafetyPlan { PersonId = person.Id, AuthorUserId = person.UserId,
+                CycleStart = DateTime.Today, DocumentJson = SafetyPlanRules.EmptyDocumentJson() });
+            await db.SaveChangesAsync();
+            db.DocumentAcknowledgments.Add(new ServerDocumentAcknowledgment { DocumentArtifactId = artifact.Id,
+                RecordedByUserId = person.UserId, RecordedAtUtc = DateTime.UtcNow, ReceivedOn = DateTime.Today });
+            await db.SaveChangesAsync();
+        }
+
         var response = await admin.PostAsJsonAsync(
             $"/api/v1/admin/consumers/{person.Id}/delete-in-window",
             new DeleteConsumerInWindowRequest(
@@ -35,6 +50,8 @@ public sealed class ConsumerDeletionInWindowApiTests(SatiApiFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(person.Id, result!.PersonId);
+        Assert.Equal(1, result.SafetyPlansDeleted);
+        Assert.Equal(1, result.DocumentAcknowledgmentsDeleted);
         var caseload = await admin.GetFromJsonAsync<List<PersonDto>>($"/api/v1/caseload?userId={person.UserId}");
         Assert.DoesNotContain(caseload!, p => p.Id == person.Id);
     }

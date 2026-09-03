@@ -22,7 +22,9 @@ internal static class DocumentArtifactPersistence
         CancellationToken cancellationToken,
         string? templateOwner = null,
         string? templateKey = null,
-        int? templateVersion = null) =>
+        int? templateVersion = null,
+        int? sourceContentId = null,
+        int? sourceContentVersion = null) =>
         StageReplacementAsync(db, new ServerDocumentArtifact
         {
             PersonId = personId,
@@ -38,6 +40,8 @@ internal static class DocumentArtifactPersistence
             TemplateOwner = templateOwner,
             TemplateKey = templateKey,
             TemplateVersion = templateVersion,
+            SourceContentId = sourceContentId,
+            SourceContentVersion = sourceContentVersion,
             BlankFieldsJson = JsonSerializer.Serialize(
                 (blankFields ?? []).Where(value => !string.IsNullOrWhiteSpace(value))
                     .Select(value => value.Trim()).Distinct(StringComparer.Ordinal).Order().ToArray())
@@ -78,7 +82,8 @@ internal static class DocumentArtifactPersistence
         artifact.SuggestedFileName,
         JsonSerializer.Deserialize<string[]>(artifact.BlankFieldsJson) ?? [],
         artifact.ExternalNote,
-        artifact.TemplateOwner, artifact.TemplateKey, artifact.TemplateVersion);
+        artifact.TemplateOwner, artifact.TemplateKey, artifact.TemplateVersion,
+        artifact.SourceContentId, artifact.SourceContentVersion);
 
     private static async Task<ServerDocumentArtifact> StageReplacementAsync(
         ApiDbContext db,

@@ -220,6 +220,11 @@ namespace Sati
                         services.AddTransient<ViewModels.ClientDocuments.DhhsFormsViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.AgencyReleaseViewModel>();
                         services.AddSingleton<Sati.Forms.DocumentTemplatePdfComposer>();
+                        services.AddSingleton<Sati.Forms.SafetyPlanPdfGenerator>();
+                        services.AddSingleton<Sati.Forms.DhhsFormFiller>();
+                        services.AddSingleton<Sati.Forms.AnnualPacketComposer>();
+                        services.AddTransient<ViewModels.ClientDocuments.SafetyPlanViewModel>();
+                        services.AddTransient<ViewModels.ClientDocuments.AnnualDocumentsViewModel>();
 
                         // Transient by intent: injected into two singleton hosts
                         // (CaseManagerDashboardViewModel, NotesWindowViewModel),
@@ -429,6 +434,8 @@ namespace Sati
             services.AddTransient<IApiCompatibilityService, LocalApiCompatibilityService>();
             services.AddTransient<IAgencyReleaseService, AgencyReleaseService>();
             services.AddTransient<IDocumentTemplateService, DocumentTemplateService>();
+            services.AddTransient<ISafetyPlanService, SafetyPlanService>();
+            services.AddTransient<IAnnualDocumentService, AnnualDocumentService>();
             services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
             services.AddDbContextFactory<SatiContext>((serviceProvider, options) =>
@@ -476,6 +483,8 @@ namespace Sati
             services.AddTransient<IApiCompatibilityService, CloudApiCompatibilityService>();
             services.AddTransient<IAgencyReleaseService, CloudAgencyReleaseService>();
             services.AddTransient<IDocumentTemplateService, CloudDocumentTemplateService>();
+            services.AddTransient<ISafetyPlanService, CloudSafetyPlanService>();
+            services.AddTransient<IAnnualDocumentService, CloudAnnualDocumentService>();
             services.AddTransient<IComprehensiveAssessmentService, CloudComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, CloudPersonCenteredPlanSourceService>();
             services.AddTransient<IConsumerBillingLossReportService, CloudConsumerBillingLossReportService>();

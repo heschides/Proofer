@@ -31,6 +31,9 @@ for content; the audit event is only its activity index.
 - `assessment.created`, `assessment.updated`, `assessment.submitted`
 - `person.created`, `person.updated`, `person.journal-updated`, `person.journal-reminder-added`
 - `person-history.viewed`, `person-history-pdf.generated`
+- `consumer.archived`, `consumer.unarchived`
+- `legal-hold.placed`, `legal-hold.released`
+- `consumer.deleted-in-window`
 - `settings.updated`
 - `scratchpad.updated`
 - `billing-claim-line.created`, `billing-period.submitted`, `billing-edi.generated`
@@ -166,6 +169,25 @@ handling language, record and revision identifiers, chronological actor/timestam
 the old and new value for every changed field. Related notes, contacts, forms, assessments, and
 billing items retain their own histories and are not silently folded into the Person profile ledger.
 
+## Archive status and legal holds
+
+`consumer.archived` and `consumer.unarchived` record a change to `Person.Status` (`Active`,
+`NoLongerServed`, `Deceased`, or the Admin-only `Ghost`). Only fired when the new status actually
+differs from the current one. Metadata carries the person id and the previous/new status values;
+the optional status note stays on the `Person` row itself, alongside the rest of the profile, and
+is not duplicated into general audit metadata — the same "stays on the authoritative row" pattern
+`form.attestation-revoked` uses. Archiving is non-destructive: an archived Person keeps its full
+history and can be reactivated. `Sati.Contracts.V1.PersonStatusRules` is the sole owner of who may
+set which status.
+
+`legal-hold.placed` and `legal-hold.released` record changes to the minimal `LegalHold` registry
+introduced 2026-09-03 to gate the deletion command below (see `HANDOFF_CLIENT_DELETION_POLICY.md`
+and `OPERATIONS.md` for the registry's deliberately narrow scope and its single-admin-release
+shortfall against `OPERATIONS.md`'s general dual-control requirement). Metadata carries only the
+person id and, for a release, the hold id — never the placement reason or release note. Both stay
+on the `LegalHold` row, which is retained (marked released, never deleted) for exactly the same
+reason `FormAttestation` rows are retained rather than duplicated into `MetadataJson`.
+
 ## Admin deletion of consumer test data
 
 The Admin dashboard exposes one deliberately narrow destructive command for a consumer marked as
@@ -188,6 +210,68 @@ The WPF client's Admin tab is the supported human-facing entry point. It summari
 renders recent `AuditEvent` activity, shows Person versions and field changes, and invokes the protected PDF export. It also reports database/retention status and creates a
 reason-gated, bounded agency audit CSV whose use is itself recorded. The UI does not broaden access: cloud requests remain subject to the API's
 Admin and tenant checks, and the transitional local service repeats the Admin/agency restrictions.
+
+## Admin deletion of an ordinary consumer within the creation window
+
+A second, distinct destructive command, added 2026-09-03, covers what the test-data command above
+does not: an ordinary consumer created in error (most often a duplicate produced by import) with no
+synthetic-test marker. It does not reuse the test-data attestation — an older client that only knows
+that version cannot invoke this broader command. Full gate rationale lives in
+`HANDOFF_CLIENT_DELETION_POLICY.md`; this section covers only the audit contract.
+
+Three gates must all pass before any row changes, checked in this order: the Person must still be
+within `ConsumerDeletionRules.DeletionWindowDays` (20 days) of its immutable `CreatedAtUtc`; the
+consumer's legal-hold status from `ILegalHoldRegistry` must be exactly `Clear` — `Active`,
+`Unavailable`, and a registry exception all refuse before touching a row; and none of the consumer's
+claim lines may belong to a `BillingPeriod` whose billing actually reached a payer (a transmitted,
+non-synthetic `BillingSubmissionEvent`; a non-synthetic `RemittanceClaimOutcome`; or a submitted or
+non-Draft `BillingPeriod`). Draft and synthetic billing, notes, assessments, AT requests, and
+contacts are all deletable inside the window — that permissiveness is the point of a time-boxed
+correction window, not an oversight.
+
+Deletion runs in one serializable transaction and removes the same class of consumer-owned records
+as the test-data command, plus claim lines (permitted here because A1 already refused anything but
+draft/synthetic billing) and document artifacts. The existing `AuditEvent` ledger is never deleted;
+a successful operation appends `consumer.deleted-in-window` as an itemized tombstone rather than
+bare counts — record counts are included too, but the point of the itemization is that this is the
+one remaining evidence the record existed. Per note: id, event date, status, minutes, and note type.
+Per claim line: id, date of service, procedure code and modifier, units, charge amount, and billing
+period id. Per form: id, type, and due date. Per review item: id, category, and requested date. Per
+assessment: id, status, and creation date. Per AT request: id, status, and submitted date. Per
+contact: id and kind. Per `PersonVersion`: id, change kind, and changed-at timestamp. The event also
+carries the attestation version, the deletion timestamp, the consumer's `CreatedAtUtc`, and the three
+billing-integrity facts that were checked. None of this carries the consumer's name, `MaineCareId`,
+`EvergreenId`, birth date, address, or any note/assessment narrative — matching the exclusion
+discipline the test-data tombstone above already follows, verified by a dedicated test that plants
+sentinel strings in a note narrative and a `MaineCareId` and asserts neither appears anywhere in the
+resulting `MetadataJson`.
+
+The one deliberate exception to this file's Envelope rule against copying "reasons" into
+`MetadataJson`: the Admin's required free-text reason for the deletion is included in the tombstone.
+Every other reason/explanation field in this system (form-attestation revocation, audit-CSV export)
+stays off the general audit log because it durably survives on a protected row that isn't going
+anywhere. A deleted Person has no such row left to hold it, and dropping the reason entirely would
+leave an irreversible action with no recorded justification at all — worse, on balance, than the
+narrow risk of an Admin typing identifying detail into it. The Admin dashboard's reason field carries
+an explicit warning against including the client's name or other identifying detail
+(`Views/AdminDashboardView.xaml`), but nothing server-side scrubs the text; treat this field as
+Admin-authored operational metadata, not as PHI-safe by construction.
+
 # Safety-plan workflow events
 
 `safety-plan.created`, `safety-plan.updated`, `safety-plan.submitted`, `safety-plan.approved`, and `safety-plan.returned` identify the lifecycle transition and safety-plan record. They intentionally do not copy plan narrative or a return reason into audit metadata.
+
+## Annual packet and receipt events — 2026-09-03
+
+- `document.acknowledged`: exact artifact id and validated actor; receipt date/effort explanation
+  remain on the protected append-only acknowledgment row, never duplicated in audit metadata.
+- `document.verified`: artifact id and boolean match outcome. No uploaded bytes, filename or
+  narrative is logged; both stored hash and byte count must match.
+- `annual-packet.saved`: consumer id and actor, in the same transaction as the generated artifact
+  records. Means the server generated a download, not that the user saved it or sent anything.
+- Standalone Safety Plan PDFs use `document.generated` with source id/version provenance. Packet
+  constituents are itemized by their artifact rows/manifest, with one packet audit event.
+
+Authorized consumer deletion includes SafetyPlans and DocumentAcknowledgments, before artifacts
+and the Person are removed. Their counts are included in the retained audit tombstone; no safety
+plan content or receipt explanation is copied into the general ledger.

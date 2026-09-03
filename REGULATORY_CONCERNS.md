@@ -161,6 +161,14 @@ The [HHS model-notice guidance](https://www.hhs.gov/hipaa/for-professionals/priv
 is a review starting point, not an endorsement of this generic draft. Generation remains separate
 from receipt/acknowledgment and from any signature requirement.
 
+The annual-packet workflow records a receipt date or good-faith-effort explanation for the exact
+generated privacy notice. This is staff-recorded provenance, not a captured consumer signature.
+The downloadable medical-records request is included only after the cycle's medical release is
+attested and a current primary-care provider is linked. Staff still verify recipient, scope,
+authorization and secure delivery; Sati never sends it. The generic request and safety-plan schema
+need agency/program review before real clinical use. Hash verification proves byte identity with
+the recorded generated file, not that the contents or any signature are valid.
+
 ## Privacy and data access
 
 - Cross-agency access should be limited to the minimum information needed for the

@@ -438,31 +438,67 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <Border Grid.Row="2"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0"
-                            Padding="0,9,0,0"
-                            Margin="0,8,0,0">
-                        <StackPanel>
-                            <TextBlock Text="TEST DATA ONLY"
-                                       FontSize="9"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock Text="Available only when the selected consumer was marked Test at creation. This cannot be undone."
-                                       FontSize="9"
-                                       TextWrapping="Wrap"
-                                       Margin="0,2,0,7"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <Button Content="Delete test consumer"
-                                    Command="{Binding DeleteTestConsumerCommand}"
-                                    Style="{StaticResource SmallButton}"
-                                    Background="#FF7A3B3B"
-                                    Foreground="White"
-                                    HorizontalAlignment="Left"
-                                    AutomationProperties.HelpText="Permanently deletes the selected consumer and their test records after confirmation."
-                                    AutomationProperties.Name="Delete selected test consumer" />
-                        </StackPanel>
-                    </Border>
+                    <StackPanel Grid.Row="2">
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Padding="0,9,0,0"
+                                Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="TEST DATA ONLY"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Available only when the selected consumer was marked Test at creation. This cannot be undone."
+                                           FontSize="9"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,7"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <Button Content="Delete test consumer"
+                                        Command="{Binding DeleteTestConsumerCommand}"
+                                        Style="{StaticResource SmallButton}"
+                                        Background="#FF7A3B3B"
+                                        Foreground="White"
+                                        HorizontalAlignment="Left"
+                                        AutomationProperties.HelpText="Permanently deletes the selected consumer and their test records after confirmation."
+                                        AutomationProperties.Name="Delete selected test consumer" />
+                            </StackPanel>
+                        </Border>
+                        <Border Visibility="{Binding IsSelectedPersonWithinDeletionWindow, Converter={StaticResource BoolToVisibilityConverter}}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Padding="0,9,0,0"
+                                Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="RECENTLY CREATED"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Created within the last 20 days. May be permanently deleted with a reason and a legal-hold and billing check. This cannot be undone."
+                                           FontSize="9"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,7"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="REASON (kept permanently in the audit record — do not include the client's name or other identifying detail)"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding ConsumerDeletionReason, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="11"
+                                         Margin="0,2,0,7"
+                                         AutomationProperties.Name="Reason for deleting this consumer"
+                                         AutomationProperties.HelpText="Kept permanently in the audit record. Do not include the client's name or other identifying detail." />
+                                <Button Content="Delete consumer (created in error)"
+                                        Command="{Binding DeleteConsumerInWindowCommand}"
+                                        Style="{StaticResource SmallButton}"
+                                        Background="#FF7A3B3B"
+                                        Foreground="White"
+                                        HorizontalAlignment="Left"
+                                        AutomationProperties.HelpText="Permanently deletes the selected consumer, created within the last 20 days, after confirmation."
+                                        AutomationProperties.Name="Delete selected recently created consumer" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
 

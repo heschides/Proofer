@@ -1,10 +1,16 @@
 # Handoff — Client deletion and archival protocol
 
-**Status:** reviewed and corrected with Josh's authorization, 2026-08-31. The additive
-creation/status migration and archival slice are ready to build. Ordinary-client physical
-deletion is intentionally blocked until a real legal-hold registry can return an affirmative
-clear result. No code changed.
-**Investigated against:** `master` @ `51b2341`.
+**Status:** built 2026-09-03. All four rules are implemented — see the "What already exists"
+table below, now fully checked off. Two decisions from the original review changed during
+implementation, both by Josh's direction: the window is 20 days, not 14 (A2's formula and the
+day-boundary test below are updated accordingly), and A3's legal-hold registry is a real,
+minimal implementation rather than the always-`Unavailable` interim stub this document
+originally specified — see the amended A3 section for what that registry does and does not
+cover, including the dual-control-release shortfall tracked in AGENDA.md. Everything else in
+this document — the reasoning, the four rules, A1's billing-integrity gate, the audit tombstone
+contract — was implemented as designed.
+**Reviewed and corrected with Josh's authorization, 2026-08-31. Investigated against:**
+`master` @ `51b2341`.
 
 Two decisions here deliberately narrow what Codex may do on its own, because both are the
 kind of thing a later change would "helpfully" undo:
@@ -49,8 +55,8 @@ Three things to know before building:
 |---|---|
 | 1. Admin-only deletion | **Built.** `AdminService.DeleteTestConsumerAsync` requires `UserPermissions.Administration`, re-verified against the database inside a `Serializable` transaction, agency-scoped, with the Person `Revision` required. Mirrored on the API. |
 | 2. Test clients deletable at any time | **Built, and deliberately narrower than stated.** `Person.IsTestData` is settable only by an Admin at creation (`PersonService.AddPersonAsync:38`) and immutable thereafter (`EditPersonAsync:87` throws). A versioned attestation lives in `Sati.Contracts.V1.TestDataDeletionRules`. |
-| 3. 2-week window for non-test clients | **Not built.** No creation timestamp exists on `Person`. This is the bulk of the work. |
-| 4. Archive-only beyond the window | **Not built.** No status or archive concept exists on `Person` at all. |
+| 3. 20-day window for non-test clients | **Built 2026-09-03.** `Person.CreatedAtUtc`, immutable, plus `ConsumerDeletionRules` and `AdminService.DeleteConsumerInWindowAsync` / the matching API route. Widened from 14 to 20 days at Josh's request when this was implemented; the rest of this document's reasoning is unchanged. |
+| 4. Archive-only beyond the window | **Built 2026-09-03.** `Person.Status` (`Active`/`NoLongerServed`/`Deceased`/`Ghost`), `PersonStatusRules`, and `AdminService.SetPersonStatusAsync` / the matching API route. |
 
 Read before writing anything:
 
@@ -142,7 +148,7 @@ back to Josh.
 Define the window precisely, server-side only, never from a client-supplied clock:
 
 ```
-deletable window = CreatedAtUtc.AddDays(14) > DateTime.UtcNow
+deletable window = CreatedAtUtc.AddDays(20) > DateTime.UtcNow
 ```
 
 UTC, exclusive at the far end. This decides permission, so per `CLAUDE.md` it belongs in
@@ -150,6 +156,9 @@ UTC, exclusive at the far end. This decides permission, so per `CLAUDE.md` it be
 desktop-local service.
 
 ### A3. Legal hold — fail closed until a real registry exists
+
+*Amended 2026-09-03: the interim stub described below was not what shipped. See the note
+after the code block.*
 
 `OPERATIONS.md` line 30 requires that "every purge query excludes records covered by an
 active hold before selecting deletion targets," and the hold registry does not exist yet.
@@ -184,6 +193,21 @@ timeouts, and exceptions all refuse deletion before any child row is changed. An
 `UnconfiguredLegalHoldRegistry` may return `Unavailable` unconditionally so the seam and refusal
 path can be built and tested, but it must never return `Clear` and must never make the deletion
 button actionable.
+
+**What actually shipped, 2026-09-03:** Josh asked for a real registry rather than the interim
+stub above, specifically so rule-3 deletion would be usable immediately rather than gated open
+forever pending a separate legal-hold project. `LocalLegalHoldRegistry` / `ApiLegalHoldRegistry`
+query a real `LegalHold` table (`Sati.Persistence.Models.LegalHold` / `ServerLegalHold`) for an
+unreleased hold on the person; any query exception is caught and mapped to `Unavailable`, never
+allowed to read as `Clear` — the fail-closed property above is unchanged, just backed by a real
+table instead of a stub. `AdminService.PlaceLegalHoldAsync` / `ReleaseLegalHoldAsync` (and the
+matching `/admin/legal-holds` API routes) let an Admin place and release holds.
+
+This is **deliberately narrower than `OPERATIONS.md`'s full record-class/scope hold model** — it
+exists only to gate this one command, not as a general-purpose purge-job registry, and does not
+by itself satisfy `OPERATIONS.md`'s legal-hold gate for any other retention job. It is also
+**short of `OPERATIONS.md`'s dual-control release requirement**: release is single-admin for v1,
+not requiring a second approver. Both are known, tracked gaps — see AGENDA.md — not oversights.
 
 Archive/status work is non-destructive and may ship before the registry. The ordinary-client
 physical-deletion command may be implemented behind the fail-closed gate, but it remains
@@ -373,7 +397,7 @@ Authorization and tenancy:
 - A stale `Revision` is rejected.
 
 Window (A2):
-- Deletion succeeds at day 13, is refused at day 15, from `CreatedAtUtc` in UTC.
+- Deletion succeeds at day 19, is refused at day 20, from `CreatedAtUtc` in UTC.
 - `CreatedAtUtc` cannot be changed through `EditPersonAsync` — mirrors the existing
   `IsTestData` immutability test.
 - A row with a backfilled/absent creation date is archive-only.

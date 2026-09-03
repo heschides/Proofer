@@ -274,7 +274,7 @@ internal static class ContractMapper
         s.ReleaseMedicalDaysBeforeAnniversary, s.Revision,
         s.BillingComplianceRequirements,
         s.AllowCredibleProfileUpdates,
-        VocationalRehabilitationProfile.NormalizeAssistantTitle(s.VrAssistantTitle));
+        VocationalRehabilitationProfile.NormalizeAssistantTitle(s.VrAssistantTitle), s.AnnualPacketOpenDaysBefore);
 
     public static bool TryParseNoteStatus(string? value, out int? parsed) =>
         TryParseNullableOrdinal(NoteStatusNames, value, out parsed);

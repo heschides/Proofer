@@ -41,6 +41,7 @@ namespace Sati.Data
         public DbSet<PersonProvider> PersonProviders { get; set; }
         public DbSet<ComprehensiveAssessment> ComprehensiveAssessments { get; set; }
         public DbSet<SafetyPlan> SafetyPlans { get; set; }
+        public DbSet<DocumentAcknowledgment> DocumentAcknowledgments { get; set; }
         public DbSet<AuditEvent> AuditEvents { get; set; }
         public DbSet<PersonVersion> PersonVersions { get; set; }
         public DbSet<IncidentGroup> IncidentGroups { get; set; }
@@ -74,6 +75,8 @@ namespace Sati.Data
                 ChangeTracker.Entries<FormAttestation>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<DocumentTemplate>()
+                    .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+                ChangeTracker.Entries<DocumentAcknowledgment>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<BillingSubmissionEvent>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
@@ -218,6 +221,16 @@ namespace Sati.Data
                 entity.HasOne(plan => plan.AuthorUser).WithMany().HasForeignKey(plan => plan.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne<User>().WithMany().HasForeignKey(plan => plan.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
+
+            modelBuilder.Entity<DocumentAcknowledgment>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ReceivedOn).HasColumnType("date");
+                entity.Property(x => x.GoodFaithEffortReason).HasMaxLength(1000);
+                entity.HasOne<DocumentArtifact>().WithMany().HasForeignKey(x => x.DocumentArtifactId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<User>().WithMany().HasForeignKey(x => x.RecordedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<Settings>().Property(x => x.AnnualPacketOpenDaysBefore).HasDefaultValue(30);
 
             modelBuilder.Entity<AuditEvent>(entity =>
             {

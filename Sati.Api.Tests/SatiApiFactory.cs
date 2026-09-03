@@ -90,7 +90,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IDbContextOptionsConfiguration<ApiDbContext>>();
             services.RemoveAll<IDatabaseProvider>();
             services.AddDbContextFactory<ApiDbContext>(options =>
-                options.UseSqlite(TestDatabaseConnection));
+                options.UseSqlite(TestDatabaseConnection)
+                    .ReplaceService<IExecutionStrategyFactory, TestRetryingExecutionStrategyFactory>());
             services.AddScoped(provider =>
                 provider.GetRequiredService<IDbContextFactory<ApiDbContext>>().CreateDbContext());
             services.AddDataProtection().UseEphemeralDataProtectionProvider();

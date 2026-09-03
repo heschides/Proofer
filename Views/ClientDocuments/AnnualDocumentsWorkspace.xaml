@@ -1,0 +1,55 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.AnnualDocumentsWorkspace"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" DataContextChanged="OnContextChanged"
+ Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel Margin="18">
+   <TextBlock Text="Annual documents" FontSize="20" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1"/>
+   <WrapPanel Margin="0,12">
+    <TextBlock Text="Cycle beginning" VerticalAlignment="Center" Margin="0,0,8,0"/>
+    <DatePicker SelectedDate="{Binding CycleStart}" AutomationProperties.Name="Annual document cycle beginning"/>
+    <Button Content="Load cycle" Command="{Binding ReloadCommand}" Margin="8,0"/>
+    <Button Content="Save Annual Documents Locally" Command="{Binding SavePacketCommand}" IsEnabled="{Binding CanSavePacket}"/>
+   </WrapPanel>
+   <TextBlock Text="{Binding WindowDescription}" TextWrapping="Wrap"/>
+   <TextBlock Text="{Binding Reminder}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,8"/>
+   <TextBlock Text="{Binding Message}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+   <TextBlock Text="The ZIP includes available drafts and a manifest. Completed releases already recorded in Sati must be retrieved from their saved or signed copies." TextWrapping="Wrap" Margin="0,8"/>
+   <GroupBox Header="Privacy notice" Margin="0,12">
+    <StackPanel Margin="12">
+     <Button Content="Generate privacy notice PDF" Command="{Binding GenerateNoticeCommand}" HorizontalAlignment="Left"/>
+     <TextBlock Text="{Binding ReceiptStatus}" TextWrapping="Wrap" Margin="0,8"/>
+     <TextBlock Text="Receipt date (leave blank if recording an effort to provide it)"/>
+     <DatePicker SelectedDate="{Binding ReceivedOn}" AutomationProperties.Name="Privacy notice received on"/>
+     <TextBlock Text="Good-faith effort explanation" Margin="0,8,0,0"/>
+     <TextBox Text="{Binding GoodFaithEffortReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="1000" AcceptsReturn="True"
+      TextWrapping="Wrap" MinHeight="60" AutomationProperties.Name="Privacy notice good-faith effort"/>
+     <Button Content="Record receipt or effort" Command="{Binding AcknowledgeCommand}" IsEnabled="{Binding CanRecordReceipt}" HorizontalAlignment="Left" Margin="0,8"/>
+    </StackPanel>
+   </GroupBox>
+   <DataGrid ItemsSource="{Binding Artifacts}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="240" AutomationProperties.Name="Current document records">
+    <DataGrid.Columns>
+     <DataGridTextColumn Header="Artifact ID" Binding="{Binding Id}"/>
+     <DataGridTextColumn Header="Document" Binding="{Binding Kind}"/>
+     <DataGridTextColumn Header="Status" Binding="{Binding Origin}"/>
+     <DataGridTextColumn Header="Generated" Binding="{Binding GeneratedAtUtc}"/>
+    </DataGrid.Columns>
+   </DataGrid>
+   <WrapPanel Margin="0,12">
+    <TextBlock Text="Artifact ID to verify" VerticalAlignment="Center" Margin="0,0,8,0"/>
+    <TextBox Text="{Binding VerificationArtifactId, UpdateSourceTrigger=PropertyChanged}" Width="90" AutomationProperties.Name="Artifact ID to verify"/>
+    <Button Content="Choose file and verify" Command="{Binding VerifyCommand}" Margin="8,0"/>
+   </WrapPanel>
+   <TextBlock Text="Verification compares the file's fingerprint with the original record. The file contents are not uploaded." TextWrapping="Wrap"/>
+   <Expander Header="Agency privacy template (administrators)" IsEnabled="{Binding CanManageTemplates}" Margin="0,18">
+    <StackPanel>
+     <TextBlock Text="Publish a new version after agency review. Existing versions remain unchanged. Supported tokens are listed in DOCUMENT_TEMPLATES.md." TextWrapping="Wrap"/>
+     <Button Content="Load current template" Command="{Binding LoadTemplateCommand}" HorizontalAlignment="Left"/>
+     <TextBox Text="{Binding TemplateBody, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap"
+      MinHeight="200" MaxHeight="450" MaxLength="100000" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Agency privacy template source"/>
+     <Button Content="Publish new template version" Command="{Binding PublishTemplateCommand}" HorizontalAlignment="Left"/>
+    </StackPanel>
+   </Expander>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

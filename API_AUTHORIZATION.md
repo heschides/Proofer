@@ -1,7 +1,9 @@
 # API authorization and tenant ownership
 
-*Route inventory current as of 2026-09-03, covering all 129 protected routes. Every route added,
-removed, or rescoped must be reflected here in the same change.*
+*Route inventory mechanically reconciled 2026-09-03: 141 protected routes. The table matches
+`ApiSurface.Routes` after excluding health and anonymous login, and `ApiSurfaceTests` checks that
+manifest against live endpoint registration. Every route added, removed, or rescoped must be
+reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
 `POST /api/v1/auth/login` route and health checks are intentionally outside this table.
@@ -40,6 +42,10 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Admin | `GET /admin/people` | Person and assigned user's `AgencyId` | Administration permission; both ownership markers must equal actor agency. |
 | Admin | `GET /admin/schema-drift` | Not tenant-scoped — deployment metadata | Administration permission; returns table and column names plus applied migration ids for the connected database. No row data, so no consumer information. Schema shape is operational detail about the deployment, not something every signed-in case manager needs to enumerate. |
 | Admin | `POST /admin/test-data/consumers/{personId}/delete` | Person and assigned user's `AgencyId` | Administration permission; both ownership markers must equal actor agency and the Person must carry the immutable creation-time test-data marker. Requires the exact versioned test-only attestation and expected Person revision, runs the complete dependent-record cleanup in one serializable transaction, and retains a PHI-minimized `test-data.consumer-deleted` audit event. Any billing claim line for the consumer blocks the operation, and missing/cross-agency records return 404. |
+| Admin | `POST /admin/consumers/{personId}/delete-in-window` | Person's `AgencyId` | Administration permission in actor agency. Distinct from the test-data command above: no creation-time marker is required, but the Person must be within `ConsumerDeletionRules.DeletionWindowDays` (20 days) of its immutable `CreatedAtUtc`, no claim line for the consumer may belong to a `BillingPeriod` with billing that actually reached a payer (A1), and `ILegalHoldRegistry` must return exactly `Clear` — `Active`, `Unavailable`, or a registry exception all refuse before any row changes. Requires the exact versioned rule-3 attestation (distinct from the test-data one, so an older client cannot invoke the newer command) and expected Person revision. Retains an itemized `consumer.deleted-in-window` audit tombstone — ids, dates, and types per related record, never narrative, name, MaineCareId, birth date, or address. |
+| Admin | `GET /admin/legal-holds` | Hold's `AgencyId` | Administration permission; actor agency only. Query string carries only a `personId`, never a name. |
+| Admin | `POST /admin/legal-holds` | Actor's `AgencyId`, target Person's `AgencyId` | Administration permission; the named Person must be in actor agency. Records `legal-hold.placed`. |
+| Admin | `POST /admin/legal-holds/{legalHoldId}/release` | Hold's `AgencyId` | Administration permission in actor agency; refuses an already-released hold. Release is single-admin for v1 — see `OPERATIONS.md` and `AGENDA.md` for the tracked dual-control gap. Records `legal-hold.released`. |
 | Admin | `POST /admin/demo/seed-ssns` | Person's `AgencyId` | Administration permission; enabled in effect only when the API's startup-validated identity is exactly `SatiDemo` / `Demo`. Generates deterministic synthetic values server-side, encrypts through the configured Demo Key Vault, remains within actor agency, and records `person.ssn-updated` for every Person. It does not broaden the ordinary own-caseload SSN routes. |
 | Admin | `GET /admin/activity` | Audit event's `AgencyId` | Administration permission; bounded activity feed with actor display names from the same agency. |
 | Admin | `GET /admin/operations` | Actor's `AgencyId` | Administration permission; reports database health, retained audit/EDI counts, oldest-record timestamps, and the configured retention policy for the actor's agency. |
@@ -149,7 +155,18 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Forms | `POST /people/{personId}/forms/{type}/attestation/revoke` | Form person's assigned user and agency | Same accessible-caseload gate; a nonblank reason is required and the actor is server-derived. A successful live revocation is append-only and audited. |
 | Forms | `GET /people/{personId}/forms/{type}/prerequisite` | Form person's assigned user and agency | Same accessible-caseload gate; form id, person id, and type must match before the API derives the live prerequisite state. |
 | Forms | `GET /people/{personId}/attestations/pending` | Person's assigned user and agency | Accessible case manager only through `TenantAccess.CanAccessUserAsync`; derives suggestions from eligible notes and forms after the gate. |
-| Annual documents | `POST /people/{personId}/documents/{kind}` | Person's assigned user and agency | Accessible case manager only; renders Agency/Medical releases or Privacy Practices, derives identity and applicable template server-side, and records artifact metadata including exact template provenance. Privacy generation does not create acknowledgment or completion. |
+| Annual documents | `POST /people/{personId}/documents/{kind}` | Person's assigned user and agency | Assigned case manager for Agency/Medical releases. Privacy/Safety Plan rendering also admits reviewers authorized by `TenantAccess.CanAccessUserAsync`, never every supervisor merely sharing an agency. Identity, template/source version, approval status and artifact provenance are derived server-side. Privacy generation does not create acknowledgment or completion. |
+| Annual documents | `GET /people/{personId}/annual-documents` | Person's agency and assigned user | Same-agency accessible caseload through `TenantAccess.CanAccessUserAsync`; window, live artifacts, receipt IDs and preparation reminder are derived server-side. |
+| Annual documents | `POST /people/{personId}/annual-packet` | Person's agency and assigned user | Assigned case manager through `OwnsPersonAsync`; validates the anniversary/window, reads authorization and medical-release attestation and records artifacts in one serializable transaction. Downloads only. |
+| Annual documents | `POST /people/{personId}/documents/privacy-practices/acknowledgment` | Person and artifact's agency | Accessible caseload; exact live generated Privacy Practices artifact must belong to that person/agency. Validated receipt date or good-faith effort; actor server-derived, append-only. |
+| Annual documents | `POST /people/{personId}/documents/verify` | Person and artifact's agency | Accessible caseload; historical or live artifact must belong to person/agency. Compares SHA-256 and length; no file bytes uploaded. |
+| Safety plans | `GET /people/{personId}/safety-plans/latest` | Person's agency and assigned user | Accessible caseload, including authorized supervisors; validates cycle and returns only its latest version. |
+| Safety plans | `POST /people/{personId}/safety-plans/draft` | Person's agency and assigned user | Assigned case manager; caller author must equal validated actor. New immutable-version row only after Approved/Returned; existing Draft/ReadyForReview is returned unchanged. |
+| Safety plans | `PUT /safety-plans/{planId}/document` | Plan person's agency and assigned user | Assigned case manager and original author; Draft only; shared schema validation and expected revision required. |
+| Safety plans | `POST /safety-plans/{planId}/submit` | Plan person's agency and assigned user | Same author gate; validated caller author, complete Draft, and expected revision. |
+| Safety plans | `POST /safety-plans/{planId}/approve` | Plan person's agency and assigned user | Supervisor permission plus `CanAccessUserAsync`; cannot review own plan. ReadyForReview and expected revision required. |
+| Safety plans | `POST /safety-plans/{planId}/return` | Plan person's agency and assigned user | Same supervisor/nonself/caseload gate; ReadyForReview, expected revision and reason required. |
+| People | `PUT /people/{personId}/status` | Person's agency and assigned user | Shared `PersonStatusRules`: own case manager may set allowed lifecycle statuses; Ghost requires administration. Tenant scope, expected revision, history and audit enforced. |
 | Annual documents | `POST /people/{personId}/documents/{kind}/external` | Person's assigned user and agency | Accessible case manager only; validates a supported prerequisite kind, cycle anniversary, and required external-record note before recording the artifact. |
 | Annual documents | `GET /people/{personId}/documents` | Person's assigned user and agency | Accessible case manager only; lists live artifact metadata for one requested cycle after tenant validation. |
 | Document templates | `GET /agencies/{agencyId}/templates/{kind}` | Actor's agency | Administration permission only; requested agency must equal actor agency. Returns that agency's versions and Sati-default versions, never another agency's. |
@@ -184,10 +201,10 @@ gates still do not — no test in either suite notices when those are disabled, 
 separately data-scoped queries, so removing one usually yields an empty result rather than a leak.
 See `API_SECURITY_AUDIT.md`, third pass, before relying on a green suite as evidence for those rows.
 
-The table was reconciled against the routes registered in `ApiEndpoints.cs` on 2026-08-30, and
-re-checked mechanically during the permissions audit the same day: the two sets match exactly at
-114 routes, in both directions. Re-run that comparison when routes change; a route inventory that
-silently falls behind the code is worse than no inventory.
-# Safety-plan routes (2026-09-03)
+The 2026-09-03 reconciliation includes the partial endpoint files `SafetyPlanEndpoints.cs` and
+`AnnualPacketEndpoints.cs`, not just `ApiEndpoints.cs`. The 141 protected routes match in both
+directions after normalizing route parameter constraints. Re-run this comparison on route changes.
 
-`GET /api/v1/people/{personId}/safety-plans/latest`, draft creation, document save, and submit require the assigned case manager through `TenantAccess.OwnsPersonAsync`. Approval and return require a supervisor permission plus a server-side same-agency check on the plan's assigned consumer and author. A caller-controlled author id is compared with the validated actor before access is granted.
+Safety-plan regressions were proven to fail with the old same-agency-only supervisor check and
+with the revision check removed. Packet isolation fails with its ownership gate removed. Receipt
+immutability fails when its append-only guard is removed, in both API and local persistence.

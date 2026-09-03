@@ -179,7 +179,7 @@ public sealed class CloudApiClient
         await EnsureSuccessAsync(response, cancellationToken);
         var values = response.Headers.TryGetValues(headerName, out var found)
             ? found.ToList()
-            : [];
+            : response.Content.Headers.TryGetValues(headerName, out var contentHeaders) ? contentHeaders.ToList() : [];
         return (await response.Content.ReadAsByteArrayAsync(cancellationToken), values);
     }
 

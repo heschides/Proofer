@@ -22,6 +22,8 @@ public sealed class DocumentArtifact
     public string? TemplateOwner { get; private set; }
     public string? TemplateKey { get; private set; }
     public int? TemplateVersion { get; private set; }
+    public int? SourceContentId { get; private set; }
+    public int? SourceContentVersion { get; private set; }
     public string BlankFieldsJson { get; private set; } = "[]";
     public string? ExternalNote { get; private set; }
     public int? SupersededByArtifactId { get; private set; }
@@ -41,7 +43,9 @@ public sealed class DocumentArtifact
         IReadOnlyCollection<string>? blankFields = null,
         string? templateOwner = null,
         string? templateKey = null,
-        int? templateVersion = null)
+        int? templateVersion = null,
+        int? sourceContentId = null,
+        int? sourceContentVersion = null)
     {
         if (origin == DocumentArtifactOrigin.RecordedAsExternal)
             throw new ArgumentException("Generated content cannot use the external origin.", nameof(origin));
@@ -64,6 +68,8 @@ public sealed class DocumentArtifact
             TemplateOwner = Normalize(templateOwner),
             TemplateKey = Normalize(templateKey),
             TemplateVersion = templateVersion,
+            SourceContentId = sourceContentId,
+            SourceContentVersion = sourceContentVersion,
             BlankFieldsJson = JsonSerializer.Serialize(
                 (blankFields ?? []).Where(value => !string.IsNullOrWhiteSpace(value))
                     .Select(value => value.Trim()).Distinct(StringComparer.Ordinal).Order().ToArray())

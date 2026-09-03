@@ -386,7 +386,8 @@ public sealed record SettingsDto(
     BillingComplianceRequirements BillingComplianceRequirements =
         BillingComplianceGate.DefaultRequirements,
     bool AllowCredibleProfileUpdates = false,
-    string VrAssistantTitle = VocationalRehabilitationProfile.DefaultAssistantTitle);
+    string VrAssistantTitle = VocationalRehabilitationProfile.DefaultAssistantTitle,
+    int AnnualPacketOpenDaysBefore = AnnualPacketWindow.DefaultOpenDays);
 
 public sealed record ScratchpadDto(
     int Id,
@@ -528,13 +529,15 @@ public sealed record TestConsumerDeletionResultDto(
     int PersonVersionsDeleted,
     int PersonProvidersDeleted = 0,
     int FormAttestationsDeleted = 0,
-    int DocumentArtifactsDeleted = 0)
+    int DocumentArtifactsDeleted = 0,
+    int SafetyPlansDeleted = 0,
+    int DocumentAcknowledgmentsDeleted = 0)
 {
     public int RelatedRecordsDeleted =>
         FormsDeleted + NotesDeleted + ContactsDeleted + ReviewsDeleted +
         AppointmentsDeleted + AssessmentsDeleted + AtRequestsDeleted +
         AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted +
-        FormAttestationsDeleted + DocumentArtifactsDeleted;
+        FormAttestationsDeleted + DocumentArtifactsDeleted + SafetyPlansDeleted + DocumentAcknowledgmentsDeleted;
 }
 
 /// <summary>Rule-3 deletion: delete a consumer created within the window. See <c>ConsumerDeletionRules</c>.</summary>
@@ -559,13 +562,15 @@ public sealed record ConsumerDeletionResultDto(
     int PersonProvidersDeleted,
     int FormAttestationsDeleted,
     int DocumentArtifactsDeleted,
-    int ClaimLinesDeleted)
+    int ClaimLinesDeleted,
+    int SafetyPlansDeleted = 0,
+    int DocumentAcknowledgmentsDeleted = 0)
 {
     public int RelatedRecordsDeleted =>
         FormsDeleted + NotesDeleted + ContactsDeleted + ReviewsDeleted +
         AppointmentsDeleted + AssessmentsDeleted + AtRequestsDeleted +
         AtRequestItemsDeleted + PersonVersionsDeleted + PersonProvidersDeleted +
-        FormAttestationsDeleted + DocumentArtifactsDeleted + ClaimLinesDeleted;
+        FormAttestationsDeleted + DocumentArtifactsDeleted + ClaimLinesDeleted + SafetyPlansDeleted + DocumentAcknowledgmentsDeleted;
 }
 
 public sealed record AdminActivityDto(

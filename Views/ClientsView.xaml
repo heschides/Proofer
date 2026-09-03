@@ -1140,6 +1140,10 @@
                                           HorizontalScrollBarVisibility="Disabled"
                                           AutomationProperties.Name="Consumer overview">
                             <DockPanel LastChildFill="True">
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding AnnualDocuments.Reminder}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           AutomationProperties.Name="Annual document preparation reminder" />
                                 <Border DockPanel.Dock="Top"
                                         Background="{DynamicResource DangerSoftBrush}"
                                         BorderBrush="{DynamicResource OverdueBorderBrush}"
@@ -2524,6 +2528,13 @@
                         <TabItem Header="Agency Release"
                                  Style="{StaticResource ClientWorkspaceTabItemStyle}">
                             <clientDocuments:AgencyReleaseWorkspace DataContext="{Binding AgencyRelease}" />
+                        </TabItem>
+
+                        <TabItem Header="Safety Plan" Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <clientDocuments:SafetyPlanWorkspace DataContext="{Binding SafetyPlan}" />
+                        </TabItem>
+                        <TabItem Header="Annual Documents" Style="{StaticResource ClientWorkspaceTabItemStyle}">
+                            <clientDocuments:AnnualDocumentsWorkspace DataContext="{Binding AnnualDocuments}" />
                         </TabItem>
 
                         <!-- AT REQUESTS

@@ -27,6 +27,29 @@ public sealed class CloudApiRouteTests
 {
     private const int PersonId = 1210;
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    public async Task MissingSafetyPlanIsAnEmptyWorkspaceNotAFailedRequest(string body)
+    {
+        var recorder = new UriRecorder(JsonBody(body));
+        var service = new CloudSafetyPlanService(ClientFor(recorder), new Sati.Data.SessionService());
+        Assert.Null(await service.GetAsync(PersonId, new DateTime(2026, 9, 1)));
+        Assert.Equal($"/api/v1/people/{PersonId}/safety-plans/latest", recorder.LastUri?.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task DownloadedSafetyPlanKeepsTheServersDraftFileName()
+    {
+        var content = new ByteArrayContent([1, 2, 3]);
+        content.Headers.ContentDisposition = new("attachment") { FileNameStar = "Safety-Plan-DRAFT-1210.pdf" };
+        var recorder = new UriRecorder(content);
+        var service = new CloudSafetyPlanService(ClientFor(recorder), new Sati.Data.SessionService());
+        var result = await service.GenerateAsync(PersonId, DateTime.Today);
+        Assert.Equal("Safety-Plan-DRAFT-1210.pdf", result.FileName);
+        Assert.Equal($"/api/v1/people/{PersonId}/documents/SafetyPlan", recorder.LastUri?.AbsolutePath);
+    }
+
     [Fact]
     public async Task GeneratingAFormRequestsTheVersionedRoute()
     {

@@ -22,12 +22,14 @@ internal static class DocumentArtifactStore
         CancellationToken cancellationToken,
         string? templateOwner = null,
         string? templateKey = null,
-        int? templateVersion = null)
+        int? templateVersion = null,
+        int? sourceContentId = null,
+        int? sourceContentVersion = null)
     {
         var artifact = DocumentArtifact.Generated(
             personId, agencyId, kind, cycleStart, origin, generatedAtUtc,
             generatedByUserId, content, suggestedFileName, blankFields,
-            templateOwner, templateKey, templateVersion);
+            templateOwner, templateKey, templateVersion, sourceContentId, sourceContentVersion);
         return await StageReplacementAsync(context, artifact, personId, kind, cycleStart, cancellationToken);
     }
 
@@ -63,7 +65,9 @@ internal static class DocumentArtifactStore
         artifact.ExternalNote,
         artifact.TemplateOwner,
         artifact.TemplateKey,
-        artifact.TemplateVersion);
+        artifact.TemplateVersion,
+        artifact.SourceContentId,
+        artifact.SourceContentVersion);
 
     private static async Task<DocumentArtifact> StageReplacementAsync(
         SatiContext context,

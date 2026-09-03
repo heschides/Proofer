@@ -553,30 +553,26 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.41", version);
+        Assert.Equal("1.2.42", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("A quieter screen", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Room to undo a duplicate", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Build a case note from what you checked" &&
-            section.Items.Any(item => item.Contains("Meeting Narrative", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("invents nothing", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "A duplicate consumer is no longer a dead end" &&
+            section.Items.Any(item => item.Contains("MaineCareId", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("20 days", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "The next form is suggested again" &&
-            section.Items.Any(item => item.Contains("next outstanding form", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("already satisfied", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Safety plans live in Sati now" &&
+            section.Items.Any(item => item.Contains("submit it for review", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("new revision", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A screen that covers itself" &&
-            section.Items.Any(item => item.Contains("ten minutes", StringComparison.OrdinalIgnoreCase)) &&
-            // The overlay must never be described as a lock.
-            section.Items.Any(item => item.Contains("does not lock Windows", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Lighter buttons in the orange palettes" &&
-            section.Items.Any(item => item.Contains("lighter orange", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("accent text is unchanged", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Annual documents get a place of their own" &&
+            section.Items.Any(item => item.Contains("30-day window", StringComparison.OrdinalIgnoreCase)) &&
+            // A packet ZIP must never be described as a substitute for a completed, signed release.
+            section.Items.Any(item => item.Contains("does not replace that", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
-            section.Items.Any(item => item.Contains("legal-hold", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&
             section.Items.Any(item => item.Contains("corrected claim", StringComparison.OrdinalIgnoreCase)));
 
         var loginView = File.ReadAllText(Path.Combine(

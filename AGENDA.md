@@ -1,14 +1,53 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.42 — 2026-09-03
+
+"Room to undo a duplicate." Consumer-deletion, archive, and legal-hold foundation from the
+[[Ordinary-consumer deletion, archive status, and bulk-import dedupe (2026-09-03)]] work, plus the
+safety-plan/annual-document/privacy-notice workflow from
+`ANNUAL_DOCUMENT_RELEASE_READINESS.md` and `NOTE_FORM_ATTESTATION_DESIGN.md`. Invoked via `invoke
+DATT!`; preflight paused once for a concurrent-edit check (the working tree was still moving under
+a second, independently running agent) and once for explicit authorization of the schema-changing
+Demo migration below, both confirmed by Josh before continuing.
+
+**Schema-changing release.** Seven pending migrations: `AddFormAttestations`,
+`AddDocumentArtifacts`, `AddPersonCreatedAtAndStatus`, `AddLegalHolds`,
+`AddDocumentTemplatesAndSafetyPlans`, `AddSafetyPlans`, `CompleteAnnualDocumentWorkflow` — 94 total
+in the chain. `dotnet ef migrations has-pending-model-changes` confirmed clean against the model
+before proceeding.
+
+**Release validation, independently re-run rather than only trusted from source preparation:**
+Release-configuration build across the full solution, 0 errors. Full test suite in Release
+configuration after the version bump: **1,266 desktop/domain passed** (1 legitimate skip, the
+opt-in local-AI-model evaluation), **374 API passed**, **4 Carika passed**. `git diff --check`
+clean.
+
+- [x] Version bump to 1.2.42 across `Sati.csproj`, `Sati.Api/Sati.Api.csproj`, the three installer
+      builder script defaults, `scripts/Test-DemoReadiness.ps1` and
+      `scripts/Test-DemoGlobalAdmin.ps1`'s expected-release defaults, `installer/README.md`'s
+      example commands, and `Services/ProductReleaseNotes.cs`'s release notes (title "Room to undo a
+      duplicate"), with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
+      `Sati.Api.Tests/TenantAuthorizationTests.cs`. Verified by the Release-configuration test run
+      above.
+- [ ] Source commit and push to `origin/master`.
+- [ ] Apply the authorized Demo migration via an existence-guarded script, rollback-only dry run
+      then real then idempotency rerun, using the temporary exact-IP `SatiDemo` firewall rule Josh
+      adds and removes himself. Public IP at preflight: `72.95.106.10` (re-verified from the value
+      `ANNUAL_DOCUMENT_RELEASE_READINESS.md` recorded earlier the same day).
+- [ ] Publish the Demo API; verify `/health/live`, `/health/ready`, `/health/version`, and contract
+      revision parity.
+- [ ] Build, accept, and publish both installers to their exact distribution folders.
+- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+
 ## Compliance attestation and annual documents — designed 2026-09-03
 
-**Steps 1–5 implemented locally on 2026-09-03; not released or deployed.** Full design in
+**Steps 1–9 implemented in source on 2026-09-03; not released or deployed.** Release preparation
+and remaining operational gates are recorded in `ANNUAL_DOCUMENT_RELEASE_READINESS.md`. Full design in
 `NOTE_FORM_ATTESTATION_DESIGN.md`.
 
-The note-to-form bridge is a message box in `Views/ShellWindow.xaml.cs`. Saving a note tagged with
-a form type asks whether the form was completed today and stamps `DateTime.Today`, discarding the
-note's event date, resolving the cycle against today, and resolving the person from the dashboard
-selection. Eleven confirmed defects are inventoried in section 1 of the design. Defect 1 is the
+The removed note-to-form bridge used a message box in `Views/ShellWindow.xaml.cs`. Saving a note
+tagged with a form type could stamp `DateTime.Today`, discarding the note's event date and using
+the dashboard selection. Eleven confirmed defects are inventoried in section 1 of the design. Defect 1 is the
 serious one: a synthesized `CompletedDate` silently changes which past service dates
 `BillingComplianceGate.IsBillingWindowBlocked` treats as billable.
 
@@ -17,7 +56,8 @@ attestation itself**. Prerequisites that live outside Sati must be checked befor
 accepted, with a per-cycle "recorded externally" escape hatch. Document existence is recorded as
 metadata plus a SHA-256, never stored bytes. Templates are per agency with a Sati default,
 append-only versioned. The annual packet opens 30 days before the anniversary and renders only the
-documents needing no consumer input; the three releases stay deferred.
+notice and permitted records request plus draft releases and the saved safety-plan content.
+Consumer choices, authorization, final safety approval and form attestation remain separate work.
 
 - [x] Steps 1 through 3 of the landing order: `FormAttestation` table and backfill, delete the
       bridge, generalize the Reviews attestation control to all twelve form types. This closes the
@@ -31,27 +71,36 @@ documents needing no consumer input; the three releases stay deferred.
       constrained MigraDoc composer, agency-Admin read/publish routes, and local/cloud privacy
       generation with exact template-version provenance. Josh authorized a generic provisional
       Privacy Practices default; it is visibly marked for agency/privacy/legal review.
-- [ ] Steps 6 through 9: structured safety plans, privacy acknowledgment, annual packet,
-      hash verification, and records-request recipient work.
+- [x] Step 6: seven-section safety-plan authoring in WPF/local/API, locked submitted/reviewed
+      versions, scoped supervisor approval/return, optimistic concurrency, PDF source provenance.
+- [x] Step 7: immutable privacy-notice receipt/effort rows bound to the current generated artifact;
+      generation alone no longer satisfies the prerequisite. Regeneration requires another receipt.
+- [x] Step 8: agency-configurable packet window (default 30 days, 0–180 supported), one ZIP and
+      manifest, profile/Annual Documents controls and read-time dashboard preparation reminder.
+      Existing completed/external releases are explicitly omitted rather than reconstructed.
+- [x] Step 9: SHA-256 plus byte-length verification, both during ZIP construction and through a
+      staff-selected-file verifier. Primary-care recipient inherits missing organization address/
+      phone; request included only after medical release attestation. Download only; staff send it.
 - [ ] Replace/review the provisional Privacy Practices wording when Josh has the actual template.
       Confirm agency-specific legal effective date, privacy contact, complaint channels, uses,
       rights, and additional applicable restrictions before production use.
-- [ ] Josh to provide the annual safety-plan section schema and medical records request template;
-      resolve safety-plan ownership and supervisor review (O-6/O-7) before step 6.
-- [ ] Open questions O-1, O-4, O-6, and O-7 and risks R-1 through R-4 in the design need answers
-      before the steps they touch. O-2, O-3, and O-5 were resolved by Josh on 2026-09-03. O-1 in
-      particular: a stored hash nothing can verify is decoration, so step 9 must build the verify
-      action before this feature is released.
+- [x] O-1 through O-7 engineering choices resolved: user-approved generator, Comprehensive
+      Assessment prerequisite, reasoned technical override, shared safety structure with supervisor
+      review, downloadable/staff-sent records request after medical release, and working verifier.
+      Agency/legal review and the retention questions in R-3/R-4 remain operational work, not a
+      claim of compliance. See `REGULATORY_CONCERNS.md` and the implementation addendum in the design.
 - [x] Form completion and revocation now emit `form.attested` and
-      `form.attestation-revoked`; the later document/safety-plan/packet actions remain with their
-      owning implementation steps.
+      `form.attestation-revoked`; document, safety-plan, receipt and packet events are documented in
+      `AUDIT_EVENTS.md` without copying narratives or receipt explanations into metadata.
 - [ ] Apply `20260903152847_AddFormAttestations` only through the controlled migration process.
       It has not been applied to Demo; workstation access requires the temporary exact-IP firewall
       rule that only Josh may add and remove.
 - [ ] Apply `20260903173950_AddDocumentArtifacts` through the same controlled migration process.
       It has not been applied to Demo or Production.
-- [ ] Apply `20260903183358_AddDocumentTemplates` through the controlled migration process.
+- [ ] Apply `20260903185920_AddDocumentTemplatesAndSafetyPlans` through the controlled migration process.
       It creates the versioned table and provisional default; it has not been applied to any runtime database.
+- [ ] Apply `20260903190302_AddSafetyPlans` and `20260903200511_CompleteAnnualDocumentWorkflow`
+      through the same controlled process. No runtime database was changed during preparation.
 - [ ] Sati's comprehensive assessments and PCPs are development-only; Evergreen holds the
       production records. Both map to no prerequisite until an Evergreen API integration exists,
       which is a `REGULATORY_CONCERNS.md` item first.
@@ -4057,4 +4106,43 @@ work; deployment and migration remain release-playbook actions.
       retention, and API contract; do not infer structure by parsing scratchpad text.
 # Safety-plan authoring (2026-09-03)
 
-The shared, versioned Safety Plan structure is now implemented locally in source with a Draft → Ready for review → Approved/Returned workflow. A plan is final only after same-agency supervisor approval; unapproved PDF output is marked draft and cannot satisfy the annual Safety Plan prerequisite. The scaffolded `AddSafetyPlans` migration has not been deployed to Demo or Production. A WPF authoring surface remains the next client-facing task.
+The shared, versioned Safety Plan structure is implemented in source with a Draft → Ready for review → Approved/Returned workflow and WPF authoring/review controls. Approval requires a non-author supervisor whose actual caseload scope includes the consumer; agency equality alone is not sufficient. Unapproved PDF output is marked draft and cannot satisfy the annual Safety Plan prerequisite. The scaffolded migrations have not been deployed to Demo or Production.
+
+## Ordinary-consumer deletion, archive status, and bulk-import dedupe (2026-09-03)
+
+Full write-up in `DECISIONS.md`, "Ordinary-client deletion within a 20-day window, and a real
+(narrow) legal-hold registry." Design in `HANDOFF_CLIENT_DELETION_POLICY.md`, now updated to
+match what shipped.
+
+- [x] Bulk Credible import dedupe checks CredibleClientId, then MaineCareId, then normalized
+      name+DOB, matching CREDIBLE_IMPORT_DESIGN.md's specified match order — previously
+      CredibleClientId only, which is why the workflow demo's re-import created duplicates for
+      consumers who predate Credible import.
+- [x] Credible import now maps `address1` to `Person.Address` as well as `Person.BillingStreet` —
+      previously only the claim-address field was populated, which the demo also surfaced.
+- [x] `Person.CreatedAtUtc` (immutable, migrated), `Person.Status` archive field, and their
+      exclusion from `GetAllPeopleAsync` and everything generated from it.
+- [x] `ConsumerDeletionRules` (window + A1 billing-integrity gate), `AdminService.DeleteConsumerInWindowAsync`
+      and the matching API route, itemized audit tombstone with a PHI-exclusion test.
+- [x] `PersonStatusRules`, `AdminService.SetPersonStatusAsync` and the matching API route —
+      case manager may set NoLongerServed/Deceased on their own caseload, only Admin may set Ghost.
+- [x] A real, minimal `ILegalHoldRegistry` (`LocalLegalHoldRegistry` / `ApiLegalHoldRegistry`) over
+      a new `LegalHold` table, plus Admin place/release actions and API routes. Deliberately
+      narrower than `OPERATIONS.md`'s full record-class/scope hold model — see the two items below.
+- [x] Admin dashboard: a typed-name confirmation dialog (`TypedConfirmationDialog`, Confirm
+      disabled until the exact consumer name is typed) for rule-3 deletion, alongside the existing
+      test-consumer-delete action. Not yet visually exercised in a running app — the ViewModel
+      command logic has full test coverage; the XAML has not been rendered/clicked through.
+- [ ] **Dual-control legal-hold release.** `OPERATIONS.md`'s legal-hold gate requires a second
+      approver to release a hold; the shipped registry is single-admin release. Explicitly scoped
+      out at implementation time (Josh's call) rather than an oversight — needs a real design pass
+      (who the second approver is, whether it blocks or just double-records) before building.
+- [ ] **Legal-hold registry is scoped to gating consumer deletion only.** It does not implement
+      `OPERATIONS.md`'s general record-class/scope hold model and does not by itself satisfy that
+      gate for any other retention or purge job — those items (line ~2364, ~2653 above) remain open.
+- [ ] Show record counts to the Admin *before* confirming rule-3 deletion, per
+      HANDOFF_CLIENT_DELETION_POLICY.md's audit section. Shipped without a pre-count preview
+      endpoint; the confirmation dialog names the categories of data that will be deleted but not
+      exact counts. The success notice after deletion does show exact counts.
+- [ ] `address2` is not mapped on Credible import — no fixture or real export confirms Credible's
+      actual label text for it, and the mapper's design is to never guess a label.

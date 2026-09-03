@@ -17,14 +17,15 @@ using Sati.Forms;
 
 namespace Sati.Api.Endpoints;
 
-internal static class ApiEndpoints
+internal static partial class ApiEndpoints
 {
     public static void MapSatiApi(this WebApplication app)
     {
         MapAuth(app);
         var api = app.MapGroup("/api/v1")
             .RequireAuthorization()
-            .AddEndpointFilter<ValidatedActorFilter>();
+            .AddEndpointFilter<ValidatedActorFilter>()
+            .AddEndpointFilter<SingleAttemptWriteFilter>();
         MapProfile(api);
         MapAudit(api);
         MapAdmin(api);
@@ -35,6 +36,7 @@ internal static class ApiEndpoints
         MapReviews(api);
         MapAssessments(api);
         MapSafetyPlans(api);
+        MapAnnualPackets(api);
         MapProviders(api);
         MapAtRequests(api);
         MapAiContext(api);
@@ -472,6 +474,10 @@ internal static class ApiEndpoints
                 var personProvidersDeleted = await db.PersonProviders
                     .Where(link => link.PersonId == personId)
                     .ExecuteDeleteAsync(cancellationToken);
+                var documentAcknowledgmentsDeleted = await db.DocumentAcknowledgments
+                    .Where(receipt => db.DocumentArtifacts.Any(artifact => artifact.Id == receipt.DocumentArtifactId && artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                var safetyPlansDeleted = await db.SafetyPlans.Where(plan => plan.PersonId == personId).ExecuteDeleteAsync(cancellationToken);
                 var documentArtifactsDeleted = await db.DocumentArtifacts
                     .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
                     .ExecuteDeleteAsync(cancellationToken);
@@ -528,7 +534,7 @@ internal static class ApiEndpoints
                     personVersionsDeleted,
                     personProvidersDeleted,
                     formAttestationsDeleted,
-                    documentArtifactsDeleted);
+                    documentArtifactsDeleted, safetyPlansDeleted, documentAcknowledgmentsDeleted);
                 auditTrail.Record(
                     actor,
                     AuditActions.TestConsumerDeleted,
@@ -544,6 +550,8 @@ internal static class ApiEndpoints
                         personProvidersDeleted = result.PersonProvidersDeleted,
                         formAttestationsDeleted = result.FormAttestationsDeleted,
                         documentArtifactsDeleted = result.DocumentArtifactsDeleted,
+                        safetyPlansDeleted = result.SafetyPlansDeleted,
+                        documentAcknowledgmentsDeleted = result.DocumentAcknowledgmentsDeleted,
                         reviewsDeleted = result.ReviewsDeleted,
                         appointmentsDeleted = result.AppointmentsDeleted,
                         assessmentsDeleted = result.AssessmentsDeleted,
@@ -614,7 +622,7 @@ internal static class ApiEndpoints
                 actor,
                 AuditActions.LegalHoldPlaced,
                 "LegalHold",
-                metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId, reason = hold.Reason }));
+                metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId }));
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(ToLegalHoldDto(hold));
         });
@@ -852,6 +860,10 @@ internal static class ApiEndpoints
             var personProvidersDeleted = await db.PersonProviders
                 .Where(link => link.PersonId == personId)
                 .ExecuteDeleteAsync(cancellationToken);
+            var documentAcknowledgmentsDeleted = await db.DocumentAcknowledgments
+                .Where(receipt => db.DocumentArtifacts.Any(artifact => artifact.Id == receipt.DocumentArtifactId && artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId))
+                .ExecuteDeleteAsync(cancellationToken);
+            var safetyPlansDeleted = await db.SafetyPlans.Where(plan => plan.PersonId == personId).ExecuteDeleteAsync(cancellationToken);
             var documentArtifactsDeleted = await db.DocumentArtifacts
                 .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
                 .ExecuteDeleteAsync(cancellationToken);
@@ -897,7 +909,8 @@ internal static class ApiEndpoints
             var result = new ConsumerDeletionResultDto(
                 personId, formsDeleted, notesDeleted, contactsDeleted, reviewsDeleted, appointmentsDeleted,
                 assessmentsDeleted, atRequestsDeleted, atRequestItemsDeleted, personVersionsDeleted,
-                personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted);
+                personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted,
+                safetyPlansDeleted, documentAcknowledgmentsDeleted);
 
             auditTrail.Record(
                 actor,
@@ -2937,83 +2950,6 @@ internal static class ApiEndpoints
         });
     }
 
-    private static void MapSafetyPlans(RouteGroupBuilder api)
-    {
-        api.MapGet("/people/{personId:int}/safety-plans/latest", async Task<IResult> (int personId, ClaimsPrincipal principal, ApiDbContext db, CancellationToken ct) =>
-        {
-            var actor = Actor.From(principal);
-            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, ct)) return Results.NotFound();
-            var plan = await db.SafetyPlans.AsNoTracking().Where(x => x.PersonId == personId && x.Status != "Superseded")
-                .OrderByDescending(x => x.CycleStart).ThenByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-            return Results.Json(plan is null ? null : ToSafetyPlan(plan));
-        });
-
-        api.MapPost("/people/{personId:int}/safety-plans/draft", async Task<IResult> (int personId, int authorUserId, DateTime cycleStart, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
-        {
-            var actor = Actor.From(principal);
-            if (authorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, personId, ct)) return Results.NotFound();
-            var cycle = cycleStart.Date;
-            var editable = await db.SafetyPlans.Where(x => x.PersonId == personId && x.AuthorUserId == actor.UserId && x.CycleStart == cycle && (x.Status == "Draft" || x.Status == "Returned"))
-                .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-            if (editable is not null) return Results.Ok(ToSafetyPlan(editable));
-            var version = (await db.SafetyPlans.Where(x => x.PersonId == personId && x.CycleStart == cycle).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
-            var now = DateTime.UtcNow;
-            var plan = new ServerSafetyPlan { PersonId = personId, AuthorUserId = actor.UserId, CycleStart = cycle, Version = version, CreatedAtUtc = now, UpdatedAtUtc = now, DocumentJson = SafetyPlanRules.EmptyDocumentJson() };
-            db.SafetyPlans.Add(plan); audit.Record(actor, AuditActions.SafetyPlanCreated, "SafetyPlan", null);
-            await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
-        });
-
-        api.MapPut("/safety-plans/{planId:int}/document", async Task<IResult> (int planId, SaveSafetyPlanDocumentRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
-        {
-            var errors = SafetyPlanRules.Validate(request.DocumentJson, false);
-            if (errors.Count > 0) return Results.ValidationProblem(errors);
-            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
-            if (plan is null || plan.AuthorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, plan.PersonId, ct)) return Results.NotFound();
-            if (plan.Status is not ("Draft" or "Returned")) return Results.Conflict(new ApiErrorDto("safety_plan_locked", "Only a draft or returned safety plan can be edited.", string.Empty));
-            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before saving.", string.Empty));
-            plan.DocumentJson = request.DocumentJson; plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
-            audit.Record(actor, AuditActions.SafetyPlanUpdated, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
-        });
-
-        api.MapPost("/safety-plans/{planId:int}/submit", async Task<IResult> (int planId, int authorUserId, int expectedRevision, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
-        {
-            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
-            if (plan is null || authorUserId != actor.UserId || plan.AuthorUserId != actor.UserId || !await TenantAccess.OwnsPersonAsync(db, actor, plan.PersonId, ct)) return Results.NotFound();
-            var errors = SafetyPlanRules.Validate(plan.DocumentJson, true); if (errors.Count > 0) return Results.ValidationProblem(errors);
-            if (plan.Status is not ("Draft" or "Returned")) return Results.Conflict(new ApiErrorDto("safety_plan_locked", "This safety plan is not editable.", string.Empty));
-            if (expectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before submitting.", string.Empty));
-            plan.Status = "ReadyForReview"; plan.ReturnReason = null; plan.SubmittedAtUtc = plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
-            audit.Record(actor, AuditActions.SafetyPlanSubmitted, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
-        });
-
-        api.MapPost("/safety-plans/{planId:int}/approve", async Task<IResult> (int planId, ReviewSafetyPlanRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
-        {
-            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
-            if (plan is null || !actor.HasSupervisorPermissions || !await CanReviewSafetyPlanAsync(db, actor, plan, ct)) return Results.NotFound();
-            if (plan.Status != "ReadyForReview") return Results.Conflict(new ApiErrorDto("safety_plan_not_ready", "Only a submitted safety plan may be approved.", string.Empty));
-            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before approving.", string.Empty));
-            plan.Status = "Approved"; plan.ApprovedAtUtc = plan.UpdatedAtUtc = DateTime.UtcNow; plan.ApprovedByUserId = actor.UserId; plan.Revision++;
-            audit.Record(actor, AuditActions.SafetyPlanApproved, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
-        });
-
-        api.MapPost("/safety-plans/{planId:int}/return", async Task<IResult> (int planId, ReviewSafetyPlanRequest request, ClaimsPrincipal principal, ApiDbContext db, AuditTrail audit, CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.ReturnReason) || request.ReturnReason.Trim().Length > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["returnReason"] = ["A return reason of 500 characters or fewer is required."] });
-            var actor = Actor.From(principal); var plan = await db.SafetyPlans.SingleOrDefaultAsync(x => x.Id == planId, ct);
-            if (plan is null || !actor.HasSupervisorPermissions || !await CanReviewSafetyPlanAsync(db, actor, plan, ct)) return Results.NotFound();
-            if (plan.Status != "ReadyForReview") return Results.Conflict(new ApiErrorDto("safety_plan_not_ready", "Only a submitted safety plan may be returned.", string.Empty));
-            if (request.ExpectedRevision != plan.Revision) return Results.Conflict(new ApiErrorDto("safety_plan_stale", "This safety plan changed. Reload before returning.", string.Empty));
-            plan.Status = "Returned"; plan.ReturnReason = request.ReturnReason.Trim(); plan.UpdatedAtUtc = DateTime.UtcNow; plan.Revision++;
-            audit.Record(actor, AuditActions.SafetyPlanReturned, "SafetyPlan", plan.Id); await db.SaveChangesAsync(ct); return Results.Ok(ToSafetyPlan(plan));
-        });
-    }
-
-    private static SafetyPlanDto ToSafetyPlan(ServerSafetyPlan plan) => new(plan.Id, plan.PersonId, plan.AuthorUserId, plan.CycleStart, plan.Status, plan.Version, plan.Revision, plan.CreatedAtUtc, plan.UpdatedAtUtc, plan.SubmittedAtUtc, plan.ApprovedAtUtc, plan.ApprovedByUserId, plan.ReturnReason, plan.DocumentJson);
-
-    private static Task<bool> CanReviewSafetyPlanAsync(ApiDbContext db, Actor actor, ServerSafetyPlan plan, CancellationToken ct) =>
-        (from person in db.People.AsNoTracking() join author in db.Users.AsNoTracking() on person.UserId equals author.Id
-         where person.Id == plan.PersonId && person.AgencyId == actor.AgencyId && author.AgencyId == actor.AgencyId && author.Id == plan.AuthorUserId
-         select person.Id).AnyAsync(ct);
 
     private static void MapProviders(RouteGroupBuilder api)
     {
@@ -3832,6 +3768,8 @@ internal static class ApiEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["settings"] = ["Settings contain an invalid negative value or percentage."] });
             if (!BillingComplianceGate.IsSupported(request.BillingComplianceRequirements))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["billingComplianceRequirements"] = ["The compliance requirement selection is invalid."] });
+            if (request.AnnualPacketOpenDaysBefore is < 0 or > 180)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["annualPacketOpenDaysBefore"] = ["Choose 0–180 days."] });
             if (string.IsNullOrWhiteSpace(request.VrAssistantTitle) ||
                 request.VrAssistantTitle.Trim().Length > VocationalRehabilitationProfile.AssistantTitleMaxLength)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["vrAssistantTitle"] = [$"The VR assistant title is required and must not exceed {VocationalRehabilitationProfile.AssistantTitleMaxLength} characters."] });
@@ -5045,10 +4983,10 @@ internal static class ApiEndpoints
             }
 
             var actor = Actor.From(principal);
-            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+            var person = await AccessibleSafetyPerson(db, actor, personId, cancellationToken);
+            if (person is null || (documentKind is not (AnnualDocumentKind.SafetyPlan or AnnualDocumentKind.PrivacyPractices) &&
+                !await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken)))
                 return Results.NotFound();
-            var person = await db.People.AsNoTracking().SingleAsync(
-                candidate => candidate.Id == personId, cancellationToken);
             if (person.EffectiveDate is not DateTime effectiveDate)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
@@ -5084,6 +5022,8 @@ internal static class ApiEndpoints
             string? templateOwner = null;
             string? templateKey = null;
             int? templateVersion = null;
+            int? sourceContentId = null;
+            int? sourceContentVersion = null;
             var origin = release?.IsDraft == true && isRelease
                 ? DocumentArtifactOrigin.Draft
                 : DocumentArtifactOrigin.GeneratedInSati;
@@ -5098,6 +5038,8 @@ internal static class ApiEndpoints
                 pdf = safetyPlanGenerator.Generate(subject.ConsumerName ?? string.Empty, cycleStart, content, plan.Status, generatedAtUtc);
                 blankFields = content.Sections.Where(x => string.IsNullOrWhiteSpace(x.Text)).Select(x => x.Id).ToArray();
                 origin = plan.Status == "Approved" ? DocumentArtifactOrigin.GeneratedInSati : DocumentArtifactOrigin.Draft;
+                sourceContentId = plan.Id;
+                sourceContentVersion = plan.Version;
             }
             else if (documentKind == AnnualDocumentKind.PrivacyPractices)
             {
@@ -5119,7 +5061,7 @@ internal static class ApiEndpoints
                     new DocumentTemplateRenderContext(
                         subject.AgencyName, subject.AgencyAddress, subject.AgencyPhone,
                         subject.ConsumerName, subject.BirthDate,
-                        cycleStart, cycleStart.AddYears(1).AddDays(-1),
+                        cycleStart, AnnualDocumentCycle.EndInclusive(effectiveDate, cycleStart),
                         subject.CaseManagerName, subject.CaseManagerRole), generatedAtUtc);
                 pdf = rendered.Pdf;
                 blankFields = rendered.BlankFields;
@@ -5153,7 +5095,7 @@ internal static class ApiEndpoints
                 db, personId, actor.AgencyId, documentKind, cycleStart,
                 origin,
                 generatedAtUtc, actor.UserId, pdf, fileName,
-                blankFields, cancellationToken, templateOwner, templateKey, templateVersion);
+                blankFields, cancellationToken, templateOwner, templateKey, templateVersion, sourceContentId, sourceContentVersion);
             auditTrail.Record(actor, AuditActions.DocumentGenerated, "Person", personId,
                 JsonSerializer.Serialize(new
                 {
@@ -5162,7 +5104,9 @@ internal static class ApiEndpoints
                     origin = origin.ToString(),
                     templateOwner,
                     templateKey,
-                    templateVersion
+                    templateVersion,
+                    sourceContentId,
+                    sourceContentVersion
                 }));
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -5271,7 +5215,8 @@ internal static class ApiEndpoints
                 .Select(artifact => new ArtifactFact(
                     artifact.Id, artifact.PersonId, artifact.Kind, artifact.CycleStart,
                     artifact.Origin == nameof(DocumentArtifactOrigin.Draft),
-                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal)))
+                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal),
+                    db.DocumentAcknowledgments.Any(receipt => receipt.DocumentArtifactId == artifact.Id)))
                 .ToListAsync(cancellationToken);
             var forms = await db.Forms.AsNoTracking().Where(candidate => candidate.PersonId == personId)
                 .Select(candidate => new FormFact(
@@ -5353,7 +5298,8 @@ internal static class ApiEndpoints
                     artifact.Kind,
                     artifact.CycleStart,
                     artifact.Origin == nameof(DocumentArtifactOrigin.Draft),
-                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal)))
+                    artifact.Origin == nameof(DocumentArtifactOrigin.RecordedAsExternal),
+                    db.DocumentAcknowledgments.Any(receipt => receipt.DocumentArtifactId == artifact.Id)))
                 .ToListAsync(cancellationToken);
             var formFacts = await db.Forms.AsNoTracking()
                 .Where(candidate => candidate.PersonId == personId)

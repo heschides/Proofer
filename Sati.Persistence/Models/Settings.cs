@@ -11,6 +11,7 @@ namespace Sati.Models
         public int Id { get; set; }
         public int AgencyId { get; set; }
         public int Revision { get; set; } = 1;
+        public int AnnualPacketOpenDaysBefore { get; set; } = Contracts.V1.AnnualPacketWindow.DefaultOpenDays;
 
         // Agency policy. Off by default: importing into an existing profile can
         // replace current demographics, so an administrator must opt the agency in.

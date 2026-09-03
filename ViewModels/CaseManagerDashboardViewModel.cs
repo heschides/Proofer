@@ -41,6 +41,9 @@ namespace Sati.ViewModels
         private readonly LatestRequestTracker _notesLoadRequests = new();
         private readonly LatestRequestTracker _upcomingEventLoadRequests = new();
         private readonly LatestRequestTracker _peopleLoadRequests = new();
+        private readonly LatestRequestTracker _annualReminderRequests = new();
+        private readonly IAnnualDocumentService? _annualDocuments;
+        [ObservableProperty] private string annualDocumentReminderText = "";
         private DispatcherTimer? _abandonmentTimer;
         // -------------------------------------------------------------------------
         // Constructor
@@ -62,7 +65,8 @@ CalendarViewModel calendarViewModel,
             StatisticsViewModel statisticsViewModel,
             ReviewsViewModel reviewsViewModel,
             ProvidersViewModel providersViewModel,
-            ATRequestViewModel atRequestViewModel
+            ATRequestViewModel atRequestViewModel,
+            IAnnualDocumentService? annualDocuments = null
             )
         {
             _personService = personService;
@@ -73,6 +77,7 @@ CalendarViewModel calendarViewModel,
             _upcomingEventService = upcomingEventService;
             _formService = formService;
             _exemptDateService = exemptDateService;
+            _annualDocuments = annualDocuments;
             NoteEntry = noteEntryViewModel; NotesView = CollectionViewSource.GetDefaultView(Notes);
             NotesView.Filter = FilterNotes;
             NotesLog = notesWindowViewModel;
@@ -218,6 +223,7 @@ CalendarViewModel calendarViewModel,
 
         partial void OnSelectedPersonChanged(Person? value)
         {
+            _annualReminderRequests.Invalidate(); AnnualDocumentReminderText = "";
             Attestation.CancelCommand.Execute(null);
             _ = LoadNotesForPersonAsync(value);
             RefreshComplianceFlags();
@@ -921,6 +927,7 @@ CalendarViewModel calendarViewModel,
 
         private void RefreshPendingAttestations()
         {
+            _ = RefreshAnnualReminderAsync();
             PendingAttestations.Clear();
             if (SelectedPerson is not { EffectiveDate: DateTime effectiveDate } person)
             {
@@ -949,6 +956,24 @@ CalendarViewModel calendarViewModel,
                 PendingAttestations.Add(pending);
             }
             OnPropertyChanged(nameof(HasPendingAttestations));
+        }
+
+        private async Task RefreshAnnualReminderAsync()
+        {
+            var ticket = _annualReminderRequests.Begin();
+            if (_annualDocuments is null || SelectedPerson?.EffectiveDate is not DateTime effective) return;
+            var id = SelectedPerson.Id;
+            try
+            {
+                var settings = _settings ?? await _settingsService.LoadAsync();
+                var cycle = AnnualPacketWindow.SuggestedCycle(effective, DateTime.Today, settings.AnnualPacketOpenDaysBefore);
+                var status = await _annualDocuments.GetStatusAsync(id, cycle);
+                if (_annualReminderRequests.IsCurrent(ticket)) AnnualDocumentReminderText = status.Reminder;
+            }
+            catch (Exception)
+            {
+                if (_annualReminderRequests.IsCurrent(ticket)) AnnualDocumentReminderText = "Annual document status could not be checked. Open Annual Documents to reload it.";
+            }
         }
 
         private void RefreshComplianceFlags()

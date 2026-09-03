@@ -31,6 +31,7 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerAppointment> Appointments => Set<ServerAppointment>();
     public DbSet<ServerComprehensiveAssessment> ComprehensiveAssessments => Set<ServerComprehensiveAssessment>();
     public DbSet<ServerSafetyPlan> SafetyPlans => Set<ServerSafetyPlan>();
+    public DbSet<ServerDocumentAcknowledgment> DocumentAcknowledgments => Set<ServerDocumentAcknowledgment>();
     public DbSet<ServerProvider> Providers => Set<ServerProvider>();
     public DbSet<ServerAtRequest> AtRequests => Set<ServerAtRequest>();
     public DbSet<ServerAtRequestItem> AtRequestItems => Set<ServerAtRequestItem>();
@@ -422,6 +423,16 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             entity.Property(x => x.Revision).IsConcurrencyToken();
             entity.HasIndex(x => new { x.PersonId, x.CycleStart, x.Version }).IsUnique();
         });
+        modelBuilder.Entity<ServerDocumentAcknowledgment>(entity =>
+        {
+            entity.ToTable("DocumentAcknowledgments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ReceivedOn).HasColumnType("date");
+            entity.Property(x => x.GoodFaithEffortReason).HasMaxLength(1000);
+            entity.HasOne<ServerDocumentArtifact>().WithMany().HasForeignKey(x => x.DocumentArtifactId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ServerUser>().WithMany().HasForeignKey(x => x.RecordedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ServerSettings>().Property(x => x.AnnualPacketOpenDaysBefore).HasDefaultValue(30);
 
         modelBuilder.Entity<ServerProvider>(entity =>
         {
@@ -564,6 +575,8 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             ChangeTracker.Entries<ServerFormAttestation>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerDocumentTemplate>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<ServerDocumentAcknowledgment>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerBillingSubmissionEvent>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
@@ -716,6 +729,8 @@ internal sealed class ServerDocumentArtifact
     public string? TemplateOwner { get; set; }
     public string? TemplateKey { get; set; }
     public int? TemplateVersion { get; set; }
+    public int? SourceContentId { get; set; }
+    public int? SourceContentVersion { get; set; }
     public string BlankFieldsJson { get; set; } = "[]";
     public string? ExternalNote { get; set; }
     public int? SupersededByArtifactId { get; set; }
@@ -761,6 +776,7 @@ internal sealed class ServerNote
 
 internal sealed class ServerSettings
 {
+    public int AnnualPacketOpenDaysBefore { get; set; } = 30;
     public int Id { get; set; }
     public int AgencyId { get; set; }
     public int Revision { get; set; } = 1;
@@ -1079,6 +1095,16 @@ internal sealed class ServerSafetyPlan
     public int? ApprovedByUserId { get; set; }
     public string? ReturnReason { get; set; }
     public string DocumentJson { get; set; } = "{}";
+}
+
+internal sealed class ServerDocumentAcknowledgment
+{
+    public int Id { get; set; }
+    public int DocumentArtifactId { get; set; }
+    public DateTime? ReceivedOn { get; set; }
+    public string? GoodFaithEffortReason { get; set; }
+    public int RecordedByUserId { get; set; }
+    public DateTime RecordedAtUtc { get; set; }
 }
 
 internal sealed class ServerProvider

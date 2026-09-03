@@ -56,6 +56,8 @@ namespace Sati.ViewModels
         /// <summary>The Credible import review panel. Fills this form; never saves.</summary>
         public ConsumerImportViewModel ConsumerImport { get; }
         public AgencyReleaseViewModel AgencyRelease { get; }
+        public SafetyPlanViewModel? SafetyPlan { get; }
+        public AnnualDocumentsViewModel? AnnualDocuments { get; }
         public FormAttestationViewModel Attestation { get; }
 
         // Per-consumer journal state. The timer debounces saves to 2s after the last
@@ -344,6 +346,8 @@ namespace Sati.ViewModels
             ConsumerProviders.SetPerson(value);
             DhhsForms.SetPerson(value);
             AgencyRelease.SetPerson(value);
+            SafetyPlan?.SetPerson(value);
+            AnnualDocuments?.SetPerson(value);
             RefreshUpcomingItems(value);
 
             // The panel is persistent now, so it can't be left showing one client's
@@ -602,7 +606,9 @@ namespace Sati.ViewModels
                            AgencyReleaseViewModel agencyRelease,
                            SsnPanelViewModel ssnPanel,
                            ConsumerProvidersViewModel consumerProviders,
-                           ConsumerImportViewModel consumerImport)
+                           ConsumerImportViewModel consumerImport,
+                           SafetyPlanViewModel? safetyPlan = null,
+                           AnnualDocumentsViewModel? annualDocuments = null)
         {
             _personService = personService;
             _sessionService = session;
@@ -617,6 +623,8 @@ namespace Sati.ViewModels
             DhhsForms = dhhsForms;
             SsnPanel = ssnPanel;
             AgencyRelease = agencyRelease;
+            SafetyPlan = safetyPlan;
+            AnnualDocuments = annualDocuments;
             ConsumerProviders = consumerProviders;
             ConsumerImport = consumerImport;
             Attestation = new FormAttestationViewModel(formService)

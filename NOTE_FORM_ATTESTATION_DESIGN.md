@@ -1,9 +1,27 @@
 # Design — Evidence, prerequisites, and attestation for compliance forms
 
-**Status:** implementation steps 1–5 landed locally on 2026-09-03; not released or deployed.
+**Status:** implementation steps 1–9 landed in source on 2026-09-03; not released or deployed.
 **Written:** 2026-09-03, against `master` @ `1e64cf7` (release 1.2.41).
 **Decided with Josh:** 2026-09-03. Answers recorded inline; deviations flagged in
 "Where I did not do what was asked".
+
+**Implementation addendum (supersedes the original Draft/Final and open-question assumptions
+below):** Josh selected one Sati-owned safety-plan schema and supervisor review. The implemented
+lifecycle is Draft -> ReadyForReview -> Approved/Returned, with non-author review scoped to the
+supervisor's actual caseload. Submitted/reviewed versions are locked; editing starts a new version.
+Only an approved plan renders a non-Draft artifact. O-1 is implemented by byte-length/SHA-256
+verification, including an operator-selected original-file check. Josh resolved O-4 as download
+only, staff send, after medical-release attestation, addressed to the linked primary-care provider.
+O-2/O-3/O-5 retain the recorded generator/assessment/technical-override decisions. O-6/O-7 are thus
+resolved; the clinical/legal review questions are not.
+
+The packet cannot reconstruct a completed or externally recorded release because Sati retains
+metadata, not its signed/saved bytes. Those originals are explicitly listed for retrieval in the
+manifest instead of replaced with blank drafts. When no completed release is recorded, the packet
+includes an identity-only draft; partial input still in a release editor is not a persisted packet
+source. Safety-plan drafts are persisted and render their saved content. Each new privacy PDF
+requires its own receipt/effort record. The profile and dashboard reminder are read-time, not a job.
+See `ANNUAL_DOCUMENT_RELEASE_READINESS.md` for verified scope and the remaining release gates.
 
 This replaces the note-to-form bridge, adds the prerequisite checks that must pass before
 compliance can be asserted, and adds the annual document packet. It does not change how

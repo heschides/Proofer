@@ -15,6 +15,8 @@ explicit about what is policy and what is automated.
 | `EdiGeneration` replay content | 90 days | Policy only | Short retry/reconciliation window for protected 837P content. |
 | `PersonVersion` | Retain with the Person record | No automated deletion | Required to reconstruct the Person lifecycle; contains PHI. |
 | Clinical and billing source records | Agency/legal policy required | No automated deletion | Must not be destroyed by a generic cleanup job. |
+| `Person` (ordinary consumer), created within 20 days | Deletable by Admin action only | Manually triggered, gated, not automated | See "Consumer deletion within the creation window" below — a per-record command, not a background job. |
+| `Person` (ordinary consumer), beyond 20 days or already archived | No deletion; archive-only | No automated deletion | `Person.Status` (`NoLongerServed`/`Deceased`/`Ghost`) removes a consumer from active caseload and compliance surfaces without destroying data. |
 
 The API validates configured audit retention between 365 and 3,650 days and EDI replay retention
 between 30 and 365 days. The Admin dashboard reports the configured values and
@@ -36,7 +38,37 @@ exist:
    held backup expires would not satisfy the hold.
 
 Until those controls are implemented and reviewed, `PolicyOnly` is the only permitted enforcement
-mode.
+mode for **automated, background retention jobs**. That remains true today — nothing scheduled or
+bulk exists.
+
+### Consumer deletion within the creation window
+
+*Added 2026-09-03. See `HANDOFF_CLIENT_DELETION_POLICY.md` and `DECISIONS.md`.*
+
+Separately from the automated-retention question above, Sati.Api and the transitional
+desktop-local service now expose one **manually triggered, per-record** destructive command: an
+Admin may permanently delete an ordinary consumer created within the last 20 days
+(`ConsumerDeletionRules.DeletionWindowDays`), gated on:
+
+- The creation-time window, from immutable `Person.CreatedAtUtc`.
+- A1's billing-integrity check — refuses only when billing for the consumer actually reached a
+  payer; draft and synthetic billing artifacts remain deletable.
+- A real, minimal `ILegalHoldRegistry` (`LocalLegalHoldRegistry` / `ApiLegalHoldRegistry`) over a
+  new `LegalHold` table. An unreleased hold blocks deletion; any query failure reports
+  `Unavailable`, never `Clear` — the same fail-closed shape items 1-5 above describe, just scoped
+  to this one command rather than to general retention.
+
+This registry is **not** the retention workflow items 1-5 above describe in full:
+
+- It has no record-class or agency-wide scope — it only answers "is this one person held."
+- Release is **single-admin**, not the dual-control release item 3 requires. Tracked in
+  `AGENDA.md`.
+- There is no dry-run report or backup reconciliation (items 4-5) — this command is a
+  human-confirmed, one-record-at-a-time action, not a bulk job, and item 4's per-record
+  equivalent is a typed-name confirmation with a summary of what will be removed.
+
+Do not treat this command's existence as satisfying the legal-hold gate for any future automated
+retention job. It answers a narrower question for a narrower purpose.
 
 ## Controlled audit export
 

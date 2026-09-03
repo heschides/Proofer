@@ -198,7 +198,7 @@ public sealed class AdminService(
         context.LegalHolds.Add(hold);
         LocalAuditTrail.Record(
             context, actor, LocalAuditActions.LegalHoldPlaced, "LegalHold",
-            metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId, reason = hold.Reason }));
+            metadataJson: JsonSerializer.Serialize(new { personId = request.PersonId }));
         await context.SaveChangesAsync(cancellationToken);
         return ToLegalHoldDto(hold);
     }
@@ -421,6 +421,10 @@ public sealed class AdminService(
         var personProvidersDeleted = await context.PersonProviders
             .Where(link => link.PersonId == personId)
             .ExecuteDeleteAsync(cancellationToken);
+        var documentAcknowledgmentsDeleted = await context.DocumentAcknowledgments
+            .Where(receipt => context.DocumentArtifacts.Any(artifact => artifact.Id == receipt.DocumentArtifactId && artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var safetyPlansDeleted = await context.SafetyPlans.Where(plan => plan.PersonId == personId).ExecuteDeleteAsync(cancellationToken);
         var documentArtifactsDeleted = await context.DocumentArtifacts
             .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
             .ExecuteDeleteAsync(cancellationToken);
@@ -469,7 +473,8 @@ public sealed class AdminService(
         var result = new ConsumerDeletionResultDto(
             personId, formsDeleted, notesDeleted, contactsDeleted, reviewsDeleted, appointmentsDeleted,
             assessmentsDeleted, atRequestsDeleted, atRequestItemsDeleted, personVersionsDeleted,
-            personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted);
+            personProvidersDeleted, formAttestationsDeleted, documentArtifactsDeleted, claimLinesDeleted,
+            safetyPlansDeleted, documentAcknowledgmentsDeleted);
 
         LocalAuditTrail.Record(
             context,
@@ -631,6 +636,10 @@ public sealed class AdminService(
         var personProvidersDeleted = await context.PersonProviders
             .Where(link => link.PersonId == personId)
             .ExecuteDeleteAsync(cancellationToken);
+        var documentAcknowledgmentsDeleted = await context.DocumentAcknowledgments
+            .Where(receipt => context.DocumentArtifacts.Any(artifact => artifact.Id == receipt.DocumentArtifactId && artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var safetyPlansDeleted = await context.SafetyPlans.Where(plan => plan.PersonId == personId).ExecuteDeleteAsync(cancellationToken);
         var documentArtifactsDeleted = await context.DocumentArtifacts
             .Where(artifact => artifact.PersonId == personId && artifact.AgencyId == actor.AgencyId)
             .ExecuteDeleteAsync(cancellationToken);
@@ -684,7 +693,7 @@ public sealed class AdminService(
             personVersionsDeleted,
             personProvidersDeleted,
             formAttestationsDeleted,
-            documentArtifactsDeleted);
+            documentArtifactsDeleted, safetyPlansDeleted, documentAcknowledgmentsDeleted);
         LocalAuditTrail.Record(
             context,
             actor,
@@ -701,6 +710,8 @@ public sealed class AdminService(
                 personProvidersDeleted = result.PersonProvidersDeleted,
                 formAttestationsDeleted = result.FormAttestationsDeleted,
                 documentArtifactsDeleted = result.DocumentArtifactsDeleted,
+                safetyPlansDeleted = result.SafetyPlansDeleted,
+                documentAcknowledgmentsDeleted = result.DocumentAcknowledgmentsDeleted,
                 reviewsDeleted = result.ReviewsDeleted,
                 appointmentsDeleted = result.AppointmentsDeleted,
                 assessmentsDeleted = result.AssessmentsDeleted,

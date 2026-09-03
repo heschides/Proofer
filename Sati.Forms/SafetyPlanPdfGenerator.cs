@@ -21,13 +21,14 @@ public sealed class SafetyPlanPdfGenerator
         section.AddParagraph($"Consumer: {consumerName}\nCycle beginning: {cycleStart:MMMM d, yyyy}\nStatus: {status}").Format.SpaceAfter = Unit.FromPoint(12);
         if (!string.Equals(status, "Approved", StringComparison.Ordinal))
         {
-            var notice = section.AddParagraph("DRAFT — NOT APPROVED FOR FINAL USE");
+            var notice = section.AddParagraph("DRAFT - NOT APPROVED FOR FINAL USE");
             notice.Format.Font.Bold = true; notice.Format.Font.Color = Colors.DarkRed; notice.Format.SpaceAfter = Unit.FromPoint(12);
         }
         foreach (var item in plan.Sections)
         {
             var title = section.AddParagraph(item.Id.Replace('-', ' ').ToUpperInvariant());
             title.Format.Font.Bold = true; title.Format.Font.Size = 11; title.Format.SpaceBefore = Unit.FromPoint(8);
+            title.Format.KeepWithNext = true;
             section.AddParagraph(string.IsNullOrWhiteSpace(item.Text) ? "[Not yet completed]" : item.Text.Trim());
         }
         var footer = section.Footers.Primary.AddParagraph("CONFIDENTIAL  |  Page "); footer.Format.Alignment = ParagraphAlignment.Center; footer.AddPageField();

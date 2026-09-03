@@ -885,6 +885,10 @@
                     <StackPanel Margin="36,30">
 
                 <!-- VOCATIONAL REHABILITATION -->
+                <TextBlock Text="ANNUAL DOCUMENT PREPARATION" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="Days before the anniversary to open the annual packet (0–180)" TextWrapping="Wrap"/>
+                <TextBox Text="{Binding AnnualPacketOpenDaysBefore, UpdateSourceTrigger=PropertyChanged}" Width="100"
+                         AutomationProperties.Name="Annual packet opening days before anniversary"/>
                 <TextBlock Text="VOCATIONAL REHABILITATION"
                            Style="{StaticResource SectionHeader}"
                            Margin="0,0,0,8" />
