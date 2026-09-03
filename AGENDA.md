@@ -1,5 +1,40 @@
 # Sati — Refactor Agenda
 
+## Compliance attestation and annual documents — designed 2026-09-03
+
+**Design only. Nothing implemented.** Full design in `NOTE_FORM_ATTESTATION_DESIGN.md`.
+
+The note-to-form bridge is a message box in `Views/ShellWindow.xaml.cs`. Saving a note tagged with
+a form type asks whether the form was completed today and stamps `DateTime.Today`, discarding the
+note's event date, resolving the cycle against today, and resolving the person from the dashboard
+selection. Eleven confirmed defects are inventoried in section 1 of the design. Defect 1 is the
+serious one: a synthesized `CompletedDate` silently changes which past service dates
+`BillingComplianceGate.IsBillingWindowBlocked` treats as billable.
+
+Decided with Josh on 2026-09-03: a form note is **evidence that prompts an attestation, never the
+attestation itself**. Prerequisites that live outside Sati must be checked before an attestation is
+accepted, with a per-cycle "recorded externally" escape hatch. Document existence is recorded as
+metadata plus a SHA-256, never stored bytes. Templates are per agency with a Sati default,
+append-only versioned. The annual packet opens 30 days before the anniversary and renders only the
+documents needing no consumer input; the three releases stay deferred.
+
+- [ ] Steps 1 through 3 of the landing order: `FormAttestation` table and backfill, delete the
+      bridge, generalize the Reviews attestation control to all twelve form types. This closes the
+      "no in-app control captures an arbitrary completion date for a non-review form" item below.
+- [ ] Steps 4 through 6: `DocumentArtifact` and the prerequisite registry, `DocumentTemplate` plus
+      the MigraDoc composer, then the packet and its manifest. Narrow `PUT /api/v1/forms/{id}`,
+      which currently accepts an arbitrary `CompletedDate` and is a full bypass of the registry.
+- [ ] Josh to provide the privacy practices, annual safety plan, and medical records request
+      templates. They become the Sati defaults.
+- [ ] Open questions O-1 through O-5 and risks R-1 through R-4 in the design need answers before
+      the steps they touch. O-1 in particular: a stored hash nothing can verify is decoration, so
+      either build the verify action or drop back to metadata-only.
+- [ ] No audit event exists today for any form-completion change, local or API. Six new actions are
+      specified in the design.
+- [ ] Sati's comprehensive assessments and PCPs are development-only; Evergreen holds the
+      production records. Both map to no prerequisite until an Evergreen API integration exists,
+      which is a `REGULATORY_CONCERNS.md` item first.
+
 ## Release 1.2.41 — 2026-09-03
 
 "A quieter screen." Case note template from the checked meeting facts, a suggested follow-up that
