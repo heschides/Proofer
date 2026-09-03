@@ -30,14 +30,58 @@ clean.
       `Sati.Api.Tests/TenantAuthorizationTests.cs`. Verified by the Release-configuration test run
       above.
 - [ ] Source commit and push to `origin/master`.
-- [ ] Apply the authorized Demo migration via an existence-guarded script, rollback-only dry run
-      then real then idempotency rerun, using the temporary exact-IP `SatiDemo` firewall rule Josh
-      adds and removes himself. Public IP at preflight: `72.95.106.10` (re-verified from the value
-      `ANNUAL_DOCUMENT_RELEASE_READINESS.md` recorded earlier the same day).
-- [ ] Publish the Demo API; verify `/health/live`, `/health/ready`, `/health/version`, and contract
-      revision parity.
-- [ ] Build, accept, and publish both installers to their exact distribution folders.
-- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+- [x] Applied the authorized Demo migration via `scripts/Apply-CompliancePlatformMigrations.ps1`
+      (new script; extracted EF's own generated idempotent DDL for the seven target migrations
+      verbatim via `sed`, rather than hand-transcribing it, then added fail-closed identity/
+      chain-position checks and dry-run/commit control around it). Rollback-only dry run reported
+      0/7 target migrations recorded and rolled back cleanly; the real run recorded 7/7 and
+      committed; a second real run reported the same 7/7 with no errors, proving idempotency.
+      Connected via an Azure AD access token from Josh's own `az` session (not integrated
+      security — Azure SQL does not support Windows logins) through the temporary exact-IP
+      `SatiDemo` firewall rule Josh added and will remove. Public IP: `72.95.106.10`.
+      One bug found and fixed before the first live attempt reached the database: the guard
+      script's header here-string had no trailing newline before its closing `'@`, so string
+      concatenation ran the last header comment directly into the extracted DDL's first
+      `IF NOT EXISTS (`, commenting it out and orphaning its closing paren (`Incorrect syntax
+      near ')'`). SQL Server does not partially execute a batch that fails to parse, so nothing
+      was touched before the fix; verified by reconstructing the assembled command text locally
+      and confirming the fix before reconnecting.
+- [x] Published the Demo API. Package built under .NET 10 (a throwaway console app calling
+      `System.IO.Compression.ZipFile`, not Windows PowerShell 5.1's `System.IO.Compression.FileSystem`
+      assembly, per the `.NET 10, not Windows PowerShell` lesson in `DECISIONS.md`), 70 entries, 0
+      backslash entry names, `artifacts/Sati.Api-1.2.42.zip` (9,866,162 bytes; SHA-256
+      `3566CA0CB4F91EC6D455B3CE3FE541343E7E55D5F504DAB7857EE4D81EC165AF`). No `appsettings*.json`
+      present in the publish output (config comes from App Service settings/Key Vault, never a
+      packaged file); both `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files
+      confirmed present. Packaged `Sati.Api.dll` reports file version `1.2.42.0`.
+      OneDeploy deployment `621076ef4057476a8a60f99548e6230a` to `sati-demo-api-satilogica` in
+      `rg-sati-demo`, `provisioningState: Succeeded`. `/health/live` returned `{"status":"live"}`,
+      `/health/ready` returned `Healthy` (confirming `SchemaDriftHealthCheck` accepted the schema the
+      migration above produced), `/health/version` reported product `Sati.Api`, release `1.2.42`,
+      contract revision `78B5A2F71629` — matching `ApiSurface.Revision` computed locally from the
+      same build, confirmed via a throwaway .NET 10 console app referencing `Sati.Contracts.dll`
+      (Windows PowerShell 5.1's `Add-Type` cannot load a .NET 10 assembly directly).
+- [x] Built and accepted both installers.
+      Demo: `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.42.exe` (101,093,376 bytes; SHA-256
+      `022583f901df2baeaf949e023b9d361dfdd795c21dd027c797b49b807686d2fd`). Five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.42.0`, cleanup
+      passed. Run on the build workstation, so it is not a clean external-machine attestation.
+      Local: built after confirming `artifacts\Prerequisites\SqlLocalDB.msi` carries a Valid
+      Authenticode signature from `CN=Microsoft Corporation`.
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.42.exe` (203,158,282 bytes; SHA-256
+      `122bef469144c1d3fb46bd2c53c2bc3a2a31afabdcd50cb51369ed60b80487ce`). Acceptance passed:
+      installed version `1.2.42.0`, `integratedSecurity=True` with no SQL credentials in the Local
+      configuration, cleanup passed. Neither installer is code-signed.
+- [x] Published both installers and their `.sha256` files. Each was copied to a uniquely named
+      temporary sibling, hash-verified, renamed to the final versioned name, and verified again.
+      No destination file was overwritten and no temporary file remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.42.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.42.exe`
+        and its `.sha256`
+
+      Both published hashes were re-compared against the accepted build artifacts and match.
+- [x] Evidence commit with final hashes, deployment identifiers, and test totals — this entry.
 
 ## Compliance attestation and annual documents — designed 2026-09-03
 
