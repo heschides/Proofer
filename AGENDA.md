@@ -82,9 +82,23 @@ no feature branch to merge.
 
 ### Release evidence
 
-- [ ] Record source commit and push confirmation.
-- [ ] Record accepted Demo and Local installer paths, sizes, versions, hashes, and cleanup.
-- [ ] Publish both installers and checksums to the distribution folders and verify hashes.
+- [x] Source commit `675fb11ef7bda4692343c5875721e047ded1f35c` pushed to `origin/master`. The work
+      was done directly on `master`, so there was no branch to merge.
+- [x] Demo installer acceptance passed on
+      `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.41.exe` (100,925,440 bytes; SHA-256
+      `5ea7e68d023fa73bba53e2d93a075e60f1f7702652a20d67bdb8aa4a2380c515`): five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.41.0`, cleanup
+      passed. Run on the build workstation, so it is not a clean external-machine attestation.
+      Evidence: `artifacts/release-1.2.41-demo-installer-acceptance.json`.
+- [x] Local installer built after confirming `artifacts\Prerequisites\SqlLocalDB.msi` carries a
+      Valid Authenticode signature from `CN=Microsoft Corporation`.
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.41.exe` (202,985,226 bytes; SHA-256
+      `0875b2389ab7cf2234ccad29c949e0e5b62c8a5f68d58e717ad2379daf2a9419`). Acceptance passed:
+      installed version `1.2.41.0`, `integratedSecurity=True` with no SQL credentials in the Local
+      configuration, cleanup passed. Generated installers are not code-signed.
+- [ ] Publish both installers and checksums to the distribution folders and verify hashes. Held
+      back deliberately: the request was to generate the installers, and publishing copies them
+      into the shared documents folders where other people pick them up.
 - [ ] Decide whether to publish the Demo API at 1.2.41. Not required for compatibility; the
       readiness gate reports a version mismatch until it happens.
 - [ ] Consolidate `EasyEyesPreferenceService` and `IdleLockPreferenceService` onto one personal
