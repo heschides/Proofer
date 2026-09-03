@@ -712,7 +712,7 @@
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <StackPanel>
-                                <TextBlock Text="Check every fact you personally observed or verified. Sati saves these selections with the note and can incorporate them into the AI draft."
+                                <TextBlock Text="Check every fact you personally observed or verified. Sati saves these selections with the note, and Build Case Note Template writes them into the narrative."
                                            Margin="0,0,0,10"
                                            FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -975,14 +975,18 @@
                                 </DockPanel>
                             </Border>
 
-                            <!-- Disabled for a Reminder: the local AI path drafts
-                                 case note prose from current note-entry facts, which a
-                                 reminder neither needs nor should supply. The command
-                                 refuses it too — this is not the only gate. -->
+                            <!-- The Local AI trigger is withdrawn for now. The drafting
+                                 pipeline and its review panel below are untouched, so the
+                                 button can return; with no trigger, IsAiBusy and
+                                 IsAiReviewVisible simply never become true.
+
+                                 Gated on IsVisitNote, not IsLocalAiEnabled: the template is
+                                 built from the meeting checkboxes, which only a Visit note
+                                 has, and it needs no model. -->
                             <StackPanel Grid.Row="9"
                                         Margin="0,2,0,10"
                                         IsEnabled="{Binding AreNoteFieldsEnabled}"
-                                        Visibility="{Binding IsLocalAiEnabled,
+                                        Visibility="{Binding IsVisitNote,
                                             Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -991,11 +995,12 @@
                                     </Grid.ColumnDefinitions>
 
                                     <Button Grid.Column="0"
-                                            Command="{Binding FormatNarrativeWithAiCommand}"
-                                            AutomationProperties.Name="Create a local AI case note draft"
-                                            ToolTip="Formats the current narrative locally. You must compare and accept the result."
-                                            Style="{StaticResource LocalAiButton}"
-                                            Content="Format with Local AI" />
+                                            Command="{Binding BuildCaseNoteTemplateCommand}"
+                                            AutomationProperties.Name="Build a case note template from the checked meeting facts"
+                                            ToolTip="Writes the checked meeting facts as a structured note and moves anything already in the narrative below a Meeting Narrative header. Nothing is removed."
+                                            ToolTipService.ShowOnDisabled="True"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Content="Build Case Note Template" />
 
                                     <TextBlock Grid.Column="1"
                                                Margin="12,0,0,0"
@@ -1003,8 +1008,7 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="11"
                                                TextWrapping="Wrap"
-                                               Text="{Binding AiStatusMessage}"
-                                               AutomationProperties.LiveSetting="Polite" />
+                                               Text="Your own text is kept and moved below a Meeting Narrative header." />
                                 </Grid>
 
                                 <Border Margin="0,8,0,0"

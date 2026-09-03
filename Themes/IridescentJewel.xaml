@@ -33,6 +33,12 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#C8A3E2" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#8D68B0" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#191222" />
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#B58AD5" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#C8A3E2" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#8D68B0" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#191222" />
 
     <Color x:Key="AiGlowColor">#FF6FD1C7</Color>
     <SolidColorBrush x:Key="AiAccentBrush" Color="#3D9E98" />

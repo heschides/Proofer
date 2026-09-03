@@ -387,6 +387,7 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsDateEnabled));
             SubmitNoteCommand.NotifyCanExecuteChanged();
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            BuildCaseNoteTemplateCommand.NotifyCanExecuteChanged();
             AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
         }
@@ -562,6 +563,7 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(SaveActionLabel));
             OnPropertyChanged(nameof(StatusGuidance));
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            BuildCaseNoteTemplateCommand.NotifyCanExecuteChanged();
             AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
 
             // A caller can change fields programmatically and a user can click a
@@ -648,6 +650,7 @@ namespace Sati.ViewModels.Children
         partial void OnNarrativeChanged(string? value)
         {
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
+            BuildCaseNoteTemplateCommand.NotifyCanExecuteChanged();
             AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
             MarkDirty();
@@ -770,7 +773,11 @@ namespace Sati.ViewModels.Children
                     suggestion = _upcomingEventService
                         .GenerateEvents([person], _settings)
                         .OrderBy(item => item.Date)
-                        .FirstOrDefault();
+                        .FirstOrDefault()
+                        // Without this fallback the row is blank for most of every
+                        // cycle: GenerateEvents only reports a form inside its open
+                        // window, and the default review window is zero days wide.
+                        ?? _upcomingEventService.NextFormSuggestion(person, _settings);
                 }
                 catch (Exception ex)
                 {
@@ -821,6 +828,28 @@ namespace Sati.ViewModels.Children
             NotifySuggestedFollowUpChanged();
         }
 
+        // The template reads the ticked meeting controls, so its availability
+        // has to be re-checked whenever one of them changes.
+        private bool CanBuildCaseNoteTemplate() =>
+            IsVisitNote &&
+            !IsLocked &&
+            AreNoteFieldsEnabled &&
+            CaseNoteTemplateComposer.HasContent(BuildVisitDocumentation());
+
+        /// <summary>
+        /// Writes a structured case note from the ticked meeting controls and moves
+        /// whatever was already in the box below a Meeting Narrative header. Nothing
+        /// is removed or rewritten; the existing text is preserved verbatim.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanBuildCaseNoteTemplate))]
+        private void BuildCaseNoteTemplate()
+        {
+            var template = CaseNoteTemplateComposer.Compose(BuildVisitDocumentation());
+            if (string.IsNullOrEmpty(template))
+                return;
+
+            Narrative = CaseNoteTemplateComposer.Merge(template, Narrative);
+        }
         private async Task LoadVisitAttendeesAsync(Person? person)
         {
             var loadVersion = ++_attendeeLoadVersion;
@@ -993,6 +1022,7 @@ namespace Sati.ViewModels.Children
                 return;
 
             MarkDirty();
+            BuildCaseNoteTemplateCommand.NotifyCanExecuteChanged();
             InvalidateAiGeneration();
 
             if (IsAiReviewVisible)

@@ -73,7 +73,10 @@ namespace Sati
         ScheduledVisit,
         ScheduledContact,
         ScheduledForm,
-        ScheduledReminder
+        ScheduledReminder,
+        // Produced only by NextFormSuggestion for the note panel hint: a real, not-yet-due
+        // form. The dashboard never sees it, because GenerateEvents never emits it.
+        UpcomingForm
     }
 
     public enum Gender

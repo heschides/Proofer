@@ -28,6 +28,12 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#8E5140" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#743F32" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FFF9F3" />
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#A45F4B" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#8E5140" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#743F32" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FFF9F3" />
     <!-- Local AI: a muted mauve counterpoint to the apricot accent. -->
     <Color x:Key="AiGlowColor">#FFAA7EA2</Color>
     <SolidColorBrush x:Key="AiAccentBrush" Color="#8B5E83" />

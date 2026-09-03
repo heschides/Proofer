@@ -30,6 +30,12 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#8A4D20" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#703D18" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FDF6EC" />
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#A85E28" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#8A4D20" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#703D18" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FDF6EC" />
 
     <!-- Local AI: deep mineral teal as a calm complement to terracotta. -->
     <Color x:Key="AiGlowColor">#FF6FA198</Color>

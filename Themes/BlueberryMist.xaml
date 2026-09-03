@@ -13,6 +13,12 @@
     <SolidColorBrush x:Key="SurfaceAltBrush" Color="#E9EAF5"/><SolidColorBrush x:Key="SurfaceMutedBrush" Color="#DDDEEC"/><SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FFFFFF"/><SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B3F8F8FD"/><SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#40F8F8FD"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#C9C8DE"/><SolidColorBrush x:Key="InputBorderBrush" Color="#A5A2C2"/><SolidColorBrush x:Key="DividerBrush" Color="#D9D7E8"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#575A9B"/><SolidColorBrush x:Key="AccentHoverBrush" Color="#45487F"/><SolidColorBrush x:Key="AccentPressedBrush" Color="#373A68"/><SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF"/>
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#575A9B" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#45487F" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#373A68" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FFFFFF" />
     <Color x:Key="AiGlowColor">#FF9A668E</Color><SolidColorBrush x:Key="AiAccentBrush" Color="#7A4F72"/><SolidColorBrush x:Key="AiAccentHoverBrush" Color="#673F60"/><SolidColorBrush x:Key="AiAccentPressedBrush" Color="#52314C"/><SolidColorBrush x:Key="AiAccentSoftBrush" Color="#F1E3EE"/><SolidColorBrush x:Key="AiAccentBorderBrush" Color="#CEAAC7"/><SolidColorBrush x:Key="OnAiAccentBrush" Color="#FFFFFF"/><SolidColorBrush x:Key="AiPanelTextBrush" Color="#593852"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#E2E2F1"/><SolidColorBrush x:Key="HoverStrongBrush" Color="#CAC9E1"/>
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#30324E"/><SolidColorBrush x:Key="TextSecondaryBrush" Color="#50526D"/><SolidColorBrush x:Key="TextMutedBrush" Color="#65677E"/><SolidColorBrush x:Key="TextSubtleBrush" Color="#707187"/><SolidColorBrush x:Key="NarrativeTextBrush" Color="#514C68"/>

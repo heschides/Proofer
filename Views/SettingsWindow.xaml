@@ -256,6 +256,33 @@
                            TextWrapping="Wrap"
                            Margin="24,0,0,20" />
 
+                <TextBlock Text="INACTIVITY SCREEN"
+                           Style="{StaticResource LabelStyle}" />
+                <ComboBox ItemsSource="{Binding IdleTimeoutChoices}"
+                          SelectedItem="{Binding SelectedIdleTimeout, Mode=TwoWay}"
+                          DisplayMemberPath="Label"
+                          Width="220"
+                          HorizontalAlignment="Left"
+                          AutomationProperties.Name="Cover the screen after this much inactivity"
+                          AutomationProperties.HelpText="Blurs the Sati window after this long with no keyboard or mouse activity. Any key or click brings it back."
+                          Margin="0,0,0,6" />
+                <TextBlock Text="Blurs the Sati window after this long with no keyboard or mouse activity, so a screen left open is not readable across the room. Any key or click brings it straight back."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="It hides the screen only. It does not lock Windows and asks for no password."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="{Binding IdlePreferenceStatus}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,20" />
+
                 <TextBlock Text="DAILY AGENDA"
                            Style="{StaticResource LabelStyle}" />
                 <CheckBox Content="Show the daily agenda window at sign-in"

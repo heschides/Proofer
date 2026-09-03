@@ -546,9 +546,9 @@
                 <Setter Property="Height"
                         Value="36" />
                 <Setter Property="Background"
-                        Value="{DynamicResource AccentBrush}" />
+                        Value="{DynamicResource AccentButtonBrush}" />
                 <Setter Property="Foreground"
-                        Value="{DynamicResource OnAccentBrush}" />
+                        Value="{DynamicResource OnAccentButtonBrush}" />
                 <Setter Property="FontSize"
                         Value="13" />
                 <Setter Property="FontWeight"
@@ -570,12 +570,12 @@
                                 <Trigger Property="IsMouseOver"
                                          Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentHoverBrush}" />
+                                            Value="{DynamicResource AccentButtonHoverBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed"
                                          Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentPressedBrush}" />
+                                            Value="{DynamicResource AccentButtonPressedBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

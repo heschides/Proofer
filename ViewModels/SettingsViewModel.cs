@@ -26,11 +26,14 @@ namespace Sati.ViewModels
         private readonly TextShortcutService _textShortcutService;
         private readonly DailyAgendaPreferenceService _dailyAgendaPreferences;
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
+        private readonly IdleLockPreferenceService _idlePreferences;
         private Settings? _settings;
         private bool _loadingDailyAgendaPreference;
         private bool _savedShowDailyAgendaAtSignIn = true;
         private bool _loadingEasyEyesPreference;
         private bool _savedEasyEyesMode;
+        private bool _loadingIdlePreference;
+        private int _savedIdleMinutes = IdleLockPreferenceService.DefaultMinutes;
 
         public SettingsViewModel(
             ISettingsService settingsService,
@@ -42,6 +45,7 @@ namespace Sati.ViewModels
             TextShortcutService textShortcutService,
             DailyAgendaPreferenceService dailyAgendaPreferences,
             EasyEyesPreferenceService easyEyesPreferences,
+            IdleLockPreferenceService idlePreferences,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -56,6 +60,7 @@ namespace Sati.ViewModels
             _textShortcutService = textShortcutService;
             _dailyAgendaPreferences = dailyAgendaPreferences;
             _easyEyesPreferences = easyEyesPreferences;
+            _idlePreferences = idlePreferences;
             selectedTheme = _themeService.CurrentTheme;
             TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
                 Enumerable.Range(1, 9)
@@ -64,6 +69,7 @@ namespace Sati.ViewModels
             _ = LoadTextShortcutsAsync();
             _ = LoadDailyAgendaPreferenceAsync();
             _ = LoadEasyEyesPreferenceAsync();
+            _ = LoadIdlePreferenceAsync();
             if (CanManageAgencySettings)
                 _ = LoadAsync();
         }
@@ -102,6 +108,29 @@ namespace Sati.ViewModels
         private string easyEyesPreferenceStatus = string.Empty;
 
         public double EasyEyesScale => EasyEyesMode ? 1.3 : 1.0;
+
+        // Minutes of no input before Sati covers the screen. "Never" is offered
+        // because a case manager presenting from this machine should be able to
+        // switch it off without editing a file.
+        public IReadOnlyList<IdleTimeoutOption> IdleTimeoutChoices { get; } =
+        [
+            new(IdleLockPreferenceService.DisabledMinutes, "Never"),
+            new(1, "After 1 minute"),
+            new(2, "After 2 minutes"),
+            new(5, "After 5 minutes"),
+            new(10, "After 10 minutes"),
+            new(15, "After 15 minutes"),
+            new(20, "After 20 minutes"),
+            new(30, "After 30 minutes"),
+            new(45, "After 45 minutes"),
+            new(60, "After 1 hour")
+        ];
+
+        [ObservableProperty]
+        private IdleTimeoutOption? selectedIdleTimeout;
+
+        [ObservableProperty]
+        private string idlePreferenceStatus = string.Empty;
 
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
@@ -200,6 +229,75 @@ namespace Sati.ViewModels
                 EasyEyesPreferenceStatus = $"Preference was not changed. {exception.Message}";
             }
         }
+
+        partial void OnSelectedIdleTimeoutChanged(IdleTimeoutOption? value)
+        {
+            if (!_loadingIdlePreference && value is not null)
+                _ = SaveIdlePreferenceAsync(value.Minutes);
+        }
+
+        private async Task LoadIdlePreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                IdlePreferenceStatus = "Sign in to change the inactivity screen.";
+                return;
+            }
+
+            var minutes = await _idlePreferences.LoadForUserAsync(userId.Value);
+            _loadingIdlePreference = true;
+            try
+            {
+                SelectedIdleTimeout = ChoiceFor(minutes);
+                _savedIdleMinutes = minutes;
+            }
+            finally
+            {
+                _loadingIdlePreference = false;
+            }
+
+            IdlePreferenceStatus = _idlePreferences.LastLoadWarning ??
+                "This personal setting is saved immediately for this Sati account on this computer.";
+        }
+
+        private async Task SaveIdlePreferenceAsync(int minutes)
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                IdlePreferenceStatus = "Sign in before changing the inactivity screen.";
+                return;
+            }
+
+            IdlePreferenceStatus = "Saving inactivity screen preference...";
+            try
+            {
+                await _idlePreferences.SetTimeoutAsync(userId.Value, minutes);
+                _savedIdleMinutes = minutes;
+                IdlePreferenceStatus = "Inactivity screen preference saved.";
+            }
+            catch (IdleLockPreferenceSaveException exception)
+            {
+                _loadingIdlePreference = true;
+                try
+                {
+                    SelectedIdleTimeout = ChoiceFor(_savedIdleMinutes);
+                }
+                finally
+                {
+                    _loadingIdlePreference = false;
+                }
+
+                IdlePreferenceStatus = $"Preference was not changed. {exception.Message}";
+            }
+        }
+
+        // A stored value that is not one of the offered choices still has to
+        // show as something, so it falls back to the nearest supported option.
+        private IdleTimeoutOption ChoiceFor(int minutes) =>
+            IdleTimeoutChoices.FirstOrDefault(choice => choice.Minutes == minutes)
+            ?? IdleTimeoutChoices.MinBy(choice => Math.Abs(choice.Minutes - minutes))!;
 
         private async Task LoadDailyAgendaPreferenceAsync()
         {
@@ -800,4 +898,7 @@ namespace Sati.ViewModels
                 HealthcareSystemOptions.MergeDefaults(HealthcareSystems, HealthcareSystemOptions.Maine));
         }
     }
+
+    /// <summary>One offered inactivity delay. Minutes of zero means never.</summary>
+    public sealed record IdleTimeoutOption(int Minutes, string Label);
 }

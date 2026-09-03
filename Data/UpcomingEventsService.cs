@@ -28,21 +28,7 @@ namespace Sati.Data
             // form record via GetCurrentCycleForm — never recomputed here.
             // That keeps FormDueDateCalculator as the single source of truth
             // and means settings changes propagate automatically.
-            var formMeta = new[]
-            {
-                (FormType.PCP,                     settings.PcpOpenDaysBefore,              settings.PcpDaysAfterDue,              "PCP"),
-                (FormType.ComprehensiveAssessment, settings.CompAssessmentOpenDaysBefore,   settings.CompAssessmentDaysAfterDue,   "Comp. Assessment"),
-                (FormType.Reclassification,        settings.ReclassificationOpenDaysBefore, settings.ReclassificationDaysAfterDue, "Reclassification"),
-                (FormType.SafetyPlan,              settings.SafetyPlanOpenDaysBefore,       settings.SafetyPlanDaysAfterDue,       "Safety Plan"),
-                (FormType.PrivacyPractices,        settings.PrivacyPracticesOpenDaysBefore, settings.PrivacyPracticesDaysAfterDue, "Privacy Practices"),
-                (FormType.Release_Agency,          settings.ReleaseAgencyOpenDaysBefore,    settings.ReleaseAgencyDaysAfterDue,    "Release — Agency"),
-                (FormType.Release_DHHS,            settings.ReleaseDhhsOpenDaysBefore,      settings.ReleaseDhhsDaysAfterDue,      "Release — DHHS"),
-                (FormType.Release_Medical,         settings.ReleaseMedicalOpenDaysBefore,   settings.ReleaseMedicalDaysAfterDue,   "Release — Medical"),
-                (FormType.Q1R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q1 Review"),
-                (FormType.Q2R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q2 Review"),
-                (FormType.Q3R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q3 Review"),
-                (FormType.Q4R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q4 Review"),
-            };
+            var formMeta = FormMeta(settings);
 
             foreach (var (type, openBefore, daysAfter, label) in formMeta)
             {
@@ -112,6 +98,68 @@ namespace Sati.Data
                     Kind = kind
                 });
             }
+        }
+
+        // One table, two readers. GenerateEvents uses it for the open/late window;
+        // NextFormSuggestion uses it for the note panel's follow-up hint. A second
+        // copy of these labels would let the two disagree about a form's name.
+        private static (FormType Type, int OpenBefore, int DaysAfter, string Label)[] FormMeta(Settings settings) =>
+        [
+            (FormType.PCP,                     settings.PcpOpenDaysBefore,              settings.PcpDaysAfterDue,              "PCP"),
+            (FormType.ComprehensiveAssessment, settings.CompAssessmentOpenDaysBefore,   settings.CompAssessmentDaysAfterDue,   "Comp. Assessment"),
+            (FormType.Reclassification,        settings.ReclassificationOpenDaysBefore, settings.ReclassificationDaysAfterDue, "Reclassification"),
+            (FormType.SafetyPlan,              settings.SafetyPlanOpenDaysBefore,       settings.SafetyPlanDaysAfterDue,       "Safety Plan"),
+            (FormType.PrivacyPractices,        settings.PrivacyPracticesOpenDaysBefore, settings.PrivacyPracticesDaysAfterDue, "Privacy Practices"),
+            (FormType.Release_Agency,          settings.ReleaseAgencyOpenDaysBefore,    settings.ReleaseAgencyDaysAfterDue,    "Release — Agency"),
+            (FormType.Release_DHHS,            settings.ReleaseDhhsOpenDaysBefore,      settings.ReleaseDhhsDaysAfterDue,      "Release — DHHS"),
+            (FormType.Release_Medical,         settings.ReleaseMedicalOpenDaysBefore,   settings.ReleaseMedicalDaysAfterDue,   "Release — Medical"),
+            (FormType.Q1R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q1 Review"),
+            (FormType.Q2R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q2 Review"),
+            (FormType.Q3R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q3 Review"),
+            (FormType.Q4R,                     settings.ReviewOpenDaysBefore,           settings.ReviewDaysAfterDue,           "Q4 Review"),
+        ];
+
+        /// <summary>
+        /// The client's next outstanding form by due date, ignoring the open/late
+        /// window that <see cref="GenerateEvents"/> applies.
+        ///
+        /// GenerateEvents answers "what is actionable right now", which is correct
+        /// for the dashboard but leaves the note panel's follow-up hint blank for
+        /// most of every cycle: with the default zero-day review window a quarterly
+        /// review is only ever "open" on its exact due date. This answers the
+        /// different question the note panel actually asks — "what is coming up next
+        /// for this client" — using the same stored form records, the same
+        /// GetCurrentCycleForm lookup, and the same IsSatisfiedAsOf test, so it can
+        /// never name a form the compliance gate considers already met.
+        /// </summary>
+        public UpcomingEvent? NextFormSuggestion(IEventSource person, Settings settings, DateTime? asOf = null)
+        {
+            var today = (asOf ?? DateTime.Today).Date;
+            if (person.EffectiveDate is null)
+                return null;
+
+            UpcomingEvent? next = null;
+            foreach (var (type, _, _, label) in FormMeta(settings))
+            {
+                var form = person.GetCurrentCycleForm(type, today);
+                if (form is null || form.IsSatisfiedAsOf(today))
+                    continue;
+
+                var dueDate = form.DueDate.Date;
+                if (next is not null && dueDate >= next.Date)
+                    continue;
+
+                next = new UpcomingEvent
+                {
+                    PersonId = person.Id,
+                    ClientName = person.FullName,
+                    Title = $"{label} — {person.FullName}",
+                    Date = dueDate,
+                    Kind = today > dueDate ? UpcomingEventKind.LateReview : UpcomingEventKind.UpcomingForm
+                };
+            }
+
+            return next;
         }
     }
 }

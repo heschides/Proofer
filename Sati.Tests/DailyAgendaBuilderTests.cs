@@ -158,5 +158,10 @@ public sealed class DailyAgendaBuilderTests
             IEnumerable<IEventSource> people,
             Settings settings,
             DateTime? asOf = null) => [.. events];
+
+        public UpcomingEvent? NextFormSuggestion(
+            IEventSource person,
+            Settings settings,
+            DateTime? asOf = null) => null;
     }
 }

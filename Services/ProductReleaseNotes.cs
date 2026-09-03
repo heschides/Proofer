@@ -6,38 +6,40 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Easy on the eyes";
-    public const string ReleaseDate = "September 2, 2026";
+    public const string ReleaseName = "A quieter screen";
+    public const string ReleaseDate = "September 3, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "An easier view when you need it",
+            "Build a case note from what you checked",
             [
-                "Easy Eyes is a personal, off-by-default setting that enlarges the working interface by about 30 percent.",
-                "Easy Eyes hides narrative columns in note lists without removing note content and uses the horizontal client selector.",
-                "The preference is remembered separately for each Sati account and Demo or Production environment on this computer."
+                "A Build Case Note Template button under the narrative turns the meeting facts you ticked into a structured note with Meeting Details, Observations, and Discussion and Activity headings.",
+                "Anything already in the narrative box is kept exactly as written and moved below a Meeting Narrative header. Nothing is overwritten or rewritten.",
+                "Every line comes from a control you selected. The template invents nothing and needs no AI model.",
+                "The Format with Local AI button is withdrawn for now. The drafting pipeline itself is unchanged and can return."
             ]),
         new(
-            "Two new warm palettes",
+            "The next form is suggested again",
             [
-                "Blue-Gray Pearl combines warm slate, cloud light, and a subtle champagne sheen.",
-                "Cedar Grove combines pale bark, lichen, and soft forest tones.",
-                "Both themes use the requested orange accent, while Local AI actions retain a distinct color."
+                "The suggested follow-up row below the narrative box now names the client's next outstanding form, not only a form already inside its open window.",
+                "Because most quarterly reviews are only 'open' on their exact due date, that row had been blank almost all the time.",
+                "Accepting the suggestion still appends one plain follow-up line, and a form already satisfied is never suggested."
             ]),
         new(
-            "Clearer calendar controls",
+            "A screen that covers itself",
             [
-                "The previous-year and next-year controls now use crisp vector arrows rather than font characters that could disappear.",
-                "The rounded arrow buttons provide hover, pressed, focus, tooltip, and screen-reader feedback.",
-                "All existing year-navigation commands and keyboard behavior remain in place."
+                "After ten minutes with no keyboard or mouse activity, Sati blurs its window behind a Paused card so an unattended screen is not readable across the room.",
+                "Any key or click brings it straight back, and that first key or click is used only to wake Sati so it cannot press a control you could not see.",
+                "Settings offers delays from one minute to an hour, or Never. The choice is personal and saved for your Sati account on this computer.",
+                "This hides the screen only. It does not lock Windows and asks for no password."
             ]),
         new(
-            "Safer, roomier daily work",
+            "Lighter buttons in the orange palettes",
             [
-                "Closing Sati now asks for confirmation and explains that Today's Work and Tomorrow's Work will be saved.",
-                "A client profile in edit mode expands vertically inside the main overview instead of adding a second cramped scrollbar.",
-                "The surrounding overview remains scrollable, so every edit field stays reachable on smaller displays."
+                "Blue-Gray Pearl and Cedar Grove now fill their buttons with a much lighter orange that keeps the same hue.",
+                "Orange accent text is unchanged. Button fill is now a separate palette value, so one can be adjusted without moving the other.",
+                "Every other theme looks exactly as it did."
             ]),
         new(
             "Still planned before commercial production",

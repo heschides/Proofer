@@ -152,6 +152,7 @@ namespace Sati
                         services.AddSingleton<TextShortcutService>();
                         services.AddSingleton<DailyAgendaPreferenceService>();
                         services.AddSingleton<EasyEyesPreferenceService>();
+                        services.AddSingleton<IdleLockPreferenceService>();
                         services.AddSingleton<TextShortcutHook>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 

@@ -1,6 +1,95 @@
-
-
 # Sati — Refactor Agenda
+
+## Release 1.2.41 — 2026-09-03
+
+"A quieter screen." Case note template from the checked meeting facts, a suggested follow-up that
+actually appears, an inactivity privacy screen, and lighter buttons in the two orange palettes.
+
+**No schema change.** No migration was added and no persistence contract moved. `UpcomingEventKind`
+gained a display-only `UpcomingForm` value; the enum is not persisted and is not part of any DTO.
+
+**Desktop-only release.** `ApiSurface.Revision` is unchanged at `E807EDE42231`, so a 1.2.41 desktop
+runs against the deployed 1.2.40 Demo API. The API assembly version moves with the desktop because
+`StabilizationTests` requires the two to match, but the hosted Demo API was **not** republished:
+that was not part of the requested work. Readiness expectations now name 1.2.41 and will therefore
+report a version mismatch until the API is published.
+
+**Requested work.** Josh asked for four changes and then commit, push, merge, release notes in
+Settings, a version bump, and both installers. The work landed directly on `master`, so there was
+no feature branch to merge.
+
+### Lighter buttons in the orange palettes
+
+- [x] Split button fill from accent type: every theme now supplies `AccentButtonBrush`,
+      `AccentButtonHoverBrush`, `AccentButtonPressedBrush`, and `OnAccentButtonBrush`.
+- [x] Thirteen themes copy their existing accent values, so nothing about them changed.
+- [x] Blue-Gray Pearl and Cedar Grove fill buttons with `#FBA76B` over `#3B1D06` text, roughly
+      7.9:1 contrast. Their `AccentBrush` stays `#E25507`, so orange type is untouched.
+- [x] `PrimaryButton` is the only style bound to the button set. Selection highlights and accent
+      text still bind `AccentBrush`.
+- [x] Structure test asserts all fifteen themes supply all four keys, and that the two orange
+      palettes' fill is measurably lighter than their accent while keeping dark text.
+
+### Case note template
+
+- [x] `CaseNoteTemplateComposer` writes Meeting Details, Observations, and Discussion and Activity
+      from the ticked meeting controls.
+- [x] It renders `CaseNoteFactCompiler.VisitFacts` rather than restating the checkboxes, so the
+      template and the local-AI draft cannot phrase the same tick two different ways.
+- [x] Existing narrative is preserved verbatim below a `MEETING NARRATIVE` header. Nothing is
+      removed or rewritten; a second press stacks rather than replacing. See `DECISIONS.md`.
+- [x] The Format with Local AI trigger is withdrawn. The drafting pipeline and its review panel are
+      untouched and unreachable, so the button can return.
+- [x] The button is gated on `IsVisitNote`, not `IsLocalAiEnabled`: it is not an AI feature and
+      needs no model.
+
+### Suggested follow-up now appears
+
+- [x] Root cause found and reproduced: the row was built on `GenerateEvents`, which reports only
+      forms inside their open/late window. With the default zero-day review window a quarterly
+      review is open on exactly its due date, so for an ordinary client the row was blank for
+      months. The existing tests drove the panel with a stub event service and never exercised the
+      real generator.
+- [x] `UpcomingEventService.NextFormSuggestion` reports the client's next outstanding form
+      regardless of the window, sharing the one form table, `GetCurrentCycleForm`, and
+      `IsSatisfiedAsOf`, so it cannot name a form the compliance gate treats as satisfied.
+- [x] `NoteEntryViewModel` prefers an actionable event and falls back to that suggestion.
+- [x] Regression tests exercise the real service. They fail against the unfixed code: the probe
+      that found this asserted `GenerateEvents` returns nothing for a client effective today, which
+      it does.
+
+### Inactivity privacy screen
+
+- [x] After a configurable idle period Sati blurs its whole window behind a Paused card. Any key or
+      click clears it, and that first input is consumed rather than delivered.
+- [x] `IdleSessionState` owns the rule behind an injectable clock; `ShellWindow` supplies the
+      `InputManager` hook and a one-second tick. The view model references no WPF input type.
+- [x] `IdleLockPreferenceService` stores the delay per Sati user, Windows profile, and environment,
+      mirroring `EasyEyesPreferenceService`. No migration and no agency Settings row.
+- [x] Settings offers Never and one minute through one hour, saved immediately for that account.
+- [x] A bare mouse move counts only when the pointer actually travelled. Without that the overlay
+      woke itself the moment it appeared, because showing it changes what is under the cursor.
+- [x] Presented honestly as a privacy screen: the overlay, the Settings help text, and the release
+      notes all state that it does not lock Windows. `TryDismiss` and `RequiresUnlockChallenge` are
+      the seam a PIN would use.
+
+### Validation
+
+- [x] Release build of the full solution: 0 errors.
+- [x] Sati desktop/domain: 1,184 passed, 1 skipped (the documented `SATI_RUN_LOCAL_AI_MODEL_EVAL`
+      opt-in). API integration: 324 passed. Carika: 4 passed.
+- [x] 26 tests added across the four changes.
+
+### Release evidence
+
+- [ ] Record source commit and push confirmation.
+- [ ] Record accepted Demo and Local installer paths, sizes, versions, hashes, and cleanup.
+- [ ] Publish both installers and checksums to the distribution folders and verify hashes.
+- [ ] Decide whether to publish the Demo API at 1.2.41. Not required for compatibility; the
+      readiness gate reports a version mismatch until it happens.
+- [ ] Consolidate `EasyEyesPreferenceService` and `IdleLockPreferenceService` onto one personal
+      preference store. Two near-identical file-IO implementations is one too many.
+
 
 ## Release 1.2.40 — 2026-09-02
 

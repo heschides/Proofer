@@ -30,6 +30,12 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#7D405C" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#653248" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFAFC" />
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#95506F" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#7D405C" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#653248" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FFFAFC" />
 
     <!-- Local AI: a calm violet counterpoint to Lilly's blush accent. -->
     <Color x:Key="AiGlowColor">#FFAA8BC5</Color>

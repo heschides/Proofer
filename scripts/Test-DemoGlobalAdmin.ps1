@@ -1,7 +1,7 @@
 param(
     [string]$BaseAddress = 'https://sati-demo-api-satilogica.azurewebsites.net/',
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$ExpectedReleaseVersion = '1.2.40',
+    [string]$ExpectedReleaseVersion = '1.2.41',
     [string]$CredentialPath = (Join-Path $env:LOCALAPPDATA 'SatiLogica\Sati\Credentials\demo-global-admin.xml'),
     [string]$EvidencePath
 )

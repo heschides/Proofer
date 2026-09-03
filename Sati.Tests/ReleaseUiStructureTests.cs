@@ -384,4 +384,122 @@ public sealed class ReleaseUiStructureTests
             .Select(value => value!)
             .ToHashSet(StringComparer.Ordinal);
     }
+
+    [Fact]
+    public void EveryThemeSuppliesTheButtonFillTokensThePrimaryButtonBindsTo()
+    {
+        var required = new[]
+        {
+            "AccentButtonBrush", "AccentButtonHoverBrush",
+            "AccentButtonPressedBrush", "OnAccentButtonBrush"
+        };
+
+        foreach (var theme in Directory.GetFiles(Path.Combine(Root, "Themes"), "*.xaml"))
+        {
+            if (Path.GetFileName(theme).Equals("States.xaml", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var supplied = ResourceKeys(theme);
+            foreach (var key in required)
+                Assert.True(supplied.Contains(key), $"{Path.GetFileName(theme)} is missing {key}.");
+        }
+
+        // A theme dictionary is swapped in whole, so a missing key does not fall back
+        // to another palette — the button simply loses its fill.
+        var app = File.ReadAllText(Path.Combine(Root, "App.xaml"));
+        Assert.Contains("{DynamicResource AccentButtonBrush}", app);
+        Assert.Contains("{DynamicResource OnAccentButtonBrush}", app);
+        Assert.Contains("{DynamicResource AccentButtonHoverBrush}", app);
+        Assert.Contains("{DynamicResource AccentButtonPressedBrush}", app);
+    }
+
+    [Fact]
+    public void TheOrangeThemesKeepDarkAccentTextAndUseALighterButtonFill()
+    {
+        foreach (var name in new[] { "BlueGrayPearl", "CedarGrove" })
+        {
+            var theme = File.ReadAllText(Path.Combine(Root, "Themes", $"{name}.xaml"));
+
+            // The accent used for type is unchanged; only the button fill moved.
+            Assert.Contains("x:Key=\"AccentBrush\" Color=\"#E25507\"", theme);
+
+            var fill = Color(theme, "AccentButtonBrush");
+            var accent = Color(theme, "AccentBrush");
+            Assert.True(Luminance(fill) > Luminance(accent) + 0.2,
+                $"{name} button fill {fill} is not clearly lighter than accent {accent}.");
+
+            // A light fill needs dark text on it, not the white used elsewhere.
+            Assert.True(Luminance(Color(theme, "OnAccentButtonBrush")) < 0.25);
+        }
+    }
+
+    [Fact]
+    public void TheNoteTemplateButtonReplacedTheLocalAiTrigger()
+    {
+        var note = File.ReadAllText(Path.Combine(Root, "Views", "NoteEntryView.xaml"));
+
+        Assert.DoesNotContain("FormatNarrativeWithAiCommand", note);
+        Assert.DoesNotContain("Format with Local AI", note);
+        Assert.Contains("BuildCaseNoteTemplateCommand", note);
+        Assert.Contains("Build Case Note Template", note);
+
+        // It is not an AI feature, so it must not hide when local AI is unavailable.
+        Assert.Contains("Visibility=\"{Binding IsVisitNote,", note);
+        Assert.Contains("AutomationProperties.Name=\"Build a case note template", note);
+    }
+
+    [Fact]
+    public void TheSuggestedFollowUpRowSitsDirectlyBelowTheNarrativeBox()
+    {
+        var note = File.ReadAllText(Path.Combine(Root, "Views", "NoteEntryView.xaml"));
+
+        var narrative = note.IndexOf("AutomationProperties.Name=\"Note narrative\"", StringComparison.Ordinal);
+        var suggestion = note.IndexOf("IsSuggestedFollowUpVisible", StringComparison.Ordinal);
+
+        Assert.True(narrative > 0);
+        Assert.True(suggestion > narrative);
+        Assert.Contains("AcceptSuggestedFollowUpCommand", note);
+    }
+
+    [Fact]
+    public void TheInactivityScreenCoversTheWholeWindowAndIsAdjustable()
+    {
+        var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
+
+        // Outside RootGrid, so the Easy Eyes scale transform does not shrink it.
+        Assert.Contains("x:Name=\"ShellRoot\"", shell);
+        Assert.Contains("Binding Idle.IsOverlayVisible", shell);
+        Assert.Contains("<BlurEffect", shell);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Assertive\"", shell);
+
+        // It must not overstate itself.
+        Assert.Contains("It does not lock Windows", shell);
+
+        var settings = File.ReadAllText(Path.Combine(Root, "Views", "SettingsWindow.xaml"));
+        Assert.Contains("INACTIVITY SCREEN", settings);
+        Assert.Contains("Binding IdleTimeoutChoices", settings);
+        Assert.Contains("SelectedIdleTimeout", settings);
+    }
+
+    private static string Color(string theme, string key)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            theme, $"x:Key=\"{key}\" Color=\"(#[0-9A-Fa-f]{{6,8}})\"");
+        Assert.True(match.Success, $"{key} was not found.");
+        return match.Groups[1].Value;
+    }
+
+    // Rough perceived brightness; enough to assert "clearly lighter" without
+    // pulling in a color library.
+    private static double Luminance(string hex)
+    {
+        var value = hex.TrimStart('#');
+        if (value.Length == 8)
+            value = value[2..];
+
+        var r = Convert.ToInt32(value[..2], 16) / 255.0;
+        var g = Convert.ToInt32(value[2..4], 16) / 255.0;
+        var b = Convert.ToInt32(value[4..6], 16) / 255.0;
+        return (0.299 * r) + (0.587 * g) + (0.114 * b);
+    }
 }

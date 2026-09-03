@@ -97,6 +97,20 @@ internal static partial class CaseNoteFactCompiler
     /// conveniences cannot disagree with the drafting pipeline about whether a
     /// follow-up is already documented.
     /// </summary>
+    /// <summary>
+    /// The visit facts alone, in the compiler's own wording. The case-note
+    /// template renders these rather than restating each checkbox itself, so
+    /// the template and the AI draft can never describe the same tick two
+    /// different ways.
+    /// </summary>
+    public static IReadOnlyList<CaseNoteDraftFact> VisitFacts(VisitDocumentation visit)
+    {
+        ArgumentNullException.ThrowIfNull(visit);
+        var facts = new List<CaseNoteDraftFact>();
+        AppendVisitFacts(facts, visit);
+        return facts;
+    }
+
     public static bool HasFollowUpSignal(string? narrative) =>
         !string.IsNullOrWhiteSpace(narrative) && FollowUpSignalRegex().IsMatch(narrative);
 

@@ -206,6 +206,11 @@ public sealed class DailyAgendaCoordinatorTests : IDisposable
                 throw Exception;
             return [];
         }
+
+        public UpcomingEvent? NextFormSuggestion(
+            IEventSource person,
+            Settings settings,
+            DateTime? asOf = null) => null;
     }
 
     private sealed class StubAssessmentService : IComprehensiveAssessmentService

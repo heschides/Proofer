@@ -31,6 +31,9 @@ namespace Sati.Views
         private readonly DisplayLayoutService _displayLayoutService;
         private readonly Func<DisplayLayoutProfile, DisplayAdjustmentDialog> _displayAdjustmentDialogFactory;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
+        private readonly DispatcherTimer _idleTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+        private const double PointerMoveTolerance = 2.0;
+        private Point _lastPointerPosition;
         private DatabasePatienceWindow? _databasePatienceWindow;
         private DisplayLayoutProfile? _displayLayoutProfile;
         private bool _displayAdjustmentNoticeShown;
@@ -287,13 +290,54 @@ namespace Sati.Views
                 }
             };
 
+            // Any input at all counts as activity, including input aimed at a
+            // child window, because PreProcessInput is application-wide. When the
+            // screen is up, the waking input is consumed rather than delivered:
+            // the keystroke that wakes Sati must not also type into a note the
+            // user cannot read. This is also the seam a PIN prompt would use.
+            InputManager.Current.PreProcessInput += OnPreProcessInput;
+            _idleTimer.Tick += (_, _) => _shellViewModel.Idle.Evaluate();
+            _idleTimer.Start();
+
             Closed += (s, e) =>
             {
                 _databaseActivity.PropertyChanged -= OnDatabaseActivityPropertyChanged;
+                _idleTimer.Stop();
+                InputManager.Current.PreProcessInput -= OnPreProcessInput;
                 _textShortcutHook.Dispose();
                 CloseDatabasePatienceWindow();
                 Application.Current.Shutdown();
             };
+        }
+
+        private void OnPreProcessInput(object? sender, PreProcessInputEventArgs e)
+        {
+            // Only real user input counts, so the app talking to itself cannot hold
+            // the screen open forever.
+            if (e.StagingItem.Input is not (KeyEventArgs or MouseEventArgs
+                or TextCompositionEventArgs or TouchEventArgs))
+                return;
+
+            // A bare mouse move is only activity if the pointer actually moved.
+            // Showing the overlay changes what is under the cursor, and WPF raises a
+            // MouseMove for that alone — without this check the screen would wake
+            // itself the instant it appeared.
+            if (e.StagingItem.Input is MouseEventArgs
+                and not (MouseButtonEventArgs or MouseWheelEventArgs))
+            {
+                var position = Mouse.GetPosition(this);
+                if (Math.Abs(position.X - _lastPointerPosition.X) < PointerMoveTolerance &&
+                    Math.Abs(position.Y - _lastPointerPosition.Y) < PointerMoveTolerance)
+                    return;
+
+                _lastPointerPosition = position;
+            }
+
+            // Consuming the waking input is deliberate: the click or keystroke that
+            // brings Sati back must not also press a control or type into a note on a
+            // screen the user could not read. It is also where a PIN prompt would go.
+            if (_shellViewModel.Idle.RegisterActivity())
+                e.Cancel();
         }
 
         private void OnDatabaseActivityPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

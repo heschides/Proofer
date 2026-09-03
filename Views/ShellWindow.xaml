@@ -31,329 +31,395 @@
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="RootGrid">
-        <Grid.LayoutTransform>
-            <ScaleTransform ScaleX="{Binding EasyEyesScale}"
-                            ScaleY="{Binding EasyEyesScale}" />
-        </Grid.LayoutTransform>
-        <Grid.RowDefinitions>
-            <!-- The busy leaf occupies 38 px before the navigation border's padding.
-                 Reserve the full height so toggling it never moves the workspace. -->
-            <RowDefinition Height="Auto"
-                           MinHeight="60" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="5" />
-            <ColumnDefinition Width="300"
-                              MinWidth="250" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-
-        <!-- ================================================================ -->
-        <!-- NAVIGATION BAR                                                   -->
-        <!-- ================================================================ -->
-        <Border Grid.Row="0"
-                Grid.ColumnSpan="4"
-                Background="{DynamicResource SurfaceAltBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Padding" Value="12,10" />
+    <!-- ShellRoot exists so the inactivity screen can sit above the entire window,
+         outside RootGrid's Easy Eyes scale transform. Blurring is applied to
+         RootGrid by trigger rather than left mounted at radius zero, so an idle
+         screen nobody is using costs no render pass. -->
+    <Grid x:Name="ShellRoot">
+        <Grid x:Name="RootGrid">
+            <Grid.Style>
+                <Style TargetType="Grid">
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
-                            <Setter Property="Padding" Value="6,4" />
+                        <DataTrigger Binding="{Binding Idle.IsOverlayVisible}" Value="True">
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <BlurEffect Radius="26"
+                                                KernelType="Gaussian"
+                                                RenderingBias="Performance" />
+                                </Setter.Value>
+                            </Setter>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
-            </Border.Style>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <!-- Tab navigation — left side -->
-                <ScrollViewer Grid.Column="0"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled"
-                              PanningMode="HorizontalOnly"
-                              AutomationProperties.Name="Primary navigation">
-                <StackPanel Orientation="Horizontal">
-                    <Border Background="#FFFFF6D8"
-                            BorderBrush="#FFE2C94B"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="5,2"
-                            Margin="0,0,12,0"
-                            VerticalAlignment="Center"
-                            Visibility="{DynamicResource BrandLogoVisibility}">
-                        <Image Source="pack://application:,,,/Images/woodfords-logo.png"
-                               Stretch="Uniform"
-                               AutomationProperties.Name="Woodfords Family Services">
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="Width" Value="104" />
-                                    <Setter Property="Height" Value="40" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
-                                            <Setter Property="Width" Value="78" />
-                                            <Setter Property="Height" Value="30" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
-                    </Border>
-                    <Border Background="#FF7A2E8E"
-                            BorderBrush="#FFE5B8F0"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="9,4"
-                            Margin="0,0,8,0"
-                            Visibility="{Binding IsDemoEnvironment, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="DEMO"
-                                   Foreground="White"
-                                   FontSize="12"
-                                   FontWeight="Bold" />
-                    </Border>
-                    <!-- Raised when the server serves a different set of routes than
-                         this build calls. It is a warning, not a block: most of the
-                         application still works, and the point is to name the cause
-                         here rather than let a missing route surface three screens
-                         away as a missing record.
+            </Grid.Style>
+            <Grid.LayoutTransform>
+                <ScaleTransform ScaleX="{Binding EasyEyesScale}"
+                                ScaleY="{Binding EasyEyesScale}" />
+            </Grid.LayoutTransform>
+            <Grid.RowDefinitions>
+                <!-- The busy leaf occupies 38 px before the navigation border's padding.
+                     Reserve the full height so toggling it never moves the workspace. -->
+                <RowDefinition Height="Auto"
+                               MinHeight="60" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="300"
+                                  MinWidth="250" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-                         The wording carries the meaning on its own and the tooltip
-                         carries the detail, so nothing depends on noticing a colour. -->
-                    <Border Background="#FFFDF3E3"
-                            BorderBrush="#FFD79A33"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="9,4"
-                            Margin="0,0,8,0"
-                            ToolTip="{Binding ServerSurfaceWarning}"
-                            Visibility="{Binding ServerSurfaceDisagrees, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="SERVER OUT OF DATE"
-                                   Foreground="#FF6B4A12"
-                                   FontSize="12"
-                                   FontWeight="Bold"
-                                   AutomationProperties.Name="Server out of date"
-                                   AutomationProperties.HelpText="{Binding ServerSurfaceWarning}" />
-                    </Border>
-                    <!-- Navigation tabs. Appearance, including how selection is
-                         shown, belongs to NavTabButton in App.xaml — nothing about
-                         the look lives here. Each tab supplies only what is
-                         genuinely its own: its label, its command, which view model
-                         property means "I am the current section", and whether the
-                         signed-in user may see it at all.
-
-                         These are Buttons rather than click-handled Borders so they
-                         are reachable by keyboard and exposed to screen readers as
-                         controls. -->
-                    <Button Content="Admin"
-                            Style="{StaticResource ShellNavTabButton}"
-                            AutomationProperties.Name="Admin"
-                            views:NavTab.IsActive="{Binding IsAdminActive}"
-                            Command="{Binding NavigateToAdminCommand}"
-                            Visibility="{Binding IsAdminAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}" />
-                    <Button Content="Platform health"
-                            Style="{StaticResource ShellNavTabButton}"
-                            AutomationProperties.Name="Platform health"
-                            views:NavTab.IsActive="{Binding IsPlatformHealthActive}"
-                            Command="{Binding NavigateToPlatformHealthCommand}"
-                            Visibility="{Binding IsPlatformHealthAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}" />
-                    <Button Content="Case Management"
-                            Style="{StaticResource ShellNavTabButton}"
-                            AutomationProperties.Name="Case Management"
-                            views:NavTab.IsActive="{Binding IsCaseManagementActive}"
-                            Command="{Binding NavigateToCaseManagementCommand}"
-                            Visibility="{Binding IsCaseManagementAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}" />
-                    <Button Content="Supervisor"
-                            Style="{StaticResource ShellNavTabButton}"
-                            AutomationProperties.Name="Supervisor"
-                            views:NavTab.IsActive="{Binding IsSupervisorActive}"
-                            Command="{Binding NavigateToSupervisorDashboardCommand}"
-                            Visibility="{Binding IsSupervisionAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}" />
-                    <Button Content="Billing"
-                            Style="{StaticResource ShellNavTabButton}"
-                            AutomationProperties.Name="Billing"
-                            views:NavTab.IsActive="{Binding IsBillingActive}"
-                            Command="{Binding NavigateToBillingCommand}"
-                            Visibility="{Binding IsBillingAvailable,
-                                Converter={StaticResource BoolToVisibilityConverter}}" />
-
-                </StackPanel>
-                </ScrollViewer>
-
-                <!-- User info — right side -->
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-
-                    <!-- Global data-call feedback. The leaf is a non-color signal as well as
-                         an animated brand cue; its automation name tells assistive technology
-                         that the current request is still active. -->
-                    <Border Margin="0,0,10,0"
-                            Padding="5"
-                            CornerRadius="18"
-                            Background="#1F3E8F83"
-                            Visibility="{Binding DatabaseActivity.IsBusy,
-                                Converter={StaticResource BoolToVisibilityConverter}}"
-                            ToolTip="Retrieving information">
-                        <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
-                               Width="28"
-                               Height="28"
-                               Stretch="Uniform"
-                               RenderTransformOrigin="0.5,0.5"
-                               AutomationProperties.Name="Retrieving information from Sati">
-                            <Image.RenderTransform>
-                                <RotateTransform />
-                            </Image.RenderTransform>
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DatabaseActivity.IsBusy}"
-                                                     Value="True">
-                                            <DataTrigger.EnterActions>
-                                                <BeginStoryboard x:Name="DatabaseLeafSpin">
-                                                    <Storyboard RepeatBehavior="Forever">
-                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                         From="0"
-                                                                         To="360"
-                                                                         Duration="0:0:0.42" />
-                                                    </Storyboard>
-                                                </BeginStoryboard>
-                                            </DataTrigger.EnterActions>
-                                            <DataTrigger.ExitActions>
-                                                <StopStoryboard BeginStoryboardName="DatabaseLeafSpin" />
-                                            </DataTrigger.ExitActions>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
-                    </Border>
-
-                    <!-- Settings -->
-                <Button Grid.Column="0"
-                        AutomationProperties.Name="Open settings"
-                            Style="{StaticResource SmallButton}"
-                            ToolTip="Settings"
-                            Width="28"
-                            Command="{Binding OpenSettingsWindowCommand}"
-                            Background="Transparent"
-                            Padding="0">
-                        <TextBlock FontFamily="Segoe MDL2 Assets"
-                                   Text="&#xE713;"
-                                   FontSize="14"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center" />
-                    </Button>
-
-                    <!-- User greeting -->
-                    <Border Cursor="Hand"
-                            CornerRadius="4"
-                            Padding="8,4"
-                            VerticalAlignment="Center"
-                            Background="{Binding AvatarBrush}">
-                        <Border.InputBindings>
-                            <MouseBinding MouseAction="LeftClick"
-                                          Command="{Binding RequestSwitchUserCommand}" />
-                        </Border.InputBindings>
-                        <TextBlock FontSize="12"
-                                   Foreground="{DynamicResource WindowBackgroundBrush}"
-                                   VerticalAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="{Binding UserGreeting}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
-                                            <Setter Property="Text" Value="{Binding UserInitials}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
-
-                </StackPanel>
-
-            </Grid>
-        </Border>
-
-        <!-- ================================================================ -->
-        <!-- MAIN CONTENT AREA                                                -->
-        <!-- ================================================================ -->
-        <ContentControl Grid.Row="1"
-                        Grid.Column="0"
-                        Content="{Binding CurrentViewModel}" />
-
-        <!-- GridSplitter -->
-        <GridSplitter Grid.Row="1"
-                      Grid.Column="1"
-                      Width="5"
-                      HorizontalAlignment="Stretch"
-                      Background="{DynamicResource BorderBrush}" />
-
-        <!-- Scratchpad panel -->
-        <Border Grid.Row="1"
-                Grid.Column="2"
-                BorderBrush="{DynamicResource BorderBrush}"
-                Margin="8,12,12,20"
-                BorderThickness="0"
-                MinWidth="250"
-                Visibility="{Binding IsScratchpadVisible,
-                             Converter={StaticResource BoolToVisibilityConverter}}">
-            <views:ScratchpadView DataContext="{Binding Scratchpad}" />
-        </Border>
-
-        <!-- Chevron rail — always visible; toggles the Today's Work panel -->
-        <Border Grid.Row="1"
-                Grid.Column="3"
-                Background="{DynamicResource SurfaceAltBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1,0,0,0">
-            <Button Command="{Binding ToggleScratchpadCommand}"
-                    AutomationProperties.Name="Show or hide Today's Work"
-                    Width="24"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    VerticalAlignment="Center"
-                    ToolTip="Show or hide Today's Work">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
+            <!-- ================================================================ -->
+            <!-- NAVIGATION BAR                                                   -->
+            <!-- ================================================================ -->
+            <Border Grid.Row="0"
+                    Grid.ColumnSpan="4"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Padding" Value="12,10" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                <Setter Property="Padding" Value="6,4" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- Tab navigation — left side -->
+                    <ScrollViewer Grid.Column="0"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  PanningMode="HorizontalOnly"
+                                  AutomationProperties.Name="Primary navigation">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="#FFFFF6D8"
+                                BorderBrush="#FFE2C94B"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="5,2"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center"
+                                Visibility="{DynamicResource BrandLogoVisibility}">
+                            <Image Source="pack://application:,,,/Images/woodfords-logo.png"
+                                   Stretch="Uniform"
+                                   AutomationProperties.Name="Woodfords Family Services">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Width" Value="104" />
+                                        <Setter Property="Height" Value="40" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                                <Setter Property="Width" Value="78" />
+                                                <Setter Property="Height" Value="30" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
                         </Border>
-                    </ControlTemplate>
-                </Button.Template>
-                <TextBlock FontFamily="Segoe MDL2 Assets"
-                           FontSize="14"
-                           Foreground="{DynamicResource TextSecondaryBrush}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <!-- Closed: points left = bring the panel back in -->
-                            <Setter Property="Text"
-                                    Value="&#xE76B;" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsScratchpadVisible}"
-                                             Value="True">
-                                    <!-- Open: points right = collapse toward the edge -->
-                                    <Setter Property="Text"
-                                            Value="&#xE76C;" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Button>
+                        <Border Background="#FF7A2E8E"
+                                BorderBrush="#FFE5B8F0"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="9,4"
+                                Margin="0,0,8,0"
+                                Visibility="{Binding IsDemoEnvironment, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="DEMO"
+                                       Foreground="White"
+                                       FontSize="12"
+                                       FontWeight="Bold" />
+                        </Border>
+                        <!-- Raised when the server serves a different set of routes than
+                             this build calls. It is a warning, not a block: most of the
+                             application still works, and the point is to name the cause
+                             here rather than let a missing route surface three screens
+                             away as a missing record.
+
+                             The wording carries the meaning on its own and the tooltip
+                             carries the detail, so nothing depends on noticing a colour. -->
+                        <Border Background="#FFFDF3E3"
+                                BorderBrush="#FFD79A33"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="9,4"
+                                Margin="0,0,8,0"
+                                ToolTip="{Binding ServerSurfaceWarning}"
+                                Visibility="{Binding ServerSurfaceDisagrees, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="SERVER OUT OF DATE"
+                                       Foreground="#FF6B4A12"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       AutomationProperties.Name="Server out of date"
+                                       AutomationProperties.HelpText="{Binding ServerSurfaceWarning}" />
+                        </Border>
+                        <!-- Navigation tabs. Appearance, including how selection is
+                             shown, belongs to NavTabButton in App.xaml — nothing about
+                             the look lives here. Each tab supplies only what is
+                             genuinely its own: its label, its command, which view model
+                             property means "I am the current section", and whether the
+                             signed-in user may see it at all.
+
+                             These are Buttons rather than click-handled Borders so they
+                             are reachable by keyboard and exposed to screen readers as
+                             controls. -->
+                        <Button Content="Admin"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Admin"
+                                views:NavTab.IsActive="{Binding IsAdminActive}"
+                                Command="{Binding NavigateToAdminCommand}"
+                                Visibility="{Binding IsAdminAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Button Content="Platform health"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Platform health"
+                                views:NavTab.IsActive="{Binding IsPlatformHealthActive}"
+                                Command="{Binding NavigateToPlatformHealthCommand}"
+                                Visibility="{Binding IsPlatformHealthAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Button Content="Case Management"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Case Management"
+                                views:NavTab.IsActive="{Binding IsCaseManagementActive}"
+                                Command="{Binding NavigateToCaseManagementCommand}"
+                                Visibility="{Binding IsCaseManagementAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Button Content="Supervisor"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Supervisor"
+                                views:NavTab.IsActive="{Binding IsSupervisorActive}"
+                                Command="{Binding NavigateToSupervisorDashboardCommand}"
+                                Visibility="{Binding IsSupervisionAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Button Content="Billing"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Billing"
+                                views:NavTab.IsActive="{Binding IsBillingActive}"
+                                Command="{Binding NavigateToBillingCommand}"
+                                Visibility="{Binding IsBillingAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                    </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- User info — right side -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+
+                        <!-- Global data-call feedback. The leaf is a non-color signal as well as
+                             an animated brand cue; its automation name tells assistive technology
+                             that the current request is still active. -->
+                        <Border Margin="0,0,10,0"
+                                Padding="5"
+                                CornerRadius="18"
+                                Background="#1F3E8F83"
+                                Visibility="{Binding DatabaseActivity.IsBusy,
+                                    Converter={StaticResource BoolToVisibilityConverter}}"
+                                ToolTip="Retrieving information">
+                            <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
+                                   Width="28"
+                                   Height="28"
+                                   Stretch="Uniform"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   AutomationProperties.Name="Retrieving information from Sati">
+                                <Image.RenderTransform>
+                                    <RotateTransform />
+                                </Image.RenderTransform>
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseActivity.IsBusy}"
+                                                         Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="DatabaseLeafSpin">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:0.42" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="DatabaseLeafSpin" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                        </Border>
+
+                        <!-- Settings -->
+                    <Button Grid.Column="0"
+                            AutomationProperties.Name="Open settings"
+                                Style="{StaticResource SmallButton}"
+                                ToolTip="Settings"
+                                Width="28"
+                                Command="{Binding OpenSettingsWindowCommand}"
+                                Background="Transparent"
+                                Padding="0">
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                       Text="&#xE713;"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center" />
+                        </Button>
+
+                        <!-- User greeting -->
+                        <Border Cursor="Hand"
+                                CornerRadius="4"
+                                Padding="8,4"
+                                VerticalAlignment="Center"
+                                Background="{Binding AvatarBrush}">
+                            <Border.InputBindings>
+                                <MouseBinding MouseAction="LeftClick"
+                                              Command="{Binding RequestSwitchUserCommand}" />
+                            </Border.InputBindings>
+                            <TextBlock FontSize="12"
+                                       Foreground="{DynamicResource WindowBackgroundBrush}"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding UserGreeting}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCompactDisplayMode}" Value="True">
+                                                <Setter Property="Text" Value="{Binding UserInitials}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+                    </StackPanel>
+
+                </Grid>
+            </Border>
+
+            <!-- ================================================================ -->
+            <!-- MAIN CONTENT AREA                                                -->
+            <!-- ================================================================ -->
+            <ContentControl Grid.Row="1"
+                            Grid.Column="0"
+                            Content="{Binding CurrentViewModel}" />
+
+            <!-- GridSplitter -->
+            <GridSplitter Grid.Row="1"
+                          Grid.Column="1"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          Background="{DynamicResource BorderBrush}" />
+
+            <!-- Scratchpad panel -->
+            <Border Grid.Row="1"
+                    Grid.Column="2"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    Margin="8,12,12,20"
+                    BorderThickness="0"
+                    MinWidth="250"
+                    Visibility="{Binding IsScratchpadVisible,
+                                 Converter={StaticResource BoolToVisibilityConverter}}">
+                <views:ScratchpadView DataContext="{Binding Scratchpad}" />
+            </Border>
+
+            <!-- Chevron rail — always visible; toggles the Today's Work panel -->
+            <Border Grid.Row="1"
+                    Grid.Column="3"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1,0,0,0">
+                <Button Command="{Binding ToggleScratchpadCommand}"
+                        AutomationProperties.Name="Show or hide Today's Work"
+                        Width="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        ToolTip="Show or hide Today's Work">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock FontFamily="Segoe MDL2 Assets"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextSecondaryBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <!-- Closed: points left = bring the panel back in -->
+                                <Setter Property="Text"
+                                        Value="&#xE76B;" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsScratchpadVisible}"
+                                                 Value="True">
+                                        <!-- Open: points right = collapse toward the edge -->
+                                        <Setter Property="Text"
+                                                Value="&#xE76C;" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Button>
+            </Border>
+        </Grid>
+
+        <!-- INACTIVITY PRIVACY SCREEN
+             Hit-test visible on purpose: the click that wakes the session must not
+             also press a control on a screen the user cannot currently read. The
+             window cancels the waking keystroke for the same reason. This is a
+             privacy screen, not a security boundary — it is not a substitute for
+             locking Windows, and it says so. -->
+        <Border Visibility="{Binding Idle.IsOverlayVisible,
+                    Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="{DynamicResource SurfaceAlpha70Brush}"
+                AutomationProperties.Name="Sati is paused after inactivity. Move the mouse or press a key to continue."
+                AutomationProperties.LiveSetting="Assertive">
+            <Border VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Padding="34,28"
+                    CornerRadius="12"
+                    Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1">
+                <StackPanel HorizontalAlignment="Center">
+                    <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
+                           Width="96"
+                           Height="96"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="Paused"
+                               Margin="0,16,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="Move the mouse or press a key to continue."
+                               Margin="0,6,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="This hides the screen. It does not lock Windows."
+                               Margin="0,10,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </Window>

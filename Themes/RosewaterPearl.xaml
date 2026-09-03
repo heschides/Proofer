@@ -28,6 +28,12 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#814B58" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#693C47" />
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FFF9FA" />
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#9D5E6C" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#814B58" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#693C47" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FFF9FA" />
     <!-- Local AI: soft aubergine, distinct but harmonious with rosewater. -->
     <Color x:Key="AiGlowColor">#FF9B7BA8</Color>
     <SolidColorBrush x:Key="AiAccentBrush" Color="#765886" />

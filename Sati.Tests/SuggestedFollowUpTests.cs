@@ -142,12 +142,25 @@ public sealed class SuggestedFollowUpTests
             IEnumerable<IEventSource> people,
             Settings settings,
             DateTime? asOf = null) => [.. events];
+
+        // Null keeps these tests driven purely by GenerateEvents; the real
+        // fallback has its own coverage in SuggestedFollowUpRealServiceTests.
+        public UpcomingEvent? NextFormSuggestion(
+            IEventSource person,
+            Settings settings,
+            DateTime? asOf = null) => null;
     }
 
     private sealed class ThrowingUpcomingEventService : IUpcomingEventService
     {
         public List<UpcomingEvent> GenerateEvents(
             IEnumerable<IEventSource> people,
+            Settings settings,
+            DateTime? asOf = null) =>
+            throw new InvalidOperationException("Synthetic upcoming-event failure.");
+
+        public UpcomingEvent? NextFormSuggestion(
+            IEventSource person,
             Settings settings,
             DateTime? asOf = null) =>
             throw new InvalidOperationException("Synthetic upcoming-event failure.");

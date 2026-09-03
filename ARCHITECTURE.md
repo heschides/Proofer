@@ -1,6 +1,49 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-09-02.*
+*Living document. Updated during structured review sessions. Last updated: 2026-09-03.*
+
+## Inactivity privacy screen
+
+`IdleSessionState` owns the rule: it holds the timeout, the last-activity stamp, and whether
+the overlay is up, behind an injectable clock so the behavior is tested without a timer or a
+window. `ShellWindow` supplies the two inputs it cannot supply itself — an application-wide
+`InputManager.PreProcessInput` hook for activity and a one-second `DispatcherTimer` for the
+tick. The view model never references WPF input types.
+
+`IdleLockPreferenceService` stores the delay per Sati user, Windows profile, and data
+environment, exactly as `EasyEyesPreferenceService` stores Easy Eyes. It is personal
+presentation state: no migration, no agency Settings row, and it never leaves the machine.
+The two services deliberately keep separate files so a malformed value in one cannot cost the
+user the other; consolidating them is tracked in `AGENDA.md`.
+
+The overlay is a privacy screen, not a security control, and both the UI and the release notes
+say so. `TryDismiss` is the single exit, and `RequiresUnlockChallenge` is the seam a PIN would
+use: every path that wakes the session already routes through that one method.
+
+## Case note template
+
+`CaseNoteTemplateComposer` turns the ticked meeting controls into a structured note. It does
+not phrase the selections itself — it renders `CaseNoteFactCompiler.VisitFacts`, so the
+template and the local-AI drafting path cannot describe the same checkbox two different ways.
+It never removes text: existing narrative is preserved verbatim below a Meeting Narrative
+header.
+
+## Suggested follow-up
+
+`UpcomingEventService` now answers two questions from one form table. `GenerateEvents` reports
+what is actionable inside its open/late window, which is what the dashboard needs.
+`NextFormSuggestion` reports the client's next outstanding form regardless of that window,
+which is what the note panel needs. Both use `GetCurrentCycleForm` and `IsSatisfiedAsOf`, so
+neither can name a form the compliance gate treats as met.
+
+## Accent and button color
+
+Every theme dictionary now supplies `AccentButtonBrush`, `AccentButtonHoverBrush`,
+`AccentButtonPressedBrush`, and `OnAccentButtonBrush` alongside the accent tokens. Only
+`PrimaryButton` binds the button set; selection highlights and accent type still bind
+`AccentBrush`. A theme dictionary is swapped in whole, so a theme missing a key loses the fill
+rather than inheriting one — a structure test asserts all fifteen supply all four.
+
 
 ## Easy Eyes presentation mode
 

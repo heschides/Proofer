@@ -28,6 +28,7 @@ namespace Sati.ViewModels
         private readonly DataEnvironmentInfo _dataEnvironment;
         private readonly IApiCompatibilityService _apiCompatibility;
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
+        private readonly IdleLockPreferenceService _idlePreferences;
 
 
         // -------------------------------------------------------------------------
@@ -45,7 +46,8 @@ namespace Sati.ViewModels
             DataEnvironmentInfo dataEnvironment,
             IApiCompatibilityService apiCompatibility,
             DatabaseActivityViewModel databaseActivity,
-            EasyEyesPreferenceService easyEyesPreferences)
+            EasyEyesPreferenceService easyEyesPreferences,
+            IdleLockPreferenceService idlePreferences)
         {
             _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
@@ -58,7 +60,9 @@ namespace Sati.ViewModels
             _dataEnvironment = dataEnvironment;
             _easyEyesPreferences = easyEyesPreferences;
             DatabaseActivity = databaseActivity;
+            _idlePreferences = idlePreferences;
             _easyEyesPreferences.PreferenceChanged += (_, enabled) => ApplyEasyEyesMode(enabled);
+            _idlePreferences.PreferenceChanged += (_, minutes) => Idle.ApplyTimeout(minutes);
         }
 
         // -------------------------------------------------------------------------
@@ -216,11 +220,26 @@ namespace Sati.ViewModels
             NotesViewModel.NotesLog.IsEasyEyesMode = enabled;
         }
 
+        /// <summary>
+        /// The inactivity privacy screen. The window drives it: input calls
+        /// RegisterActivity, a one-second timer calls Evaluate.
+        /// </summary>
+        public IdleSessionState Idle { get; } = new();
+
         private async Task LoadEasyEyesPreferenceAsync()
         {
             var userId = _sessionService.CurrentUser?.Id;
             ApplyEasyEyesMode(userId is not null &&
                 await _easyEyesPreferences.LoadForUserAsync(userId.Value));
+        }
+
+        private async Task LoadIdlePreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            Idle.Reset();
+            Idle.ApplyTimeout(userId is null
+                ? IdleLockPreferenceService.DefaultMinutes
+                : await _idlePreferences.LoadForUserAsync(userId.Value));
         }
 
         public async Task OpenAgendaItemAsync(DailyAgendaItem item)
@@ -264,6 +283,7 @@ namespace Sati.ViewModels
         {
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
+            await LoadIdlePreferenceAsync();
             await CheckApiCompatibilityAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
@@ -315,6 +335,7 @@ namespace Sati.ViewModels
             _caseManagementViewModel.ResetToDashboard();
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
+            await LoadIdlePreferenceAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
                 await NavigateToPlatformHealth();

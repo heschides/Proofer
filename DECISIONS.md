@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-09-01.*
+sections at the bottom. Last updated: 2026-09-03.*
 
 ---
 
@@ -2696,3 +2696,81 @@ fit a monitor, while Easy Eyes is an explicit request to make text, focus indica
 targets larger together. It also hides only the displayed Narrative columns in the two note grids
 and forces the existing horizontal Clients selector; underlying note content and the user's normal
 compact-selector choice are preserved when the mode is switched off.
+
+---
+
+## The inactivity screen is a privacy screen, not a lock (2026-09-03)
+
+Sati blurs its own window after a configurable idle period and clears on any input. It was
+tempting to call this a lock, because it looks like one.
+
+It is not one, and saying so would be the dangerous part. It does not lock Windows, holds no
+credential, and anyone at the keyboard clears it by moving the mouse. In a setting where the real
+risk is PHI readable across a room, hiding the screen is genuinely useful; implying the machine is
+secured would invite someone to walk away from an unlocked workstation. So the overlay itself, the
+Settings help text, and the release notes all state plainly that it does not lock Windows.
+
+**Rejected:** a PIN in this release. A PIN that can be bypassed by killing the process is
+security theater, and doing it properly means a credential store, lockout policy, and a recovery
+path that a case manager can use at 7pm with a client waiting. That is its own piece of work.
+What did ship is the seam: `TryDismiss` is the single exit from the overlay and
+`RequiresUnlockChallenge` is the flag that gates it. Every waking path already routes through that
+one method, so adding the challenge later is a change in one place rather than an audit of
+callers.
+
+**Consequence:** the waking keystroke or click is consumed rather than delivered. That is required
+for a future PIN, and it is right today too — the click that brings Sati back should not also press
+a button on a screen the user could not read.
+
+## The waking mouse-move has to be a real move (2026-09-03)
+
+Showing the overlay changes what sits under the cursor, and WPF raises a `MouseMove` for that
+alone. The first implementation therefore woke itself the instant it appeared. Bare mouse moves now
+count as activity only when the pointer actually travelled, which is why `ShellWindow` tracks the
+last pointer position rather than trusting the event.
+
+## Button fill became its own palette token (2026-09-03)
+
+`PrimaryButton` filled itself with `AccentBrush`, the same brush that paints accent text. Making
+the orange palettes' buttons lighter would have lightened their accent type too.
+
+Every theme now supplies `AccentButtonBrush` and its hover, pressed, and foreground partners. In
+thirteen themes those are copies of the accent values, so nothing moved. In Blue-Gray Pearl and
+Cedar Grove the button fill is a much lighter orange of the same hue, paired with dark text at
+roughly 7.9:1 contrast.
+
+**Rejected:** defining fallbacks in `App.xaml`. Theme dictionaries are merged and swapped whole,
+and a resource defined directly on the application's own dictionary wins over the merged theme, so
+a fallback there would have made themes unable to override it. Every theme carries the keys
+instead, and a structure test enforces that.
+
+## The case note template never removes text (2026-09-03)
+
+Build Case Note Template writes the ticked meeting facts above the case manager's own words and
+moves those words below a Meeting Narrative header.
+
+Pressing it twice therefore stacks two templates rather than replacing the first. That was the
+deliberate choice. Replacing would mean deciding that everything above the header is machine
+output and safe to discard — but a case manager who edited a generated line would lose that edit,
+silently, in a clinical record. Visible duplication that the user can delete is a better failure
+than invisible deletion. A test pins the behavior so it is not "fixed" by accident.
+
+The template renders `CaseNoteFactCompiler.VisitFacts` rather than phrasing the checkboxes itself,
+so the template and the local-AI draft cannot describe the same selection two different ways.
+
+## The follow-up suggestion asks a different question than the dashboard (2026-09-03)
+
+The suggested-follow-up row under the note narrative had been built on
+`UpcomingEventService.GenerateEvents`, which reports only forms inside their open/late window. With
+the default zero-day review window, a quarterly review is "open" on exactly its due date, so for a
+client whose coverage started recently the row was blank for months. It was reported as a feature
+that never appeared, and it effectively never did.
+
+The dashboard question is "what is actionable right now". The note panel's question is "what is
+coming up next for this client". `NextFormSuggestion` answers the second, ignoring the window and
+falling back only when `GenerateEvents` has nothing. Both read the same form table, the same
+`GetCurrentCycleForm`, and the same `IsSatisfiedAsOf`, so neither can name a form the compliance
+gate considers satisfied.
+
+The existing tests missed this because they drove the panel with a stub event service. They proved
+the panel reacted; nothing proved the real generator ever produced anything.

@@ -6,6 +6,12 @@
     <SolidColorBrush x:Key="SurfaceAltBrush" Color="#EAF0F4"/><SolidColorBrush x:Key="SurfaceMutedBrush" Color="#E1E8ED"/><SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FFFFFF"/><SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B3F6F9FB"/><SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#40F6F9FB"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#D4DDE4"/><SolidColorBrush x:Key="InputBorderBrush" Color="#BAC7D1"/><SolidColorBrush x:Key="DividerBrush" Color="#E0E7EC"/>
 <SolidColorBrush x:Key="AccentBrush" Color="#52618F"/><SolidColorBrush x:Key="AccentHoverBrush" Color="#414E76"/><SolidColorBrush x:Key="AccentPressedBrush" Color="#323D5E"/><SolidColorBrush x:Key="OnAccentBrush" Color="#FAFCFF"/>
+    <!-- Button fill is its own token so a palette can lighten its buttons
+         without lightening the accent used for type. -->
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#52618F" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#414E76" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#323D5E" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FAFCFF" />
     <!-- Local AI: misted teal to complement the moonlit indigo. -->
     <Color x:Key="AiGlowColor">#FF75AEB0</Color>
     <SolidColorBrush x:Key="AiAccentBrush" Color="#3F7F80"/><SolidColorBrush x:Key="AiAccentHoverBrush" Color="#528F90"/><SolidColorBrush x:Key="AiAccentPressedBrush" Color="#2F6667"/><SolidColorBrush x:Key="AiAccentSoftBrush" Color="#E0F0F0"/><SolidColorBrush x:Key="AiAccentBorderBrush" Color="#A6CACA"/><SolidColorBrush x:Key="OnAiAccentBrush" Color="#F8FFFF"/><SolidColorBrush x:Key="AiPanelTextBrush" Color="#28595A"/>
