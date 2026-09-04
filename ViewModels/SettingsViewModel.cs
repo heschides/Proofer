@@ -27,6 +27,7 @@ namespace Sati.ViewModels
         private readonly DailyAgendaPreferenceService _dailyAgendaPreferences;
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
         private readonly IdleLockPreferenceService _idlePreferences;
+        private readonly ConsumerPickerSortPreferenceService _consumerPickerSortPreferences;
         private Settings? _settings;
         private bool _loadingDailyAgendaPreference;
         private bool _savedShowDailyAgendaAtSignIn = true;
@@ -34,6 +35,8 @@ namespace Sati.ViewModels
         private bool _savedEasyEyesMode;
         private bool _loadingIdlePreference;
         private int _savedIdleMinutes = IdleLockPreferenceService.DefaultMinutes;
+        private bool _loadingConsumerPickerSortPreference;
+        private bool _savedSortConsumerPickersByLastName;
 
         public SettingsViewModel(
             ISettingsService settingsService,
@@ -46,6 +49,7 @@ namespace Sati.ViewModels
             DailyAgendaPreferenceService dailyAgendaPreferences,
             EasyEyesPreferenceService easyEyesPreferences,
             IdleLockPreferenceService idlePreferences,
+            ConsumerPickerSortPreferenceService consumerPickerSortPreferences,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -61,6 +65,7 @@ namespace Sati.ViewModels
             _dailyAgendaPreferences = dailyAgendaPreferences;
             _easyEyesPreferences = easyEyesPreferences;
             _idlePreferences = idlePreferences;
+            _consumerPickerSortPreferences = consumerPickerSortPreferences;
             selectedTheme = _themeService.CurrentTheme;
             TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
                 Enumerable.Range(1, 9)
@@ -70,6 +75,7 @@ namespace Sati.ViewModels
             _ = LoadDailyAgendaPreferenceAsync();
             _ = LoadEasyEyesPreferenceAsync();
             _ = LoadIdlePreferenceAsync();
+            _ = LoadConsumerPickerSortPreferenceAsync();
             if (CanManageAgencySettings)
                 _ = LoadAsync();
         }
@@ -132,6 +138,17 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string idlePreferenceStatus = string.Empty;
 
+        // Client combo boxes (Notes, AT requests, client documents, and similar screens) show
+        // "First Last" and, unless this is on, list order groups people by last name without
+        // that being visible in the text — a case manager scanning for "Smith" has no way to
+        // tell where in the list to look. Off by default: an existing user's combo-box order
+        // should not change out from under them.
+        [ObservableProperty]
+        private bool sortConsumerPickersByLastName;
+
+        [ObservableProperty]
+        private string consumerPickerSortPreferenceStatus = string.Empty;
+
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
             "Ready. The preview uses no database or client information.";
@@ -171,6 +188,12 @@ namespace Sati.ViewModels
         {
             if (!_loadingEasyEyesPreference)
                 _ = SaveEasyEyesPreferenceAsync(value);
+        }
+
+        partial void OnSortConsumerPickersByLastNameChanged(bool value)
+        {
+            if (!_loadingConsumerPickerSortPreference)
+                _ = SaveConsumerPickerSortPreferenceAsync(value);
         }
 
         private async Task LoadEasyEyesPreferenceAsync()
@@ -227,6 +250,63 @@ namespace Sati.ViewModels
                 }
 
                 EasyEyesPreferenceStatus = $"Preference was not changed. {exception.Message}";
+            }
+        }
+
+        private async Task LoadConsumerPickerSortPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                ConsumerPickerSortPreferenceStatus = "Sign in to change the consumer-list sort preference.";
+                return;
+            }
+
+            var sortByLastName = await _consumerPickerSortPreferences.LoadForUserAsync(userId.Value);
+            _loadingConsumerPickerSortPreference = true;
+            try
+            {
+                SortConsumerPickersByLastName = sortByLastName;
+                _savedSortConsumerPickersByLastName = sortByLastName;
+            }
+            finally
+            {
+                _loadingConsumerPickerSortPreference = false;
+            }
+
+            ConsumerPickerSortPreferenceStatus = _consumerPickerSortPreferences.LastLoadWarning ??
+                "This personal setting is saved immediately for this Sati account on this computer.";
+        }
+
+        private async Task SaveConsumerPickerSortPreferenceAsync(bool value)
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                ConsumerPickerSortPreferenceStatus = "Sign in before changing the consumer-list sort preference.";
+                return;
+            }
+
+            ConsumerPickerSortPreferenceStatus = "Saving consumer-list sort preference...";
+            try
+            {
+                await _consumerPickerSortPreferences.SetSortByLastNameAsync(userId.Value, value);
+                _savedSortConsumerPickersByLastName = value;
+                ConsumerPickerSortPreferenceStatus = "Consumer-list sort preference saved.";
+            }
+            catch (ConsumerPickerSortPreferenceSaveException exception)
+            {
+                _loadingConsumerPickerSortPreference = true;
+                try
+                {
+                    SortConsumerPickersByLastName = _savedSortConsumerPickersByLastName;
+                }
+                finally
+                {
+                    _loadingConsumerPickerSortPreference = false;
+                }
+
+                ConsumerPickerSortPreferenceStatus = $"Preference was not changed. {exception.Message}";
             }
         }
 

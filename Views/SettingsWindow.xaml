@@ -256,6 +256,23 @@
                            TextWrapping="Wrap"
                            Margin="24,0,0,20" />
 
+                <CheckBox Content="Sort client lists by last name"
+                          AutomationProperties.Name="Sort client lists by last name"
+                          AutomationProperties.HelpText="Sorts the client combo boxes in Notes, AT requests, and client documents by last name instead of first name."
+                          IsChecked="{Binding SortConsumerPickersByLastName, Mode=TwoWay}"
+                          Margin="0,0,0,6" />
+                <TextBlock Text="Sorts the client combo boxes in Notes, AT requests, and client documents by last name instead of first name."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="{Binding ConsumerPickerSortPreferenceStatus}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,20" />
+
                 <TextBlock Text="INACTIVITY SCREEN"
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox ItemsSource="{Binding IdleTimeoutChoices}"

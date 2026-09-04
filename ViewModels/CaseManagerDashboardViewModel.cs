@@ -32,6 +32,7 @@ namespace Sati.ViewModels
         private readonly IUpcomingEventService _upcomingEventService;
         private readonly IFormService _formService;
         private readonly IExemptDateService _exemptDateService;
+        private readonly ConsumerPickerSortPreferenceService? _consumerPickerSortPreferences;
         private Settings? _settings;
         private Incentive? _incentive;
         private List<Note> _monthlyNotes = [];
@@ -66,7 +67,8 @@ CalendarViewModel calendarViewModel,
             ReviewsViewModel reviewsViewModel,
             ProvidersViewModel providersViewModel,
             ATRequestViewModel atRequestViewModel,
-            IAnnualDocumentService? annualDocuments = null
+            IAnnualDocumentService? annualDocuments = null,
+            ConsumerPickerSortPreferenceService? consumerPickerSortPreferences = null
             )
         {
             _personService = personService;
@@ -78,6 +80,7 @@ CalendarViewModel calendarViewModel,
             _formService = formService;
             _exemptDateService = exemptDateService;
             _annualDocuments = annualDocuments;
+            _consumerPickerSortPreferences = consumerPickerSortPreferences;
             NoteEntry = noteEntryViewModel; NotesView = CollectionViewSource.GetDefaultView(Notes);
             NotesView.Filter = FilterNotes;
             NotesLog = notesWindowViewModel;
@@ -811,6 +814,8 @@ CalendarViewModel calendarViewModel,
                 if (!_peopleLoadRequests.IsCurrent(request))
                     return;
 
+                people = ApplyConsumerPickerSort(people, await SortsPickersByLastNameAsync());
+
                 People.Clear();
                 foreach (var person in people)
                     People.Add(person);
@@ -828,6 +833,33 @@ CalendarViewModel calendarViewModel,
             {
                 Debug.WriteLine($"Failed to load people: {ex.Message}");
             }
+        }
+
+        // Pure and independently testable: the order a client picker shows, given the raw
+        // service result and the current preference. When false, the list passes through
+        // unchanged — an existing user's order must not shift just because this build shipped.
+        internal static List<Person> ApplyConsumerPickerSort(List<Person> people, bool sortByLastName) =>
+            sortByLastName
+                ? people
+                    .OrderBy(p => p.LastName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(p => p.FirstName, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : people;
+
+        // Independently loads the preference rather than trusting Settings to have loaded it
+        // first — the client picker order should reflect it starting with the first caseload
+        // load of the session, not only after the Settings window has been opened once.
+        private int? _sortPickersByLastNameForUserId;
+        private async Task<bool> SortsPickersByLastNameAsync()
+        {
+            if (_consumerPickerSortPreferences is null || LoggedInUser is null)
+                return false;
+            if (_sortPickersByLastNameForUserId == LoggedInUser.Id)
+                return _consumerPickerSortPreferences.SortByLastName;
+
+            var sortByLastName = await _consumerPickerSortPreferences.LoadForUserAsync(LoggedInUser.Id);
+            _sortPickersByLastNameForUserId = LoggedInUser.Id;
+            return sortByLastName;
         }
 
         private async Task ReloadAfterExternalFormComplianceChangedAsync()

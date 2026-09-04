@@ -441,6 +441,17 @@
                     <StackPanel Grid.Row="2">
                         <Border BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="0,1,0,0"
+                                Padding="0,9,0,7"
+                                Margin="0,8,0,0"
+                                Visibility="{Binding NoDeletionPathAvailableReason, Converter={StaticResource NullToVisibilityConverter}}">
+                            <TextBlock Text="{Binding NoDeletionPathAvailableReason}"
+                                       FontSize="9"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       AutomationProperties.Name="Why deletion is unavailable for this consumer" />
+                        </Border>
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,1,0,0"
                                 Padding="0,9,0,0"
                                 Margin="0,8,0,0">
                             <StackPanel>

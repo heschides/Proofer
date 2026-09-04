@@ -97,15 +97,27 @@ public sealed class AdminTestDataDeletionViewModelTests
     // ---- Rule-3 deletion: DeleteConsumerInWindowCommand ----
 
     [Fact]
-    public void ARecentlyCreatedConsumerWithNoReasonCannotRunTheCommand()
+    public async Task ARecentlyCreatedConsumerWithNoReasonCanRunTheCommandButItRefusesWithAClearMessage()
     {
+        // The button must stay enabled and clickable even with an empty reason: a silently
+        // disabled control with no explanation is exactly what produced the "the delete button
+        // wasn't working" report this test guards against. Refusal happens on click, with a
+        // status message, not by disabling the control ahead of time.
         var service = new RecordingAdminService();
         var viewModel = CreateViewModel(service);
         var recent = service.Person with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
         SelectTestConsumer(viewModel, recent);
+        var confirmationShown = false;
+        viewModel.ConsumerDeletionConfirmationRequested += (_, _) => confirmationShown = true;
 
         Assert.True(viewModel.IsSelectedPersonWithinDeletionWindow);
-        Assert.False(viewModel.DeleteConsumerInWindowCommand.CanExecute(null));
+        Assert.True(viewModel.DeleteConsumerInWindowCommand.CanExecute(null));
+
+        await viewModel.DeleteConsumerInWindowCommand.ExecuteAsync(null);
+
+        Assert.False(confirmationShown);
+        Assert.Equal(0, service.WindowDeleteCalls);
+        Assert.Contains("reason", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -119,6 +131,30 @@ public sealed class AdminTestDataDeletionViewModelTests
 
         Assert.False(viewModel.IsSelectedPersonWithinDeletionWindow);
         Assert.False(viewModel.DeleteConsumerInWindowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void NoDeletionPathAvailableReasonExplainsWhenNeitherToolAppliesAndIsNullWhenEitherDoes()
+    {
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var neitherEligible = service.Person with
+        {
+            IsTestData = false,
+            CreatedAtUtc = DateTime.UtcNow.AddDays(-25)
+        };
+        SelectTestConsumer(viewModel, neitherEligible);
+
+        Assert.NotNull(viewModel.NoDeletionPathAvailableReason);
+        Assert.Contains("20 days", viewModel.NoDeletionPathAvailableReason);
+
+        var testDataOnly = neitherEligible with { IsTestData = true };
+        SelectTestConsumer(viewModel, testDataOnly);
+        Assert.Null(viewModel.NoDeletionPathAvailableReason);
+
+        var recentOnly = neitherEligible with { CreatedAtUtc = DateTime.UtcNow.AddDays(-5) };
+        SelectTestConsumer(viewModel, recentOnly);
+        Assert.Null(viewModel.NoDeletionPathAvailableReason);
     }
 
     [Fact]

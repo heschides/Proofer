@@ -46,6 +46,26 @@ public partial class AdminDashboardViewModel(
         ? "Not loaded"
         : $"Updated {LastRefreshedAt:MMM d, h:mm tt}";
 
+    /// <summary>
+    /// Explains why neither destructive-deletion action is available for the selected Person,
+    /// so an Admin never has to guess why a delete button won't respond. Null when at least one
+    /// path applies — the corresponding section explains itself in that case.
+    /// </summary>
+    public string? NoDeletionPathAvailableReason
+    {
+        get
+        {
+            if (SelectedPerson is null)
+                return null;
+            if (SelectedPerson.IsTestData || IsSelectedPersonWithinDeletionWindow)
+                return null;
+            return "This consumer is not marked as test data and was not created within the last " +
+                   $"{ConsumerDeletionRules.DeletionWindowDays} days, so no deletion action is " +
+                   "available here. A consumer created in error outside that window is not covered " +
+                   "by either tool on this screen — see HANDOFF_CLIENT_DELETION_POLICY.md.";
+        }
+    }
+
     // Purely a display hint — CanDeleteConsumerInWindow re-derives the same check, and the
     // service re-derives it again server-side. See CLAUDE.md: UI visibility is not security.
     public bool IsSelectedPersonWithinDeletionWindow =>
@@ -115,6 +135,7 @@ public partial class AdminDashboardViewModel(
     {
         OnPropertyChanged(nameof(HasSelectedPerson));
         OnPropertyChanged(nameof(IsSelectedPersonWithinDeletionWindow));
+        OnPropertyChanged(nameof(NoDeletionPathAvailableReason));
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         DeleteTestConsumerCommand.NotifyCanExecuteChanged();
         DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
@@ -281,8 +302,7 @@ public partial class AdminDashboardViewModel(
 
     private bool CanDeleteConsumerInWindow() =>
         SelectedPerson is not null && !IsBusy &&
-        ConsumerDeletionRules.IsWithinDeletionWindow(SelectedPerson.CreatedAtUtc, DateTime.UtcNow) &&
-        !string.IsNullOrWhiteSpace(ConsumerDeletionReason);
+        ConsumerDeletionRules.IsWithinDeletionWindow(SelectedPerson.CreatedAtUtc, DateTime.UtcNow);
 
     /// <summary>
     /// Rule-3 deletion: permanently deletes an ordinary consumer created within the window.
@@ -290,12 +310,25 @@ public partial class AdminDashboardViewModel(
     /// bounded by time and by the billing-integrity and legal-hold gates the service enforces.
     /// See HANDOFF_CLIENT_DELETION_POLICY.md.
     /// </summary>
+    /// <remarks>
+    /// The reason requirement is enforced here, on click, rather than through CanExecute. A
+    /// button that silently disables itself when a text field is empty looks broken with no
+    /// way to tell why — CLAUDE.md's "Working with Josh" asks for direct, legible feedback, not
+    /// a dead control. Clicking with no reason yielded exactly a report of "the delete button
+    /// wasn't working" the first time this shipped.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanDeleteConsumerInWindow))]
     private async Task DeleteConsumerInWindowAsync()
     {
         var person = SelectedPerson;
         if (person is null)
             return;
+
+        if (string.IsNullOrWhiteSpace(ConsumerDeletionReason))
+        {
+            StatusMessage = "Enter a reason before deleting this consumer.";
+            return;
+        }
 
         var confirmation = new AdminConsumerDeletionConfirmationEventArgs(
             person.PersonId,
