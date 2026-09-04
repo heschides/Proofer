@@ -6,7 +6,7 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Trading Places";
+    public const string ReleaseName = "Middle Ground";
     public const string ReleaseDate = "September 4, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
@@ -16,7 +16,8 @@ public static class ProductReleaseNotes
             [
                 "New Settings option, \"Display Scratchpad in the center of the display\": Today's Work and Tomorrow's Agenda move into the Overview's middle column, and the notes list moves out to the collapsible side panel behind the chevron. Off by default, so an existing user's layout does not change.",
                 "The swap applies to the Overview only. On the other Case Management tabs there is no notes list to move, so the side panel keeps showing Today's Work rather than emptying out.",
-                "The centered Scratchpad is the same Today's Work it always was, not a second copy — what you type there is what gets saved when Sati closes."
+                "The centered Scratchpad is the same Today's Work it always was, not a second copy — what you type there is what gets saved when Sati closes.",
+                "Corrects last release, where this setting swapped the whole dashboard instead of the notes list, so the Scratchpad only moved from the right edge of the screen to the left."
             ]),
         new(
             "Still planned before commercial production",

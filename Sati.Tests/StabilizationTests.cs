@@ -553,15 +553,16 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.45", version);
+        Assert.Equal("1.2.46", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Trading Places", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Middle Ground", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "The Scratchpad can trade places with the notes list" &&
             section.Items.Any(item => item.Contains("Display Scratchpad in the center", StringComparison.OrdinalIgnoreCase)) &&
             section.Items.Any(item => item.Contains("middle column", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("not a second copy", StringComparison.OrdinalIgnoreCase)));
+            section.Items.Any(item => item.Contains("not a second copy", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Corrects last release", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&

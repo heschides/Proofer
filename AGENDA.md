@@ -1,5 +1,53 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.46 — 2026-09-04
+
+"Middle Ground." Corrects 1.2.45. That release read "the Notes pane on the Overview" as the whole
+role dashboard and traded it with the Scratchpad at the shell level, so turning the setting on only
+moved the Scratchpad from the right edge of the screen to the left — reported by Josh with a
+screenshot the same afternoon. The intended swap was between the Overview's *middle* notes column
+and the Scratchpad, and that is what it now does.
+
+The filter bar and notes grid are extracted into `Views/NotesPanelView.xaml` so one control renders
+in either position; it trades places with `ScratchpadView` between the Overview's middle column and
+the shell's collapsible side panel. `ShellWindow.xaml`'s main content area returns to a fixed
+column, reverting 1.2.45's `Grid.Column` swap.
+
+Two decisions worth keeping:
+
+- **The side panel only takes the notes panel while the Overview is on screen**
+  (`ShellViewModel.ShowNotesInSidePanel`). The other Case Management tabs have no notes panel to
+  host, so the side slot keeps the Scratchpad rather than leaving Today's Work unreachable.
+- **The centered Scratchpad is the shell's own `ScratchpadViewModel`, handed down through
+  `CaseManagerDashboardViewModel.AttachScratchpad`, not injected.** That type is registered
+  `AddTransient`, so resolving a second one would have compiled and rendered correctly while
+  silently discarding whatever was typed into it — the shell saves only its own instance on close
+  and on user switch. DI lifetime is a correctness property for a view model holding unsaved text.
+
+**No schema change.** No migration was added or touched; `dotnet ef migrations
+has-pending-model-changes` confirmed clean. No firewall rule needed for this release.
+
+**Desktop-and-API release.** Both assembly versions move together per `StabilizationTests`; only
+the desktop client changed in substance, so publishing the API is version-parity, not a functional
+deploy.
+
+- [x] Release-configuration build across `Sati.csproj` and `Sati.Api/Sati.Api.csproj`, 0 errors.
+      Full test suite: 1,293 desktop/domain passed (1 legitimate skip), 374 API passed, 4 Carika
+      passed — confirmed both before and after the version bump. New coverage:
+      `Sati.Tests/ScratchpadSwapRenderTests.cs` (3 tests) loads the real Overview and reads back
+      which panel is actually visible in each state, plus asserts the centered Scratchpad is bound
+      to the handed-down instance. Added deliberately: 1.2.45's mistake compiled, passed every
+      test, and was only detectable by looking at the screen.
+- [ ] Version bump to 1.2.46 and source commit pushed to `origin/master`.
+- [ ] Demo API published and verified (health, version, contract revision).
+- [ ] Both installers built, accepted, and published to their distribution folders.
+- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+
+**Known flake, not caused by this change:** one full desktop run aborted with a test host crash
+("Fatal error") after 918 tests. It did not reproduce across five subsequent clean runs in both
+Debug and Release, and was not root-caused. The shared WPF `Application` on a single STA thread is
+the likely area if it recurs.
+
 ## Release 1.2.45 — 2026-09-04
 
 "Trading Places." A new Settings option, "Display Scratchpad in the center of the display," swaps
