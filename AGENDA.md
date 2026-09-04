@@ -30,10 +30,39 @@ it is routine version-parity, not a functional deploy.
       example commands, and `Services/ProductReleaseNotes.cs`'s release notes (title
       "Trading Places"), with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
       `Sati.Api.Tests/TenantAuthorizationTests.cs`.
-- [ ] Source commit pushed to `origin/master`.
-- [ ] Demo API published and verified (health, version, contract revision).
-- [ ] Both installers built, accepted, and published to their distribution folders.
-- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+- [x] Source commit `b80e552495e39b6bbccf59fd698ca78e2e89ea56` pushed to `origin/master`.
+- [x] Published the Demo API. Package built under .NET 10, 70 entries, 0 backslash entry names,
+      `artifacts/Sati.Api-1.2.45.zip` (9,867,299 bytes; SHA-256
+      `0E3D2FAC3D103BF900D4547E931FB220E41FC98655A85A93FD4AE17837B8E5FB`). No `appsettings*.json`
+      present; both `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files confirmed
+      present. Packaged `Sati.Api.dll` reports file version `1.2.45.0`.
+      OneDeploy deployment `4571aa5a42404a2bab3eb37f2cd033c8` to `sati-demo-api-satilogica` in
+      `rg-sati-demo`, `provisioningState: Succeeded`. `/health/live` returned `{"status":"live"}`,
+      `/health/ready` returned `Healthy`, `/health/version` reported product `Sati.Api`, release
+      `1.2.45`, contract revision `78B5A2F71629` — unchanged, expected since nothing in this
+      release touches `ApiSurface.Routes` — and confirmed equal to `ApiSurface.Revision` computed
+      locally from the same build.
+- [x] Built and accepted both installers.
+      Demo: `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.45.exe` (101,122,048 bytes; SHA-256
+      `e323d67aa8fbdad290d7293f51658a35274d8d8f3bc79811cdb416dc63c5e8ea`). Five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.45.0`, cleanup
+      passed. Run on the build workstation, so it is not a clean external-machine attestation.
+      Local: built after confirming `artifacts\Prerequisites\SqlLocalDB.msi` still carries a Valid
+      Authenticode signature from `CN=Microsoft Corporation`.
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.45.exe` (203,165,450 bytes; SHA-256
+      `3a5bd5a695e53f499732d80bc89695b9f9c015662e4a7e3e9d531eb3d139e0d5`). Acceptance passed:
+      installed version `1.2.45.0`, `integratedSecurity=True` with no SQL credentials in the Local
+      configuration, cleanup passed. Neither installer is code-signed.
+- [x] Published both installers and their `.sha256` files. Each was copied to a uniquely named
+      temporary sibling, hash-verified, renamed to the final versioned name, and verified again.
+      No destination file was overwritten and no temporary file remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.45.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.45.exe`
+        and its `.sha256`
+
+      Both published hashes were re-compared against the accepted build artifacts and match.
+- [x] Evidence commit with final hashes, deployment identifiers, and test totals — this entry.
 
 **Known open question, not a defect in this release:** `CaseManagerDashboardContentView` (the
 Overview's dashboard content) is a five-column layout designed for the wide main panel. When this
