@@ -433,12 +433,53 @@
                                       <Run Text="{Binding Revision, Mode=OneWay}" />
                                         <Run Text="  |  " />
                                       <Run Text="{Binding AssignedUserDisplayName, Mode=OneWay}" />
+                                        <Run Text="  |  " />
+                                      <Run Text="{Binding Status, Mode=OneWay}" />
                                     </TextBlock>
+                                    <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{Binding CreatedAtUtc, Converter={StaticResource CreatedAtLabelConverter}, Mode=OneWay}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <StackPanel Grid.Row="2">
+                        <Border Visibility="{Binding HasSelectedPerson, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Padding="0,0,0,7">
+                            <StackPanel>
+                                <TextBlock Text="STATUS"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock FontSize="9"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,7"
+                                           Foreground="{DynamicResource TextSecondaryBrush}">
+                                    <Run Text="Archiving takes a consumer off the active caseload without deleting anything — reversible, and the only tool here that reaches a record outside the delete window. Currently: " />
+                                    <Run Text="{Binding SelectedPerson.Status, Mode=OneWay}" FontWeight="SemiBold" />
+                                    <Run Text="." />
+                                </TextBlock>
+                                <ComboBox ItemsSource="{Binding StatusChoices}"
+                                          SelectedItem="{Binding SelectedTargetStatus, Mode=TwoWay}"
+                                          HorizontalAlignment="Left"
+                                          MinWidth="150"
+                                          Margin="0,0,0,7"
+                                          AutomationProperties.Name="New status for this consumer" />
+                                <TextBlock Text="NOTE (optional)"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding StatusChangeNote, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="11"
+                                         Margin="0,2,0,7"
+                                         AutomationProperties.Name="Note for this status change" />
+                                <Button Content="Set status"
+                                        Command="{Binding SetPersonStatusCommand}"
+                                        Style="{StaticResource SmallButton}"
+                                        HorizontalAlignment="Left"
+                                        AutomationProperties.HelpText="Changes the selected consumer's status. Non-destructive and reversible."
+                                        AutomationProperties.Name="Set consumer status" />
+                            </StackPanel>
+                        </Border>
                         <Border BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="0,1,0,0"
                                 Padding="0,9,0,7"

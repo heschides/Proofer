@@ -564,20 +564,36 @@ public sealed class AdminService(
     {
         var actor = CurrentAdmin();
         await using var context = contextFactory.CreateDbContext();
-        return await (
+        var rows = await (
             from person in context.People.AsNoTracking()
             join user in context.Users.AsNoTracking() on person.UserId equals user.Id
             where person.AgencyId == actor.AgencyId && user.AgencyId == actor.AgencyId
             orderby person.LastName, person.FirstName, person.Id
-            select new AdminPersonListItemDto(
-                person.Id,
-                ((person.LastName ?? string.Empty) + ", " + (person.FirstName ?? string.Empty)).Trim(' ', ','),
+            select new
+            {
+                PersonId = person.Id,
+                person.LastName,
+                person.FirstName,
                 person.Revision,
-                user.Id,
+                AssignedUserId = user.Id,
                 user.DisplayName,
                 person.IsTestData,
-                person.CreatedAtUtc))
+                person.CreatedAtUtc,
+                person.Status
+            })
             .ToListAsync(cancellationToken);
+
+        // person.Status.ToString() happens here, client-side, after materialization — EF cannot
+        // reliably translate an enum ToString() call inside the query itself.
+        return rows.Select(row => new AdminPersonListItemDto(
+            row.PersonId,
+            ((row.LastName ?? string.Empty) + ", " + (row.FirstName ?? string.Empty)).Trim(' ', ','),
+            row.Revision,
+            row.AssignedUserId,
+            row.DisplayName,
+            row.IsTestData,
+            row.CreatedAtUtc,
+            row.Status.ToString())).ToList();
     }
 
     public async Task<TestConsumerDeletionResultDto> DeleteTestConsumerAsync(

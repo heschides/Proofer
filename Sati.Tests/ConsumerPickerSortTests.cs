@@ -7,18 +7,19 @@ namespace Sati.Tests;
 public sealed class ConsumerPickerSortTests
 {
     [Fact]
-    public void WhenDisabledTheListPassesThroughUnchanged()
+    public void WhenDisabledSortsByFirstNameThenLastName()
     {
-        // Order must survive exactly as the service returned it — an existing user's
-        // combo-box order must not shift just because this preference exists.
-        var zed = Named("Zed", "Zephyr");
-        var ann = Named("Ann", "Anders");
-        var people = new List<Person> { zed, ann };
+        // Both states must sort actively and visibly differently from each other. The caseload
+        // query already orders by LastName at the database level, so leaving the list untouched
+        // when this preference is off made "off" and "on" look nearly identical in practice —
+        // exactly the "the setting does not affect the lists" report this test now guards against.
+        var zedZephyr = Named("Zed", "Zephyr");
+        var annAnders = Named("Ann", "Anders");
+        var people = new List<Person> { zedZephyr, annAnders };
 
         var result = CaseManagerDashboardViewModel.ApplyConsumerPickerSort(people, sortByLastName: false);
 
-        Assert.Same(people, result);
-        Assert.Equal(["Zed", "Ann"], result.Select(p => p.FirstName));
+        Assert.Equal(["Ann", "Zed"], result.Select(p => p.FirstName));
     }
 
     [Fact]
@@ -34,6 +35,21 @@ public sealed class ConsumerPickerSortTests
         Assert.Equal(
             [("Ann", "Jones"), ("Bob", "Smith"), ("Zed", "Smith")],
             result.Select(p => (p.FirstName, p.LastName)));
+    }
+
+    [Fact]
+    public void WhenDisabledSortIsCaseInsensitiveAndTolerantOfMissingNames()
+    {
+        var lowercase = Named("adam", "Zed");
+        var uppercase = Named("ADAM", "Ann");
+        var noFirstName = Named(null, "Nolan");
+        var people = new List<Person> { uppercase, noFirstName, lowercase };
+
+        var result = CaseManagerDashboardViewModel.ApplyConsumerPickerSort(people, sortByLastName: false);
+
+        // Nulls sort first under StringComparer.OrdinalIgnoreCase; the two "adam" spellings land
+        // together regardless of case, ordered by last name.
+        Assert.Equal(["Nolan", "Ann", "Zed"], result.Select(p => p.LastName));
     }
 
     [Fact]

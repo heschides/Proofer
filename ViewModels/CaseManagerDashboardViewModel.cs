@@ -144,6 +144,21 @@ CalendarViewModel calendarViewModel,
                 await LoadExemptDatesAsync();
                 await LoadMonthlyNotesAsync();
             };
+
+            // Re-sorts the already-loaded list in place rather than waiting for the next full
+            // reload. Toggling the Settings checkbox and seeing nothing happen until the next
+            // sign-in is exactly the "doesn't affect the lists" report this closes.
+            if (_consumerPickerSortPreferences is not null)
+            {
+                _consumerPickerSortPreferences.PreferenceChanged += (_, sortByLastName) =>
+                {
+                    var resorted = ApplyConsumerPickerSort(People.ToList(), sortByLastName);
+                    People.Clear();
+                    foreach (var person in resorted)
+                        People.Add(person);
+                    NoteEntry.SetPeople(People);
+                };
+            }
         }
 
         // Order is the contract, not a detail: the client page commits any pending
@@ -835,16 +850,25 @@ CalendarViewModel calendarViewModel,
             }
         }
 
-        // Pure and independently testable: the order a client picker shows, given the raw
-        // service result and the current preference. When false, the list passes through
-        // unchanged — an existing user's order must not shift just because this build shipped.
+        // Pure and independently testable: the order a client picker shows, given the raw service
+        // result and the current preference.
+        //
+        // Both branches actively sort, on purpose. The caseload query already orders by LastName
+        // at the database level, so an earlier version of this method left the list untouched when
+        // the preference was off — meaning turning the preference on or off rarely looked any
+        // different, since "off" was already last-name-grouped in practice. Sorting explicitly by
+        // FirstName when off makes the two states visibly distinct, which is what a "sort by X"
+        // toggle needs to actually do something a user can see.
         internal static List<Person> ApplyConsumerPickerSort(List<Person> people, bool sortByLastName) =>
             sortByLastName
                 ? people
                     .OrderBy(p => p.LastName, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(p => p.FirstName, StringComparer.OrdinalIgnoreCase)
                     .ToList()
-                : people;
+                : people
+                    .OrderBy(p => p.FirstName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(p => p.LastName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
         // Independently loads the preference rather than trusting Settings to have loaded it
         // first — the client picker order should reflect it starting with the first caseload

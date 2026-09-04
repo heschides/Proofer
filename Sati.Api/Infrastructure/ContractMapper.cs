@@ -8,7 +8,7 @@ internal static class ContractMapper
     private static readonly string[] GenderNames = ["Unknown", "Male", "Female", "NonBinary"];
     private static readonly string[] WaiverNames = ["None", "Section21", "Section29"];
     // Mirrors Sati.PersonStatus. Append-only — see that enum's own comment.
-    private static readonly string[] PersonStatusNames = ["Active", "NoLongerServed", "Deceased", "Ghost"];
+    internal static readonly string[] PersonStatusNames = ["Active", "NoLongerServed", "Deceased", "Ghost"];
     internal static readonly string[] NoteStatusNames =
     [
         "Scheduled", "Pending", "Logged", "HeldForCompliance", "Cancelled", "Delayed",

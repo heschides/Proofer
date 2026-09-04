@@ -158,6 +158,103 @@ public sealed class AdminTestDataDeletionViewModelTests
     }
 
     [Fact]
+    public void APredatesTrackingConsumerGetsTheNeverEligibleExplanationNotTheWaitAndRetryOne()
+    {
+        // CreatedAtUtc == default is a backfilled record, not one that was truly created in the
+        // year 1 — the message must say so, distinct from a record whose window merely expired,
+        // since only one of those two situations changes if the Admin comes back later.
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        var predatesTracking = service.Person with { IsTestData = false, CreatedAtUtc = default };
+        SelectTestConsumer(viewModel, predatesTracking);
+
+        Assert.NotNull(viewModel.NoDeletionPathAvailableReason);
+        Assert.Contains("before Sati started tracking", viewModel.NoDeletionPathAvailableReason);
+        Assert.DoesNotContain("20 days ago", viewModel.NoDeletionPathAvailableReason);
+        Assert.Contains("Status control", viewModel.NoDeletionPathAvailableReason);
+    }
+
+    // ---- Archive: SetPersonStatusCommand ----
+
+    [Fact]
+    public void WithNoPersonServiceSuppliedTheCommandStaysDisabled()
+    {
+        // Matches every existing CreateViewModel(service) call site, which omits the third
+        // argument — the command must not appear to work when its dependency was never wired.
+        var service = new RecordingAdminService();
+        var viewModel = CreateViewModel(service);
+        SelectTestConsumer(viewModel, service.Person);
+        viewModel.SelectedTargetStatus = PersonStatusRules.NoLongerServed;
+
+        Assert.False(viewModel.SetPersonStatusCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ArchivingAConsumerOutsideTheDeletionWindowAndNotMarkedTestDataSucceeds()
+    {
+        // This is the exact situation neither delete tool covers: not test data, and
+        // CreatedAtUtc predates tracking entirely. Archiving must not share that restriction —
+        // it is the one tool on this screen with no window at all.
+        var adminService = new RecordingAdminService();
+        var personService = new RecordingPersonService();
+        var viewModel = CreateViewModel(adminService, personService);
+        var stuckDuplicate = adminService.Person with
+        {
+            IsTestData = false,
+            CreatedAtUtc = default,
+            Status = "Active"
+        };
+        SelectTestConsumer(viewModel, stuckDuplicate);
+        viewModel.SelectedTargetStatus = PersonStatusRules.NoLongerServed;
+
+        Assert.True(viewModel.SetPersonStatusCommand.CanExecute(null));
+        await viewModel.SetPersonStatusCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, personService.SetStatusCalls);
+        Assert.Equal(stuckDuplicate.PersonId, personService.SetStatusPersonId);
+        Assert.Equal(PersonStatusRules.NoLongerServed, personService.SetStatusTargetStatus);
+        Assert.Equal(stuckDuplicate.Revision, personService.SetStatusRevision);
+        Assert.False(viewModel.HasError);
+        Assert.Contains("NoLongerServed", viewModel.NoticeMessage);
+    }
+
+    [Fact]
+    public void CannotSetTheStatusItAlreadyHas()
+    {
+        // ExecuteAsync called directly bypasses CanExecute — that gate only protects a UI-bound
+        // button. Consistent with the existing rule-3 CanExecute-only tests in this file, this
+        // checks the gate itself rather than also invoking a command a disabled button would
+        // never let a real Admin click.
+        var adminService = new RecordingAdminService();
+        var personService = new RecordingPersonService();
+        var viewModel = CreateViewModel(adminService, personService);
+        var alreadyArchived = adminService.Person with { Status = PersonStatusRules.NoLongerServed };
+        SelectTestConsumer(viewModel, alreadyArchived);
+        viewModel.SelectedTargetStatus = PersonStatusRules.NoLongerServed;
+
+        Assert.False(viewModel.SetPersonStatusCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task AFailedStatusChangeReportsTheServiceMessageAndWritesNothing()
+    {
+        var adminService = new RecordingAdminService();
+        var personService = new RecordingPersonService
+        {
+            SetStatusFailure = PersonStatusRules.OnlyAdminMayGhostMessage
+        };
+        var viewModel = CreateViewModel(adminService, personService);
+        SelectTestConsumer(viewModel, adminService.Person);
+        viewModel.SelectedTargetStatus = PersonStatusRules.Ghost;
+
+        await viewModel.SetPersonStatusCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, personService.SetStatusCalls);
+        Assert.True(viewModel.HasError);
+        Assert.Contains(PersonStatusRules.OnlyAdminMayGhostMessage, viewModel.StatusMessage);
+    }
+
+    [Fact]
     public async Task ConfirmationPromptsForTheExactDisplayNameAndCancelWritesNothing()
     {
         var service = new RecordingAdminService();
@@ -227,7 +324,8 @@ public sealed class AdminTestDataDeletionViewModelTests
         Assert.False(viewModel.HasNotice);
     }
 
-    private static AdminDashboardViewModel CreateViewModel(RecordingAdminService service)
+    private static AdminDashboardViewModel CreateViewModel(
+        RecordingAdminService service, IPersonService? personService = null)
     {
         var session = new SessionService();
         session.SetUser(User.Create(
@@ -239,7 +337,7 @@ public sealed class AdminTestDataDeletionViewModelTests
             UserRole.Admin,
             null,
             7));
-        return new AdminDashboardViewModel(service, session);
+        return new AdminDashboardViewModel(service, session, personService);
     }
 
     private static void SelectTestConsumer(
@@ -372,5 +470,46 @@ public sealed class AdminTestDataDeletionViewModelTests
             return Task.FromResult(new ConsumerDeletionResultDto(
                 personId, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
         }
+    }
+
+    private sealed class RecordingPersonService : IPersonService
+    {
+        public int SetStatusCalls { get; private set; }
+        public int SetStatusPersonId { get; private set; }
+        public string? SetStatusTargetStatus { get; private set; }
+        public string? SetStatusNote { get; private set; }
+        public int SetStatusRevision { get; private set; }
+        public string? SetStatusFailure { get; init; }
+
+        public Task<PersonStatusDto> SetPersonStatusAsync(
+            int personId, string status, string? note, int expectedRevision)
+        {
+            SetStatusCalls++;
+            SetStatusPersonId = personId;
+            SetStatusTargetStatus = status;
+            SetStatusNote = note;
+            SetStatusRevision = expectedRevision;
+            if (SetStatusFailure is not null)
+                throw new InvalidOperationException(SetStatusFailure);
+            return Task.FromResult(new PersonStatusDto(personId, status, note, expectedRevision + 1));
+        }
+
+        public Task<Person> AddPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<List<Person>> GetAllPeopleAsync(int userId) => throw new NotSupportedException();
+        public Task<Person> EditPersonAsync(Person person) => throw new NotSupportedException();
+        public Task<string?> GetJournalAsync(int personId) => throw new NotSupportedException();
+        public Task SaveJournalAsync(int personId, string? journal) => throw new NotSupportedException();
+        public Task<JournalReminderResult> AddJournalReminderAsync(int personId, string text) =>
+            throw new NotSupportedException();
+        public Task<List<PersonSummary>> GetPeopleForSummaryAsync(int userId) =>
+            throw new NotSupportedException();
+        public Task<CaseloadOwnershipDto> TransferOwnershipAsync(
+            int personId, int targetUserId, int expectedRevision) =>
+            throw new NotSupportedException();
+        public Task<CredibleMatchLookupResult> FindCredibleMatchesAsync(
+            IReadOnlyList<string> credibleClientIds,
+            IReadOnlyList<string>? maineCareIds = null,
+            IReadOnlyList<PersonNameBirthDate>? nameBirthDates = null) =>
+            throw new NotSupportedException();
     }
 }

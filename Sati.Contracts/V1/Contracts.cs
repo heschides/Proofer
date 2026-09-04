@@ -510,7 +510,8 @@ public sealed record AdminPersonListItemDto(
     int AssignedUserId,
     string AssignedUserDisplayName,
     bool IsTestData = false,
-    DateTime CreatedAtUtc = default);
+    DateTime CreatedAtUtc = default,
+    string Status = "Active");
 
 public sealed record DeleteTestConsumerRequest(
     int ExpectedRevision,

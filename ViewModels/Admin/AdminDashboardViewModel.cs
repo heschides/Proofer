@@ -9,7 +9,8 @@ namespace Sati.ViewModels.Admin;
 
 public partial class AdminDashboardViewModel(
     IAdminService adminService,
-    ISessionService sessionService) : ObservableObject
+    ISessionService sessionService,
+    IPersonService? personService = null) : ObservableObject
 {
     private CancellationTokenSource? _historyCancellation;
 
@@ -37,6 +38,10 @@ public partial class AdminDashboardViewModel(
     [ObservableProperty] private string noticeMessage = string.Empty;
     [ObservableProperty] private DateTime? lastRefreshedAt;
     [ObservableProperty] private string consumerDeletionReason = string.Empty;
+    [ObservableProperty] private string selectedTargetStatus = PersonStatusRules.NoLongerServed;
+    [ObservableProperty] private string statusChangeNote = string.Empty;
+
+    public IReadOnlyList<string> StatusChoices { get; } = PersonStatusRules.AllStatuses;
 
     public bool HasError => !string.IsNullOrWhiteSpace(StatusMessage);
     public bool HasNotice => !string.IsNullOrWhiteSpace(NoticeMessage);
@@ -59,10 +64,20 @@ public partial class AdminDashboardViewModel(
                 return null;
             if (SelectedPerson.IsTestData || IsSelectedPersonWithinDeletionWindow)
                 return null;
-            return "This consumer is not marked as test data and was not created within the last " +
-                   $"{ConsumerDeletionRules.DeletionWindowDays} days, so no deletion action is " +
-                   "available here. A consumer created in error outside that window is not covered " +
-                   "by either tool on this screen — see HANDOFF_CLIENT_DELETION_POLICY.md.";
+
+            // CreatedAtUtc == default means this record predates Person.CreatedAtUtc tracking —
+            // backfilled far in the past by design (HANDOFF_CLIENT_DELETION_POLICY.md: never a
+            // guessed real date), not a consumer that was genuinely created that long ago. Waiting
+            // does not change this outcome the way it would for a record whose window merely
+            // expired; the two read very differently to an Admin trying to understand what to do.
+            var windowExplanation = SelectedPerson.CreatedAtUtc == default
+                ? "was created before Sati started tracking consumer creation dates, so it can never " +
+                  "be evaluated against the 20-day window"
+                : $"was created more than {ConsumerDeletionRules.DeletionWindowDays} days ago";
+            return $"This consumer is not marked as test data and {windowExplanation}, so neither " +
+                   "delete tool on this screen applies — see HANDOFF_CLIENT_DELETION_POLICY.md. " +
+                   "Use the Status control above to archive it instead: that takes it off the " +
+                   "active caseload without deleting anything, and has no window restriction.";
         }
     }
 
@@ -139,6 +154,7 @@ public partial class AdminDashboardViewModel(
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         DeleteTestConsumerCommand.NotifyCanExecuteChanged();
         DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
+        SetPersonStatusCommand.NotifyCanExecuteChanged();
         ConsumerDeletionReason = string.Empty;
         _historyCancellation?.Cancel();
         _historyCancellation?.Dispose();
@@ -153,6 +169,7 @@ public partial class AdminDashboardViewModel(
         UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
         DeleteTestConsumerCommand.NotifyCanExecuteChanged();
         DeleteConsumerInWindowCommand.NotifyCanExecuteChanged();
+        SetPersonStatusCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnConsumerDeletionReasonChanged(string value) =>
@@ -376,6 +393,57 @@ public partial class AdminDashboardViewModel(
                 : $"Deleted {person.DisplayName} and {result.RelatedRecordsDeleted} related records. The audit event was retained.";
         }
     }
+
+    // An Admin may set any status on any consumer in the agency — PersonStatusRules grants that
+    // regardless of caseload ownership. This is the only path that reaches a consumer outside the
+    // rule-3 window and not marked test data: neither delete tool applies once a record predates
+    // Person.CreatedAtUtc tracking (backfilled far in the past, permanently outside any window),
+    // but archiving it — taking it off the active caseload — has never needed the window at all.
+    private bool CanSetPersonStatus() =>
+        personService is not null && SelectedPerson is not null && !IsBusy &&
+        !string.Equals(SelectedPerson.Status, SelectedTargetStatus, StringComparison.Ordinal);
+
+    [RelayCommand(CanExecute = nameof(CanSetPersonStatus))]
+    private async Task SetPersonStatusAsync()
+    {
+        var person = SelectedPerson;
+        if (person is null || personService is null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
+        var fromStatus = person.Status;
+        var toStatus = SelectedTargetStatus;
+        try
+        {
+            _historyCancellation?.Cancel();
+            await personService.SetPersonStatusAsync(
+                person.PersonId,
+                toStatus,
+                string.IsNullOrWhiteSpace(StatusChangeNote) ? null : StatusChangeNote,
+                person.Revision);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The status was not changed. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (HasError)
+            return;
+
+        StatusChangeNote = string.Empty;
+        await RefreshAsync();
+        if (!HasError)
+            NoticeMessage = $"{person.DisplayName} moved from {fromStatus} to {toStatus}.";
+    }
+
+    partial void OnSelectedTargetStatusChanged(string value) =>
+        SetPersonStatusCommand.NotifyCanExecuteChanged();
 
     [RelayCommand(CanExecute = nameof(CanExportPersonAuditPdf))]
     private async Task ExportPersonAuditPdfAsync()

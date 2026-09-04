@@ -383,20 +383,36 @@ internal static partial class ApiEndpoints
             if (!actor.HasAdminPermissions)
                 return Results.Forbid();
 
-            var people = await (
+            var rows = await (
                 from person in db.People.AsNoTracking()
                 join user in db.Users.AsNoTracking() on person.UserId equals user.Id
                 where person.AgencyId == actor.AgencyId && user.AgencyId == actor.AgencyId
                 orderby person.LastName, person.FirstName, person.Id
-                select new AdminPersonListItemDto(
-                    person.Id,
-                    ((person.LastName ?? string.Empty) + ", " + (person.FirstName ?? string.Empty)).Trim(' ', ','),
+                select new
+                {
+                    PersonId = person.Id,
+                    person.LastName,
+                    person.FirstName,
                     person.Revision,
-                    user.Id,
+                    AssignedUserId = user.Id,
                     user.DisplayName,
                     person.IsTestData,
-                    person.CreatedAtUtc))
+                    person.CreatedAtUtc,
+                    person.Status
+                })
                 .ToListAsync(cancellationToken);
+
+            // Status name lookup happens here, client-side, after materialization — indexing a
+            // string array by a column value does not translate to SQL.
+            var people = rows.Select(row => new AdminPersonListItemDto(
+                row.PersonId,
+                ((row.LastName ?? string.Empty) + ", " + (row.FirstName ?? string.Empty)).Trim(' ', ','),
+                row.Revision,
+                row.AssignedUserId,
+                row.DisplayName,
+                row.IsTestData,
+                row.CreatedAtUtc,
+                ContractMapper.NameAt(ContractMapper.PersonStatusNames, row.Status, "Active"))).ToList();
             return Results.Ok(people);
         });
 
