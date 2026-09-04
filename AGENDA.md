@@ -26,11 +26,39 @@ confirmed clean. No firewall rule needed for this release.
       with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
       `Sati.Api.Tests/TenantAuthorizationTests.cs`. Release notes also cover the Status control
       shipped in the prior commit, which had not yet appeared in a DATT-invoked release.
-- [ ] Source commit and push to `origin/master`.
-- [ ] Publish the Demo API; verify `/health/live`, `/health/ready`, `/health/version`, and contract
-      revision parity.
-- [ ] Build, accept, and publish both installers to their exact distribution folders.
-- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+- [x] Source commit `095d6f855378c8b7826dbff55b61ed9b31b95b48` pushed to `origin/master`.
+- [x] Published the Demo API. Package built under .NET 10, 70 entries, 0 backslash entry names,
+      `artifacts/Sati.Api-1.2.44.zip` (9,867,291 bytes; SHA-256
+      `DD9EBB28896BF5E19F36ED424FD17259F9008529961946F24480AF6E31E624F9`). No `appsettings*.json`
+      present; both `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files confirmed
+      present. Packaged `Sati.Api.dll` reports file version `1.2.44.0`.
+      OneDeploy deployment `63854beb55d148b29be3195c6e5f60fe` to `sati-demo-api-satilogica` in
+      `rg-sati-demo`, `provisioningState: Succeeded`. `/health/live` returned `{"status":"live"}`,
+      `/health/ready` returned `Healthy`, `/health/version` reported product `Sati.Api`, release
+      `1.2.44`, contract revision `78B5A2F71629` — unchanged, expected since nothing in this
+      release touches `ApiSurface.Routes` — and confirmed equal to `ApiSurface.Revision` computed
+      locally from the same build.
+- [x] Built and accepted both installers.
+      Demo: `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.44.exe` (101,101,568 bytes; SHA-256
+      `c5831483d9bbf94a7c7b8fb0b8244f74e5e3bed7e56d693037e5e1070fc518a1`). Five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.44.0`, cleanup
+      passed. Run on the build workstation, so it is not a clean external-machine attestation.
+      Local: built after confirming `artifacts\Prerequisites\SqlLocalDB.msi` still carries a Valid
+      Authenticode signature from `CN=Microsoft Corporation`.
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.44.exe` (203,165,962 bytes; SHA-256
+      `9752cbbfbfc320202bb75deabcc30769350fe139f02a9c7e7f7f8c360b13e395`). Acceptance passed:
+      installed version `1.2.44.0`, `integratedSecurity=True` with no SQL credentials in the Local
+      configuration, cleanup passed. Neither installer is code-signed.
+- [x] Published both installers and their `.sha256` files. Each was copied to a uniquely named
+      temporary sibling, hash-verified, renamed to the final versioned name, and verified again.
+      No destination file was overwritten and no temporary file remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.44.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.44.exe`
+        and its `.sha256`
+
+      Both published hashes were re-compared against the accepted build artifacts and match.
+- [x] Evidence commit with final hashes, deployment identifiers, and test totals — this entry.
 
 ## Release 1.2.43 — 2026-09-04
 
