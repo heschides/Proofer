@@ -38,10 +38,56 @@ deploy.
       which panel is actually visible in each state, plus asserts the centered Scratchpad is bound
       to the handed-down instance. Added deliberately: 1.2.45's mistake compiled, passed every
       test, and was only detectable by looking at the screen.
-- [ ] Version bump to 1.2.46 and source commit pushed to `origin/master`.
-- [ ] Demo API published and verified (health, version, contract revision).
-- [ ] Both installers built, accepted, and published to their distribution folders.
-- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+- [x] Version bump to 1.2.46 across `Sati.csproj`, `Sati.Api/Sati.Api.csproj`, the three installer
+      builder script defaults, `scripts/Test-DemoReadiness.ps1` and
+      `scripts/Test-DemoGlobalAdmin.ps1`'s expected-release defaults, `installer/README.md`'s
+      example commands, and `Services/ProductReleaseNotes.cs` (title "Middle Ground"), with
+      matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
+      `Sati.Api.Tests/TenantAuthorizationTests.cs`. Fix commit
+      `62fa6afc1a55cd1c968170a117699611857e3e59` and release commit
+      `2c372bdbb2ca429d32349720a023cf4883a86f42` pushed to `origin/master`.
+- [x] Published the Demo API. Package built under .NET 10, 70 entries, 0 backslash entry names,
+      `artifacts/Sati.Api-1.2.46.zip` (9,867,277 bytes; SHA-256
+      `E2A0156618106DE681474226407E940D07C9A6653A6C6257C6FD2D81E11C2C04`). No `appsettings*.json`
+      present; both `App_Data/jobs/triggered/demo-history-reconciliation` WebJob files confirmed
+      present. Packaged `Sati.Api.dll` reports file version `1.2.46.0`.
+      OneDeploy deployment `453b2ba3f9da46fd8fd483c8ab45851f` to `sati-demo-api-satilogica` in
+      `rg-sati-demo`, `provisioningState: Succeeded`. `/health/live` returned `{"status":"live"}`,
+      `/health/ready` returned `Healthy`, `/health/version` reported product `Sati.Api`, release
+      `1.2.46`, contract revision `78B5A2F71629` — unchanged, expected since nothing in this
+      release touches `ApiSurface.Routes` — and confirmed equal to `ApiSurface.Revision` computed
+      locally from the same build.
+- [x] Built and accepted both installers.
+      Demo: `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.46.exe` (101,122,048 bytes; SHA-256
+      `59f37e20624bd74e3c02ac36841874335fdac8bc15f4de45e71f9cff10d7fcf4`). Five launches, each
+      responsive with a graceful close and exit code 0, installed version `1.2.46.0`, cleanup
+      passed. Run on the build workstation, so it is not a clean external-machine attestation.
+      Local: built after confirming `artifacts\Prerequisites\SqlLocalDB.msi` still carries a Valid
+      Authenticode signature from `CN=Microsoft Corporation`.
+      `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.46.exe` (203,165,450 bytes; SHA-256
+      `0720f35e3f39b007dc480e252f80eff93a861b0865b16333193acdd8577d7eb0`). Acceptance passed:
+      installed version `1.2.46.0`, `integratedSecurity=True` with no SQL credentials in the Local
+      configuration, cleanup passed. Neither installer is code-signed.
+- [x] Published both installers and their `.sha256` files. Each was copied to a uniquely named
+      temporary sibling, hash-verified, renamed to the final versioned name, and verified again.
+      No destination file was overwritten and no temporary file remained:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.46.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.46.exe`
+        and its `.sha256`
+
+      Both published hashes were re-compared against the accepted build artifacts and match.
+- [x] Evidence commit with final hashes, deployment identifiers, and test totals — this entry.
+
+**Local Production machines.** No schema change, so nothing is pending on any workstation beyond
+installing the new build. Known machines and the release each is on are not tracked here yet; this
+release adds no migration, so a machine still on an older build is behind only in features.
+
+**Branches retained, not deleted.** `second-machine-setup` (5 unmerged commits, including "Require
+an administrator account before Sati will run") and `origin/claude/local-vs-github-workflow-dlcqpb`
+(1 unmerged commit) both hold unique work of uncertain status. `claude/cool-jang-f6b3c4` is fully
+merged but still checked out by the linked worktree at `.claude/worktrees/cool-jang-f6b3c4`, which
+fails the safe-deletion rule.
 
 **Known flake, not caused by this change:** one full desktop run aborted with a test host crash
 ("Fatal error") after 918 tests. It did not reproduce across five subsequent clean runs in both
