@@ -185,6 +185,29 @@ CalendarViewModel calendarViewModel,
         public NewClientViewModel Clients { get; }
         public CaseloadMatrixViewModel? Matrix { get; private set; }
 
+        /// <summary>
+        /// The shell's scratchpad, handed down so the Overview can render it in the
+        /// middle column when the user has swapped it with the notes panel.
+        /// <para>
+        /// Handed down rather than injected: <c>ScratchpadViewModel</c> is registered
+        /// transient, so resolving one here would produce a second, independent
+        /// scratchpad. The shell saves its own instance on close and on user switch,
+        /// and anything typed into a different one would be discarded without a word.
+        /// </para>
+        /// </summary>
+        public ScratchpadViewModel? Scratchpad { get; private set; }
+
+        internal void AttachScratchpad(ScratchpadViewModel scratchpad)
+        {
+            Scratchpad = scratchpad;
+            OnPropertyChanged(nameof(Scratchpad));
+        }
+
+        // Mirrored down from the shell the same way Easy Eyes is, so the Overview can
+        // decide its middle column without reaching back up the visual tree.
+        [ObservableProperty]
+        private bool isScratchpadCentered;
+
         public bool IsDashboardSubActive => CurrentSubViewModel is null;
         public bool IsClientsSubActive => CurrentSubViewModel is NewClientViewModel;
         public bool IsNotesLogSubActive => CurrentSubViewModel is NotesWindowViewModel;

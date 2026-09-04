@@ -22,16 +22,20 @@
         ┌─────────────┬───┬─────────────┬───┬─────────────┐
         │ Col 0       │   │ Col 2       │   │ Col 4       │
         ├─────────────┤   ├─────────────┤   ├─────────────┤
-        │ Row 0       │   │ Row 0       │   │ Rows 0-1    │
-        │ Toolbar     │   │ Filter bar  │   │ Productivity│
-        ├─────────────┤   ├─────────────┤   ├─────────────┤
-        │ Rows 1-2    │   │ Row 1       │   │ Row 2       │
-        │ Note entry  │   │ Notes grid  │   │ Upcoming    │
+        │ Row 0       │   │ Rows 0-1    │   │ Rows 0-1    │
+        │ Toolbar     │   │ Notes panel │   │ Productivity│
+        ├─────────────┤   │ — or the    │   ├─────────────┤
+        │ Rows 1-2    │   │ Scratchpad, │   │ Row 2       │
+        │ Note entry  │   │ if centered │   │ Upcoming    │
         │ form        │   ├─────────────┤   │ Tasks       │
         │             │   │ Row 2       │   │             │
         │             │   │ Forms +     │   │             │
         │             │   │ Productivity│   │             │
         └─────────────┴───┴─────────────┴───┴─────────────┘
+
+        Col 2's top block and the shell's collapsible side panel swap contents
+        with the "Display Scratchpad in the center of the display" preference.
+        The forms/productivity block below it (Row 2) never moves.
     -->
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -56,82 +60,52 @@
                         Margin="0,0,0,12"
                         Content="{Binding NoteEntry}" />
 
-        <!-- ═══ COL 2 ROW 0: FILTER BAR ═══ -->
-        <Grid Grid.Row="0"
-              Grid.Column="2"
-              Margin="0,0,0,8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="160" />
-            </Grid.ColumnDefinitions>
+        <!-- ═══ COL 2 ROWS 0-1: NOTES PANEL, OR THE SCRATCHPAD ═══
+             These two trade places. By default the notes panel (filter bar plus
+             grid) sits here in the middle and the Scratchpad is in the shell's
+             collapsible side panel. With "Display Scratchpad in the center of the
+             display" on, the Scratchpad takes this middle position and the notes
+             panel moves out to the side panel behind the chevron.
 
-            <TextBlock Grid.Row="0"
-                       Grid.Column="0"
-                       Text="FILTER NOTES"
-                       Style="{StaticResource LabelStyle}" />
-            <TextBlock Grid.Row="0"
-                       Grid.Column="2"
-                       Text="FILTER STATUS"
-                       Style="{StaticResource LabelStyle}" />
+             Both flags are mirrored onto this view model by the shell, so neither
+             binding has to climb the visual tree to find the window. Scratchpad is
+             the shell's own instance, handed down — not a second one. -->
+        <ContentControl Grid.Column="2"
+                        Grid.Row="0"
+                        Grid.RowSpan="2"
+                        AutomationProperties.Name="Notes panel">
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+            <views:NotesPanelView />
+        </ContentControl>
 
-            <TextBox AutomationProperties.Name="Search Text" x:Name="SearchTextBox"
-                     Grid.Row="1"
-                     Grid.Column="0"
-                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-            <ComboBox AutomationProperties.Name="Filter by note status" Grid.Row="1"
-                      Grid.Column="2"
-                      Height="{Binding ActualHeight, ElementName=SearchTextBox}"
-                      ItemsSource="{Binding NoteStatusOptions}"
-                      SelectedItem="{Binding FilterStatus}" />
-        </Grid>
-
-        <!-- ═══ COL 2 ROW 1: NOTES DATAGRID ═══ -->
-        <Border Grid.Column="2"
-                Grid.Row="1"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="6"
-                Margin="0,0,0,12">
-            <DataGrid AutomationProperties.Name="Notes" ItemsSource="{Binding NotesView}"
-                      SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                      MouseDoubleClick="DataGrid_MouseDoubleClick"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      RowBackground="{DynamicResource SurfaceBrush}"
-                      AlternatingRowBackground="{DynamicResource WindowBackgroundBrush}"
-                      GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="{DynamicResource DividerBrush}"
-                      HeadersVisibility="Column">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Date"
-                                        Binding="{Binding EventDate, StringFormat={}{0:MM/dd}}"
-                                        Width="60" />
-                    <DataGridTextColumn Header="Status"
-                                        Binding="{Binding Status}"
-                                        Width="90" />
-                    <DataGridTextColumn Header="Units"
-                                        Binding="{Binding Units}"
-                                        Width="50" />
-                    <DataGridTextColumn Header="Type"
-                                        Binding="{Binding NoteType}"
-                                        Width="80" />
-                </DataGrid.Columns>
-                <DataGrid.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="Delete Note"
-                                  Command="{Binding DeleteNoteCommand}" />
-                    </ContextMenu>
-                </DataGrid.ContextMenu>
-            </DataGrid>
-        </Border>
+        <!-- The host keeps the dashboard's DataContext so the trigger below reads a
+             plain path; only the inner view switches to the scratchpad itself. -->
+        <ContentControl Grid.Column="2"
+                        Grid.Row="0"
+                        Grid.RowSpan="2"
+                        Margin="0,0,0,12"
+                        AutomationProperties.Name="Today's Work panel">
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+            <views:ScratchpadView DataContext="{Binding Scratchpad}" />
+        </ContentControl>
 
         <!-- ═══ COL 2 ROW 2: FORMS CHECKLIST + MONTHLY PRODUCTIVITY ═══ -->
         <Border Grid.Column="2"

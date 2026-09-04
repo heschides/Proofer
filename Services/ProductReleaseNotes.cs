@@ -12,10 +12,11 @@ public static class ProductReleaseNotes
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "The Scratchpad can trade places with the dashboard",
+            "The Scratchpad can trade places with the notes list",
             [
-                "New Settings option, \"Display Scratchpad in the center of the display\": Today's Work and Tomorrow's Agenda move to the main panel, and the role dashboard (Overview, Clients, and the rest) becomes the collapsible side panel instead — the same chevron still shows or hides whichever one ends up on the side. Off by default, so an existing user's layout does not change.",
-                "The dashboard views were built for the wide main panel, not the narrow side one; how they look there when centered has not yet been checked against a running Overview screen."
+                "New Settings option, \"Display Scratchpad in the center of the display\": Today's Work and Tomorrow's Agenda move into the Overview's middle column, and the notes list moves out to the collapsible side panel behind the chevron. Off by default, so an existing user's layout does not change.",
+                "The swap applies to the Overview only. On the other Case Management tabs there is no notes list to move, so the side panel keeps showing Today's Work rather than emptying out.",
+                "The centered Scratchpad is the same Today's Work it always was, not a second copy — what you type there is what gets saved when Sati closes."
             ]),
         new(
             "Still planned before commercial production",

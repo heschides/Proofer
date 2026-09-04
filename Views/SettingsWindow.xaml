@@ -275,10 +275,10 @@
 
                 <CheckBox Content="Display Scratchpad in the center of the display"
                           AutomationProperties.Name="Display Scratchpad in the center of the display"
-                          AutomationProperties.HelpText="Swaps the Overview's layout: the Scratchpad (Today's Work and Tomorrow's Agenda) becomes the main panel, and the dashboard moves to the collapsible side panel."
+                          AutomationProperties.HelpText="Swaps the Overview's two panels: the Scratchpad (Today's Work and Tomorrow's Agenda) moves into the middle column, and the notes list moves out to the collapsible side panel behind the chevron."
                           IsChecked="{Binding IsScratchpadCentered, Mode=TwoWay}"
                           Margin="0,0,0,6" />
-                <TextBlock Text="Swaps the Overview's layout so the Scratchpad is the main panel and the dashboard collapses to the side instead."
+                <TextBlock Text="Puts the Scratchpad in the Overview's middle column and moves the notes list out to the collapsible side panel."
                            FontSize="11"
                            Foreground="{DynamicResource TextMutedBrush}"
                            TextWrapping="Wrap"

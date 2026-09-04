@@ -308,28 +308,10 @@
 
             <!-- ================================================================ -->
             <!-- MAIN CONTENT AREA                                                -->
-            <!-- Normally the role dashboard (Overview, etc.); when the Settings   -->
-            <!-- "Display Scratchpad in the center" preference is on, this and the -->
-            <!-- Scratchpad panel below trade places — the chevron still toggles  -->
-            <!-- whichever one ends up in the collapsible slot.                   -->
             <!-- ================================================================ -->
             <ContentControl Grid.Row="1"
-                            Content="{Binding CurrentViewModel}">
-                <ContentControl.Style>
-                    <Style TargetType="ContentControl">
-                        <Setter Property="Grid.Column" Value="0" />
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
-                                <Setter Property="Grid.Column" Value="2" />
-                                <Setter Property="Visibility"
-                                        Value="{Binding IsScratchpadVisible,
-                                                 Converter={StaticResource BoolToVisibilityConverter}}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ContentControl.Style>
-            </ContentControl>
+                            Grid.Column="0"
+                            Content="{Binding CurrentViewModel}" />
 
             <!-- GridSplitter -->
             <GridSplitter Grid.Row="1"
@@ -338,27 +320,51 @@
                           HorizontalAlignment="Stretch"
                           Background="{DynamicResource BorderBrush}" />
 
-            <!-- Scratchpad panel -->
+            <!-- Collapsible side panel — the Scratchpad, or the Overview's notes
+                 panel when "Display Scratchpad in the center of the display" has
+                 sent the Scratchpad to the middle of the Overview instead.
+
+                 The swap only takes hold while the Overview is actually on screen
+                 (ShowNotesInSidePanel). On any other screen there is no notes
+                 panel to host, so this keeps showing the Scratchpad rather than
+                 leaving the user with no way to reach Today's Work. -->
             <Border Grid.Row="1"
+                    Grid.Column="2"
                     BorderBrush="{DynamicResource BorderBrush}"
                     Margin="8,12,12,20"
                     BorderThickness="0"
-                    MinWidth="250">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Grid.Column" Value="2" />
-                        <Setter Property="Visibility"
-                                Value="{Binding IsScratchpadVisible,
-                                         Converter={StaticResource BoolToVisibilityConverter}}" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
-                                <Setter Property="Grid.Column" Value="0" />
+                    MinWidth="250"
+                    Visibility="{Binding IsScratchpadVisible,
+                                 Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid>
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
                                 <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <views:ScratchpadView DataContext="{Binding Scratchpad}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowNotesInSidePanel}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                        <views:ScratchpadView DataContext="{Binding Scratchpad}" />
+                    </ContentControl>
+
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowNotesInSidePanel}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                        <views:NotesPanelView DataContext="{Binding NotesViewModel}" />
+                    </ContentControl>
+                </Grid>
             </Border>
 
             <!-- Chevron rail — always visible; toggles whichever panel currently -->

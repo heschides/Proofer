@@ -67,7 +67,30 @@ namespace Sati.ViewModels
             _easyEyesPreferences.PreferenceChanged += (_, enabled) => ApplyEasyEyesMode(enabled);
             _idlePreferences.PreferenceChanged += (_, minutes) => Idle.ApplyTimeout(minutes);
             _scratchpadLayoutPreferences.PreferenceChanged += (_, centered) => IsScratchpadCentered = centered;
+
+            // One scratchpad, two possible homes. The Overview renders this same
+            // instance when it is centered; it is never given one of its own.
+            NotesViewModel.AttachScratchpad(Scratchpad);
+
+            // Moving between Overview and the other Case Management sub-tabs changes
+            // whether there is a notes panel for the side slot to host.
+            NotesViewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(CaseManagerDashboardViewModel.IsDashboardSubActive))
+                    NotifySidePanelContentChanged();
+            };
         }
+
+        private void NotifySidePanelContentChanged()
+        {
+            OnPropertyChanged(nameof(ShowNotesInSidePanel));
+            OnPropertyChanged(nameof(ScratchpadToggleAutomationName));
+        }
+
+        // Mirrored onto the dashboard the same way ApplyEasyEyesMode mirrors its flag,
+        // so the Overview's middle column and this side panel always agree.
+        partial void OnIsScratchpadCenteredChanged(bool value) =>
+            NotesViewModel.IsScratchpadCentered = value;
 
         // -------------------------------------------------------------------------
         // Events
@@ -88,12 +111,14 @@ namespace Sati.ViewModels
         // view-model concern. Defaults open.
         [ObservableProperty] private bool isScratchpadVisible = true;
 
-        // Which content occupies the main area versus the collapsible side panel.
-        // False (default): main = the role dashboard (Overview, etc.), side = Scratchpad.
-        // True: main = Scratchpad, side = the role dashboard. Either way the chevron
-        // still toggles IsScratchpadVisible — only what fills each slot changes.
+        // Swaps the Overview's middle notes panel with the Scratchpad.
+        // False (default): notes in the Overview's middle column, Scratchpad in the
+        // collapsible side panel. True: Scratchpad in the middle, notes panel in the
+        // side panel. Either way the chevron still toggles IsScratchpadVisible — only
+        // what fills the side slot changes.
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ScratchpadToggleAutomationName))]
+        [NotifyPropertyChangedFor(nameof(ShowNotesInSidePanel))]
         private bool isScratchpadCentered;
         [ObservableProperty] private bool isCompactDisplayMode;
         [ObservableProperty]
@@ -124,10 +149,23 @@ namespace Sati.ViewModels
         public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
         public double EasyEyesScale => IsEasyEyesMode ? 1.3 : 1.0;
 
+        /// <summary>
+        /// Whether the collapsible side panel is currently showing the Overview's
+        /// notes panel rather than the Scratchpad. Requires all three: the preference
+        /// is on, Case Management is the active top-level view, and the Overview is
+        /// the active sub-view — because the notes panel belongs to the Overview and
+        /// has nothing to show anywhere else. Off any other screen the side panel
+        /// keeps the Scratchpad, so Today's Work is never unreachable.
+        /// </summary>
+        public bool ShowNotesInSidePanel =>
+            IsScratchpadCentered &&
+            IsCaseManagementActive &&
+            NotesViewModel.IsDashboardSubActive;
+
         // The chevron always toggles IsScratchpadVisible, but which panel that hides
-        // changes with IsScratchpadCentered — the label needs to say which.
-        public string ScratchpadToggleAutomationName => IsScratchpadCentered
-            ? "Show or hide dashboard"
+        // changes with the swap — the label needs to say which.
+        public string ScratchpadToggleAutomationName => ShowNotesInSidePanel
+            ? "Show or hide notes"
             : "Show or hide Today's Work";
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
@@ -179,6 +217,9 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsBillingActive));
             OnPropertyChanged(nameof(IsAdminActive));
             OnPropertyChanged(nameof(IsPlatformHealthActive));
+            // Navigating away from Case Management returns the side panel to the
+            // Scratchpad, since the notes panel it was hosting belongs to the Overview.
+            NotifySidePanelContentChanged();
             if (value is not SupervisorDashboardViewModel)
                 _supervisorDashboardViewModel?.ClearCharts();
         }

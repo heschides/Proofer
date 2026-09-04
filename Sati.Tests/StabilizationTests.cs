@@ -558,9 +558,10 @@ public sealed class StabilizationTests
         Assert.Equal("Trading Places", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "The Scratchpad can trade places with the dashboard" &&
+            section.Title == "The Scratchpad can trade places with the notes list" &&
             section.Items.Any(item => item.Contains("Display Scratchpad in the center", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("collapsible side panel", StringComparison.OrdinalIgnoreCase)));
+            section.Items.Any(item => item.Contains("middle column", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("not a second copy", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&
