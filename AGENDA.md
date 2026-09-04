@@ -1,5 +1,37 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.44 — 2026-09-04
+
+"Last, First." Three follow-ups from testing 1.2.42/1.2.43: the client-list sort preference now
+also changes the printed name format, not only list order; the dashboard's sub-navigation pill
+uses the lightened button colors in Blue-Gray Pearl and Cedar Grove instead of the darker,
+un-lightened accent; and — landing in release notes for the first time, having shipped between
+DATT invocations — the Admin dashboard's new Status control, which is the actual answer to "how do
+I get a consumer off my active list when it predates creation-date tracking and can never qualify
+for the 20-day delete window." Invoked via `invoke DATT!` the same evening as 1.2.42/1.2.43.
+
+**No schema change.** No migration was added; `dotnet ef migrations has-pending-model-changes`
+confirmed clean. No firewall rule needed for this release.
+
+- [x] Release-configuration build across the full solution, 0 errors. Full test suite: 1,286
+      desktop/domain passed (1 legitimate skip), 374 API passed, 4 Carika passed — confirmed both
+      before and after the version bump. Includes a new WPF render test
+      (`TheSelectedClientNameFormatFollowsTheSortPreference`) that loads the real client-picker
+      ComboBox and reads back its rendered text in both sort states, rather than trusting the
+      RelativeSource binding crossing the item template boundary to resolve correctly untested.
+- [x] Version bump to 1.2.44 across `Sati.csproj`, `Sati.Api/Sati.Api.csproj`, the three installer
+      builder script defaults, `scripts/Test-DemoReadiness.ps1` and
+      `scripts/Test-DemoGlobalAdmin.ps1`'s expected-release defaults, `installer/README.md`'s
+      example commands, and `Services/ProductReleaseNotes.cs`'s release notes (title "Last, First"),
+      with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
+      `Sati.Api.Tests/TenantAuthorizationTests.cs`. Release notes also cover the Status control
+      shipped in the prior commit, which had not yet appeared in a DATT-invoked release.
+- [ ] Source commit and push to `origin/master`.
+- [ ] Publish the Demo API; verify `/health/live`, `/health/ready`, `/health/version`, and contract
+      revision parity.
+- [ ] Build, accept, and publish both installers to their exact distribution folders.
+- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+
 ## Release 1.2.43 — 2026-09-04
 
 "A button that explains itself." Fixes the Admin rule-3 delete button, which silently disabled
