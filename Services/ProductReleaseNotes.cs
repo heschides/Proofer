@@ -6,34 +6,27 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Room to undo a duplicate";
-    public const string ReleaseDate = "September 3, 2026";
+    public const string ReleaseName = "A button that explains itself";
+    public const string ReleaseDate = "September 4, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "A duplicate consumer is no longer a dead end",
+            "The rule-3 delete button was going quiet, not broken",
             [
-                "Bulk Credible import now also checks MaineCareId and name-and-birth-date before deciding a consumer is new, not only the Credible client ID. That gap is why re-importing a consumer who predates Credible could quietly create a second record for the same person.",
-                "The Address field is filled in on import again. It had only been reaching the claim-address field under \"Claim Street.\"",
-                "An Admin can now delete a consumer created within the last 20 days, for exactly this kind of accident. Confirming requires typing the client's exact name and a stated reason, and the action refuses if a legal hold is on the record or if any of its billing already reached a payer."
+                "The \"Delete consumer (created in error)\" button on the Admin dashboard used to disable itself with no explanation whenever the Reason field was empty. It now stays clickable and tells you what's missing instead of doing nothing.",
+                "When neither delete tool applies to a selected consumer — not marked test data, and not created in the last 20 days — the Admin dashboard now says so, instead of leaving two grayed-out buttons with no explanation."
             ]),
         new(
-            "Safety plans live in Sati now",
+            "Sort your client list by last name",
             [
-                "A new Safety Plan tab on the client screen replaces work that lived outside Sati. Save a draft, submit it for review, and have your supervisor approve or return it.",
-                "An approved or returned version stays exactly as it was. Start a new revision to make further changes."
-            ]),
-        new(
-            "Annual documents get a place of their own",
-            [
-                "A new Annual Documents tab tracks the yearly privacy notice, packet, and medical-records paperwork on a configurable 30-day window, with a reminder on the client's overview as the cycle opens.",
-                "Generate the privacy notice, then record the date a client received it or a good-faith effort to provide it. \"Save Annual Documents Locally\" builds a ZIP of available drafts and a manifest — a release already completed and signed still has to come from its own saved copy; this does not replace that.",
-                "A medical records request is offered only once the medical release is attested and the client has a current primary-care provider on file. It is a download for staff to send; Sati does not send it for you."
+                "A new Settings option, \"Sort client lists by last name,\" reorders the client picker in Notes by surname instead of first name. Off by default, so no one's current list order changes without asking.",
+                "This is a personal setting saved to your Windows account, the same way Easy Eyes mode and the inactivity screen are."
             ]),
         new(
             "Still planned before commercial production",
             [
+                "Sorting client lists by last name currently reorders only the Notes client picker. AT Requests, client documents, and similar screens keep their own list and are not yet affected.",
                 "Dual-control release of a legal hold. Today's release is single-admin.",
                 "An in-app way to mark a consumer No Longer Served or Deceased. The rule and the record exist; there is no screen to use it from yet.",
                 "A count of exactly what a consumer deletion will remove, shown before you confirm rather than only after.",

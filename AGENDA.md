@@ -1,5 +1,34 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.43 — 2026-09-04
+
+"A button that explains itself." Fixes the Admin rule-3 delete button, which silently disabled
+itself with no explanation whenever the Reason field was empty — reported directly by Josh after
+using 1.2.42 ("the delete button wasn't working"). Also adds a personal Settings preference to sort
+the Notes client picker by last name. Invoked via `invoke DATT!` the morning after 1.2.42 shipped.
+
+**No schema change.** No migration was added; `dotnet ef migrations has-pending-model-changes`
+confirmed clean. No firewall rule needed for this release.
+
+**Desktop-and-API release.** Both assembly versions move together per `StabilizationTests`, though
+only the desktop client changed in substance — the API's own behavior is unaffected by either fix,
+so publishing it is routine version-parity, not a functional deploy.
+
+- [x] Release-configuration build across the full solution, 0 errors. Full test suite: 1,274
+      desktop/domain passed (1 legitimate skip), 374 API passed, 4 Carika passed — confirmed both
+      before and after the version bump.
+- [x] Version bump to 1.2.43 across `Sati.csproj`, `Sati.Api/Sati.Api.csproj`, the three installer
+      builder script defaults, `scripts/Test-DemoReadiness.ps1` and
+      `scripts/Test-DemoGlobalAdmin.ps1`'s expected-release defaults, `installer/README.md`'s
+      example commands, and `Services/ProductReleaseNotes.cs`'s release notes (title "A button that
+      explains itself"), with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
+      `Sati.Api.Tests/TenantAuthorizationTests.cs`.
+- [ ] Source commit and push to `origin/master`.
+- [ ] Publish the Demo API; verify `/health/live`, `/health/ready`, `/health/version`, and contract
+      revision parity.
+- [ ] Build, accept, and publish both installers to their exact distribution folders.
+- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+
 ## Release 1.2.42 — 2026-09-03
 
 "Room to undo a duplicate." Consumer-deletion, archive, and legal-hold foundation from the

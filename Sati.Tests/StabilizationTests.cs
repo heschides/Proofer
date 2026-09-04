@@ -553,23 +553,18 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.42", version);
+        Assert.Equal("1.2.43", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Room to undo a duplicate", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("A button that explains itself", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "A duplicate consumer is no longer a dead end" &&
-            section.Items.Any(item => item.Contains("MaineCareId", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("20 days", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "The rule-3 delete button was going quiet, not broken" &&
+            section.Items.Any(item => item.Contains("stays clickable", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("neither delete tool applies", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Safety plans live in Sati now" &&
-            section.Items.Any(item => item.Contains("submit it for review", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("new revision", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Annual documents get a place of their own" &&
-            section.Items.Any(item => item.Contains("30-day window", StringComparison.OrdinalIgnoreCase)) &&
-            // A packet ZIP must never be described as a substitute for a completed, signed release.
-            section.Items.Any(item => item.Contains("does not replace that", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "Sort your client list by last name" &&
+            section.Items.Any(item => item.Contains("Off by default", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Easy Eyes mode", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&
