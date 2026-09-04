@@ -392,8 +392,21 @@
                           AutomationProperties.HelpText="When editing a saved note, changing the client asks you to confirm the reassignment."
                           Grid.Row="2"
                           ItemsSource="{Binding People}"
-                          SelectedItem="{Binding SelectedPerson}"
-                          DisplayMemberPath="FullName" />
+                          SelectedItem="{Binding SelectedPerson}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock>
+                                <TextBlock.Text>
+                                    <MultiBinding Converter="{StaticResource PersonNameFormatConverter}">
+                                        <Binding />
+                                        <Binding Path="DataContext.SortsPickersByLastName"
+                                                 RelativeSource="{RelativeSource AncestorType={x:Type ComboBox}}" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
                 <TextBlock Text="STATUS"
                            Grid.Row="3"

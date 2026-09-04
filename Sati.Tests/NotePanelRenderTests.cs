@@ -129,6 +129,40 @@ public sealed class NotePanelRenderTests
         });
     }
 
+    // -------------------------------------------------------------------------
+    // Client picker name format — a MultiBinding crossing back out of the
+    // ComboBox's own item template to a sibling property on its DataContext.
+    // Structural XAML reading cannot prove this resolves; only a realized view can.
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(false, "Journal Person")]
+    [InlineData(true, "Person, Journal")]
+    public async Task TheSelectedClientNameFormatFollowsTheSortPreference(
+        bool sortsByLastName, string expectedText)
+    {
+        await using var fixture = await NoteEntryFixture.CreateAsync();
+        var panel = fixture.NoteEntry();
+        var person = await fixture.PersonOneAsync();
+        panel.SetPeople([person]);
+        panel.SetSortsPickersByLastName(sortsByLastName);
+        panel.SelectedPerson = person;
+
+        WpfUiHarness.Run(() =>
+        {
+            var view = new NoteEntryView { DataContext = panel };
+            WpfUiHarness.Realize(view);
+
+            var picker = WpfUiHarness.FindByAutomationName<ComboBox>(view, "Person");
+            var rendered = WpfUiHarness.Descendants(picker)
+                .OfType<TextBlock>()
+                .Select(block => block.Text)
+                .FirstOrDefault(text => text == expectedText);
+
+            Assert.Equal(expectedText, rendered);
+        });
+    }
+
     [Fact]
     public async Task FutureReminderKeepsItsDateEditableAndExplainsTheCalendarOutcome()
     {

@@ -156,6 +156,12 @@ namespace Sati.ViewModels.Children
 
         public ObservableCollection<Person> People { get; } = [];
 
+        // Drives the client picker's "Last, First" vs "First Last" display — set by the owning
+        // dashboard alongside SetPeople, not read from a preference service here. NoteEntryViewModel
+        // has no dependency on personal-preference storage, and shouldn't need one just to know how
+        // to print a name its host already decided the order of.
+        [ObservableProperty] private bool sortsPickersByLastName;
+
         [ObservableProperty] private Person? selectedPerson;
         [ObservableProperty] private NoteStatus? status;
         [ObservableProperty] private NoteType? selectedNoteType;
@@ -753,6 +759,12 @@ namespace Sati.ViewModels.Children
             if (keepId is int id)
                 SelectedPerson = People.FirstOrDefault(p => p.Id == id);
         }
+
+        // Separate from SetPeople rather than an added parameter there: SetPeople has call sites
+        // across this file's own tests that construct a panel with just a person list and no
+        // opinion on sort order, and widening that signature would force all of them to care.
+        public void SetSortsPickersByLastName(bool sortsByLastName) =>
+            SortsPickersByLastName = sortsByLastName;
 
         private void RefreshSuggestedFollowUp(Person? person, bool resetAcceptance)
         {

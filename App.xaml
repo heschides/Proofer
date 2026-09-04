@@ -855,6 +855,7 @@
             <converters:FormCellStatusToBrushConverter x:Key="FormCellStatusToBrushConverter" />
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <converters:CreatedAtLabelConverter x:Key="CreatedAtLabelConverter" />
+            <converters:PersonNameFormatConverter x:Key="PersonNameFormatConverter" />
 
             <!-- Service-day bar: position and length as fractions of the measured
                  track. The width instance keeps a floor so a five-minute contact

@@ -157,6 +157,7 @@ CalendarViewModel calendarViewModel,
                     foreach (var person in resorted)
                         People.Add(person);
                     NoteEntry.SetPeople(People);
+                    NoteEntry.SetSortsPickersByLastName(sortByLastName);
                 };
             }
         }
@@ -829,7 +830,8 @@ CalendarViewModel calendarViewModel,
                 if (!_peopleLoadRequests.IsCurrent(request))
                     return;
 
-                people = ApplyConsumerPickerSort(people, await SortsPickersByLastNameAsync());
+                var sortsByLastName = await SortsPickersByLastNameAsync();
+                people = ApplyConsumerPickerSort(people, sortsByLastName);
 
                 People.Clear();
                 foreach (var person in people)
@@ -838,6 +840,7 @@ CalendarViewModel calendarViewModel,
                 // Hand the module the same instances. It re-selects by Id, and its
                 // same-Id guard preserves any in-progress draft.
                 NoteEntry.SetPeople(People);
+                NoteEntry.SetSortsPickersByLastName(sortsByLastName);
 
                 OnPropertyChanged(nameof(BoardItems));
                 OnPropertyChanged(nameof(BoardGroups));

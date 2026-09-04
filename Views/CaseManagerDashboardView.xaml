@@ -39,7 +39,7 @@
                                 <DataTrigger Binding="{Binding IsDashboardSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -54,7 +54,7 @@
                                     <DataTrigger Binding="{Binding IsDashboardSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -78,7 +78,7 @@
                                 <DataTrigger Binding="{Binding IsClientsSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -93,7 +93,7 @@
                                     <DataTrigger Binding="{Binding IsClientsSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -117,7 +117,7 @@
                                 <DataTrigger Binding="{Binding IsNotesLogSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -132,7 +132,7 @@
                                     <DataTrigger Binding="{Binding IsNotesLogSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -156,7 +156,7 @@
                                 <DataTrigger Binding="{Binding IsMatrixSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -171,7 +171,7 @@
                                     <DataTrigger Binding="{Binding IsMatrixSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -194,7 +194,7 @@
                                 <DataTrigger Binding="{Binding IsCalendarSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -209,7 +209,7 @@
                                     <DataTrigger Binding="{Binding IsCalendarSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -233,7 +233,7 @@
                                 <DataTrigger Binding="{Binding IsStatisticsSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -248,7 +248,7 @@
                                     <DataTrigger Binding="{Binding IsStatisticsSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -272,7 +272,7 @@
                                 <DataTrigger Binding="{Binding IsReviewsSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -287,7 +287,7 @@
                                     <DataTrigger Binding="{Binding IsReviewsSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -311,7 +311,7 @@
                                 <DataTrigger Binding="{Binding IsProvidersSubActive}"
                                              Value="True">
                                     <Setter Property="Background"
-                                            Value="{DynamicResource AccentBrush}" />
+                                            Value="{DynamicResource AccentButtonBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -326,7 +326,7 @@
                                     <DataTrigger Binding="{Binding IsProvidersSubActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentBrush}" />
+                                                Value="{DynamicResource OnAccentButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
