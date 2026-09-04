@@ -1,5 +1,47 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.45 — 2026-09-04
+
+"Trading Places." A new Settings option, "Display Scratchpad in the center of the display," swaps
+which content occupies the Overview's main panel versus its collapsible side panel: on, the
+Scratchpad (Today's Work / Tomorrow's Agenda) fills the main area and the role dashboard collapses
+to the side; off (the default), it's the arrangement Sati has always had. The same chevron still
+toggles whichever content ends up on the side — the code-behind collapses by grid column index, not
+by which control is in it, so the swap needed no change to that collapse/restore logic. Invoked via
+`invoke DATT!` the same evening as 1.2.42/1.2.43/1.2.44.
+
+**No schema change.** No migration was added; `dotnet ef migrations has-pending-model-changes`
+confirmed clean (`--project Sati.Persistence --startup-project Sati.Persistence`). No firewall rule
+needed for this release.
+
+**Desktop-and-API release.** Both assembly versions move together per `StabilizationTests`, though
+only the desktop client changed in substance — the API's own behavior is unaffected, so publishing
+it is routine version-parity, not a functional deploy.
+
+- [x] Release-configuration build across `Sati.csproj` and `Sati.Api/Sati.Api.csproj`, 0 errors.
+      Full test suite: 1,290 desktop/domain passed (1 legitimate skip), 374 API passed, 4 Carika
+      passed — confirmed both before and after the version bump. New coverage:
+      `Sati.Tests/ScratchpadLayoutPreferenceTests.cs` (4 tests: default, persistence and
+      notification, per-user/environment isolation, corrupt-file fallback), mirroring the existing
+      `ConsumerPickerSortPreferenceTests.cs` pattern.
+- [x] Version bump to 1.2.45 across `Sati.csproj`, `Sati.Api/Sati.Api.csproj`, the three installer
+      builder script defaults, `scripts/Test-DemoReadiness.ps1` and
+      `scripts/Test-DemoGlobalAdmin.ps1`'s expected-release defaults, `installer/README.md`'s
+      example commands, and `Services/ProductReleaseNotes.cs`'s release notes (title
+      "Trading Places"), with matching assertions updated in `Sati.Tests/StabilizationTests.cs` and
+      `Sati.Api.Tests/TenantAuthorizationTests.cs`.
+- [ ] Source commit pushed to `origin/master`.
+- [ ] Demo API published and verified (health, version, contract revision).
+- [ ] Both installers built, accepted, and published to their distribution folders.
+- [ ] Evidence commit with final hashes, deployment identifiers, and test totals.
+
+**Known open question, not a defect in this release:** `CaseManagerDashboardContentView` (the
+Overview's dashboard content) is a five-column layout designed for the wide main panel. When this
+setting is on, that view renders in the narrow ~300px collapsible side column instead. Whether it
+degrades gracefully there has not been checked against a running Overview screen — flagged to Josh
+at implementation time and repeated here rather than silently shipped as untested. Follow-up, if
+needed, would be reflowing that view for a narrow column, not part of this release.
+
 ## Release 1.2.44 — 2026-09-04
 
 "Last, First." Three follow-ups from testing 1.2.42/1.2.43: the client-list sort preference now

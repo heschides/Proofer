@@ -273,6 +273,23 @@
                            TextWrapping="Wrap"
                            Margin="24,0,0,20" />
 
+                <CheckBox Content="Display Scratchpad in the center of the display"
+                          AutomationProperties.Name="Display Scratchpad in the center of the display"
+                          AutomationProperties.HelpText="Swaps the Overview's layout: the Scratchpad (Today's Work and Tomorrow's Agenda) becomes the main panel, and the dashboard moves to the collapsible side panel."
+                          IsChecked="{Binding IsScratchpadCentered, Mode=TwoWay}"
+                          Margin="0,0,0,6" />
+                <TextBlock Text="Swaps the Overview's layout so the Scratchpad is the main panel and the dashboard collapses to the side instead."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,4" />
+                <TextBlock Text="{Binding ScratchpadLayoutPreferenceStatus}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="24,0,0,20" />
+
                 <TextBlock Text="INACTIVITY SCREEN"
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox ItemsSource="{Binding IdleTimeoutChoices}"

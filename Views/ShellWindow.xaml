@@ -308,10 +308,28 @@
 
             <!-- ================================================================ -->
             <!-- MAIN CONTENT AREA                                                -->
+            <!-- Normally the role dashboard (Overview, etc.); when the Settings   -->
+            <!-- "Display Scratchpad in the center" preference is on, this and the -->
+            <!-- Scratchpad panel below trade places — the chevron still toggles  -->
+            <!-- whichever one ends up in the collapsible slot.                   -->
             <!-- ================================================================ -->
             <ContentControl Grid.Row="1"
-                            Grid.Column="0"
-                            Content="{Binding CurrentViewModel}" />
+                            Content="{Binding CurrentViewModel}">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="Grid.Column" Value="0" />
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
+                                <Setter Property="Grid.Column" Value="2" />
+                                <Setter Property="Visibility"
+                                        Value="{Binding IsScratchpadVisible,
+                                                 Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
 
             <!-- GridSplitter -->
             <GridSplitter Grid.Row="1"
@@ -322,30 +340,42 @@
 
             <!-- Scratchpad panel -->
             <Border Grid.Row="1"
-                    Grid.Column="2"
                     BorderBrush="{DynamicResource BorderBrush}"
                     Margin="8,12,12,20"
                     BorderThickness="0"
-                    MinWidth="250"
-                    Visibility="{Binding IsScratchpadVisible,
-                                 Converter={StaticResource BoolToVisibilityConverter}}">
+                    MinWidth="250">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Grid.Column" Value="2" />
+                        <Setter Property="Visibility"
+                                Value="{Binding IsScratchpadVisible,
+                                         Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
+                                <Setter Property="Grid.Column" Value="0" />
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <views:ScratchpadView DataContext="{Binding Scratchpad}" />
             </Border>
 
-            <!-- Chevron rail — always visible; toggles the Today's Work panel -->
+            <!-- Chevron rail — always visible; toggles whichever panel currently -->
+            <!-- occupies the collapsible slot. -->
             <Border Grid.Row="1"
                     Grid.Column="3"
                     Background="{DynamicResource SurfaceAltBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1,0,0,0">
                 <Button Command="{Binding ToggleScratchpadCommand}"
-                        AutomationProperties.Name="Show or hide Today's Work"
+                        AutomationProperties.Name="{Binding ScratchpadToggleAutomationName}"
                         Width="24"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"
                         VerticalAlignment="Center"
-                        ToolTip="Show or hide Today's Work">
+                        ToolTip="{Binding ScratchpadToggleAutomationName}">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}">

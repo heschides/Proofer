@@ -28,6 +28,7 @@ namespace Sati.ViewModels
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
         private readonly IdleLockPreferenceService _idlePreferences;
         private readonly ConsumerPickerSortPreferenceService _consumerPickerSortPreferences;
+        private readonly ScratchpadLayoutPreferenceService _scratchpadLayoutPreferences;
         private Settings? _settings;
         private bool _loadingDailyAgendaPreference;
         private bool _savedShowDailyAgendaAtSignIn = true;
@@ -37,6 +38,8 @@ namespace Sati.ViewModels
         private int _savedIdleMinutes = IdleLockPreferenceService.DefaultMinutes;
         private bool _loadingConsumerPickerSortPreference;
         private bool _savedSortConsumerPickersByLastName;
+        private bool _loadingScratchpadLayoutPreference;
+        private bool _savedIsScratchpadCentered;
 
         public SettingsViewModel(
             ISettingsService settingsService,
@@ -50,6 +53,7 @@ namespace Sati.ViewModels
             EasyEyesPreferenceService easyEyesPreferences,
             IdleLockPreferenceService idlePreferences,
             ConsumerPickerSortPreferenceService consumerPickerSortPreferences,
+            ScratchpadLayoutPreferenceService scratchpadLayoutPreferences,
             FormDueDateBackfill? backfill = null,
             FormBulkCompletion? bulkCompletion = null)
         {
@@ -66,6 +70,7 @@ namespace Sati.ViewModels
             _easyEyesPreferences = easyEyesPreferences;
             _idlePreferences = idlePreferences;
             _consumerPickerSortPreferences = consumerPickerSortPreferences;
+            _scratchpadLayoutPreferences = scratchpadLayoutPreferences;
             selectedTheme = _themeService.CurrentTheme;
             TextShortcuts = new ObservableCollection<TextShortcutEditorViewModel>(
                 Enumerable.Range(1, 9)
@@ -76,6 +81,7 @@ namespace Sati.ViewModels
             _ = LoadEasyEyesPreferenceAsync();
             _ = LoadIdlePreferenceAsync();
             _ = LoadConsumerPickerSortPreferenceAsync();
+            _ = LoadScratchpadLayoutPreferenceAsync();
             if (CanManageAgencySettings)
                 _ = LoadAsync();
         }
@@ -149,6 +155,15 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string consumerPickerSortPreferenceStatus = string.Empty;
 
+        // The Overview's Scratchpad (Today's Work / Tomorrow's Agenda) and the role
+        // dashboard normally sit main-area/side-panel; this swaps which is which. Off
+        // by default so an existing user's layout does not change out from under them.
+        [ObservableProperty]
+        private bool isScratchpadCentered;
+
+        [ObservableProperty]
+        private string scratchpadLayoutPreferenceStatus = string.Empty;
+
         [ObservableProperty]
         private string loadingIndicatorPreviewStatus =
             "Ready. The preview uses no database or client information.";
@@ -194,6 +209,12 @@ namespace Sati.ViewModels
         {
             if (!_loadingConsumerPickerSortPreference)
                 _ = SaveConsumerPickerSortPreferenceAsync(value);
+        }
+
+        partial void OnIsScratchpadCenteredChanged(bool value)
+        {
+            if (!_loadingScratchpadLayoutPreference)
+                _ = SaveScratchpadLayoutPreferenceAsync(value);
         }
 
         private async Task LoadEasyEyesPreferenceAsync()
@@ -307,6 +328,63 @@ namespace Sati.ViewModels
                 }
 
                 ConsumerPickerSortPreferenceStatus = $"Preference was not changed. {exception.Message}";
+            }
+        }
+
+        private async Task LoadScratchpadLayoutPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                ScratchpadLayoutPreferenceStatus = "Sign in to change the Scratchpad layout preference.";
+                return;
+            }
+
+            var centered = await _scratchpadLayoutPreferences.LoadForUserAsync(userId.Value);
+            _loadingScratchpadLayoutPreference = true;
+            try
+            {
+                IsScratchpadCentered = centered;
+                _savedIsScratchpadCentered = centered;
+            }
+            finally
+            {
+                _loadingScratchpadLayoutPreference = false;
+            }
+
+            ScratchpadLayoutPreferenceStatus = _scratchpadLayoutPreferences.LastLoadWarning ??
+                "This personal setting is saved immediately for this Sati account on this computer.";
+        }
+
+        private async Task SaveScratchpadLayoutPreferenceAsync(bool value)
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            if (userId is null)
+            {
+                ScratchpadLayoutPreferenceStatus = "Sign in before changing the Scratchpad layout preference.";
+                return;
+            }
+
+            ScratchpadLayoutPreferenceStatus = "Saving Scratchpad layout preference...";
+            try
+            {
+                await _scratchpadLayoutPreferences.SetCenteredAsync(userId.Value, value);
+                _savedIsScratchpadCentered = value;
+                ScratchpadLayoutPreferenceStatus = "Scratchpad layout preference saved.";
+            }
+            catch (ScratchpadLayoutPreferenceSaveException exception)
+            {
+                _loadingScratchpadLayoutPreference = true;
+                try
+                {
+                    IsScratchpadCentered = _savedIsScratchpadCentered;
+                }
+                finally
+                {
+                    _loadingScratchpadLayoutPreference = false;
+                }
+
+                ScratchpadLayoutPreferenceStatus = $"Preference was not changed. {exception.Message}";
             }
         }
 

@@ -553,22 +553,14 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.44", version);
+        Assert.Equal("1.2.45", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Last, First", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Trading Places", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "Client names read \"Last, First\" when sorted that way" &&
-            section.Items.Any(item => item.Contains("Doe, John", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("real rendered screen", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "The dashboard's selected-tab color is lighter in the newest two themes" &&
-            section.Items.Any(item => item.Contains("Blue-Gray Pearl", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Every other theme is unchanged", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "An Admin can now archive a consumer that can't be deleted" &&
-            section.Items.Any(item => item.Contains("non-destructive and reversible", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Predates change tracking", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "The Scratchpad can trade places with the dashboard" &&
+            section.Items.Any(item => item.Contains("Display Scratchpad in the center", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("collapsible side panel", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&

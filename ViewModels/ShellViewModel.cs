@@ -29,6 +29,7 @@ namespace Sati.ViewModels
         private readonly IApiCompatibilityService _apiCompatibility;
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
         private readonly IdleLockPreferenceService _idlePreferences;
+        private readonly ScratchpadLayoutPreferenceService _scratchpadLayoutPreferences;
 
 
         // -------------------------------------------------------------------------
@@ -47,7 +48,8 @@ namespace Sati.ViewModels
             IApiCompatibilityService apiCompatibility,
             DatabaseActivityViewModel databaseActivity,
             EasyEyesPreferenceService easyEyesPreferences,
-            IdleLockPreferenceService idlePreferences)
+            IdleLockPreferenceService idlePreferences,
+            ScratchpadLayoutPreferenceService scratchpadLayoutPreferences)
         {
             _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
@@ -61,8 +63,10 @@ namespace Sati.ViewModels
             _easyEyesPreferences = easyEyesPreferences;
             DatabaseActivity = databaseActivity;
             _idlePreferences = idlePreferences;
+            _scratchpadLayoutPreferences = scratchpadLayoutPreferences;
             _easyEyesPreferences.PreferenceChanged += (_, enabled) => ApplyEasyEyesMode(enabled);
             _idlePreferences.PreferenceChanged += (_, minutes) => Idle.ApplyTimeout(minutes);
+            _scratchpadLayoutPreferences.PreferenceChanged += (_, centered) => IsScratchpadCentered = centered;
         }
 
         // -------------------------------------------------------------------------
@@ -83,6 +87,14 @@ namespace Sati.ViewModels
         // remembering a user-dragged GridSplitter width is pure view layout, not a
         // view-model concern. Defaults open.
         [ObservableProperty] private bool isScratchpadVisible = true;
+
+        // Which content occupies the main area versus the collapsible side panel.
+        // False (default): main = the role dashboard (Overview, etc.), side = Scratchpad.
+        // True: main = Scratchpad, side = the role dashboard. Either way the chevron
+        // still toggles IsScratchpadVisible — only what fills each slot changes.
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ScratchpadToggleAutomationName))]
+        private bool isScratchpadCentered;
         [ObservableProperty] private bool isCompactDisplayMode;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(EasyEyesScale))]
@@ -111,6 +123,12 @@ namespace Sati.ViewModels
         public bool IsDemoEnvironment => _dataEnvironment.IsDemo;
         public string DataEnvironmentLabel => _dataEnvironment.DisplayName;
         public double EasyEyesScale => IsEasyEyesMode ? 1.3 : 1.0;
+
+        // The chevron always toggles IsScratchpadVisible, but which panel that hides
+        // changes with IsScratchpadCentered — the label needs to say which.
+        public string ScratchpadToggleAutomationName => IsScratchpadCentered
+            ? "Show or hide dashboard"
+            : "Show or hide Today's Work";
 
         public bool IsBillingActive => CurrentViewModel is BillingDashboardViewModel;
         public bool IsAdminActive => CurrentViewModel is AdminDashboardViewModel;
@@ -242,6 +260,13 @@ namespace Sati.ViewModels
                 : await _idlePreferences.LoadForUserAsync(userId.Value));
         }
 
+        private async Task LoadScratchpadLayoutPreferenceAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            IsScratchpadCentered = userId is not null &&
+                await _scratchpadLayoutPreferences.LoadForUserAsync(userId.Value);
+        }
+
         public async Task OpenAgendaItemAsync(DailyAgendaItem item)
         {
             if (!IsCaseManagementAvailable)
@@ -284,6 +309,7 @@ namespace Sati.ViewModels
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
             await LoadIdlePreferenceAsync();
+            await LoadScratchpadLayoutPreferenceAsync();
             await CheckApiCompatibilityAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
@@ -336,6 +362,7 @@ namespace Sati.ViewModels
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
             await LoadIdlePreferenceAsync();
+            await LoadScratchpadLayoutPreferenceAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
                 await NavigateToPlatformHealth();

@@ -154,6 +154,7 @@ namespace Sati
                         services.AddSingleton<EasyEyesPreferenceService>();
                         services.AddSingleton<IdleLockPreferenceService>();
                         services.AddSingleton<ConsumerPickerSortPreferenceService>();
+                        services.AddSingleton<ScratchpadLayoutPreferenceService>();
                         services.AddSingleton<TextShortcutHook>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 
