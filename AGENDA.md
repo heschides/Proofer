@@ -34,12 +34,42 @@ is distributed.
       missing from `ApiSurface.Routes`; adding it changed the contract revision to `79FB0BD6EAA2`,
       after which the complete affected build and desktop/API suites passed.
 - [x] Version 1.2.47 coordinated across desktop/API assemblies, installer builders, readiness
-      defaults, installer examples, release-note tracker, and release assertions. Source commit and
-      push pending.
-- [ ] Demo API package, publication, liveness/readiness, version, and contract-revision evidence.
-- [ ] Demo and Local installer builds, isolated acceptance, cleanup, hashes, and distribution
-      publication.
-- [ ] Final evidence commit and remote-equality check.
+      defaults, installer examples, release-note tracker, and release assertions. Source commit
+      `ba129510321cafb10c29ad42001fbd3ab2227ed5` was pushed to `origin/master` before artifact
+      generation.
+- [x] Published the Demo API. The package was built from the pushed source commit with 70 entries,
+      0 backslash entry names, no `appsettings*.json` or key files, and both expected triggered
+      WebJob scripts. Packaged `Sati.Api.dll` reports file version `1.2.47.0`.
+      `artifacts/Sati.Api-1.2.47.zip` is 9,871,401 bytes with SHA-256
+      `FE331B880FA84276BA634FEC241398035702083A73168477C5CA02290747C5F8`. OneDeploy deployment
+      `94fd732e970b463b813b4518f357b5df` to `sati-demo-api-satilogica` in `rg-sati-demo` completed
+      with `provisioningState: Succeeded`. `/health/live` returned `{"status":"live"}`,
+      `/health/ready` returned `Healthy`, and `/health/version` reported product `Sati.Api`, release
+      `1.2.47`, contract revision `79FB0BD6EAA2`, equal to the local 146-route manifest.
+- [x] Built and accepted both installers.
+      Demo: `artifacts\SatiDemoInstaller\SatiDemoSetup-1.2.47.exe` is 101,117,952 bytes with SHA-256
+      `CB3876AE402B4D7BF1189AB5C897811690C445E47EE60B3824D9868CEE2E38ED`. Five 15-second launches
+      each reached the visible sign-in window, remained responsive, closed normally with exit code
+      0, reported installed version `1.2.47.0`, and cleaned up. This ran on the build workstation,
+      so it is not an external clean-machine attestation. Its 92-byte checksum file has SHA-256
+      `BA75A7D440B18A665323820EF220A0B805CF9DB10B758F7F6B7F9889232B2462`.
+      Local: `artifacts\SatiLocalInstaller\SatiLocalSetup-1.2.47.exe` is 203,182,346 bytes with
+      SHA-256 `C466A389498C0328B08378EC1FD6469C280D0D09B0B76C7C7A5160C2DA98D135`. Acceptance verified
+      installed version `1.2.47.0`, Windows integrated security, no SQL username or password, and
+      cleanup. The embedded `SqlLocalDB.msi` carries a Valid Microsoft Authenticode signature. The
+      Local checksum file is 93 bytes with SHA-256
+      `CC183140CF575DB51A38305ADF24B643A151162EB24CBE2BED16CA897C630103`. Neither installer is
+      code-signed.
+- [x] Published the installers and checksum files without overwriting existing files:
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\Sati Desktop\SatiLocalSetup-1.2.47.exe`
+        and its `.sha256`
+      - `C:\Users\SatiLogica\RobinBradleyAMS\SatiLogica - Documents\SatiLogica Demo Files\SatiDemoSetup-1.2.47.exe`
+        and its `.sha256`
+
+      Every published SHA-256 was re-compared with its accepted artifact and matched; no temporary
+      distribution file remained.
+- [x] Final evidence commit with deployment, health, test, acceptance, distribution, and hash
+      evidence — this entry.
 
 **Local Production machines.** No schema change, so no workstation migration record is required.
 
@@ -47,6 +77,11 @@ is distributed.
 `origin/claude/local-vs-github-workflow-dlcqpb` retain unique work whose current status is uncertain.
 `claude/cool-jang-f6b3c4` is fully merged but remains checked out by its linked worktree, so it fails
 the safe-deletion rule. No branch is merged or deleted for this release.
+
+**Validation warnings.** NuGet could not query the vulnerability-feed service index during the
+build, though restore and compilation succeeded from the resolved package graph. Existing warnings
+also remain for the deliberately escaped SQL `BACKUP` statement and test-only nullability/xUnit
+style. None was introduced by this release scope, and all required build and test gates passed.
 
 ## Release 1.2.46 — 2026-09-04
 
