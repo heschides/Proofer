@@ -182,17 +182,22 @@ public sealed class StabilizationTests
         // The lock toggle carries an automation name and a tooltip, and the
         // heading beside it is a live region — the padlock glyph is never the
         // only signal that the panel is read-only.
-        var lockToggle = entryView.Descendants().Single(element =>
+        var lockToggles = entryView.Descendants().Where(element =>
             element.Name.LocalName == "Button" &&
             element.Attributes().Any(attribute =>
                 attribute.Name.LocalName == "Command" &&
-                attribute.Value.Contains("ToggleLockCommand", StringComparison.Ordinal)));
-        Assert.Contains(lockToggle.Attributes(), attribute =>
-            attribute.Name.LocalName == "AutomationProperties.Name" &&
-            attribute.Value.Contains("LockToggleLabel", StringComparison.Ordinal));
-        Assert.Contains(lockToggle.Attributes(), attribute =>
-            attribute.Name.LocalName == "ToolTip" &&
-            attribute.Value.Contains("LockToggleTooltip", StringComparison.Ordinal));
+                attribute.Value.Contains("ToggleLockCommand", StringComparison.Ordinal)))
+            .ToList();
+        Assert.Equal(2, lockToggles.Count);
+        Assert.All(lockToggles, lockToggle =>
+        {
+            Assert.Contains(lockToggle.Attributes(), attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value.Contains("LockToggleLabel", StringComparison.Ordinal));
+            Assert.Contains(lockToggle.Attributes(), attribute =>
+                attribute.Name.LocalName == "ToolTip" &&
+                attribute.Value.Contains("LockToggleTooltip", StringComparison.Ordinal));
+        });
         Assert.Contains(entryView.Descendants(), element =>
             element.Name.LocalName == "TextBlock" &&
             element.Attributes().Any(attribute =>
@@ -206,24 +211,31 @@ public sealed class StabilizationTests
         // panel, by button and by Escape. The button lives in the module, so both
         // pages inherit it; each page repeats the Escape binding so the key also
         // works from its grid rather than only from inside the form.
-        var newNoteButton = entryView.Descendants().Single(element =>
+        var newNoteButtons = entryView.Descendants().Where(element =>
             element.Name.LocalName == "Button" &&
             element.Attributes().Any(attribute =>
                 attribute.Name.LocalName == "Command" &&
-                attribute.Value.Contains("StartNewNoteCommand", StringComparison.Ordinal)));
-        Assert.Contains(newNoteButton.Attributes(), attribute =>
-            attribute.Name.LocalName == "AutomationProperties.Name" &&
-            attribute.Value.Contains("new note", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(newNoteButton.Descendants(), element =>
-            element.Name.LocalName == "TextBlock" &&
-            element.Attributes().Any(attribute =>
-                attribute.Name.LocalName == "Text" && attribute.Value == "New Note"));
+                attribute.Value.Contains("StartNewNoteCommand", StringComparison.Ordinal)))
+            .ToList();
+        Assert.Equal(2, newNoteButtons.Count);
+        Assert.All(newNoteButtons, newNoteButton =>
+        {
+            Assert.Contains(newNoteButton.Attributes(), attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value.Contains("new note", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(newNoteButton.Descendants(), element =>
+                element.Name.LocalName == "TextBlock" &&
+                element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Text" && attribute.Value == "New Note"));
+
+            // The compact and tall variants are switched by their parent region,
+            // rather than changing this command's own availability.
+            Assert.DoesNotContain(newNoteButton.Attributes(), attribute =>
+                attribute.Name.LocalName == "Visibility");
+        });
 
         // It must not be hidden when idle: an affordance that comes and goes is one
         // the case manager has to rediscover, so it is disabled rather than absent.
-        Assert.DoesNotContain(newNoteButton.Attributes(), attribute =>
-            attribute.Name.LocalName == "Visibility");
-
         AssertEscapeStartsANewNote(entryView, "Views/NoteEntryView.xaml");
         AssertEscapeStartsANewNote(notesView, "Views/NotesLogView.xaml");
         AssertEscapeStartsANewNote(
@@ -553,16 +565,20 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.46", version);
+        Assert.Equal("1.2.47", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Middle Ground", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Room to Work", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
-            section.Title == "The Scratchpad can trade places with the notes list" &&
-            section.Items.Any(item => item.Contains("Display Scratchpad in the center", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("middle column", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("not a second copy", StringComparison.OrdinalIgnoreCase)) &&
-            section.Items.Any(item => item.Contains("Corrects last release", StringComparison.OrdinalIgnoreCase)));
+            section.Title == "The Overview now fits the space you have" &&
+            section.Items.Any(item => item.Contains("Work Agenda", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Focus note", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Easy Eyes", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Supervisors can work through large approval queues" &&
+            section.Items.Any(item => item.Contains("10 notes", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("4 units", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("never approves", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Still planned before commercial production" &&
             section.Items.Any(item => item.Contains("Dual-control", StringComparison.OrdinalIgnoreCase)) &&

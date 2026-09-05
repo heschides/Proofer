@@ -1,7 +1,11 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Models;
+using Sati.Contracts.V1;
+using Sati.Services;
+using Sati.Data.Cloud;
+using System.Net;
 using System.Collections.ObjectModel;
 using System.Configuration;
 using System.Diagnostics;
@@ -51,55 +55,164 @@ namespace Sati.ViewModels.Supervisor
 
         public bool HasPending => PendingNotes.Count > 0;
         public bool HasNonCompliant => NonCompliantNotes.Count > 0;
-        public string EmptyStateMessage => "No notes pending approval.";
-        public string NonCompliantEmptyMessage => "No notes held for compliance.";
+        public string EmptyStateMessage => IsLoading ? "Loading notes..." :
+            HasMore ? "No compliant notes among the notes loaded so far." : "No notes pending approval.";
+        public string NonCompliantEmptyMessage => IsLoading ? "Loading notes..." :
+            HasMore ? "No compliance holds among the notes loaded so far." : "No notes held for compliance.";
 
         // -------------------------------------------------------------------------
         // Load
         // -------------------------------------------------------------------------
 
+        private readonly LatestRequestTracker _loads = new();
+        private int _generation;
+        private int? _filterUserId;
+        private int? _nextAfterId;
+        private int? _throughId;
+        [ObservableProperty] private bool isLoading;
+        [ObservableProperty] private bool isBatchApproving;
+        [ObservableProperty] private bool hasMore;
+        [ObservableProperty] private string statusMessage = string.Empty;
+        [ObservableProperty] private string maximumUnitsText = NoteReviewRules.DefaultMaximumUnits.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        public bool CanLoadMore => HasMore && !IsLoading && !IsBatchApproving;
+        public bool CanBatchApprove => !IsLoading && !IsBatchApproving &&
+            int.TryParse(MaximumUnitsText, out var limit) && NoteReviewRules.ValidThreshold(limit);
+        partial void OnIsLoadingChanged(bool value) => NotifyActions();
+        partial void OnIsBatchApprovingChanged(bool value) => NotifyActions();
+        partial void OnHasMoreChanged(bool value) => NotifyActions();
+        partial void OnMaximumUnitsTextChanged(string value) => NotifyActions();
+        private void NotifyActions()
+        {
+            OnPropertyChanged(nameof(EmptyStateMessage));
+            OnPropertyChanged(nameof(NonCompliantEmptyMessage));
+            LoadMoreCommand.NotifyCanExecuteChanged();
+            BatchApproveCommand.NotifyCanExecuteChanged();
+        }
+
+        public void Deactivate()
+        {
+            _generation = _loads.Begin();
+            IsLoading = false;
+        }
+
         public async Task LoadAsync(int? filterByUserId = null)
         {
-            var sw = Stopwatch.StartNew();
+            _generation = _loads.Begin();
+            _filterUserId = filterByUserId;
+            _nextAfterId = 0;
+            _throughId = null;
+            PendingNotes.Clear();
+            NonCompliantNotes.Clear();
+            IsReturnDialogVisible = IsOverrideDialogVisible = false;
+            SelectedNote = OverrideNote = null;
+            HasMore = true;
+            StatusMessage = string.Empty;
+            NotifyCounts();
+            await FetchPageAsync(_generation);
+        }
+
+        [RelayCommand(CanExecute = nameof(CanLoadMore))]
+        private Task LoadMore() => FetchPageAsync(_generation);
+
+        private async Task FetchPageAsync(int generation)
+        {
+            var actor = _sessionService.CurrentUser;
+            if (actor is null || _nextAfterId is not int after) return;
+            IsLoading = true;
             try
             {
-                PendingNotes.Clear();
-                NonCompliantNotes.Clear();
-                Debug.WriteLine($"[{sw.ElapsedMilliseconds}ms] Cleared");
-
-                var supervisor = _sessionService.CurrentUser!;
-                var allSupervisees = filterByUserId is null;
-
-                var pending = await _supervisorService.GetPendingNotesAsync(
-                    supervisor.Id, allSupervisees);
-                var nonCompliant = await _supervisorService.GetNonCompliantNotesAsync(
-                    supervisor.Id, allSupervisees);
-
-                Debug.WriteLine($"[{sw.ElapsedMilliseconds}ms] Fetched {pending.Count()} pending, {nonCompliant.Count()} non-compliant");
-
-                var filteredPending = filterByUserId is null
-                    ? pending
-                    : pending.Where(n => n.Person.UserId == filterByUserId);
-
-                var filteredNonCompliant = filterByUserId is null
-                    ? nonCompliant
-                    : nonCompliant.Where(n => n.Person.UserId == filterByUserId);
-
-                foreach (var note in filteredPending)
-                    PendingNotes.Add(new PendingNoteViewModel(note));
-
-                foreach (var note in filteredNonCompliant)
-                    NonCompliantNotes.Add(new PendingNoteViewModel(note));
-
-                Debug.WriteLine($"[{sw.ElapsedMilliseconds}ms] Added {PendingNotes.Count} pending, {NonCompliantNotes.Count} non-compliant");
-
-                OnPropertyChanged(nameof(HasPending));
-                OnPropertyChanged(nameof(HasNonCompliant));
+                var page = await _supervisorService.GetReviewPageAsync(actor.Id, after, _throughId, _filterUserId);
+                if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
+                foreach (var note in page.Notes)
+                {
+                    var target = note.ComplianceFailureReasons.Count == 0 ? PendingNotes : NonCompliantNotes;
+                    if (!target.Any(existing => existing.NoteId == note.Id))
+                        target.Add(new PendingNoteViewModel(note));
+                }
+                _throughId = page.ThroughId;
+                _nextAfterId = page.NextAfterId;
+                HasMore = page.NextAfterId.HasValue;
+                StatusMessage = HasMore ? "Scroll down or choose Load more for the next 10 notes." : "All notes in this queue have been loaded.";
+                NotifyCounts();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Debug.WriteLine($"LoadAsync failed: {ex.Message}");
+                if (_loads.IsCurrent(generation) && _sessionService.CurrentUser == actor)
+                    StatusMessage = "The next notes could not be loaded. Choose Load more to retry.";
             }
+            finally
+            {
+                if (_loads.IsCurrent(generation)) IsLoading = false;
+            }
+        }
+
+        private void NotifyCounts()
+        {
+            OnPropertyChanged(nameof(HasPending));
+            OnPropertyChanged(nameof(HasNonCompliant));
+        }
+
+        [RelayCommand(CanExecute = nameof(CanBatchApprove))]
+        private async Task BatchApprove()
+        {
+            if (!int.TryParse(MaximumUnitsText, out var limit) || !NoteReviewRules.ValidThreshold(limit)) return;
+            var actor = _sessionService.CurrentUser;
+            if (actor is null) return;
+            var generation = _generation;
+            var filter = _filterUserId;
+            IsBatchApproving = true;
+            var approved = 0;
+            var skipped = 0;
+            var stopped = false;
+            try
+            {
+                int? cursor = 0;
+                int? ceiling = null;
+                while (cursor is int after && _loads.IsCurrent(generation) && _sessionService.CurrentUser == actor)
+                {
+                    var page = await _supervisorService.GetReviewPageAsync(actor.Id, after, ceiling, filter);
+                    ceiling = page.ThroughId;
+                    cursor = page.NextAfterId;
+                    foreach (var note in page.Notes)
+                    {
+                        if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
+                        if (note.ComplianceFailureReasons.Count != 0)
+                        {
+                            skipped++;
+                            continue;
+                        }
+                        try
+                        {
+                            // The service rechecks threshold, validity, current compliance,
+                            // revision, and reviewer scope before each individual commit.
+                            await _supervisorService.ApproveNoteAsync(note.Id, actor.Id, note.Revision, limit);
+                            approved++;
+                        }
+                        catch (NoteConcurrencyException) { skipped++; }
+                        catch (InvalidOperationException) { skipped++; }
+                        catch (CloudApiException ex) when (ex.StatusCode == HttpStatusCode.Conflict || ex.StatusCode == HttpStatusCode.NotFound)
+                        { skipped++; }
+                        if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
+                        StatusMessage = $"Approved {approved}; skipped {skipped}. Working...";
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                stopped = true;
+            }
+            finally
+            {
+                IsBatchApproving = false;
+            }
+            if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
+            var reload = LoadAsync(filter);
+            var reloadGeneration = _generation;
+            await reload;
+            if (_loads.IsCurrent(reloadGeneration) && _sessionService.CurrentUser == actor)
+                StatusMessage = $"Approved {approved}; skipped {skipped}. " +
+                    (stopped ? "Stopped after an error. Reload before retrying; the last save may be unconfirmed."
+                        : "Batch complete. Skipped notes remain for individual review.");
         }
 
         // -------------------------------------------------------------------------
@@ -204,6 +317,8 @@ namespace Sati.ViewModels.Supervisor
                     SelectedNote.Revision);
 
                 PendingNotes.Remove(SelectedNote);
+                NonCompliantNotes.Remove(SelectedNote);
+                OnPropertyChanged(nameof(HasNonCompliant));
                 IsReturnDialogVisible = false;
                 SelectedNote = null;
                 ReturnReason = string.Empty;
@@ -233,7 +348,7 @@ namespace Sati.ViewModels.Supervisor
             IsReturnDialogVisible = false;
             OverrideNote = null;
             SelectedNote = null;
-            await LoadAsync();
+            await LoadAsync(_filterUserId);
             System.Windows.MessageBox.Show(
                 "This note changed after you opened the approval queue. The queue has been refreshed; review the latest copy before acting.",
                 "Note Updated",

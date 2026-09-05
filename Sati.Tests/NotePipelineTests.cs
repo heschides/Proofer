@@ -805,6 +805,70 @@ public sealed class NotePipelineTests
             actions);
     }
 
+    [Fact]
+    public async Task ReviewPagingRemainsStableWhenEarlierRowsAreApproved()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        for (var i = 0; i < 23; i++)
+            await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(i));
+        await fixture.SeedNoteAsync(fixture.PersonTwoId, NoteStatus.Logged, fixture.ServiceDate(0));
+        var service = fixture.SupervisionAs(fixture.SupervisorOne);
+        var first = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, userId: fixture.CaseManagerOne.Id);
+        Assert.Equal(10, first.Notes.Count);
+        Assert.NotNull(first.NextAfterId);
+        Assert.All(first.Notes, note => Assert.Equal(fixture.PersonOneId, note.PersonId));
+        foreach (var note in first.Notes)
+            await service.ApproveNoteAsync(note.Id, fixture.SupervisorOne.Id, note.Revision);
+        var addedLater = await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(0));
+        var second = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, first.NextAfterId!.Value,
+            first.ThroughId, fixture.CaseManagerOne.Id);
+        var third = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, second.NextAfterId!.Value,
+            first.ThroughId, fixture.CaseManagerOne.Id);
+        Assert.Equal(10, second.Notes.Count);
+        Assert.Equal(3, third.Notes.Count);
+        Assert.Null(third.NextAfterId);
+        var ids = first.Notes.Concat(second.Notes).Concat(third.Notes).Select(note => note.Id).ToList();
+        Assert.Equal(23, ids.Distinct().Count());
+        Assert.DoesNotContain(addedLater, ids);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            fixture.SupervisionAs(fixture.CaseManagerOne).GetReviewPageAsync(fixture.CaseManagerOne.Id));
+    }
+
+    [Theory]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    [InlineData(0, false)]
+    public async Task ThresholdApprovalChecksStoredDurationAndPreservesAudit(int minutes, bool allowed)
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var id = await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(0));
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var row = await db.Notes.SingleAsync(n => n.Id == id);
+            row.Minutes = minutes;
+            row.NoteType = NoteType.Contact;
+            await db.SaveChangesAsync();
+        }
+        var service = fixture.SupervisionAs(fixture.SupervisorOne);
+        var revision = await fixture.RevisionOfAsync(id);
+        if (allowed)
+        {
+            await service.ApproveNoteAsync(id, fixture.SupervisorOne.Id, revision, 4);
+            Assert.Equal(NoteStatus.Approved, await fixture.StatusOfAsync(id));
+            await using var db = fixture.Factory.CreateDbContext();
+            var audit = await db.AuditEvents.SingleAsync(e => e.Action == "note.approved");
+            Assert.Contains("\"maximumUnits\":4", audit.MetadataJson);
+            await Assert.ThrowsAsync<NoteConcurrencyException>(() =>
+                service.ApproveNoteAsync(id, fixture.SupervisorOne.Id, revision, 4));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.ApproveNoteAsync(id, fixture.SupervisorOne.Id, revision, 4));
+            Assert.Equal(NoteStatus.Logged, await fixture.StatusOfAsync(id));
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Fixture
     // ---------------------------------------------------------------------

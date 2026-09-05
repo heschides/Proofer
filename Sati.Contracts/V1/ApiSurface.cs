@@ -131,6 +131,7 @@ public static class ApiSurface
         "GET /api/v1/scratchpad/tomorrow",
         "GET /api/v1/settings",
         "GET /api/v1/supervisor/notes",
+        "GET /api/v1/supervisor/notes/page",
         "GET /api/v1/supervisor/supervisees",
         "GET /api/v1/users/switchable",
         "GET /health/live",

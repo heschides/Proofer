@@ -39,7 +39,7 @@ public sealed class SupervisorService(
         return nonCompliant;
     }
 
-    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision)
+    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision, int? maximumUnits = null)
     {
         var actor = CurrentReviewer(supervisorId);
         await using var context = contextFactory.CreateDbContext();
@@ -64,12 +64,21 @@ public sealed class SupervisorService(
                 "Use ApproveWithOverrideAsync if a supervisor exception is warranted.");
         }
 
+        if (maximumUnits is int limit)
+        {
+            if (!NoteReviewRules.Eligible(limit, (int?)note.Status, note.NoteType?.ToString(),
+                note.Narrative, note.EventDate, note.Minutes, note.StartTime, DateTime.Today))
+                throw new InvalidOperationException("This note is not eligible for automatic approval.");
+            await NoteService.EnsureServiceTimeAvailableAsync(context, note.Person.UserId, note, note.Id);
+        }
+
         note.Status = NoteStatus.Approved;
         note.ApprovedById = actor.Id;
         note.ApprovedAt = DateTime.UtcNow;
         note.Revision++;
         await SaveNoteTransitionAsync(
-            context, actor, LocalAuditActions.NoteApproved, noteId);
+            context, actor, LocalAuditActions.NoteApproved, noteId,
+            maximumUnits is int threshold ? System.Text.Json.JsonSerializer.Serialize(new { maximumUnits = threshold, batch = true }) : "{}");
     }
 
     public async Task ApproveWithOverrideAsync(
@@ -130,6 +139,34 @@ public sealed class SupervisorService(
         note.Revision++;
         await SaveNoteTransitionAsync(
             context, actor, LocalAuditActions.NoteReturned, noteId);
+    }
+
+    public async Task<NoteReviewPage<Note>> GetReviewPageAsync(
+        int supervisorId, int afterId = 0, int? throughId = null, int? userId = null)
+    {
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var agencyWide = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
+        var query = context.Notes.AsNoTracking().Where(note =>
+            note.Status == NoteStatus.Logged && note.Person.AgencyId == actor.AgencyId &&
+            (!userId.HasValue || note.Person.UserId == userId.Value) &&
+            context.Users.Any(user => user.Id == note.Person.UserId && user.AgencyId == actor.AgencyId &&
+                (user.Permissions & UserPermissions.CaseManagement) != 0 &&
+                (agencyWide || user.SupervisorId == actor.Id)));
+        var ceiling = throughId ?? await query.Select(note => (int?)note.Id).MaxAsync() ?? 0;
+        var rows = await query.Where(note => note.Id > afterId && note.Id <= ceiling)
+            .OrderBy(note => note.Id).Take(NoteReviewRules.PageSize + 1)
+            .Include(note => note.Person).ThenInclude(person => person.Forms).ToListAsync();
+        var more = rows.Count > NoteReviewRules.PageSize;
+        rows = rows.Take(NoteReviewRules.PageSize).ToList();
+        var requirements = await context.Settings.AsNoTracking()
+            .Where(settings => settings.AgencyId == actor.AgencyId)
+            .Select(settings => (BillingComplianceRequirements?)settings.BillingComplianceRequirements)
+            .SingleOrDefaultAsync() ?? BillingComplianceGate.DefaultRequirements;
+        foreach (var note in rows)
+            note.ComplianceFailureReasons = note.Person.EvaluateComplianceGate(
+                DateTime.Today, requirements: requirements).Reasons;
+        return new(rows, more ? rows[^1].Id : null, ceiling);
     }
 
     private async Task<List<Note>> GetLoggedNotesAsync(int supervisorId, bool allSupervisees)
@@ -206,9 +243,10 @@ public sealed class SupervisorService(
         SatiContext context,
         User actor,
         string action,
-        int noteId)
+        int noteId,
+        string metadataJson = "{}")
     {
-        LocalAuditTrail.Record(context, actor, action, "Note", noteId);
+        LocalAuditTrail.Record(context, actor, action, "Note", noteId, metadataJson);
         try
         {
             await context.SaveChangesAsync();

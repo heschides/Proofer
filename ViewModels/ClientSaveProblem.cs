@@ -9,7 +9,8 @@ public enum ClientSaveStage
 {
     LoadingSettings,
     PreparingRecord,
-    SavingRecord
+    SavingRecord,
+    RefreshingAfterSave
 }
 
 public sealed record ClientSaveProblem(
@@ -58,6 +59,14 @@ public sealed record ClientSaveProblem(
         bool creating,
         string supportReference)
     {
+        if (stage == ClientSaveStage.RefreshingAfterSave)
+        {
+            return new ClientSaveProblem(
+                creating ? "Client Saved; Screen Needs Refresh" : "Client Changes Saved; Screen Needs Refresh",
+                $"WHAT WAS SAVED\n{(creating ? "The new client was saved." : "The client changes were saved.")}\n\nWHAT WENT WRONG\nSati could not finish updating the screen after saving.\n\nBEST FIX\nClose and reopen the Clients page to reload the saved details. Do not repeat the save.\n\nSupport reference: {supportReference}",
+                SaveStatusUnknown: false);
+        }
+
         if (exception is PersonValidationException validation)
         {
             return Validation(
@@ -167,7 +176,9 @@ public sealed record ClientSaveProblem(
             creating,
             saveStatusUnknown: true,
             problem: "Sati encountered an unexpected error while waiting for the save result.",
-            bestFix: "Refresh the client list before retrying. If the client appears, do not add it again; otherwise give support the reference below.",
+            bestFix: creating
+                ? "Refresh the client list before retrying. If the client appears, do not add it again; otherwise give support the reference below."
+                : "Close and reopen the Clients page and check the saved details before retrying. If your changes are present, do not save them again; otherwise give support the reference below.",
             supportReference);
     }
 
@@ -179,7 +190,9 @@ public sealed record ClientSaveProblem(
         string? supportReference = null)
     {
         var saved = saveStatusUnknown
-            ? "Sati cannot safely tell whether the server received the new client."
+            ? creating
+                ? "Sati cannot safely tell whether the new client was saved."
+                : "Sati cannot safely tell whether the client changes were saved."
             : creating
                 ? "No client record, compliance forms, lifecycle history, or audit entry was saved."
                 : "The client changes were not saved.";
@@ -188,7 +201,7 @@ public sealed record ClientSaveProblem(
             : $"\n\nSupport reference: {supportReference}";
 
         return new ClientSaveProblem(
-            creating ? "Client Not Saved" : "Client Changes Not Saved",
+            saveStatusUnknown ? "Client Save Status Unconfirmed" : creating ? "Client Not Saved" : "Client Changes Not Saved",
             $"WHAT WAS SAVED\n{saved}\n\nWHAT WENT WRONG\n{problem}\n\nBEST FIX\n{bestFix}{reference}",
             saveStatusUnknown);
     }

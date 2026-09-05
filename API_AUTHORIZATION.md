@@ -208,3 +208,15 @@ directions after normalizing route parameter constraints. Re-run this comparison
 Safety-plan regressions were proven to fail with the old same-agency-only supervisor check and
 with the revision check removed. Packet isolation fails with its ownership gate removed. Receipt
 immutability fails when its append-only guard is removed, in both API and local persistence.
+
+### Supervisor review page (2026-09-05)
+
+`GET /api/v1/supervisor/notes/page?afterId=&throughId=&userId=` requires supervisor permission.
+A supplied userId passes `TenantAccess.CanAccessUserAsync` before reaching the query. The query
+also restricts every result to the actor's agency and supervised case managers, or agency-wide
+supervision when granted. Cursor values only narrow that authorized set. Page size is fixed at 10.
+The existing `POST /supervisor/notes/{noteId}/approve` optionally accepts `MaximumUnits`; the server
+rechecks threshold eligibility and service-time conflicts before the same revision-checked,
+audited approval. The threshold never grants additional access or a compliance override.
+Mutation verification: removing the new page's supervision gate makes the demoted-supervisor test
+fail; disabling threshold eligibility makes zero-minute and over-threshold approval tests fail.

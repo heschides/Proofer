@@ -129,7 +129,9 @@ public sealed class DashboardFormComplianceTests
                 null!,
                 reviews,
                 null!,
-                null!);
+                null!,
+                new GuidanceViewModel(),
+                new HelperReferenceViewModel());
 
             await dashboard.InitializeAsync();
             return new DashboardHarness(dashboard, settings, upcomingEvents, people);

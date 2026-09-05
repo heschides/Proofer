@@ -13,7 +13,10 @@ public sealed class DashboardNavigationRenderTests
     {
         WpfUiHarness.Run(() =>
         {
-            var view = new CaseManagerDashboardView();
+            var view = new CaseManagerDashboardView
+            {
+                DataContext = new DocumentsNavigationStub()
+            };
             WpfUiHarness.Realize(view, 1400, 900);
 
             foreach (var name in new[]
@@ -31,5 +34,10 @@ public sealed class DashboardNavigationRenderTests
             }
 
         });
+    }
+
+    private sealed class DocumentsNavigationStub
+    {
+        public bool IsDocumentsSubActive => true;
     }
 }

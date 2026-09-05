@@ -5,8 +5,8 @@
         Title="Sati"
         Icon="/images/sati.ico"
         WindowState="Maximized"
-        MinWidth="900"
-        MinHeight="600"
+        MinWidth="640"
+        MinHeight="480"
         Background="{DynamicResource WindowBackgroundBrush}"
         FontFamily="{StaticResource AppFont}"
         UseLayoutRounding="True"
@@ -36,7 +36,8 @@
          RootGrid by trigger rather than left mounted at radius zero, so an idle
          screen nobody is using costs no render pass. -->
     <Grid x:Name="ShellRoot">
-        <Grid x:Name="RootGrid">
+        <Grid x:Name="RootGrid"
+              SizeChanged="RootGrid_SizeChanged">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Style.Triggers>
@@ -320,14 +321,8 @@
                           HorizontalAlignment="Stretch"
                           Background="{DynamicResource BorderBrush}" />
 
-            <!-- Collapsible side panel — the Scratchpad, or the Overview's notes
-                 panel when "Display Scratchpad in the center of the display" has
-                 sent the Scratchpad to the middle of the Overview instead.
-
-                 The swap only takes hold while the Overview is actually on screen
-                 (ShowNotesInSidePanel). On any other screen there is no notes
-                 panel to host, so this keeps showing the Scratchpad rather than
-                 leaving the user with no way to reach Today's Work. -->
+            <!-- The one live Work Agenda view moves here on pages outside Overview.
+                 Overview owns its center host, so no second editor or draft exists. -->
             <Border Grid.Row="1"
                     Grid.Column="2"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -336,40 +331,14 @@
                     MinWidth="250"
                     Visibility="{Binding IsScratchpadVisible,
                                  Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid>
-                    <ContentControl>
-                        <ContentControl.Style>
-                            <Style TargetType="ContentControl">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowNotesInSidePanel}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ContentControl.Style>
-                        <views:ScratchpadView DataContext="{Binding Scratchpad}" />
-                    </ContentControl>
-
-                    <ContentControl>
-                        <ContentControl.Style>
-                            <Style TargetType="ContentControl">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowNotesInSidePanel}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ContentControl.Style>
-                        <views:NotesPanelView DataContext="{Binding NotesViewModel}" />
-                    </ContentControl>
-                </Grid>
+                <ContentControl x:Name="ShellWorkAgendaHost"
+                                AutomationProperties.Name="Work Agenda side panel" />
             </Border>
 
-            <!-- Chevron rail — always visible; toggles whichever panel currently -->
-            <!-- occupies the collapsible slot. -->
-            <Border Grid.Row="1"
+            <!-- The side-panel rail is unnecessary on Overview because Work Agenda
+                 is available in the page's workspace selector. -->
+            <Border x:Name="ScratchpadRail"
+                    Grid.Row="1"
                     Grid.Column="3"
                     Background="{DynamicResource SurfaceAltBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"

@@ -323,7 +323,7 @@ public sealed record SaveNoteRequest(
 
 public sealed record PersonReferenceDto(int Id, int UserId, string? FirstName, string? LastName);
 
-public sealed record SupervisorNoteActionRequest(string? Reason, int ExpectedRevision = 0);
+public sealed record SupervisorNoteActionRequest(string? Reason, int ExpectedRevision = 0, int? MaximumUnits = null);
 
 public sealed record SettingsDto(
     int Id,

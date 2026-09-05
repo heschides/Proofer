@@ -1,3 +1,4 @@
+using Sati.Services;
 using Sati.Views;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,86 +7,143 @@ using Xunit;
 namespace Sati.Tests;
 
 /// <summary>
-/// The Overview's middle column and the shell's collapsible side panel trade the
-/// notes panel and the Scratchpad between them when "Display Scratchpad in the
-/// center of the display" is on.
-///
-/// Reading the XAML proves the two panels are declared in the right cell; it does
-/// not prove the triggers that swap them actually fire. A first attempt at this
-/// feature moved the wrong panel entirely and nothing failed until someone looked
-/// at the screen, so these load the real view and read back rendered visibility.
+/// Exercises the real Overview grid. Structurally valid XAML can still leave a
+/// panel clipped, hidden, or in the wrong slot, so these inspect rendered state.
 /// </summary>
+[Collection(WpfViewCollection.Name)]
 public sealed class ScratchpadSwapRenderTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TheOverviewsMiddleColumnHoldsTheNotesPanelUntilTheScratchpadIsCentered(bool centered)
+    [InlineData(2200, OverviewLayoutTier.Wide, 2, 4, 6)]
+    [InlineData(1600, OverviewLayoutTier.Balanced, 2, 4, 4)]
+    [InlineData(1200, OverviewLayoutTier.CompactTwoPane, 2, 2, 2)]
+    [InlineData(900, OverviewLayoutTier.CompactOnePane, 0, 0, 0)]
+    public void OverviewPlacesWorkspacesForAvailableWidth(
+        double width,
+        OverviewLayoutTier tier,
+        int agendaColumn,
+        int deadlinesColumn,
+        int notesColumn)
     {
         WpfUiHarness.Run(() =>
         {
-            var view = new CaseManagerDashboardContentView
-            {
-                DataContext = new DashboardStub { IsScratchpadCentered = centered }
-            };
-            WpfUiHarness.Realize(view);
+            var view = NewView();
+            WpfUiHarness.Realize(view, width, 900);
 
-            var notes = WpfUiHarness.FindByAutomationName<ContentControl>(view, "Notes panel");
-            var scratchpad = WpfUiHarness.FindByAutomationName<ContentControl>(view, "Today's Work panel");
+            Assert.Equal(tier, view.CurrentLayout?.Tier);
+            Assert.Equal(agendaColumn, Grid.GetColumn(view.WorkAgendaHost));
 
-            if (centered)
+            var deadlines = WpfUiHarness.FindByAutomationName<Border>(view, "Deadlines panel");
+            var notes = WpfUiHarness.FindByAutomationName<ContentControl>(view, "Notes list panel");
+            Assert.Equal(Visibility.Visible, view.WorkAgendaHost.Visibility);
+
+            if (tier is OverviewLayoutTier.CompactOnePane or OverviewLayoutTier.CompactTwoPane)
             {
-                Assert.Equal(Visibility.Visible, scratchpad.Visibility);
+                Assert.Equal(Visibility.Collapsed, deadlines.Visibility);
                 Assert.Equal(Visibility.Collapsed, notes.Visibility);
+
+                SelectWorkspace(view, "Deadlines");
+                Assert.Equal(Visibility.Visible, deadlines.Visibility);
+                Assert.Equal(deadlinesColumn, Grid.GetColumn(deadlines));
+
+                SelectWorkspace(view, "Notes");
+                Assert.Equal(Visibility.Visible, notes.Visibility);
+                Assert.Equal(notesColumn, Grid.GetColumn(notes));
             }
             else
             {
-                Assert.Equal(Visibility.Visible, notes.Visibility);
-                Assert.Equal(Visibility.Collapsed, scratchpad.Visibility);
+                Assert.Equal(deadlinesColumn, Grid.GetColumn(deadlines));
+                Assert.Equal(notesColumn, Grid.GetColumn(notes));
             }
         });
     }
 
-    /// <summary>
-    /// The notes panel has to be a real NotesPanelView in the middle cell, not an
-    /// empty host. Extracting it from this view is what let the same control also
-    /// render in the side panel, and an empty middle column would look identical to
-    /// a broken swap.
-    /// </summary>
     [Fact]
-    public void TheMiddleColumnHostsTheExtractedNotesPanelAndTheShellsScratchpad()
+    public void AgendaControlKeepsItsIdentityAcrossResponsivePlacement()
     {
         WpfUiHarness.Run(() =>
         {
-            var scratchpadViewModel = new object();
-            var view = new CaseManagerDashboardContentView
-            {
-                DataContext = new DashboardStub
-                {
-                    IsScratchpadCentered = true,
-                    Scratchpad = scratchpadViewModel
-                }
-            };
-            WpfUiHarness.Realize(view);
+            var view = NewView();
+            var agenda = new ScratchpadView { DataContext = new object() };
+            view.WorkAgendaHost.Content = agenda;
 
-            Assert.Single(WpfUiHarness.Descendants(view).OfType<NotesPanelView>());
+            WpfUiHarness.Realize(view, 2200, 900);
+            WpfUiHarness.Realize(view, 900, 700);
+            WpfUiHarness.Realize(view, 1600, 900);
 
-            // The centered scratchpad must render the instance handed down by the
-            // shell. A second, independently constructed one would take typing that
-            // the shell never saves.
-            var scratchpad = Assert.Single(WpfUiHarness.Descendants(view).OfType<ScratchpadView>());
-            Assert.Same(scratchpadViewModel, scratchpad.DataContext);
+            Assert.Same(agenda, view.WorkAgendaHost.Content);
+            Assert.Single(WpfUiHarness.Descendants(view).OfType<ScratchpadView>());
         });
     }
 
-    /// <summary>
-    /// Stands in for CaseManagerDashboardViewModel, which needs most of the data
-    /// layer to construct. The bindings under test read exactly these two members,
-    /// and WPF resolves them by name rather than by type.
-    /// </summary>
+    [Fact]
+    public void ShortWideOverviewKeepsSummaryChoicesInTheSupportingSelector()
+    {
+        WpfUiHarness.Run(() =>
+        {
+            var view = NewView();
+            WpfUiHarness.Realize(view, 2200, 800);
+
+            Assert.False(view.CurrentLayout?.ShowsLowerSummaryBand);
+            var selector = WpfUiHarness.FindByAutomationName<ComboBox>(view, "Overview workspace");
+            Assert.Equal(Visibility.Visible, selector.Visibility);
+            Assert.Contains(selector.Items.OfType<ComboBoxItem>(), item => Equals(item.Content, "Forms"));
+            Assert.Contains(selector.Items.OfType<ComboBoxItem>(), item => Equals(item.Content, "Productivity"));
+        });
+    }
+
+    [Fact]
+    public void FocusNoteAndAgendaToggleKeepTheSameLiveWorkspaces()
+    {
+        WpfUiHarness.Run(() =>
+        {
+            var view = NewView();
+            var agenda = new ScratchpadView { DataContext = new object() };
+            view.WorkAgendaHost.Content = agenda;
+            WpfUiHarness.Realize(view, 1200, 760);
+
+            var note = WpfUiHarness.FindByAutomationName<ContentControl>(view, "Current note panel");
+            var focus = WpfUiHarness.FindByAutomationName<Button>(view, "Focus note");
+            focus.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.True(view.IsFocusNote);
+            Assert.Equal(Visibility.Visible, note.Visibility);
+            Assert.Equal(Visibility.Collapsed, view.WorkAgendaHost.Visibility);
+
+            var showAgenda = WpfUiHarness.FindByAutomationName<Button>(
+                view,
+                "Show Work Agenda while focusing on note");
+            showAgenda.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.Equal(Visibility.Collapsed, note.Visibility);
+            Assert.Equal(Visibility.Visible, view.WorkAgendaHost.Visibility);
+            Assert.Same(agenda, view.WorkAgendaHost.Content);
+
+            showAgenda.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var returnButton = WpfUiHarness.FindByAutomationName<Button>(view, "Return to overview");
+            returnButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.False(view.IsFocusNote);
+            Assert.Same(agenda, view.WorkAgendaHost.Content);
+        });
+    }
+
+    private static CaseManagerDashboardContentView NewView() => new()
+    {
+        DataContext = new DashboardStub()
+    };
+
+    private static void SelectWorkspace(CaseManagerDashboardContentView view, string tag)
+    {
+        var selector = WpfUiHarness.FindByAutomationName<ComboBox>(view, "Overview workspace");
+        selector.SelectedItem = selector.Items
+            .OfType<ComboBoxItem>()
+            .Single(item => Equals(item.Tag, tag));
+        view.UpdateLayout();
+    }
+
     public sealed class DashboardStub
     {
-        public bool IsScratchpadCentered { get; set; }
-        public object? Scratchpad { get; set; }
+        public object? NoteEntry { get; set; }
     }
 }

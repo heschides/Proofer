@@ -3,6 +3,7 @@ using Sati.ViewModels;
 using Sati.Services;
 using Sati.Models;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -28,15 +29,14 @@ namespace Sati.Views
         private readonly TextShortcutService _textShortcutService;
         private readonly TextShortcutHook _textShortcutHook;
         private readonly DailyAgendaLauncher _dailyAgendaLauncher;
-        private readonly DisplayLayoutService _displayLayoutService;
-        private readonly Func<DisplayLayoutProfile, DisplayAdjustmentDialog> _displayAdjustmentDialogFactory;
+        private readonly ScratchpadView _workAgendaView;
+        private ContentControl? _overviewAgendaHost;
+        private ContentControl? _workAgendaParent;
         private readonly SemaphoreSlim _accountSwitchGate = new(1, 1);
         private readonly DispatcherTimer _idleTimer = new() { Interval = TimeSpan.FromSeconds(1) };
         private const double PointerMoveTolerance = 2.0;
         private Point _lastPointerPosition;
         private DatabasePatienceWindow? _databasePatienceWindow;
-        private DisplayLayoutProfile? _displayLayoutProfile;
-        private bool _displayAdjustmentNoticeShown;
         private bool _isSavingOnClose;
         private bool _closeAfterSuccessfulSave;
 
@@ -61,8 +61,6 @@ namespace Sati.Views
             TextShortcutService textShortcutService,
             TextShortcutHook textShortcutHook,
             DailyAgendaLauncher dailyAgendaLauncher,
-            DisplayLayoutService displayLayoutService,
-            Func<DisplayLayoutProfile, DisplayAdjustmentDialog> displayAdjustmentDialogFactory,
             SessionKeepAlive? sessionKeepAlive = null)
         {
             InitializeComponent();
@@ -82,32 +80,14 @@ namespace Sati.Views
             _textShortcutService = textShortcutService;
             _textShortcutHook = textShortcutHook;
             _dailyAgendaLauncher = dailyAgendaLauncher;
-            _displayLayoutService = displayLayoutService;
-            _displayAdjustmentDialogFactory = displayAdjustmentDialogFactory;
             DataContext = shellViewModel;
 
-            // The native handle identifies the monitor that actually hosts this
-            // window. Apply the compact state before Loaded so the first rendered
-            // shell does not briefly expose the full-width side panels.
-            SourceInitialized += (_, _) =>
-            {
-                _displayLayoutProfile = _displayLayoutService.DetectFor(this);
-                if (_displayLayoutProfile.Value.UsesCompactMode)
-                    _shellViewModel.ApplyCompactDisplayMode(
-                        collapseScratchpad: _displayLayoutProfile.Value.RequiresAdjustmentNotice);
-            };
+            _workAgendaView = new ScratchpadView { DataContext = shellViewModel.Scratchpad };
+            ShellWorkAgendaHost.Content = _workAgendaView;
+            _workAgendaParent = ShellWorkAgendaHost;
 
             Loaded += async (_, _) =>
             {
-                if (!_displayAdjustmentNoticeShown &&
-                    _displayLayoutProfile is { RequiresAdjustmentNotice: true } profile)
-                {
-                    _displayAdjustmentNoticeShown = true;
-                    var notice = _displayAdjustmentDialogFactory(profile);
-                    notice.Owner = this;
-                    notice.ShowDialog();
-                }
-
                 if (_sessionService.CurrentUser is { } currentUser)
                     await _textShortcutService.LoadForUserAsync(currentUser.Id);
                 _textShortcutHook.Start(this);
@@ -137,8 +117,12 @@ namespace Sati.Views
             // the flag flipping.
             _shellViewModel.PropertyChanged += (s, e) =>
             {
-                if (e.PropertyName == nameof(ShellViewModel.IsScratchpadVisible))
+                if (e.PropertyName is nameof(ShellViewModel.IsScratchpadVisible)
+                    or nameof(ShellViewModel.IsOverviewActive))
+                {
+                    MoveWorkAgendaToPreferredHost();
                     ApplyScratchpadVisibility();
+                }
             };
 
             _shellViewModel.OpenSettingsWindowRequested += async (s, e) =>
@@ -499,8 +483,11 @@ namespace Sati.Views
         {
             var splitterColumn = RootGrid.ColumnDefinitions[1];
             var scratchpadColumn = RootGrid.ColumnDefinitions[2];
+            ScratchpadRail.Visibility = _shellViewModel.IsOverviewActive
+                ? Visibility.Collapsed
+                : Visibility.Visible;
 
-            if (_shellViewModel.IsScratchpadVisible)
+            if (!_shellViewModel.IsOverviewActive && _shellViewModel.IsScratchpadVisible)
             {
                 splitterColumn.Width = new GridLength(5);
                 scratchpadColumn.MinWidth = 250;
@@ -513,6 +500,50 @@ namespace Sati.Views
                 scratchpadColumn.Width = new GridLength(0);
                 splitterColumn.Width = new GridLength(0);
             }
+        }
+
+        private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!double.IsFinite(e.NewSize.Width) || e.NewSize.Width <= 0)
+                return;
+
+            const double compactBoundary = 1440;
+            const double expansionMargin = 48;
+            var compact = _shellViewModel.IsCompactDisplayMode
+                ? e.NewSize.Width < compactBoundary + expansionMargin
+                : e.NewSize.Width < compactBoundary;
+            _shellViewModel.SetCompactDisplayMode(compact);
+        }
+
+        internal void RegisterOverviewAgendaHost(ContentControl host)
+        {
+            _overviewAgendaHost = host;
+            MoveWorkAgendaToPreferredHost();
+            ApplyScratchpadVisibility();
+        }
+
+        internal void UnregisterOverviewAgendaHost(ContentControl host)
+        {
+            if (!ReferenceEquals(_overviewAgendaHost, host))
+                return;
+
+            _overviewAgendaHost = null;
+            MoveWorkAgendaToPreferredHost();
+            ApplyScratchpadVisibility();
+        }
+
+        private void MoveWorkAgendaToPreferredHost()
+        {
+            var target = _shellViewModel.IsOverviewActive && _overviewAgendaHost is not null
+                ? _overviewAgendaHost
+                : ShellWorkAgendaHost;
+            if (ReferenceEquals(_workAgendaParent, target))
+                return;
+
+            if (_workAgendaParent?.Content == _workAgendaView)
+                _workAgendaParent.Content = null;
+            target.Content = _workAgendaView;
+            _workAgendaParent = target;
         }
     }
 }

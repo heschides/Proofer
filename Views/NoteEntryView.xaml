@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sati="clr-namespace:Sati"
              xmlns:services="clr-namespace:Sati.Services"
-             TextElement.FontFamily="{StaticResource AppFont}">
+             TextElement.FontFamily="{StaticResource AppFont}"
+             SizeChanged="NoteEntryView_SizeChanged">
 
     <!-- Escape returns the panel to a blank New Note, the same command the New
          Note button runs. Declared on the MODULE so both hosts inherit it while
@@ -235,8 +236,99 @@
                     </Button.Style>
                 </Button>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <!-- Short windows keep the note identity and section choice above
+                     the scrolling fields. The ordinary heading below remains the
+                     single tall-layout owner; this compact header uses the same VM
+                     commands and disappears when the full form fits. -->
+                <Border x:Name="ShortEditorHeader"
+                        DockPanel.Dock="Top"
+                        Margin="0,0,0,10"
+                        Padding="0,0,0,8"
+                        BorderBrush="{DynamicResource DividerBrush}"
+                        BorderThickness="0,0,0,1"
+                        Visibility="Collapsed">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.Column="0"
+                                   Text="{Binding EditorHeading}"
+                                   Style="{StaticResource SectionHeader}"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.Name="Compact note panel mode"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Button Grid.Row="0"
+                                Grid.Column="1"
+                                Style="{StaticResource IconButton}"
+                                Width="28"
+                                Height="28"
+                                Margin="8,0,0,4"
+                                Command="{Binding ToggleLockCommand}"
+                                ToolTip="{Binding LockToggleTooltip}"
+                                AutomationProperties.Name="{Binding LockToggleLabel}"
+                                AutomationProperties.HelpText="{Binding LockToggleTooltip}"
+                                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding LockGlyph}"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Button>
+                        <Button Grid.Row="0"
+                                Grid.Column="2"
+                                Style="{StaticResource SmallButton}"
+                                Margin="8,0,0,4"
+                                Command="{Binding StartNewNoteCommand}"
+                                ToolTip="Start a new note (Esc). Clears the selected note and keeps the client."
+                                AutomationProperties.Name="Start a new note from compact editor">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE710;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="11"
+                                           Margin="0,0,6,0" />
+                                <TextBlock Text="New Note" />
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.ColumnSpan="3"
+                                   Margin="0,0,0,7"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="Selected client for compact note editor">
+                            <Run Text="CLIENT: " FontWeight="SemiBold" />
+                            <Run Text="{Binding SelectedPerson.FullName, Mode=OneWay, TargetNullValue=Not selected}" />
+                        </TextBlock>
+
+                        <StackPanel Grid.Row="2"
+                                    Grid.ColumnSpan="3"
+                                    Orientation="Horizontal">
+                            <Button x:Name="WriteSectionButton"
+                                    Content="Write"
+                                    Style="{StaticResource SmallButton}"
+                                    Margin="0,0,6,0"
+                                    AutomationProperties.Name="Show note writing section"
+                                    Click="WriteSection_Click" />
+                            <Button x:Name="DetailsSectionButton"
+                                    Content="Details"
+                                    Style="{StaticResource SmallButton}"
+                                    AutomationProperties.Name="Show note details section"
+                                    Click="DetailsSection_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer x:Name="FormScrollViewer"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid x:Name="FormFieldsGrid">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -253,14 +345,16 @@
                              View Note, or Edit Note — and it is a polite live
                              region, so the mode change is announced and not only
                              seen. The padlock is a second cue, never the only one. -->
-                        <Grid Grid.Row="0">
+                        <Grid x:Name="TallEditorHeadingPanel"
+                              Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition x:Name="TallEditorHeadingRow"
+                                               Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
@@ -388,7 +482,8 @@
                         <TextBlock Text="CLIENT"
                            Grid.Row="1"
                            Style="{StaticResource LabelStyle}" />
-                <ComboBox AutomationProperties.Name="Person"
+                <ComboBox x:Name="PersonSelector"
+                          AutomationProperties.Name="Person"
                           AutomationProperties.HelpText="When editing a saved note, changing the client asks you to confirm the reassignment."
                           Grid.Row="2"
                           ItemsSource="{Binding People}"
@@ -513,7 +608,8 @@
                     </ComboBox>
                 </Grid>
 
-                        <Grid Grid.Row="7">
+                        <Grid x:Name="NoteBodyGrid"
+                              Grid.Row="7">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -947,7 +1043,8 @@
                         </StackPanel>
                     </Grid>
 
-                            <TextBox AutomationProperties.Name="Note narrative" Grid.Row="7"
+                            <TextBox x:Name="NarrativeTextBox"
+                                     AutomationProperties.Name="Note narrative" Grid.Row="7"
                                      services:TextShortcutTarget.IsEnabled="True"
                                      MinHeight="160"
                                      TextWrapping="Wrap"

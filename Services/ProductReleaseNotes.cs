@@ -6,23 +6,44 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Middle Ground";
-    public const string ReleaseDate = "September 4, 2026";
+    public const string ReleaseName = "Room to Work";
+    public const string ReleaseDate = "September 5, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
         new(
-            "The Scratchpad can trade places with the notes list",
+            "The Overview now fits the space you have",
             [
-                "New Settings option, \"Display Scratchpad in the center of the display\": Today's Work and Tomorrow's Agenda move into the Overview's middle column, and the notes list moves out to the collapsible side panel behind the chevron. Off by default, so an existing user's layout does not change.",
-                "The swap applies to the Overview only. On the other Case Management tabs there is no notes list to move, so the side panel keeps showing Today's Work rather than emptying out.",
-                "The centered Scratchpad is the same Today's Work it always was, not a second copy — what you type there is what gets saved when Sati closes.",
-                "Corrects last release, where this setting swapped the whole dashboard instead of the notes list, so the Scratchpad only moved from the right edge of the screen to the left."
+                "Sati now rearranges the Overview automatically as its window gets wider, narrower, taller, or shorter. Notes, deadlines, forms, productivity, and Work Agenda stay available through labeled workspace choices when they cannot fit together.",
+                "Work Agenda is the default center workspace for users who have not already chosen a preference. Turning off \"Keep Work Agenda in the center\" keeps Notes as the preferred starting workspace.",
+                "Focus note gives the current note the available workspace without making a new draft. Returning to Overview preserves what you typed, including the narrative editor's caret, selection, and undo history.",
+                "Easy Eyes remains one switch for larger text and controls. The same responsive layout now supplies the extra room instead of relying on monitor resolution or a startup warning."
+            ]),
+        new(
+            "Case Management has a clearer route to every workspace",
+            [
+                "Overview, Clients, Notes, Caseload Matrix, Calendar, Statistics, Reviews, Providers, Help, and Documents now share one direct Case Management navigation row.",
+                "Guidance and Reference appear under Help. AT Requests, Authorized Rep, and Releases appear under Documents, with the same existing workspaces and permissions behind them.",
+                "Empty Overview panels now say which client, filter, date range, or loading state they represent instead of leaving an unexplained blank area."
+            ]),
+        new(
+            "Supervisors can work through large approval queues",
+            [
+                "Pending Approvals loads 10 notes at a time. Scrolling down or choosing Load more retrieves the next page without losing the selected case-manager filter.",
+                "Approve all within threshold is a deliberate button with a default maximum of 4 units per note. Opening the page, scrolling, or editing the threshold never approves anything.",
+                "Every batch item still passes supervision scope, compliance, revision, note validity, and service-time conflict checks. Notes that do not qualify remain for individual review."
+            ]),
+        new(
+            "Client save messages distinguish saving from refreshing",
+            [
+                "If a client save succeeds but the screen refresh fails afterward, Sati now says the record was saved and tells the user to reload the screen without repeating the save.",
+                "When a save result is truly unknown, create and edit messages now use the correct wording for that operation and ask the user to verify the record before retrying."
             ]),
         new(
             "Still planned before commercial production",
             [
                 "Sorting client lists by last name currently affects only the Notes client picker. AT Requests, client documents, and similar screens keep their own list and are not yet affected.",
+                "Optional user-resizable Overview pane widths and a reset action if user testing shows they are needed.",
                 "Dual-control release of a legal hold. Today's release is single-admin.",
                 "A way for a case manager to mark their own consumer No Longer Served or Deceased. An Admin can do this for any consumer from the Admin dashboard's new Status control; a case manager still has no path to it from their own caseload.",
                 "A count of exactly what a consumer deletion will remove, shown before you confirm rather than only after.",

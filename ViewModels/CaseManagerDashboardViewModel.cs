@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Identity.Client;
 using Sati.Contracts.V1;
@@ -67,6 +67,8 @@ CalendarViewModel calendarViewModel,
             ReviewsViewModel reviewsViewModel,
             ProvidersViewModel providersViewModel,
             ATRequestViewModel atRequestViewModel,
+            GuidanceViewModel guidance,
+            HelperReferenceViewModel reference,
             IAnnualDocumentService? annualDocuments = null,
             ConsumerPickerSortPreferenceService? consumerPickerSortPreferences = null
             )
@@ -90,6 +92,8 @@ CalendarViewModel calendarViewModel,
             Reviews = reviewsViewModel;
             Providers = providersViewModel;
             ATRequests = atRequestViewModel;
+            Guidance = guidance;
+            Reference = reference;
             Attestation = new FormAttestationViewModel(formService)
             {
                 AttestationChangedAsync = AfterFormComplianceChangedAsync
@@ -186,8 +190,8 @@ CalendarViewModel calendarViewModel,
         public CaseloadMatrixViewModel? Matrix { get; private set; }
 
         /// <summary>
-        /// The shell's scratchpad, handed down so the Overview can render it in the
-        /// middle column when the user has swapped it with the notes panel.
+        /// The shell's Work Agenda, handed down so Overview can render the same live
+        /// drafts in its adaptive center host.
         /// <para>
         /// Handed down rather than injected: <c>ScratchpadViewModel</c> is registered
         /// transient, so resolving one here would produce a second, independent
@@ -203,10 +207,10 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(Scratchpad));
         }
 
-        // Mirrored down from the shell the same way Easy Eyes is, so the Overview can
-        // decide its middle column without reaching back up the visual tree.
+        // Mirrored down from the shell so Overview can choose its initial central
+        // workspace without reaching back up the visual tree.
         [ObservableProperty]
-        private bool isScratchpadCentered;
+        private bool isScratchpadCentered = true;
 
         public bool IsDashboardSubActive => CurrentSubViewModel is null;
         public bool IsClientsSubActive => CurrentSubViewModel is NewClientViewModel;
@@ -221,6 +225,12 @@ CalendarViewModel calendarViewModel,
         public bool IsAuthorizedRepresentativeSubActive =>
             ReferenceEquals(CurrentSubViewModel, AuthorizedRepresentative);
         public bool IsReleasesSubActive => ReferenceEquals(CurrentSubViewModel, Releases);
+        public GuidanceViewModel Guidance { get; }
+        public HelperReferenceViewModel Reference { get; }
+        public bool IsGuidanceSubActive => ReferenceEquals(CurrentSubViewModel, Guidance);
+        public bool IsReferenceSubActive => ReferenceEquals(CurrentSubViewModel, Reference);
+        public bool IsHelpSubActive => IsGuidanceSubActive || IsReferenceSubActive;
+        public bool IsDocumentsSubActive => IsATRequestsSubActive || IsAuthorizedRepresentativeSubActive || IsReleasesSubActive;
         public ReviewsViewModel Reviews { get; }
         public ProvidersViewModel Providers { get; }
         public ATRequestViewModel ATRequests { get; }
@@ -239,6 +249,12 @@ CalendarViewModel calendarViewModel,
         [ObservableProperty] private bool showOverdue;
         [ObservableProperty] private BoardTab selectedTab = BoardTab.All;
         [ObservableProperty] private BoardDateFilter dateFilter = BoardDateFilter.TwoWeeks;
+        [ObservableProperty] private bool isNotesStateVisible = true;
+        [ObservableProperty] private string notesStateMessage = "Select a client to view notes.";
+        [ObservableProperty] private bool isBoardStateVisible = true;
+        [ObservableProperty] private string boardStateMessage = "Loading deadlines...";
+        private bool _hasLoadedDeadlineData;
+        private string? _deadlineLoadFailure;
 
 
         // -------------------------------------------------------------------------
@@ -259,6 +275,10 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(IsAuthorizedRepresentativeSubActive));
             OnPropertyChanged(nameof(IsReleasesSubActive));
             OnPropertyChanged(nameof(IsSubViewActive));
+            OnPropertyChanged(nameof(IsGuidanceSubActive));
+            OnPropertyChanged(nameof(IsReferenceSubActive));
+            OnPropertyChanged(nameof(IsHelpSubActive));
+            OnPropertyChanged(nameof(IsDocumentsSubActive));
         }
 
 
@@ -289,6 +309,7 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(IsTaskListTab));
             OnPropertyChanged(nameof(IsEffectiveDatesTab));
             OnPropertyChanged(nameof(TabHasOverdue));
+            RefreshBoardState();
         }
 
         // The dot is per-tab and independent of the window, so it does not change
@@ -298,10 +319,20 @@ CalendarViewModel calendarViewModel,
             OnPropertyChanged(nameof(BoardItems));
             OnPropertyChanged(nameof(BoardGroups));
             OnPropertyChanged(nameof(DateFilterLabel));
+            RefreshBoardState();
         }
 
-        partial void OnSearchTextChanged(string? value) => NotesView.Refresh();
-        partial void OnFilterStatusChanged(NoteStatus? value) => NotesView.Refresh();
+        partial void OnSearchTextChanged(string? value)
+        {
+            NotesView.Refresh();
+            RefreshNotesState();
+        }
+
+        partial void OnFilterStatusChanged(NoteStatus? value)
+        {
+            NotesView.Refresh();
+            RefreshNotesState();
+        }
 
 
 
@@ -559,6 +590,10 @@ CalendarViewModel calendarViewModel,
         // -------------------------------------------------------------------------
         [RelayCommand] private void SelectUpcomingTab() => ShowOverdue = false;
         [RelayCommand] private void SelectOverdueTab() => ShowOverdue = true;
+        [RelayCommand] private void NavigateToHelp() => NavigateToGuidance();
+        [RelayCommand] private void NavigateToGuidance() => CurrentSubViewModel = Guidance;
+        [RelayCommand] private void NavigateToReference() => CurrentSubViewModel = Reference;
+        [RelayCommand] private Task NavigateToDocuments() => NavigateToATRequestsCommand.ExecuteAsync(null);
         [RelayCommand] private void NavigateToOverview() => CurrentSubViewModel = null; 
         [RelayCommand] private void NavigateToClients() => CurrentSubViewModel = Clients;
         [RelayCommand] private void NavigateToNotesLog() => CurrentSubViewModel = NotesLog;
@@ -811,10 +846,14 @@ CalendarViewModel calendarViewModel,
             if (person is null)
             {
                 if (_notesLoadRequests.IsCurrent(request))
+                {
                     Notes.Clear();
+                    SetNotesState("Select a client to view notes.");
+                }
                 return;
             }
 
+            SetNotesState("Loading notes...");
             try
             {
                 var notes = await _noteService.GetAllByPersonAsync(person.Id);
@@ -824,12 +863,32 @@ CalendarViewModel calendarViewModel,
                 Notes.Clear();
                 foreach (var note in notes)
                     Notes.Add(note);
+                RefreshNotesState();
                 RefreshPendingAttestations();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to load notes for person {person.Id}: {ex.Message}");
+                if (_notesLoadRequests.IsCurrent(request) && SelectedPerson?.Id == person.Id)
+                    SetNotesState("Notes could not be loaded. Change clients or reopen Overview to try again.");
             }
+        }
+
+        private void RefreshNotesState()
+        {
+            if (SelectedPerson is null)
+            {
+                SetNotesState("Select a client to view notes.");
+                return;
+            }
+
+            SetNotesState(NotesView.IsEmpty ? "No notes match these filters." : null);
+        }
+
+        private void SetNotesState(string? message)
+        {
+            NotesStateMessage = message ?? string.Empty;
+            IsNotesStateVisible = message is not null;
         }
 
         public bool FilterNotes(object obj)
@@ -953,21 +1012,58 @@ CalendarViewModel calendarViewModel,
                 return;
 
             var request = _upcomingEventLoadRequests.Begin();
-            var settings = await _settingsService.LoadAsync();
-            var events = _upcomingEventService.GenerateEvents(People, settings);
-            if (!_upcomingEventLoadRequests.IsCurrent(request))
-                return;
+            _hasLoadedDeadlineData = false;
+            _deadlineLoadFailure = null;
+            RefreshBoardState();
+            try
+            {
+                var settings = await _settingsService.LoadAsync();
+                var events = _upcomingEventService.GenerateEvents(People, settings);
+                if (!_upcomingEventLoadRequests.IsCurrent(request))
+                    return;
 
-            UpcomingEvents.Clear();
-            foreach (var e in events)
-                UpcomingEvents.Add(e);
+                UpcomingEvents.Clear();
+                foreach (var e in events)
+                    UpcomingEvents.Add(e);
 
-            OnPropertyChanged(nameof(AllEvents));
-            OnPropertyChanged(nameof(OverdueCount));
-            OnPropertyChanged(nameof(HasOverdueEvents));
-            OnPropertyChanged(nameof(BoardItems));
-            OnPropertyChanged(nameof(BoardGroups));
-            OnPropertyChanged(nameof(TabHasOverdue));
+                _hasLoadedDeadlineData = true;
+                OnPropertyChanged(nameof(AllEvents));
+                OnPropertyChanged(nameof(OverdueCount));
+                OnPropertyChanged(nameof(HasOverdueEvents));
+                OnPropertyChanged(nameof(BoardItems));
+                OnPropertyChanged(nameof(BoardGroups));
+                OnPropertyChanged(nameof(TabHasOverdue));
+                RefreshBoardState();
+            }
+            catch
+            {
+                if (_upcomingEventLoadRequests.IsCurrent(request))
+                {
+                    _deadlineLoadFailure = "Deadlines could not be loaded. Reopen Overview to try again.";
+                    RefreshBoardState();
+                }
+                throw;
+            }
+        }
+
+        private void RefreshBoardState()
+        {
+            var message = _deadlineLoadFailure;
+            if (message is null && !_hasLoadedDeadlineData)
+                message = "Loading deadlines...";
+            if (message is null)
+            {
+                var hasItems = SelectedTab == BoardTab.EffectiveDates
+                    ? EffectiveDateGroups.Any(group => group.ClientNames.Count > 0)
+                    : BoardItems.Any();
+                if (!hasItems)
+                    message = SelectedTab == BoardTab.EffectiveDates
+                        ? "No effective dates in this range."
+                        : "No deadlines in this date range.";
+            }
+
+            BoardStateMessage = message ?? string.Empty;
+            IsBoardStateVisible = message is not null;
         }
 
         public async Task OpenFormAsync(FormType formType)
@@ -1131,6 +1227,10 @@ CalendarViewModel calendarViewModel,
             _incentive = null;
             _settings = null;
             _exemptDatesForMonth = [];
+            _hasLoadedDeadlineData = false;
+            _deadlineLoadFailure = null;
+            SetNotesState("Select a client to view notes.");
+            RefreshBoardState();
             SelectedPerson = null;
             SelectedNote = null;
             NoteEntry.Reset();

@@ -10,7 +10,7 @@ public sealed class ReleaseUiStructureTests
         "..", "..", "..", "..", ".."));
 
     [Fact]
-    public void RequestedDocumentDestinationsLiveAtTheDashboardLevel()
+    public void HelpAndDocumentsHaveSidebarsBelowTheFeatureTabs()
     {
         var section = File.ReadAllText(Path.Combine(Root, "Views", "CaseManagementView.xaml"));
         var dashboard = File.ReadAllText(Path.Combine(Root, "Views", "CaseManagerDashboardView.xaml"));
@@ -19,6 +19,23 @@ public sealed class ReleaseUiStructureTests
             Root, "Views", "ClientDocuments", "ClientDocumentHubView.xaml"));
 
         Assert.DoesNotContain("AT Requests", section);
+        Assert.DoesNotContain("Content=\"Dashboard\"", section);
+        var view = XDocument.Parse(dashboard);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var toolbar = view.Descendants(presentation + "StackPanel")
+            .Single(e => (string?)e.Attribute("Orientation") == "Horizontal");
+        Assert.Equal(new[] { "Overview", "Clients", "Notes", "Caseload Matrix", "Calendar",
+            "Statistics", "Reviews", "Providers", "Help", "Documents" },
+            toolbar.Elements(presentation + "Button").Select(e => (string?)e.Attribute("Content")));
+        foreach (var (name, destinations) in new[] {
+            ("Help navigation", new[] { "Guidance", "Reference" }),
+            ("Documents navigation", new[] { "AT Requests", "Authorized Rep", "Releases" }) })
+        {
+            var sidebar = view.Descendants(presentation + "StackPanel")
+                .Single(e => (string?)e.Attribute("AutomationProperties.Name") == name);
+            Assert.Equal(destinations, sidebar.Elements(presentation + "Button")
+                .Select(e => (string?)e.Attribute("Content")));
+        }
         Assert.Contains("NavigateToATRequestsCommand", dashboard);
         Assert.Contains("NavigateToAuthorizedRepresentativeCommand", dashboard);
         Assert.Contains("NavigateToReleasesCommand", dashboard);
@@ -95,28 +112,27 @@ public sealed class ReleaseUiStructureTests
     }
 
     [Fact]
-    public void CompactDisplayModeWarnsAndPreservesPanelReopenControls()
+    public void AdaptiveDisplayUsesTheUsableViewportAndPreservesFeatureAccess()
     {
         var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
         var shellCode = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml.cs"));
         var shellViewModel = File.ReadAllText(Path.Combine(Root, "ViewModels", "ShellViewModel.cs"));
+        var overview = File.ReadAllText(Path.Combine(Root, "Views", "CaseManagerDashboardContentView.xaml"));
+        var overviewCode = File.ReadAllText(Path.Combine(Root, "Views", "CaseManagerDashboardContentView.xaml.cs"));
         var clients = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml"));
+        var clientsCode = File.ReadAllText(Path.Combine(Root, "Views", "ClientsView.xaml.cs"));
         var clientViewModel = File.ReadAllText(Path.Combine(Root, "ViewModels", "NewClientViewModel.cs"));
-        var notice = File.ReadAllText(Path.Combine(Root, "Views", "DisplayAdjustmentDialog.xaml"));
-        var noticeCode = File.ReadAllText(Path.Combine(Root, "Views", "DisplayAdjustmentDialog.xaml.cs"));
 
-        Assert.Contains("DetectFor(this)", shellCode);
-        Assert.Contains("ApplyCompactDisplayMode", shellCode);
-        Assert.Contains("RequiresAdjustmentNotice", shellCode);
-        Assert.Contains("_displayAdjustmentNoticeShown", shellCode);
-        Assert.Contains("1080p", noticeCode);
-        Assert.Contains("1920 × 1080", noticeCode);
-        Assert.Contains("Compact display mode notice", notice);
-
-        Assert.Contains("if (collapseScratchpad)", shellViewModel);
-        Assert.Contains("IsScratchpadVisible = false", shellViewModel);
+        Assert.Contains("SizeChanged=\"RootGrid_SizeChanged\"", shell);
+        Assert.Contains("e.NewSize.Width < compactBoundary", shellCode);
+        Assert.DoesNotContain("DetectFor(this)", shellCode);
+        Assert.Contains("SetCompactDisplayMode", shellViewModel);
         Assert.Contains("ToggleScratchpadCommand", shell);
-        Assert.Contains("IsClientListCompact = true", clientViewModel);
+        Assert.Contains("Overview workspace", overview);
+        Assert.Contains("Focus note", overview);
+        Assert.Contains("OverviewLayoutPolicy.Evaluate", overviewCode);
+        Assert.Contains("SizeChanged += OnSizeChanged", clientsCode);
+        Assert.Contains("SetCompactDisplayMode", clientViewModel);
         Assert.Contains("ToggleClientListCommand", clients);
 
         Assert.Contains("ShellNavTabButton", shell);

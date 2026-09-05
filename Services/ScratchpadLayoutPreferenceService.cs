@@ -9,10 +9,9 @@ public sealed class ScratchpadLayoutPreferenceSaveException(
     Exception? innerException = null) : Exception(message, innerException);
 
 /// <summary>
-/// Stores whether the Scratchpad (Today's Work / Tomorrow's Agenda) renders in the
-/// main content area instead of the collapsible side panel, per Sati user and
-/// environment in the current Windows profile. Local presentation state, not agency
-/// data.
+/// Stores whether Work Agenda (Today's Work / Tomorrow's Agenda) is Overview's initial
+/// center workspace, per Sati user and environment in the current Windows profile.
+/// Local presentation state, not agency data.
 ///
 /// Deliberately its own file rather than folded into another preference store, for
 /// the same reason those stores are already separate from each other: a malformed
@@ -44,7 +43,7 @@ public sealed class ScratchpadLayoutPreferenceService
         _preferencePath = preferencePath;
     }
 
-    public bool IsCentered { get; private set; }
+    public bool IsCentered { get; private set; } = true;
     public string? LastLoadWarning { get; private set; }
     public event EventHandler<bool>? PreferenceChanged;
 
@@ -62,15 +61,17 @@ public sealed class ScratchpadLayoutPreferenceService
             try
             {
                 var document = await ReadDocumentAsync(cancellationToken);
-                isCentered = document.Profiles.TryGetValue(ProfileKey(userId), out var profile)
-                    && profile.IsCentered;
+                // Work Agenda is the useful center of the Overview for a new
+                // profile. A stored false remains an explicit, respected choice.
+                isCentered = !document.Profiles.TryGetValue(ProfileKey(userId), out var profile)
+                    || profile.IsCentered;
             }
             catch (Exception exception) when (
                 exception is IOException or UnauthorizedAccessException or JsonException)
             {
                 LastLoadWarning =
-                    "Your Scratchpad layout preference could not be loaded. Sati will use the standard layout.";
-                isCentered = false;
+                    "Your Work Agenda layout preference could not be loaded. Sati will keep Work Agenda in the center for now.";
+                isCentered = true;
             }
         }
         finally
@@ -100,7 +101,7 @@ public sealed class ScratchpadLayoutPreferenceService
                 exception is IOException or UnauthorizedAccessException or JsonException)
             {
                 throw new ScratchpadLayoutPreferenceSaveException(
-                    "The Scratchpad layout preference file could not be read, so Sati left it unchanged.",
+                    "The Work Agenda layout preference file could not be read, so Sati left it unchanged.",
                     exception);
             }
 
@@ -115,7 +116,7 @@ public sealed class ScratchpadLayoutPreferenceService
                 exception is IOException or UnauthorizedAccessException)
             {
                 throw new ScratchpadLayoutPreferenceSaveException(
-                    "The Scratchpad layout preference could not be saved to this Windows account.",
+                    "The Work Agenda layout preference could not be saved to this Windows account.",
                     exception);
             }
         }
@@ -157,7 +158,7 @@ public sealed class ScratchpadLayoutPreferenceService
         CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(_preferencePath)
-            ?? throw new IOException("The Scratchpad layout preference folder is unavailable.");
+            ?? throw new IOException("The Work Agenda layout preference folder is unavailable.");
         Directory.CreateDirectory(directory);
 
         var temporary = _preferencePath + $".pending-{Guid.NewGuid():N}";

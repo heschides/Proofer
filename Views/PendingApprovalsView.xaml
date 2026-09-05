@@ -163,9 +163,20 @@
 
     <Grid>
         <!-- Main content -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" ScrollChanged="Queue_ScrollChanged">
             <StackPanel Margin="16,12">
 
+                <WrapPanel Margin="0,0,0,12">
+                    <TextBlock Text="Maximum units per note (1-96):" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Text="{Binding MaximumUnitsText, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="Maximum units per note" Width="55" Margin="0,0,8,0" />
+                    <Button Content="Approve all within threshold" Command="{Binding BatchApproveCommand}"
+                            Style="{StaticResource PrimaryButton}" />
+                </WrapPanel>
+                <TextBlock Text="Applies to this case-manager filter, including notes not yet loaded. Notes must pass validation and compliance; no overrides."
+                           TextWrapping="Wrap" Margin="0,0,0,8" />
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,0,0,8"
+                           AutomationProperties.LiveSetting="Polite" />
                 <!-- PENDING APPROVALS SECTION -->
                 <TextBlock Text="PENDING APPROVALS"
                            Style="{StaticResource SectionHeading}" />
@@ -431,6 +442,9 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <Button Content="Load more" Command="{Binding LoadMoreCommand}"
+                        AutomationProperties.Name="Load next 10 notes" Margin="0,10"
+                        Visibility="{Binding HasMore, Converter={StaticResource BoolToVisibilityConverter}}" />
             </StackPanel>
         </ScrollViewer>
 

@@ -241,10 +241,10 @@
                            Style="{StaticResource LabelStyle}" />
                 <CheckBox Content="Use Easy Eyes mode"
                           AutomationProperties.Name="Use Easy Eyes mode"
-                          AutomationProperties.HelpText="Makes the interface about thirty percent larger, hides note narrative columns, and uses the horizontal client selector."
+                          AutomationProperties.HelpText="Uses larger text and controls. Sati rearranges panels to keep your work comfortable."
                           IsChecked="{Binding EasyEyesMode, Mode=TwoWay}"
                           Margin="0,0,0,6" />
-                <TextBlock Text="Makes the working interface about 30% larger, hides the narrative column in note lists, and uses the horizontal client selector."
+                <TextBlock Text="Larger text and controls. Sati rearranges panels to keep your work comfortable."
                            FontSize="11"
                            Foreground="{DynamicResource TextMutedBrush}"
                            TextWrapping="Wrap"
@@ -273,12 +273,12 @@
                            TextWrapping="Wrap"
                            Margin="24,0,0,20" />
 
-                <CheckBox Content="Display Scratchpad in the center of the display"
-                          AutomationProperties.Name="Display Scratchpad in the center of the display"
-                          AutomationProperties.HelpText="Swaps the Overview's two panels: the Scratchpad (Today's Work and Tomorrow's Agenda) moves into the middle column, and the notes list moves out to the collapsible side panel behind the chevron."
+                <CheckBox Content="Keep Work Agenda in the center"
+                          AutomationProperties.Name="Keep Work Agenda in the center"
+                          AutomationProperties.HelpText="Makes Work Agenda the initial central workspace on Overview. Notes remains available beside it or from the workspace selector."
                           IsChecked="{Binding IsScratchpadCentered, Mode=TwoWay}"
                           Margin="0,0,0,6" />
-                <TextBlock Text="Puts the Scratchpad in the Overview's middle column and moves the notes list out to the collapsible side panel."
+                <TextBlock Text="Makes Work Agenda the initial central workspace on Overview. Turn this off if you prefer the notes list there."
                            FontSize="11"
                            Foreground="{DynamicResource TextMutedBrush}"
                            TextWrapping="Wrap"

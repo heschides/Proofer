@@ -1,4 +1,4 @@
-﻿using Sati.Models;
+using Sati.Models;
 
 namespace Sati.Data
 
@@ -13,7 +13,10 @@ namespace Sati.Data
         // These sit here until compliance is met or abandonment threshold passes.
         Task<IEnumerable<Note>> GetNonCompliantNotesAsync(int supervisorId, bool allSupervisees = false);
 
-        Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision);
+        Task<Sati.Contracts.V1.NoteReviewPage<Note>> GetReviewPageAsync(
+            int supervisorId, int afterId = 0, int? throughId = null, int? userId = null);
+
+        Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision, int? maximumUnits = null);
 
         // Override path — supervisor judges billing appropriate despite compliance gap.
         // Requires written justification. Creates a flagged claim visible to billing.

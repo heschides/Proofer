@@ -2950,3 +2950,75 @@ had the full window/billing/archive machinery built and still been unable to del
 which does not solve the problem the demo surfaced. Building a real registry — deliberately
 narrow, explicitly short of the dual-control requirement, both documented rather than assumed —
 was judged the better trade for an internal compliance control with one caller today.
+
+## 2026-09-05 - Case Management navigation
+
+Case Management opens directly onto its feature tabs: Overview, Clients, Notes, Caseload Matrix,
+Calendar, Statistics, Reviews, Providers, Help, and Documents. The redundant Dashboard navigation
+row is removed. Help offers Guidance and Reference in a sidebar; Documents offers AT Requests,
+Authorized Rep, and Releases. These remain doorways into the existing view models and document
+workspaces. Top-level Case Management, Supervision, and Billing navigation is unchanged.
+
+## 2026-09-05 - Client save outcome and screen refresh
+
+The client Submit flow marks persistence as confirmed immediately after AddPersonAsync or
+EditPersonAsync returns. Later collection, selection, and screen-refresh exceptions must report
+that the save succeeded and the screen needs refreshing. They cannot be classified as unknown
+save outcomes or rolled-back database transactions. Unconfirmed edits use edit-specific wording
+that applies to both LocalDB and cloud sessions.
+
+## 2026-09-05 - Paged supervisory review and explicit threshold approval
+
+Pending Approvals loads 10 logged notes at a time, split into compliant and held sections after
+bounded database retrieval. Stable increasing note IDs and a fixed maximum ID prevent approving
+an earlier page from skipping later rows, and keep a running batch from chasing newly added notes.
+The selected case-manager filter is applied within the authorized database query. Both LocalDB and
+the API retain the legacy unpaged reads for compatibility; this screen no longer calls them.
+
+Approval runs only when the supervisor clicks "Approve all within threshold". Default maximum:
+4 units per note, inclusive. Changing the field, opening the page, and scrolling never approve.
+The batch walks the current filter, including unloaded notes, with one ordinary approval transaction
+per note. Successful approvals retain actor, timestamp, revision and audit; audit metadata also
+records the chosen threshold and batch origin. It is deliberately a partial-success operation:
+invalid/noncompliant/stale notes remain; unexpected errors stop the batch and report confirmed
+counts plus the possible unconfirmed final request. Leaving the page stops further requests.
+
+`NoteReviewRules` owns automatic-approval eligibility: positive duration, supported service-note
+type (not Reminder), nonblank bounded narrative, nonfuture service date, inclusive rounded-unit
+limit, and valid optional time window. The persistence boundary rechecks it together with existing
+reviewer scope, logged status, revision and compliance, and checks service-time conflicts. These
+are structured checks; they do not assess clinical narrative quality. No compliance override is
+introduced. Existing manual approval and override workflows retain their established behavior.
+
+## 2026-09-05 - Adaptive display modes with a central Work Agenda
+
+Design and acceptance reference: `DISPLAY_MODES_DESIGN.md`. Josh explicitly chose Work Agenda as
+the default center workspace.
+
+Use available window layout space, including the effect of Windows scaling and Easy Eyes, to
+choose Wide, Balanced or Compact presentation. Compact falls back to one selected workspace
+when two comfortable panes cannot fit. Supporting features move into labeled selectors rather
+than becoming inaccessible. Work Agenda is the initial central workspace; an explicit Focus note
+action expands the same current note without replacing its state or changing its permissions.
+
+Keep the one-switch Easy Eyes experience and existing 1.3 enlargement for this implementation.
+Adaptive allocation supplies the missing room. Missing center preferences default to Agenda;
+explicit saved choices remain respected. All preferences remain local personal presentation state.
+
+The implementation supersedes the physical-resolution startup policy. `OverviewLayoutPolicy` uses
+the effective Overview viewport with 1080/1440/2100 width thresholds, an 840 height threshold, and a
+48-unit growth margin. The view places stable live hosts into Wide, Balanced, two-pane Compact, or
+one-pane Compact arrangements. Supporting work moves through a labeled Workspace selector, and
+Focus note uses the same note and Work Agenda controls.
+
+`ShellWindow` owns exactly one live `ScratchpadView` and moves it between Overview and the shell-side
+host. `NoteEntryView` changes the visibility of its existing detail and writing rows for short
+windows, preserving draft and editor state. Notes, Forms, and Deadlines now identify unselected,
+loading, failed, and successful-empty states where their existing load boundary can establish the
+difference. No persistence, permissions, billing, or clinical rules changed.
+
+Rejected: retaining the startup monitor dialog alongside responsive layout. Physical resolution
+does not describe usable WPF space after window resizing, DPI scaling, or Easy Eyes, and two active
+mode engines could contradict each other. `DisplayLayoutService` and `DisplayAdjustmentDialog` were
+removed. Navigation strips retain bounded horizontal overflow at extreme widths; replacing that
+fallback with a selector remains a separate presentation refinement.

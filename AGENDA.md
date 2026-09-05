@@ -1,5 +1,53 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.47 — 2026-09-05
+
+"Room to Work." The Overview now responds to the WPF space it actually receives, including window
+size, Windows scaling, and Easy Eyes. It moves stable, live workspaces through Wide, Balanced, and
+two Compact arrangements without discarding draft state. Work Agenda is the default center
+workspace for a missing preference, explicit existing preferences remain respected, and Focus note
+temporarily gives the current note the available workspace. Notes, Forms, and Deadlines now explain
+their empty, loading, failed, or unselected scope where the existing load boundary can establish it.
+
+Case Management now opens directly onto one feature-navigation row. Help contains Guidance and
+Reference; Documents contains AT Requests, Authorized Rep, and Releases. The supervisor Pending
+Approvals screen retrieves 10 notes at a time and adds an explicit maximum-units batch command. Each
+approval still crosses the normal server or LocalDB boundary for reviewer scope, compliance,
+revision, note validity, service-time conflict, and audit checks. Client-save errors now distinguish
+a confirmed save followed by a failed screen refresh from a truly unknown save result.
+
+`DISPLAY_MODES_DESIGN.md` records the implemented responsive contract. `LOGGING_DESIGN.md` records
+a separate proposed diagnostic-logging and support-bundle design; that document adds no runtime
+logging behavior in this release.
+
+**No schema change.** No migration was added or touched, and `dotnet ef migrations
+has-pending-model-changes` confirmed that the model still matches the migration snapshot. No Demo
+migration or firewall rule is needed.
+
+**Desktop-and-API release.** The API adds the bounded supervisor review-page route and the optional
+automatic-approval threshold, so the matching API must be deployed before either desktop installer
+is distributed.
+
+- [x] Release-configuration build across the complete solution succeeded with 0 errors. Full test
+      suite: 1,325 desktop/domain passed with 1 documented optional local-AI competence test skipped,
+      382 API passed, and 4 Carika passed. The first API run correctly caught the new paging route
+      missing from `ApiSurface.Routes`; adding it changed the contract revision to `79FB0BD6EAA2`,
+      after which the complete affected build and desktop/API suites passed.
+- [x] Version 1.2.47 coordinated across desktop/API assemblies, installer builders, readiness
+      defaults, installer examples, release-note tracker, and release assertions. Source commit and
+      push pending.
+- [ ] Demo API package, publication, liveness/readiness, version, and contract-revision evidence.
+- [ ] Demo and Local installer builds, isolated acceptance, cleanup, hashes, and distribution
+      publication.
+- [ ] Final evidence commit and remote-equality check.
+
+**Local Production machines.** No schema change, so no workstation migration record is required.
+
+**Branches retained, not deleted.** `second-machine-setup` and
+`origin/claude/local-vs-github-workflow-dlcqpb` retain unique work whose current status is uncertain.
+`claude/cool-jang-f6b3c4` is fully merged but remains checked out by its linked worktree, so it fails
+the safe-deletion rule. No branch is merged or deleted for this release.
+
 ## Release 1.2.46 — 2026-09-04
 
 "Middle Ground." Corrects 1.2.45. That release read "the Notes pane on the Overview" as the whole
@@ -4472,3 +4520,50 @@ match what shipped.
       exact counts. The success notice after deletion does show exact counts.
 - [ ] `address2` is not mapped on Credible import — no fixture or real export confirms Credible's
       actual label text for it, and the mapper's design is to never guess a label.
+
+## Client edit incident follow-up (2026-09-05)
+
+- [ ] Identify the original exception behind local Production support reference 54546DF49635.
+      The screenshot alone does not establish whether persistence or the subsequent UI refresh
+      threw. Confirmed post-save failures now report saved status correctly. The local incident
+      reporter retains a fingerprint but no exception stack; correlate safe diagnostic details
+      with the displayed reference as part of the logging work. No Production record was queried
+      or changed during this investigation.
+
+## Pending approvals performance and threshold batch action (2026-09-05)
+
+- [x] Load the first 10 review notes from the database, then load further pages on downward scroll
+      or Load more. Preserve the case-manager filter and reject obsolete load results.
+- [x] Add explicit "Approve all within threshold", default 4 units per note. No approval occurs on
+      load, scroll, or threshold edits. Traverse unloaded notes in bounded pages and retain normal
+      authorization, compliance, revision, time-conflict and audit checks on each approval.
+- [x] Verify pagination after earlier approvals, threshold boundaries, user-triggered behavior,
+      and stale-load suppression. Permission, threshold and stale-load tests fail when their
+      respective guards are removed. Final targeted suites: 132 API and 52 desktop/domain passed.
+      No live approvals, deployment or database migration was performed. API must be updated
+      before this desktop client is distributed.
+
+## Adaptive display modes — implemented 2026-09-05
+
+Full handoff and acceptance criteria: `DISPLAY_MODES_DESIGN.md`. Work Agenda is the default center
+workspace. Easy Eyes remains a single personal switch; fitting the layout is automatic.
+
+- [x] Replace one-time physical-resolution selection with the specified finite-viewport policy,
+      including scaling, responsive transitions, center-default migration and preference isolation.
+- [x] Implement Wide/Balanced/Compact placements, labeled access to every supporting feature,
+      existing navigation overflow and a single live agenda host that remains reachable outside Overview.
+- [x] Adapt the shared note editor for short windows and add explicit Focus note, preserving
+      commands, conditional fields, validation, drafts, caret/selection/undo and keyboard access.
+- [x] Add safe empty/loading/error states and explicit scope labels. Keep the existing palette, font
+      choices, Easy Eyes and editor text controls.
+- [x] Render and inspect the four layout tiers, run responsive/editor/preference tests, and update
+      ARCHITECTURE.md with implemented ownership. Full desktop/domain suite: 1,325 passed and one
+      optional local-AI competence test skipped. A release run remains separate.
+- [ ] If user testing shows a need, add constrained user-resizable pane widths and a reset action.
+- [ ] At extremely narrow widths, consider replacing the existing horizontal navigation overflow
+      with a labeled selector. All destinations remain keyboard reachable through the current strip.
+- [ ] Later, separately consider replacing explicit font sizes with shared typography resources.
+      This is not required for the adaptive-layout implementation and must preserve the one-toggle
+      Easy Eyes experience if undertaken.
+
+No database change, version bump, deployment, or DATT release action was performed.

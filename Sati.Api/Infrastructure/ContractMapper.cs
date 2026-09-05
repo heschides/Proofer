@@ -319,6 +319,8 @@ internal static class ContractMapper
     public static int ParseNoteStatus(string? value) => Array.IndexOf(NoteStatusNames, value);
 
     public static string? NoteStatusName(int? status) => NullableNameAt(NoteStatusNames, status);
+    public static string? NoteTypeName(int? value) => NullableNameAt(NoteTypeNames, value);
+
     public static int ParseNoteType(string? value) => Array.IndexOf(NoteTypeNames, value);
     public static int ParseFormType(string? value) => Array.IndexOf(FormTypeNames, value);
 

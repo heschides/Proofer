@@ -1,6 +1,6 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-09-03.*
+*Living document. Updated during structured review sessions. Last updated: 2026-09-05.*
 
 ## Inactivity privacy screen
 
@@ -58,6 +58,35 @@ two note-list view models: their Narrative columns become hidden presentation on
 changing note data. The Clients view computes its selector layout as the user's ordinary compact
 choice OR Easy Eyes, so Easy Eyes forces the horizontal selector and disabling it restores the
 underlying responsive/manual layout choice.
+
+## Adaptive Overview presentation
+
+`OverviewLayoutPolicy` maps the finite WPF space actually allocated to Overview into four internal
+tiers: Wide at 2100 units, Balanced at 1440, two-pane Compact at 1080, and one-pane Compact below
+that. A 48-unit expansion margin prevents repeated switching while a window rests near a boundary.
+The lower Forms/Productivity band appears at 840 units of height in Wide and Balanced. These are
+presentation decisions only: the policy has no monitor API, persistence, service, or clinical-rule
+dependency.
+
+`CaseManagerDashboardContentView` owns one stable host for Current note, Work Agenda, Notes,
+Deadlines, and Forms/Productivity. It changes Grid placement and visibility as the viewport changes;
+the workspace selector exposes panels that do not fit simultaneously. Work Agenda is the initial
+center workspace for a missing local preference. An explicit saved false still starts with Notes in
+the center. Focus note expands the existing note host and can temporarily show the same Work Agenda
+view before returning to the note or Overview.
+
+`ShellWindow` creates one `ScratchpadView` for the shell's `ScratchpadViewModel` and moves that same
+control between the Overview center host and the collapsible shell-side host on other pages. This
+preserves both dated drafts, selection, and editor state; reflow creates no second view model and
+performs no domain write or reload. Shell navigation spacing and the Clients workspace also react
+to their own measured widths, so the Clients user's compact-list choice is no longer overwritten by
+a startup monitor decision.
+
+`NoteEntryView` retains the same controls and bindings in every size. Below 840 units it exposes
+Details and Write sections under a pinned context header; changing sections collapses Grid rows
+rather than reconstructing text boxes. The narrative therefore retains its text, caret, selection,
+and undo state through resizing. The save action remains docked below the scrolling content, and the
+module-scoped compliance overlay remains above both presentations.
 
 ## Vocational Rehabilitation profile assignments
 
@@ -1465,21 +1494,19 @@ Splash (3s) → Login → session set → `ShellViewModel.InitializeAsync` → `
 + shorter user message before team deployment — this handler is what surfaced the LocalDB timeout
 and the `BoardTabConverter` throw this session).
 
-### Compact display mode
+### Adaptive display mode
 
-`DisplayLayoutService` reads the physical pixel bounds of the monitor hosting `ShellWindow` when
-the native handle becomes available. Either dimension at or below the 1920 × 1080 boundary selects
-compact presentation for that application session. Physical pixels decide the display tier; WPF's
-device-independent units remain responsible for ordinary Windows DPI scaling.
+The shell no longer selects a mode once from physical monitor resolution or shows a startup display
+warning. `RootGrid.SizeChanged` derives compact shell spacing from its effective WPF width, including
+the space consumed by Windows scaling and Easy Eyes, and applies the same 48-unit expansion margin.
+Overview uses the more detailed policy above. The window minimum is 640 × 480 so Windows can fit the
+one-pane fallback into a constrained work area. Horizontal overflow remains available on navigation
+strips at unusually narrow widths; a labeled selector can replace that fallback in a later pass.
 
-At the 1080p boundary the adjustment is silent: `NewClientViewModel` selects the horizontal compact
-consumer picker and Shell/Clients XAML use tighter margins, padding, rail width, logo, and navigation
-footprint. Below that boundary `ShellViewModel.ApplyCompactDisplayMode` also closes Today's Work and
-`DisplayAdjustmentDialog` explains the adjustment once, before other shell-owned startup windows,
-and recommends 1080p or higher. Both ordinary toggle commands remain available: compact mode supplies
-space-saving starting state, not a new permission or a permanent lock. Overflow containers remain
-the final accessibility boundary. Fonts, focus indicators, and hit targets are not globally scaled
-down; the shell instead uses layout rounding and WPF's display-optimized ClearType rendering.
+Blank Overview panels distinguish their scope: Notes asks for a selected client or reports an empty
+filter result, Forms asks for a client instead of showing misleading unchecked state, and Deadlines
+distinguishes loading, load failure, and a successful empty date range. Work Agenda remains an
+editable blank document and therefore does not use an empty-state message.
 
 ---
 
@@ -1753,3 +1780,27 @@ This allows explicit multi-save transactions under SQL Server's configured retry
 automatically replaying an ambiguous commit. The caller must reload before retrying a failed write.
 GET/HEAD retain the configured database retry behavior. API integration tests use a retry-shaped
 SQLite strategy to exercise EF's transaction guard, which ordinary SQLite tests do not detect.
+
+## Case Management navigation (2026-09-05)
+
+`CaseManagementViewModel` retains the shell's workspace and session-reset entry point.
+`CaseManagerDashboardViewModel` owns the single feature-tab selection, including injected Guidance
+and Reference pages. Help and Documents sidebar visibility derives from that selection, so leaving
+Overview also updates the shell's scratchpad placement through the existing notification path.
+Document destinations retain their existing preparation and loading commands and shared instances.
+
+## Paged supervisory review (2026-09-05)
+
+`ISupervisorService.GetReviewPageAsync` returns `NoteReviewPage<Note>` locally. The cloud service
+maps `NoteReviewPage<NoteDto>` from `GET /supervisor/notes/page`; EF entities stay local. Each query
+fetches at most 11 note rows (10 displayed plus a continuation probe) with forms scoped to those
+people. `PendingApprovalsViewModel` owns the cursor and uses `LatestRequestTracker` before publishing
+results. A scroll handler requests another page only after deliberate downward movement, with a
+keyboard-accessible Load more fallback. The supervisor host shows this view before awaiting its
+first load. Unloading invalidates pending UI results and stops further batch requests.
+
+Threshold approval is an explicit command that traverses bounded pages and calls the existing
+per-note approval method with optional `MaximumUnits`. Both persistence implementations enforce
+`NoteReviewRules` and `ServiceTimeline`; existing compliance, scope, optimistic concurrency and
+audit remain authoritative. The API approval DTO gains only an optional threshold; no schema
+migration or new write endpoint is required. Deploy the updated API before distributing this client.

@@ -244,14 +244,9 @@ namespace Sati.ViewModels.Supervisor
         [RelayCommand]
         private async Task NavigateToPendingApprovals()
         {
-            CurrentSubView = null;
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
-
-            var filterUserId = SelectedCaseManager?.UserId;
-            await _pendingApprovalsViewModel.LoadAsync(filterUserId);
-    
             CurrentSubView = _pendingApprovalsViewModel;
-}
+            await _pendingApprovalsViewModel.LoadAsync(SelectedCaseManager?.UserId);
+        }
    
         // -------------------------------------------------------------------------
         // Initialization

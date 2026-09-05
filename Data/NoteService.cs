@@ -248,7 +248,7 @@ public class NoteService(
     private static T? ParseNullable<T>(string? value) where T : struct, Enum =>
         value is null ? null : Enum.Parse<T>(value, ignoreCase: false);
 
-    private static async Task EnsureServiceTimeAvailableAsync(
+    internal static async Task EnsureServiceTimeAvailableAsync(
         SatiContext context, int userId, Note note, int? editingNoteId)
     {
         var candidate = ServiceTimeline.TryCreateBlock(editingNoteId ?? 0, note.StartTime,

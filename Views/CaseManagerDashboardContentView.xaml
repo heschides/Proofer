@@ -17,106 +17,126 @@
                     Command="{Binding NoteEntry.StartNewNoteCommand}" />
     </UserControl.InputBindings>
 
-    <!--
-        LAYOUT: 5 columns (3 content + 2 spacers), 3 rows
-        ┌─────────────┬───┬─────────────┬───┬─────────────┐
-        │ Col 0       │   │ Col 2       │   │ Col 4       │
-        ├─────────────┤   ├─────────────┤   ├─────────────┤
-        │ Row 0       │   │ Rows 0-1    │   │ Rows 0-1    │
-        │ Toolbar     │   │ Notes panel │   │ Productivity│
-        ├─────────────┤   │ — or the    │   ├─────────────┤
-        │ Rows 1-2    │   │ Scratchpad, │   │ Row 2       │
-        │ Note entry  │   │ if centered │   │ Upcoming    │
-        │ form        │   ├─────────────┤   │ Tasks       │
-        │             │   │ Row 2       │   │             │
-        │             │   │ Forms +     │   │             │
-        │             │   │ Productivity│   │             │
-        └─────────────┴───┴─────────────┴───┴─────────────┘
-
-        Col 2's top block and the shell's collapsible side panel swap contents
-        with the "Display Scratchpad in the center of the display" preference.
-        The forms/productivity block below it (Row 2) never moves.
-    -->
-    <Grid Margin="12">
+    <!-- The named hosts below retain one live instance of each workspace. Code-behind
+         places those hosts into Wide, Balanced, two-pane, or one-pane arrangements
+         from the measured WPF viewport. Work Agenda starts in the center; the
+         selector keeps every supporting workspace available when fewer panes fit. -->
+    <Grid x:Name="AdaptiveGrid"
+          Margin="12"
+          SizeChanged="AdaptiveGrid_SizeChanged">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="2*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width=".55*" />
-            <ColumnDefinition Width="10" />
-            <ColumnDefinition Width="1*" />
-            <ColumnDefinition Width="10" />
-            <ColumnDefinition Width=".65*" />
+            <ColumnDefinition Width="520" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="380" />
         </Grid.ColumnDefinitions>
+
+        <Grid x:Name="OverviewToolbar"
+              Grid.Row="0"
+              Grid.Column="0"
+              Grid.ColumnSpan="7"
+              Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel x:Name="WorkspaceSelectorPanel"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed">
+                <TextBlock Text="WORKSPACE"
+                           Style="{StaticResource LabelStyle}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <ComboBox x:Name="WorkspaceSelector"
+                          Width="190"
+                          AutomationProperties.Name="Overview workspace"
+                          SelectionChanged="WorkspaceSelector_SelectionChanged">
+                    <ComboBoxItem Content="Work Agenda" Tag="Agenda" />
+                    <ComboBoxItem Content="Current note" Tag="Note" />
+                    <ComboBoxItem Content="Notes list" Tag="Notes" />
+                    <ComboBoxItem Content="Deadlines" Tag="Deadlines" />
+                    <ComboBoxItem Content="Forms" Tag="Forms" />
+                    <ComboBoxItem Content="Productivity" Tag="Productivity" />
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="ShowAgendaFromFocusButton"
+                        Content="Work Agenda"
+                        AutomationProperties.Name="Show Work Agenda while focusing on note"
+                        Style="{StaticResource SmallButton}"
+                        Margin="0,0,8,0"
+                        Visibility="Collapsed"
+                        Click="ShowAgendaFromFocus_Click" />
+                <Button x:Name="FocusNoteButton"
+                        Content="Focus note"
+                        AutomationProperties.Name="Focus note"
+                        Style="{StaticResource SmallButton}"
+                        Click="FocusNote_Click" />
+                <Button x:Name="ReturnToOverviewButton"
+                        Content="Return to overview"
+                        AutomationProperties.Name="Return to overview"
+                        Style="{StaticResource SmallButton}"
+                        Visibility="Collapsed"
+                        Click="ReturnToOverview_Click" />
+            </StackPanel>
+        </Grid>
 
         <!-- ═══ COL 0 ROWS 1-2: NOTE ENTRY MODULE ═══
              Shared UserControl, rendered via the NoteEntryViewModel DataTemplate.
              The module carries its own border, padding, and compliance overlay. -->
-        <ContentControl Grid.Column="0"
+        <ContentControl x:Name="NoteHost"
+                        Grid.Column="0"
                         Grid.Row="1"
-                        Grid.RowSpan="2"
-                        Margin="0,0,0,12"
+                        Grid.RowSpan="3"
+                        AutomationProperties.Name="Current note panel"
                         Content="{Binding NoteEntry}" />
 
-        <!-- ═══ COL 2 ROWS 0-1: NOTES PANEL, OR THE SCRATCHPAD ═══
-             These two trade places. By default the notes panel (filter bar plus
-             grid) sits here in the middle and the Scratchpad is in the shell's
-             collapsible side panel. With "Display Scratchpad in the center of the
-             display" on, the Scratchpad takes this middle position and the notes
-             panel moves out to the side panel behind the chevron.
-
-             Both flags are mirrored onto this view model by the shell, so neither
-             binding has to climb the visual tree to find the window. Scratchpad is
-             the shell's own instance, handed down — not a second one. -->
-        <ContentControl Grid.Column="2"
-                        Grid.Row="0"
-                        Grid.RowSpan="2"
-                        AutomationProperties.Name="Notes panel">
-            <ContentControl.Style>
-                <Style TargetType="ContentControl">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ContentControl.Style>
+        <!-- Notes remains a stable view while its host changes position or hides. -->
+        <ContentControl x:Name="NotesHost"
+                        Grid.Column="6"
+                        Grid.Row="1"
+                        Grid.RowSpan="3"
+                        AutomationProperties.Name="Notes list panel">
             <views:NotesPanelView />
         </ContentControl>
 
-        <!-- The host keeps the dashboard's DataContext so the trigger below reads a
-             plain path; only the inner view switches to the scratchpad itself. -->
-        <ContentControl Grid.Column="2"
-                        Grid.Row="0"
+        <!-- ShellWindow moves its one live Work Agenda view into this host while
+             Overview is active, preserving both dated drafts and editor state. -->
+        <ContentControl x:Name="AgendaHost"
+                        Grid.Column="2"
+                        Grid.Row="1"
                         Grid.RowSpan="2"
-                        Margin="0,0,0,12"
-                        AutomationProperties.Name="Today's Work panel">
-            <ContentControl.Style>
-                <Style TargetType="ContentControl">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsScratchpadCentered}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ContentControl.Style>
-            <views:ScratchpadView DataContext="{Binding Scratchpad}" />
-        </ContentControl>
+                        AutomationProperties.Name="Work Agenda panel" />
 
         <!-- ═══ COL 2 ROW 2: FORMS CHECKLIST + MONTHLY PRODUCTIVITY ═══ -->
-        <Border Grid.Column="2"
-                Grid.Row="2"
+        <Border x:Name="SummaryHost"
+                Grid.Column="2"
+                Grid.Row="3"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="14"
                 Margin="0,0,0,12">
-            <StackPanel>
+            <TabControl x:Name="SummaryTabs"
+                        AutomationProperties.Name="Overview summary">
+                <TabItem Header="Forms"
+                          AutomationProperties.Name="Forms summary">
+                    <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding SelectedPerson, Converter={StaticResource NullToVisibilityConverter}}">
+                        <StackPanel Margin="2">
 
                 <!-- Forms checklist -->
                 <Grid>
@@ -286,10 +306,29 @@
 
                 <views:FormAttestationControl DataContext="{Binding Attestation}" />
 
-                <Separator Margin="0,12,0,12" />
+                        </StackPanel>
+                    </ScrollViewer>
+                        <TextBlock Text="Select a client to view forms."
+                                   MaxWidth="300"
+                                   Margin="20"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding SelectedPerson, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=inverse}"
+                                   AutomationProperties.Name="Select a client to view forms" />
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Productivity"
+                         AutomationProperties.Name="Monthly productivity summary">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="2">
 
                 <!-- Monthly productivity -->
-                <TextBlock Text="MONTHLY PRODUCTIVITY"
+                <TextBlock Text="YOUR MONTHLY PRODUCTIVITY"
                            Style="{StaticResource SectionHeader}" />
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
@@ -410,13 +449,18 @@
                 <TextBlock Text="{Binding EstimatedIncentive, StringFormat=C}"
                            FontSize="20"
                            Foreground="{DynamicResource TextPrimaryBrush}" />
-            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
         </Border>
 
         <!-- ═══ COL 4 ROWS 0-2: TASK BOARD ═══ -->
-        <Border Grid.Column="4"
-                Grid.Row="0"
+        <Border x:Name="DeadlinesHost"
+                Grid.Column="4"
+                Grid.Row="1"
                 Grid.RowSpan="3"
+                AutomationProperties.Name="Deadlines panel"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -723,6 +767,18 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                    <TextBlock Text="{Binding BoardStateMessage}"
+                               MaxWidth="300"
+                               Margin="20"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Visibility="{Binding IsBoardStateVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                               AutomationProperties.Name="{Binding BoardStateMessage}"
+                               AutomationProperties.LiveSetting="Polite" />
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding IsEffectiveDatesTab, Converter={StaticResource BoolToVisibilityConverter}}">

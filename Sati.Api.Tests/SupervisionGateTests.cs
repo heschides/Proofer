@@ -51,6 +51,7 @@ public sealed class SupervisionGateTests
     }
 
     [Theory]
+    [InlineData("/api/v1/supervisor/notes/page")]
     [InlineData("/api/v1/supervisor/notes?compliant=true&allSupervisees=true")]
     [InlineData("/api/v1/supervisor/notes?compliant=false&allSupervisees=true")]
     public async Task ADemotedSupervisorCannotReadTheReviewQueue(string path)

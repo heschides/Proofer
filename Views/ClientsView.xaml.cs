@@ -12,6 +12,7 @@ namespace Sati.Views
         {
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
+            SizeChanged += OnSizeChanged;
         }
 
         private NewClientViewModel? _viewModel;
@@ -54,7 +55,27 @@ namespace Sati.Views
 
                     return confirmed;
                 };
+
+                ApplyResponsiveLayout(vm, ActualWidth);
             }
+        }
+
+        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_viewModel is null || !double.IsFinite(e.NewSize.Width) || e.NewSize.Width <= 0)
+                return;
+
+            ApplyResponsiveLayout(_viewModel, e.NewSize.Width);
+        }
+
+        private static void ApplyResponsiveLayout(NewClientViewModel viewModel, double width)
+        {
+            const double compactBoundary = 1150;
+            const double expansionMargin = 48;
+            var compact = viewModel.IsCompactDisplayMode
+                ? width < compactBoundary + expansionMargin
+                : width < compactBoundary;
+            viewModel.SetCompactDisplayMode(compact);
         }
 
         // Regenerated from the stored record by the view model; the view only owns

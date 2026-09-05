@@ -11,26 +11,26 @@ public sealed class ScratchpadLayoutPreferenceTests : IDisposable
         $"sati-scratchpad-layout-preferences-{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task NewUserDefaultsToDashboardInTheMainArea()
+    public async Task NewUserDefaultsToWorkAgendaInTheCenter()
     {
         var service = CreateService(SatiDataEnvironment.Demo);
 
-        Assert.False(await service.LoadForUserAsync(41));
-        Assert.False(service.IsCentered);
+        Assert.True(await service.LoadForUserAsync(41));
+        Assert.True(service.IsCentered);
     }
 
     [Fact]
-    public async Task EnabledPreferencePersistsAndNotifies()
+    public async Task ExplicitPreferencePersistsAndNotifies()
     {
         var service = CreateService(SatiDataEnvironment.Demo);
         bool? notification = null;
         service.PreferenceChanged += (_, centered) => notification = centered;
 
-        await service.SetCenteredAsync(41, true);
+        await service.SetCenteredAsync(41, false);
 
-        Assert.True(service.IsCentered);
-        Assert.True(notification);
-        Assert.True(await CreateService(SatiDataEnvironment.Demo).LoadForUserAsync(41));
+        Assert.False(service.IsCentered);
+        Assert.False(notification);
+        Assert.False(await CreateService(SatiDataEnvironment.Demo).LoadForUserAsync(41));
     }
 
     [Fact]
@@ -40,15 +40,15 @@ public sealed class ScratchpadLayoutPreferenceTests : IDisposable
         var demo = new ScratchpadLayoutPreferenceService(EnvironmentInfo(SatiDataEnvironment.Demo), path);
         var production = new ScratchpadLayoutPreferenceService(
             EnvironmentInfo(SatiDataEnvironment.Production), path);
-        await demo.SetCenteredAsync(41, true);
+        await demo.SetCenteredAsync(41, false);
 
-        Assert.True(await demo.LoadForUserAsync(41));
-        Assert.False(await demo.LoadForUserAsync(42));
-        Assert.False(await production.LoadForUserAsync(41));
+        Assert.False(await demo.LoadForUserAsync(41));
+        Assert.True(await demo.LoadForUserAsync(42));
+        Assert.True(await production.LoadForUserAsync(41));
     }
 
     [Fact]
-    public async Task CorruptFileFallsBackToDashboardInTheMainAreaAndIsNotOverwritten()
+    public async Task CorruptFileFallsBackToWorkAgendaAndIsNotOverwritten()
     {
         Directory.CreateDirectory(_directory);
         var path = PreferencePath();
@@ -56,7 +56,7 @@ public sealed class ScratchpadLayoutPreferenceTests : IDisposable
         var service = new ScratchpadLayoutPreferenceService(
             EnvironmentInfo(SatiDataEnvironment.Demo), path);
 
-        Assert.False(await service.LoadForUserAsync(41));
+        Assert.True(await service.LoadForUserAsync(41));
         Assert.NotNull(service.LastLoadWarning);
         await Assert.ThrowsAsync<ScratchpadLayoutPreferenceSaveException>(() =>
             service.SetCenteredAsync(41, true));

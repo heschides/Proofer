@@ -3,13 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              TextElement.FontFamily="{StaticResource AppFont}">
 
-    <!-- The filter bar and notes grid, extracted from the Overview so the same
-         control can render either in the Overview's middle column or in the
-         shell's collapsible side panel. Which one it occupies is decided by the
-         "Display Scratchpad in the center of the display" preference; this
-         control does not know or care which host it is in.
-
-         DataContext is CaseManagerDashboardViewModel in both hosts. -->
+    <!-- The filter bar and notes grid remain one stable Overview workspace while
+         the adaptive host changes its position or visibility. DataContext remains
+         CaseManagerDashboardViewModel in every layout. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -56,6 +52,7 @@
                 BorderThickness="1"
                 CornerRadius="6"
                 Margin="0,0,0,12">
+            <Grid>
             <DataGrid AutomationProperties.Name="Notes" ItemsSource="{Binding NotesView}"
                       SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
                       MouseDoubleClick="DataGrid_MouseDoubleClick"
@@ -89,6 +86,18 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
             </DataGrid>
+                <TextBlock Text="{Binding NotesStateMessage}"
+                           MaxWidth="300"
+                           Margin="20"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding IsNotesStateVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                           AutomationProperties.Name="{Binding NotesStateMessage}"
+                           AutomationProperties.LiveSetting="Polite" />
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

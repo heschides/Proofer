@@ -87,6 +87,7 @@
             </TextBlock>
 
             <Button Content="Switch User"
+                    IsDefault="True"
                     Height="40"
                     Background="{DynamicResource AccentBrush}"
                     Foreground="{DynamicResource SurfaceBrush}"

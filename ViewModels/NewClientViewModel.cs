@@ -646,15 +646,7 @@ namespace Sati.ViewModels
             _ = LoadHealthcareOptionsSafelyAsync();
         }
 
-        /// <summary>
-        /// Applies the small-display starting layout without taking either toggle
-        /// away from the user. The shell calls this once after detecting its monitor.
-        /// </summary>
-        public void ApplyCompactDisplayMode()
-        {
-            IsCompactDisplayMode = true;
-            IsClientListCompact = true;
-        }
+        public void SetCompactDisplayMode(bool enabled) => IsCompactDisplayMode = enabled;
 
         // ---------------------------------------------------------------------
         // AT requests filed for this client
@@ -1099,6 +1091,7 @@ namespace Sati.ViewModels
 
                 stage = ClientSaveStage.SavingRecord;
                 await _personService.EditPersonAsync(existing);
+                stage = ClientSaveStage.RefreshingAfterSave;
 
                 var index = People.IndexOf(existing);
                 if (index >= 0)
@@ -1159,6 +1152,7 @@ namespace Sati.ViewModels
                     return;
                 stage = ClientSaveStage.SavingRecord;
                 await _personService.AddPersonAsync(person);
+                stage = ClientSaveStage.RefreshingAfterSave;
                 People.Add(person);
                 _justSavedPersonId = person.Id;
                 SelectedPerson = person;

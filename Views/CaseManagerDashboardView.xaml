@@ -1,373 +1,64 @@
-﻿<UserControl x:Class="Sati.Views.CaseManagerDashboardView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:views="clr-namespace:Sati.Views"
-             Background="{DynamicResource WindowBackgroundBrush}"
-             TextElement.FontFamily="{StaticResource AppFont}">
-
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!-- ═══ SUB-NAV TOOLBAR ═══ -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource NavBackgroundBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="16,8">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Disabled"
-                          CanContentScroll="True">
-            <StackPanel Orientation="Horizontal"
-                        KeyboardNavigation.TabNavigation="Local">
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToOverviewCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsDashboardSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Overview"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsDashboardSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToClientsCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsClientsSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Clients"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsClientsSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToNotesLogCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsNotesLogSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Notes"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsNotesLogSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToMatrixCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMatrixSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Caseload Matrix"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMatrixSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToCalendarCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsCalendarSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Calendar"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCalendarSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToStatisticsCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsStatisticsSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Statistics"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsStatisticsSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToReviewsCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsReviewsSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Reviews"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsReviewsSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Border Cursor="Hand"
-                        CornerRadius="4"
-                        Padding="12,4"
-                        Margin="0,0,4,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding NavigateToProvidersCommand}" />
-                    </Border.InputBindings>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background"
-                                    Value="Transparent" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsProvidersSubActive}"
-                                             Value="True">
-                                    <Setter Property="Background"
-                                            Value="{DynamicResource AccentButtonBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="Providers"
-                               FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource TextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsProvidersSubActive}"
-                                                 Value="True">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource OnAccentButtonBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-
-                <Button Content="AT Requests"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Assistive technology requests"
-                        views:NavTab.IsActive="{Binding IsATRequestsSubActive}"
-                        Command="{Binding NavigateToATRequestsCommand}" />
-
-                <Button Content="Authorized Rep"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="DHHS authorized representative form"
-                        views:NavTab.IsActive="{Binding IsAuthorizedRepresentativeSubActive}"
-                        Command="{Binding NavigateToAuthorizedRepresentativeCommand}" />
-
-                <Button Content="Releases"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Release forms"
-                        views:NavTab.IsActive="{Binding IsReleasesSubActive}"
-                        Command="{Binding NavigateToReleasesCommand}" />
-
-            </StackPanel>
-            </ScrollViewer>
-        </Border>
-
-        <!-- ═══ CONTENT AREA ═══ -->
-        <Grid Grid.Row="1">
-
-            <!-- Overview — shown when CurrentSubViewModel is null -->
-            <views:CaseManagerDashboardContentView Visibility="{Binding IsDashboardSubActive,
-                    Converter={StaticResource BoolToVisibilityConverter}}" />
-
-            <!-- Other sub-tabs -->
-            <ContentControl Content="{Binding CurrentSubViewModel}"
-                            Visibility="{Binding IsSubViewActive,
-                    Converter={StaticResource BoolToVisibilityConverter}}" />
-
-        </Grid>
-    </Grid>
+<UserControl x:Class="Sati.Views.CaseManagerDashboardView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:views="clr-namespace:Sati.Views"
+ Background="{DynamicResource WindowBackgroundBrush}" TextElement.FontFamily="{StaticResource AppFont}">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <Border Background="{DynamicResource NavBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,8">
+   <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <StackPanel Orientation="Horizontal" KeyboardNavigation.TabNavigation="Local">
+                <Button Content="Overview" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Overview"
+                        views:NavTab.IsActive="{Binding IsDashboardSubActive}" Command="{Binding NavigateToOverviewCommand}" />
+                <Button Content="Clients" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Clients"
+                        views:NavTab.IsActive="{Binding IsClientsSubActive}" Command="{Binding NavigateToClientsCommand}" />
+                <Button Content="Notes" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Notes"
+                        views:NavTab.IsActive="{Binding IsNotesLogSubActive}" Command="{Binding NavigateToNotesLogCommand}" />
+                <Button Content="Caseload Matrix" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Caseload Matrix"
+                        views:NavTab.IsActive="{Binding IsMatrixSubActive}" Command="{Binding NavigateToMatrixCommand}" />
+                <Button Content="Calendar" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Calendar"
+                        views:NavTab.IsActive="{Binding IsCalendarSubActive}" Command="{Binding NavigateToCalendarCommand}" />
+                <Button Content="Statistics" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Statistics"
+                        views:NavTab.IsActive="{Binding IsStatisticsSubActive}" Command="{Binding NavigateToStatisticsCommand}" />
+                <Button Content="Reviews" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Reviews"
+                        views:NavTab.IsActive="{Binding IsReviewsSubActive}" Command="{Binding NavigateToReviewsCommand}" />
+                <Button Content="Providers" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Providers"
+                        views:NavTab.IsActive="{Binding IsProvidersSubActive}" Command="{Binding NavigateToProvidersCommand}" />
+                <Button Content="Help" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Help"
+                        views:NavTab.IsActive="{Binding IsHelpSubActive}" Command="{Binding NavigateToHelpCommand}" />
+                <Button Content="Documents" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Documents"
+                        views:NavTab.IsActive="{Binding IsDocumentsSubActive}" Command="{Binding NavigateToDocumentsCommand}" />
+    </StackPanel>
+   </ScrollViewer>
+  </Border>
+  <Grid Grid.Row="1">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" Padding="8"
+           Visibility="{Binding IsHelpSubActive, Converter={StaticResource BoolToVisibilityConverter}}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel KeyboardNavigation.TabNavigation="Local" AutomationProperties.Name="Help navigation">
+                <Button Content="Guidance" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Guidance"
+                        views:NavTab.IsActive="{Binding IsGuidanceSubActive}" Command="{Binding NavigateToGuidanceCommand}" />
+                <Button Content="Reference" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Reference"
+                        views:NavTab.IsActive="{Binding IsReferenceSubActive}" Command="{Binding NavigateToReferenceCommand}" />
+     </StackPanel>
+    </ScrollViewer>
+   </Border>
+   <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" Padding="8"
+           Visibility="{Binding IsDocumentsSubActive, Converter={StaticResource BoolToVisibilityConverter}}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel KeyboardNavigation.TabNavigation="Local" AutomationProperties.Name="Documents navigation">
+                <Button Content="AT Requests" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Assistive technology requests"
+                        views:NavTab.IsActive="{Binding IsATRequestsSubActive}" Command="{Binding NavigateToATRequestsCommand}" />
+                <Button Content="Authorized Rep" Style="{StaticResource NavTabButton}" AutomationProperties.Name="DHHS authorized representative form"
+                        views:NavTab.IsActive="{Binding IsAuthorizedRepresentativeSubActive}" Command="{Binding NavigateToAuthorizedRepresentativeCommand}" />
+                <Button Content="Releases" Style="{StaticResource NavTabButton}" AutomationProperties.Name="Release forms"
+                        views:NavTab.IsActive="{Binding IsReleasesSubActive}" Command="{Binding NavigateToReleasesCommand}" />
+     </StackPanel>
+    </ScrollViewer>
+   </Border>
+   <views:CaseManagerDashboardContentView Grid.Column="1" Visibility="{Binding IsDashboardSubActive, Converter={StaticResource BoolToVisibilityConverter}}"/>
+   <ContentControl Grid.Column="1" Content="{Binding CurrentSubViewModel}" Visibility="{Binding IsSubViewActive, Converter={StaticResource BoolToVisibilityConverter}}"/>
+  </Grid>
+ </Grid>
 </UserControl>

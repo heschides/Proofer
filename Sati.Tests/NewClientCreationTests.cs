@@ -12,6 +12,57 @@ namespace Sati.Tests;
 public sealed class NewClientCreationTests
 {
     [Fact]
+    public async Task ScreenFailureAfterPersistenceReportsConfirmedSave()
+    {
+        var people = new CountingPersonService();
+        var viewModel = CreateViewModel(people, new FixedSettingsService());
+        viewModel.FirstName = "Jamie";
+        viewModel.LastName = "River";
+        viewModel.BirthDate = new DateTime(1990, 4, 3);
+        viewModel.Bio = "Synthetic save outcome test.";
+        viewModel.People.CollectionChanged += (_, _) =>
+            throw new InvalidOperationException("simulated UI collection listener failure");
+        ClientSaveProblem? shown = null;
+        viewModel.ClientSaveProblemOccurred += (_, args) => shown = args.Problem;
+
+        await viewModel.SubmitCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, people.AddCalls);
+        Assert.NotNull(shown);
+        Assert.False(shown.SaveStatusUnknown);
+        Assert.Contains("The new client was saved.", shown.Message);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ConfirmedSaveCannotBeReportedAsFailedByASubsequentRefresh(bool creating)
+    {
+        var problem = ClientSaveProblem.FromException(
+            new InvalidOperationException("simulated screen refresh failure"),
+            ClientSaveStage.RefreshingAfterSave, creating, "test-reference");
+
+        Assert.False(problem.SaveStatusUnknown);
+        Assert.Contains(creating ? "The new client was saved." : "The client changes were saved.", problem.Message);
+        Assert.Contains("Do not repeat the save", problem.Message);
+        Assert.DoesNotContain("Not Saved", problem.Title);
+    }
+
+    [Fact]
+    public void UnconfirmedEditDoesNotDescribeCreatingAClientOrAssumeAServer()
+    {
+        var problem = ClientSaveProblem.FromException(
+            new InvalidOperationException("unknown outcome"),
+            ClientSaveStage.SavingRecord, false, "test-reference");
+
+        Assert.True(problem.SaveStatusUnknown);
+        Assert.Contains("client changes", problem.Message);
+        Assert.DoesNotContain("new client", problem.Message);
+        Assert.DoesNotContain("server", problem.Message);
+        Assert.DoesNotContain("Not Saved", problem.Title);
+    }
+
+    [Fact]
     public void OptionalEmailAllowsBlankValuesAndRejectsOnlyMalformedEntries()
     {
         var viewModel = CreateViewModel(new CountingPersonService(), new FixedSettingsService());

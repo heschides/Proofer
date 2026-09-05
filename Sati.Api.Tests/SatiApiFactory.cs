@@ -968,7 +968,7 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
     /// so a workflow test can start from any point in the pipeline. No start time,
     /// so seeded notes never contend for service minutes.
     /// </summary>
-    public async Task<int> CreateNoteInStatusAsync(int status, int personId = 101)
+    public async Task<int> CreateNoteInStatusAsync(int status, int personId = 101, int minutes = 60, int? noteType = null)
     {
         await EnsureSeededAsync();
         await using var scope = Services.CreateAsyncScope();
@@ -981,7 +981,8 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             AgencyId = personId == 201 ? 2 : 1,
             Narrative = $"Workflow note in status {status}",
             EventDate = new DateTime(2026, 8, 3),
-            Minutes = 60,
+            Minutes = minutes,
+            NoteType = noteType,
             Status = status
         });
         await db.SaveChangesAsync();

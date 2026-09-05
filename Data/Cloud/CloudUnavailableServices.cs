@@ -136,6 +136,16 @@ public sealed class CloudPersonContactService(CloudApiClient api) : IPersonConta
 
 public sealed class CloudSupervisorService(CloudApiClient api) : ISupervisorService
 {
+    public async Task<NoteReviewPage<Note>> GetReviewPageAsync(
+        int supervisorId, int afterId = 0, int? throughId = null, int? userId = null)
+    {
+        var path = $"/api/v1/supervisor/notes/page?afterId={afterId}";
+        if (throughId is int ceiling) path += $"&throughId={ceiling}";
+        if (userId is int selectedUser) path += $"&userId={selectedUser}";
+        var page = await api.GetAsync<NoteReviewPage<NoteDto>>(path);
+        return new(page.Notes.Select(CloudContractMapper.ToNote).ToList(), page.NextAfterId, page.ThroughId);
+    }
+
     public async Task<IEnumerable<Note>> GetPendingNotesAsync(int supervisorId, bool allSupervisees = false) =>
         (await api.GetAsync<List<NoteDto>>($"/api/v1/supervisor/notes?compliant=true&allSupervisees={allSupervisees.ToString().ToLowerInvariant()}"))
         .Select(CloudContractMapper.ToNote)
@@ -146,10 +156,10 @@ public sealed class CloudSupervisorService(CloudApiClient api) : ISupervisorServ
         .Select(CloudContractMapper.ToNote)
         .ToList();
 
-    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision) =>
+    public async Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision, int? maximumUnits = null) =>
         _ = await SendNoteActionAsync(
             $"/api/v1/supervisor/notes/{noteId}/approve",
-            new SupervisorNoteActionRequest(null, expectedRevision));
+            new SupervisorNoteActionRequest(null, expectedRevision, maximumUnits));
 
     public async Task ApproveWithOverrideAsync(int noteId, int supervisorId, string overrideReason, int expectedRevision) =>
         _ = await SendNoteActionAsync(

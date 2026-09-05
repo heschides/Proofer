@@ -6,47 +6,5 @@
              TextElement.FontFamily="{StaticResource AppFont}">
 
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!-- SUB-NAV BAR -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource SurfaceAltBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="12,8">
-            <StackPanel Orientation="Horizontal"
-                        KeyboardNavigation.TabNavigation="Local">
-
-                <!-- Same NavTabButton style as the shell's top bar, so section
-                     navigation and sub-navigation cannot drift apart visually.
-                     Nothing here describes appearance. -->
-                <Button Content="Dashboard"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Case management dashboard"
-                        views:NavTab.IsActive="{Binding IsDashboardActive}"
-                        Command="{Binding NavigateToDashboardCommand}" />
-
-                <Button Content="Guidance"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Guidance"
-                        views:NavTab.IsActive="{Binding IsGuidanceActive}"
-                        Command="{Binding NavigateToGuidanceCommand}" />
-
-                <Button Content="Reference"
-                        Style="{StaticResource NavTabButton}"
-                        AutomationProperties.Name="Reference"
-                        views:NavTab.IsActive="{Binding IsReferenceActive}"
-                        Command="{Binding NavigateToReferenceCommand}" />
-
-            </StackPanel>
-        </Border>
-
-        <!-- ACTIVE SUB-VIEW -->
-        <ContentControl Grid.Row="1"
-                        Content="{Binding CurrentSubViewModel}" />
-    </Grid>
+    <views:CaseManagerDashboardView DataContext="{Binding Dashboard}" />
 </UserControl>

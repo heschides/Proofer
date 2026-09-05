@@ -155,11 +155,10 @@ namespace Sati.ViewModels
         [ObservableProperty]
         private string consumerPickerSortPreferenceStatus = string.Empty;
 
-        // The Overview's Scratchpad (Today's Work / Tomorrow's Agenda) and the role
-        // dashboard normally sit main-area/side-panel; this swaps which is which. Off
-        // by default so an existing user's layout does not change out from under them.
+        // Chooses which workspace Overview places in the center first. Work Agenda
+        // is the default for new and unreadable preference profiles.
         [ObservableProperty]
-        private bool isScratchpadCentered;
+        private bool isScratchpadCentered = true;
 
         [ObservableProperty]
         private string scratchpadLayoutPreferenceStatus = string.Empty;
@@ -336,7 +335,7 @@ namespace Sati.ViewModels
             var userId = _sessionService.CurrentUser?.Id;
             if (userId is null)
             {
-                ScratchpadLayoutPreferenceStatus = "Sign in to change the Scratchpad layout preference.";
+                ScratchpadLayoutPreferenceStatus = "Sign in to change the Work Agenda layout preference.";
                 return;
             }
 
@@ -361,16 +360,16 @@ namespace Sati.ViewModels
             var userId = _sessionService.CurrentUser?.Id;
             if (userId is null)
             {
-                ScratchpadLayoutPreferenceStatus = "Sign in before changing the Scratchpad layout preference.";
+                ScratchpadLayoutPreferenceStatus = "Sign in before changing the Work Agenda layout preference.";
                 return;
             }
 
-            ScratchpadLayoutPreferenceStatus = "Saving Scratchpad layout preference...";
+            ScratchpadLayoutPreferenceStatus = "Saving Work Agenda layout preference...";
             try
             {
                 await _scratchpadLayoutPreferences.SetCenteredAsync(userId.Value, value);
                 _savedIsScratchpadCentered = value;
-                ScratchpadLayoutPreferenceStatus = "Scratchpad layout preference saved.";
+                ScratchpadLayoutPreferenceStatus = "Work Agenda layout preference saved.";
             }
             catch (ScratchpadLayoutPreferenceSaveException exception)
             {

@@ -1363,6 +1363,74 @@ internal static partial class ApiEndpoints
             return Results.Ok(supervisees.Select(ContractMapper.ToProfile).ToList());
         });
 
+        api.MapGet("/supervisor/notes/page", async Task<IResult> (
+            int? afterId,
+            int? throughId,
+            int? userId,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            ApiClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasSupervisorPermissions)
+                return Results.Forbid();
+
+            if (userId is int selectedUser &&
+                !await TenantAccess.CanAccessUserAsync(db, actor, selectedUser, cancellationToken))
+                return Results.Forbid();
+            var canReviewAgency = actor.HasAgencyWideSupervisionPermissions;
+            var caseManagerIds = await db.Users.AsNoTracking()
+                .Where(user => user.AgencyId == actor.AgencyId &&
+                               (user.Permissions & UserPermissions.CaseManagement) != 0 &&
+                               (canReviewAgency || user.SupervisorId == actor.UserId))
+                .Select(user => user.Id)
+                .ToListAsync(cancellationToken);
+
+            var query = (from note in db.Notes.AsNoTracking()
+                              join person in db.People.AsNoTracking() on note.PersonId equals person.Id
+                              where note.Status == NoteWorkflow.Logged &&
+                                    person.AgencyId == actor.AgencyId &&
+                                    caseManagerIds.Contains(person.UserId) &&
+                                    (!userId.HasValue || person.UserId == userId.Value)
+                              select new { Note = note, Person = person });
+            var ceiling = throughId ?? await query.Select(row => (int?)row.Note.Id).MaxAsync(cancellationToken) ?? 0;
+            var rows = await query.Where(row => row.Note.Id > (afterId ?? 0) && row.Note.Id <= ceiling)
+                .OrderBy(row => row.Note.Id).Take(NoteReviewRules.PageSize + 1).ToListAsync(cancellationToken);
+            var more = rows.Count > NoteReviewRules.PageSize;
+            rows = rows.Take(NoteReviewRules.PageSize).ToList();
+            var personIds = rows.Select(row => row.Person.Id).Distinct().ToList();
+            var formsByPerson = (await db.Forms.AsNoTracking()
+                    .Where(form => personIds.Contains(form.PersonId))
+                    .ToListAsync(cancellationToken))
+                .GroupBy(form => form.PersonId)
+                .ToDictionary(group => group.Key, group => (IReadOnlyList<ServerForm>)group.ToList());
+
+            // The agency's own date, not the host's. On a UTC server the small
+            // hours of the morning are still the previous day in Maine, and a
+            // compliance cycle that turns over a day early here would disagree
+            // with the billing gate, which has always used the Maine date.
+            var today = clock.Today;
+            var complianceRequirements = (await GetOrCreateSettingsAsync(
+                db, actor.AgencyId, cancellationToken)).BillingComplianceRequirements;
+            var result = rows
+                .Select(row => new
+                {
+                    Row = row,
+                    Compliance = EvaluatePersonCompliance(
+                        row.Person,
+                        formsByPerson.GetValueOrDefault(row.Person.Id) ?? [],
+                        today,
+                        complianceRequirements)
+                })
+                .Select(row => ContractMapper.ToNote(
+                    row.Row.Note,
+                    row.Row.Person,
+                    row.Compliance.Reasons))
+                .ToList();
+            return Results.Ok(new NoteReviewPage<NoteDto>(result, more ? rows[^1].Note.Id : null, ceiling));
+        });
+
         api.MapGet("/supervisor/notes", async Task<IResult> (
             bool compliant,
             bool allSupervisees,
@@ -1455,11 +1523,33 @@ internal static partial class ApiEndpoints
                     string.Empty));
             }
 
+            if (request.MaximumUnits is int limit)
+            {
+                if (!NoteReviewRules.Eligible(limit, row.Note.Status,
+                    ContractMapper.NoteTypeName(row.Note.NoteType), row.Note.Narrative,
+                    row.Note.EventDate, row.Note.Minutes, row.Note.StartTime, clock.Today))
+                    return Results.Conflict(new ApiErrorDto("batch_ineligible",
+                        "This note is not eligible for automatic approval.", string.Empty));
+                var candidate = ServiceTimeline.TryCreateBlock(row.Note.Id, row.Note.StartTime,
+                    row.Note.Minutes, "Logged");
+                if (candidate is not null && row.Note.EventDate is DateTime date)
+                {
+                    var day = await LoadDayNotesAsync(db, row.Person.UserId, date, cancellationToken);
+                    var blocks = day.Select(item => ServiceTimeline.TryCreateBlock(item.Note.Id,
+                        item.Note.StartTime, item.Note.Minutes, ContractMapper.NoteStatusName(item.Note.Status)))
+                        .OfType<ServiceBlock>();
+                    if (ServiceTimeline.FindConflicts(candidate, blocks).Count > 0)
+                        return Results.Conflict(new ApiErrorDto("batch_ineligible",
+                            "This note overlaps another service time.", string.Empty));
+                }
+            }
+
             row.Note.Status = 6;
             row.Note.ApprovedById = actor.UserId;
             row.Note.ApprovedAt = DateTime.UtcNow;
             row.Note.Revision++;
-            auditTrail.Record(actor, AuditActions.NoteApproved, "Note", noteId);
+            auditTrail.Record(actor, AuditActions.NoteApproved, "Note", noteId,
+                request.MaximumUnits is int threshold ? JsonSerializer.Serialize(new { maximumUnits = threshold, batch = true }) : "{}");
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
