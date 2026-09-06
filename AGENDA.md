@@ -1,6 +1,6 @@
 # Sati — Refactor Agenda
 
-## Release 1.3.0 — 2026-09-06 (DATT audit in progress)
+## Release 1.3.0 — 2026-09-06
 
 "Private handoffs and test claims." This release prevents outgoing-account content from being
 displayed during an account change and completes the synthetic Demo 837P response loop. The mock
@@ -25,8 +25,27 @@ workflow remains Demo-only and does not transmit a claim to a real clearinghouse
       audit covered all 13 projects and found no known vulnerable packages. The changed-source
       secret scan found no credential or key patterns, and the model-consistency test reports no
       pending EF model change.
-- [ ] Source publication, Demo API publication, installer acceptance, and distribution publication
-      are pending completion of this DATT audit.
+- [x] Verified source commit `dd2f6d5` is on `master` and `origin/master`. Demo API deployment
+      `0c230dba9bdc455f8afb5dd45fe96410` succeeded from the 8,781,175-byte 32-bit
+      framework-dependent package with SHA-256
+      `0a5d12c72233b90f693ea07fb7993306350bcb071ee3e892c1011e62a42e9f98`.
+      The package reports product version `1.3.0+dd2f6d5fc1ef44ecf31429353389266c44f28dcf`,
+      contains no private settings or key files, and retains both reconciliation WebJob files.
+      Live and ready are healthy; `/health/version` reports Sati.Api 1.3.0 and contract revision
+      `2E69F7DDF962`, equal to the desktop contract. Authenticated readiness checks were not run
+      because designated synthetic Admin credentials were not supplied to this release process.
+- [x] Both new installers passed acceptance and were published with matching checksum files without
+      overwriting prior releases. The Demo installer passed five responsive launches, normal closes,
+      exact version, and cleanup; it is 101,310,464 bytes with SHA-256
+      `d9ef7b4db45e0ad5ea48b4f4f6085a6d9219fb8342ca162a1dad07250451a156` in
+      `SatiLogica Demo Files`. The Local installer passed exact-version, Microsoft-signed embedded
+      LocalDB, integrated-security, and cleanup checks; it is 203,616,008 bytes with SHA-256
+      `8ec71359a05b3414e5256d605f9e87b038dcfde07b7c3d823e9d134346c2088f` in
+      `Sati Desktop`. Final copies and checksum contents were independently reverified; no
+      temporary distribution file remains. The generated Sati installers themselves are not
+      assumed to be code-signed.
+- [ ] Record and push the final evidence commit. No Production API deployment, Production
+      migration, Demo migration, or firewall change belongs to or was performed by this release.
 
 **Branches.** `team-chat-design`, `second-machine-setup`, and
 `origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
