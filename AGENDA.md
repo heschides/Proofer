@@ -13,9 +13,25 @@ Both features remain disabled by default; the signature portal is restricted to 
       existing EF1002 warnings. Detailed evidence is in `SIGNATURE_PORTAL_VALIDATION.md`.
 - [x] API route inventory and documentation reconcile to 168 protected routes; dependency advisory
       lookup covered 13 restored projects and found no known vulnerable packages.
-- [ ] Source commit, Demo API publication, health verification, installers, distribution copies,
-      and final evidence commit remain pending until branch reconciliation and release staging are
-      complete. No Production deployment or Production migration is authorized by this entry.
+- [x] Source commit `9c19af4` is on `master` and `origin/master` without history rewriting. The
+      Demo API deployment `7e5d70b57e574cb5bfd27262123c2ff4` reports live, ready, and release
+      `1.2.48`; its 32-bit framework-dependent package is 8,772,786 bytes with SHA-256
+      `42b3dde9daf3d05a158d7f91446f2836f56dfce25ea31af2ad9063a732ab324f`.
+- [x] Accepted installers are published without overwriting prior versions. Demo is 101,277,696
+      bytes (`bdec62e1521d7bdabbe50e9106b90c4a122d80a0176fd0d4a138ca2c80061dbd`) in the Demo
+      distribution folder; Local is 203,597,066 bytes (`7aac1f222b21a2e2f71f1c8764cd36f415158797104fb44bb2cd35bd4c78a8d9`) in the Desktop folder. Both checksum files match.
+- [ ] Final evidence commit remains pending. No Production API deployment or Production migration
+      was performed or authorized by this entry.
+
+### Local Production machines
+
+This release changes the local schema as well as the Demo schema. Demo migration 96 is applied;
+the desktop applies the same pending migrations when each Local Production machine next starts.
+
+- [ ] SatiLogica workstation: installed version is not rechecked after the release; treat it as
+      behind until `1.2.48` is installed and the startup migration completes.
+- [ ] Joshu workstation: version remains unverified and must be treated as behind until its
+      operator installs `1.2.48` and confirms successful startup migration.
 
 
 ## Unreleased follow-up — fixed Overview roles, faster Statistics, and structured Today's Work
