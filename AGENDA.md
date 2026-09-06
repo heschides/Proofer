@@ -44,8 +44,9 @@ workflow remains Demo-only and does not transmit a claim to a real clearinghouse
       `Sati Desktop`. Final copies and checksum contents were independently reverified; no
       temporary distribution file remains. The generated Sati installers themselves are not
       assumed to be code-signed.
-- [ ] Record and push the final evidence commit. No Production API deployment, Production
-      migration, Demo migration, or firewall change belongs to or was performed by this release.
+- [x] Evidence commit `697e0c2` is pushed; this checked ledger entry indexes that commit. No
+      Production API deployment, Production migration, Demo migration, or firewall change belongs
+      to or was performed by this release.
 
 **Branches.** `team-chat-design`, `second-machine-setup`, and
 `origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
