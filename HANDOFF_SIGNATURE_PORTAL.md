@@ -145,7 +145,15 @@ Design section 17 lists O-1 through O-8. The ones most likely to block:
 
 - **A business associate agreement must be in place with the email vendor before a single real
   message is sent.** Azure Communication Services Email is eligible under Microsoft's HIPAA BAA;
-  eligibility is not the same as an executed agreement.
+  eligibility is not the same as an executed agreement. As of 2026-09-05 none is signed and Sati
+  holds only synthetic data, which blocks nothing: synthetic records are not PHI, so build and test
+  the whole feature first. See design R-1 for what to get right meanwhile.
+- **Email will fail closed if you skip the DNS work.** `satilogica.com` publishes `-all` with a
+  DMARC policy of `quarantine`, so an Azure Communication Services sender that is not added to SPF
+  produces notifications filed silently as spam while the desktop reports "sent." Microsoft 365
+  DKIM is also not enabled today. Design section 7 has the measured records and what each one
+  means. Treat this as part of step 6, and finish it by reading an `Authentication-Results` header
+  from an external mailbox rather than by observing that a message arrived.
 - **The portal is the first internet-facing surface in this product.** It needs its own entry in
   risk analysis, incident response, and breach response.
 - Demo's SQL firewall is closed to workstations. Steps 1, 3, 4, and 5 all add tables or columns,

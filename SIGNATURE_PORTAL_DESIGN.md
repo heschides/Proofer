@@ -270,6 +270,45 @@ manager. A bounce must be visible: silently failing to reach a consumer while th
 A bounce never retargets a request to a different address. Correcting an address revokes the
 request and issues a new one, so the evidence trail shows both.
 
+### Domain authentication — measured 2026-09-05
+
+`satilogica.com` today resolves as follows. Re-check before implementation; these are facts with a
+date on them, not permanent properties.
+
+```text
+MX      satilogica-com.mail.protection.outlook.com
+SPF     v=spf1 include:spf.protection.outlook.com -all
+DMARC   v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net
+DKIM    selector1._domainkey  -> does not exist
+```
+
+Four consequences for this feature.
+
+**SPF has headroom, so the ten-lookup limit is not a risk here.** One `include` costs roughly three
+of the ten DNS lookups an SPF evaluation is permitted. Adding an Azure Communication Services
+include is safe on this record. Re-measure if other senders are added first.
+
+**`-all` plus `p=quarantine` fails closed, and that is the dangerous part.** Only Microsoft 365 may
+currently send as the domain; everything else hard-fails and is quarantined. Standing up Azure
+Communication Services without updating SPF produces notifications that are silently filed as spam
+while the desktop reports "sent." For a signature workflow that is the worst available failure,
+because nobody learns about it until a compliance cycle has already been missed.
+
+Therefore: **the SPF include and the ACS DKIM records are part of step 6, not a deployment
+afterthought**, and step 6 is not done until a test message from ACS passes SPF, DKIM, and DMARC
+against an external mailbox. Assert it by reading the `Authentication-Results` header, not by
+observing that the message arrived.
+
+**DKIM is not enabled for Microsoft 365, and it should be, independently of this feature.** The
+standard selector is absent, so outbound mail authenticates on SPF alone. That passes today only
+because DMARC alignment is relaxed. It breaks on forwarding, which preserves DKIM and breaks SPF,
+and forwarding is exactly what a consumer does when they pass a document to a family member or
+guardian. Enabling DKIM in the Microsoft 365 admin center is a two-record change.
+
+**Nobody is reading the DMARC reports.** `rua` points at a registrar default address. A feature
+whose legal weight depends on a message arriving needs those failures visible to someone. Point
+`rua` at a monitored destination before step 6.
+
 ---
 
 ## 8. Freezing, and producing the signed document
@@ -628,6 +667,9 @@ it is kept.
 4. PIN establishment with the Key Vault pepper, and `SigningPinRules`. Tests 8–12.
 5. `SignatureRequest` and `SignatureEvent`, the staff routes, no portal yet. Tests 25–27, 31–33.
 6. Email through Azure Communication Services, with delivery events. Content-free by default.
+   Includes the domain-authentication work in section 7: the SPF include, the ACS DKIM records,
+   Microsoft 365 DKIM, and a monitored DMARC `rua`. Not done until an external mailbox reports a
+   passing `Authentication-Results` header.
 7. `Sati.Portal`: the application, the SQL user and grants, the token routes, the five screens.
    Tests 1–7, 28–30.
 8. The signed artifact: append the evidence page, produce the linked artifact. Tests 14, 16, 17.
@@ -649,7 +691,7 @@ portal is a thin surface over a model that has to be right first.
 | `ARCHITECTURE.md` | `Sati.Portal` as a new trust boundary; `SignatureMeaningCatalog` as rule owner; blob storage ownership. |
 | `DECISIONS.md` | The separate portal and its SQL grants; evidence separate from audit; the PIN pepper; the records request not being signable. |
 | `REGULATORY_CONCERNS.md` | The consent disclosure, what each kind's signature means and does not mean, and the two open policy gates. |
-| `OPERATIONS.md` | Blob retention, the portal's deployment and identity, bounce handling, PIN lockout runbook. |
+| `OPERATIONS.md` | Blob retention, the portal's deployment and identity, bounce handling, PIN lockout runbook. Also the DNS records in section 7 as a maintained checklist, since SPF, DKIM, and DMARC live outside the repository and nothing in CI can catch a regression in them. |
 | `AGENDA.md` | Tick the vetted-direction items this closes; leave the policy gates open. |
 | `CLAUDE.md` | Add `SignatureMeaningCatalog` and `SigningPinRules` to the rule-owner list. |
 | `DATABASE_ENVIRONMENTS.md` | The portal connects to Demo and Production separately, with separate identities. |
@@ -697,6 +739,19 @@ verified. Should sending require a verified address, and what verifies it?
 model permanently. It needs its own entry in risk analysis, incident response, and breach response,
 and the email vendor needs a business associate agreement in place before a single real message is
 sent.
+
+As of 2026-09-05 **no business associate agreement is signed and Sati holds only synthetic data.**
+That is not a blocker for building any of this: HIPAA obligations attach to protected health
+information, and synthetic records are not PHI, so every step below can be built and tested first.
+The agreement is a gate in front of the first real consumer, not in front of development. Two
+things follow. Choose the BAA-eligible sender now so signing is paperwork rather than a vendor
+migration. And send test mail only to addresses on a domain Sati controls, with a catch-all —
+synthetic consumers carrying plausible real-looking addresses damage sending reputation before the
+feature is live, and a bounce to a stranger is a disclosure of sorts even when the body is empty.
+
+Note also that the agreements run in two directions. Each agency using Sati is the covered entity,
+which makes Sati Logica their business associate; Microsoft is then Sati's subcontractor. Both
+have to exist before real PHI, and only the second is a form.
 
 **R-2. "Very simple" is true of the signer's experience and false of the system.** The five screens
 are simple. Byte storage, an email vendor, a second deployed application, database-level least
