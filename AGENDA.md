@@ -17,10 +17,22 @@ refresh worker. The refresh remains synthetic-only and is distinct from a full b
       skipped. The dependency advisory audit covered all 13 projects and found no known vulnerable
       packages. Focused security, paging, rendering, billing, and password-reset tests are included
       in that passing total, and the changed-source secret scan found no credentials or keys.
-- [ ] Commit and push the verified source, publish and verify the matching Demo API, then build,
-      accept, and publish new Demo and Local installers without overwriting prior artifacts.
-- [ ] Record deployment, hashes, acceptance evidence, distribution paths, and the final evidence
-      commit. No Production API deployment or Production migration belongs to this release.
+- [x] Verified source commit `34e06ff` is on `master` and `origin/master`. Demo API deployment
+      `157642b8a4ad4dc6ac25b0240115e402` succeeded from the 8,780,461-byte 32-bit
+      framework-dependent package with SHA-256
+      `cafee80876708b3b8398d04713f0e4066d862f689567856e93f9fe92cfc5ff94`.
+      Live and ready are healthy; `/health/version` reports Sati.Api 1.2.49 and contract revision
+      `2E69F7DDF962`. The supervisor-filter route also returned 401 without authentication.
+- [x] Both new installers passed acceptance and were published with matching checksum files without
+      overwriting prior releases. The Demo installer passed five responsive launches, normal closes,
+      exact version, and cleanup; it is 101,281,792 bytes with SHA-256
+      `821358eb4202d1db27b99a714579212b7b683655940cde05cc2ca4f8445f4d40` in
+      `SatiLogica Demo Files`. The Local installer passed exact-version, Microsoft-signed embedded
+      LocalDB, integrated-security, and cleanup checks; it is 203,330,314 bytes with SHA-256
+      `6b98a068bd77bc5401638beebe0d12f4d01a5a464826e15ae328ad7246896268` in
+      `Sati Desktop`. Final copies and checksum contents were independently reverified.
+- [ ] Record and push the final evidence commit. No Production API deployment, Production migration,
+      Demo migration, or firewall change belongs to or was performed by this release.
 
 **Branches.** Fully merged `signature-portal-design` was safely deleted locally and remotely at
 tips `9c19af4` and `359e8ef`. `team-chat-design`, `second-machine-setup`,
