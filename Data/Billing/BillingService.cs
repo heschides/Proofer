@@ -4,6 +4,7 @@ using Sati.Data.Billing;
 using Sati.Models;
 using Sati.Models.Billing;
 using Sati.Contracts.V1;
+using Sati.Helpers;
 
 namespace Sati.Services.Billing
 {
@@ -64,26 +65,34 @@ namespace Sati.Services.Billing
         {
             await using var context = _contextFactory.CreateDbContext();
             var actor = await ValidateBillingActorAsync(context, suppliedActor);
-            return await context.BillingPeriods
+            var periods = await context.BillingPeriods
                 .Where(period => period.UserId == userId &&
                     context.Users.Any(user => user.Id == period.UserId && user.AgencyId == actor.AgencyId))
                 .Include(b => b.Lines)
+                .Include(b => b.User)
                 .OrderByDescending(b => b.Year)
                 .ThenByDescending(b => b.Month)
                 .ToListAsync();
+            foreach (var period in periods)
+                period.CaseManagerName = period.User.DisplayName;
+            return periods;
         }
 
         public async Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor suppliedActor)
         {
             await using var context = _contextFactory.CreateDbContext();
             var actor = await ValidateBillingActorAsync(context, suppliedActor);
-            return await context.BillingPeriods
+            var periods = await context.BillingPeriods
                 .Where(period => context.Users.Any(user =>
                     user.Id == period.UserId && user.AgencyId == actor.AgencyId))
                 .Include(b => b.Lines)
+                .Include(b => b.User)
                 .OrderByDescending(b => b.Year)
                 .ThenByDescending(b => b.Month)
                 .ToListAsync();
+            foreach (var period in periods)
+                period.CaseManagerName = period.User.DisplayName;
+            return periods;
         }
 
         public async Task<ClaimLine> CreateClaimLineAsync(AgencyActor suppliedActor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null)
@@ -208,6 +217,16 @@ namespace Sati.Services.Billing
                 throw new InvalidOperationException("Only draft billing periods can be submitted.");
             if (period.Lines.Count == 0)
                 throw new InvalidOperationException("A billing period with no claim lines cannot be submitted.");
+
+            try
+            {
+                EdiGenerator.ValidatePeriod(period);
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"This billing period is not ready to submit: {exception.Message}", exception);
+            }
 
             period.Status = BillingStatus.Submitted;
             period.SubmittedAt = DateTime.UtcNow;

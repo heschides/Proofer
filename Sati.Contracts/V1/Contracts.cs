@@ -607,6 +607,7 @@ public sealed record ProductivityMonthUnitsDto(
 public sealed record BillingPeriodDto(
     int Id,
     int UserId,
+    string CaseManagerName,
     int Month,
     int Year,
     string Status,

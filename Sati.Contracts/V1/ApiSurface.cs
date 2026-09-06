@@ -61,7 +61,9 @@ public static class ApiSurface
         "safety-plan-v2",
         "annual-packet-and-receipt-v1",
         "team-chat-v1",
-        "signature-evidence-v1"
+        "signature-evidence-v1",
+        // Prevent same-month periods for different case managers from rendering identically.
+        "billing-period-case-manager-name-v1"
     ];
 
     /// <summary>
@@ -147,6 +149,7 @@ public static class ApiSurface
         "GET /api/v1/signatures/availability",
         "GET /api/v1/signatures/catalog",
         "GET /api/v1/supervisor/notes",
+        "GET /api/v1/supervisor/notes/filters",
         "GET /api/v1/supervisor/notes/page",
         "GET /api/v1/supervisor/supervisees",
         "GET /api/v1/users/switchable",

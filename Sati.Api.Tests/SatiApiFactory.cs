@@ -205,6 +205,116 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
+    public async Task<(int DraftPeriodId, int SubmittedPeriodId)> CreateLegacyBillingPeriodsWithoutSnapshotsAsync()
+    {
+        await EnsureSeededAsync();
+        await _testDataLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var noteId = await db.Notes.MaxAsync(note => note.Id) + 1;
+            var periodId = await db.BillingPeriods.MaxAsync(period => period.Id) + 1;
+
+            db.Notes.AddRange(
+                new ServerNote
+                {
+                    Id = noteId, PersonId = 101, AgencyId = 1, Narrative = "Legacy draft billing test",
+                    EventDate = new DateTime(2098, 1, 10), Minutes = 15, Status = 6
+                },
+                new ServerNote
+                {
+                    Id = noteId + 1, PersonId = 101, AgencyId = 1, Narrative = "Legacy submitted billing test",
+                    EventDate = new DateTime(2099, 1, 10), Minutes = 15, Status = 6
+                });
+            db.BillingPeriods.AddRange(
+                LegacyPeriod(periodId, noteId, 2098, status: 0),
+                LegacyPeriod(periodId + 1, noteId + 1, 2099, status: 1));
+            await db.SaveChangesAsync();
+            return (periodId, periodId + 1);
+        }
+        finally
+        {
+            _testDataLock.Release();
+        }
+
+        static ServerBillingPeriod LegacyPeriod(int id, int noteId, int year, int status) => new()
+        {
+            Id = id,
+            UserId = 12,
+            Month = 1,
+            Year = year,
+            Status = status,
+            SubmittedAt = status == 1 ? DateTime.UtcNow : null,
+            Lines =
+            [
+                new ServerClaimLine
+                {
+                    NoteId = noteId,
+                    DateOfService = new DateTime(year, 1, 10),
+                    ProcedureCode = "G9012",
+                    ProcedureModifier = "HI",
+                    Units = 1,
+                    ChargeAmount = 25,
+                    ClientMaineCareId = "111111",
+                    RenderingProviderNpi = "1999999984",
+                    DiagnosisCode = "F89",
+                    PlaceOfService = 11,
+                    ClaimSnapshotJson = null
+                }
+            ]
+        };
+    }
+
+    public async Task<int> CreateZeroChargeDraftBillingPeriodAsync()
+    {
+        await EnsureSeededAsync();
+        await _testDataLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var noteId = await db.Notes.MaxAsync(note => note.Id) + 1;
+            var periodId = await db.BillingPeriods.MaxAsync(period => period.Id) + 1;
+            db.Notes.Add(new ServerNote
+            {
+                Id = noteId, PersonId = 101, AgencyId = 1, Narrative = "Zero charge billing test",
+                EventDate = new DateTime(2097, 1, 10), Minutes = 15, Status = 6
+            });
+            db.BillingPeriods.Add(new ServerBillingPeriod
+            {
+                Id = periodId,
+                UserId = 12,
+                Month = 1,
+                Year = 2097,
+                Status = 0,
+                Lines =
+                [
+                    new ServerClaimLine
+                    {
+                        NoteId = noteId,
+                        DateOfService = new DateTime(2097, 1, 10),
+                        ProcedureCode = "G9012",
+                        ProcedureModifier = "HI",
+                        Units = 1,
+                        ChargeAmount = 0,
+                        ClientMaineCareId = "111111",
+                        RenderingProviderNpi = "1999999984",
+                        DiagnosisCode = "F89",
+                        PlaceOfService = 11,
+                        ClaimSnapshotJson = ClaimSnapshot(1, 101, "Person", "One", "111111", "10 Test Street", "Portland", "04101", "SATITEST1", "Agency One", "111111111", "1 First Street", "Portland", "04101", "2075550101")
+                    }
+                ]
+            });
+            await db.SaveChangesAsync();
+            return periodId;
+        }
+        finally
+        {
+            _testDataLock.Release();
+        }
+    }
+
     public async Task ChangeUserRoleAsync(int userId, string role)
     {
         await EnsureSeededAsync();

@@ -142,20 +142,35 @@ public sealed class SupervisorService(
     }
 
     public async Task<NoteReviewPage<Note>> GetReviewPageAsync(
-        int supervisorId, int afterId = 0, int? throughId = null, int? userId = null)
+        int supervisorId, int afterId = 0, int? throughId = null, NoteReviewQuery? filter = null)
     {
         var actor = CurrentReviewer(supervisorId);
+        var appliedFilter = filter ?? new NoteReviewQuery();
         await using var context = contextFactory.CreateDbContext();
         var agencyWide = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
+        var term = NormalizeSearchTerm(appliedFilter.SearchTerm);
+        var fromDate = appliedFilter.FromDate?.Date;
+        var throughDate = appliedFilter.ToDate is DateTime toDate && toDate.Date < DateTime.MaxValue.Date
+            ? toDate.Date.AddDays(1)
+            : (DateTime?)null;
         var query = context.Notes.AsNoTracking().Where(note =>
             note.Status == NoteStatus.Logged && note.Person.AgencyId == actor.AgencyId &&
-            (!userId.HasValue || note.Person.UserId == userId.Value) &&
+            (!appliedFilter.UserId.HasValue || note.Person.UserId == appliedFilter.UserId.Value) &&
+            (!appliedFilter.PersonId.HasValue || note.PersonId == appliedFilter.PersonId.Value) &&
+            (!fromDate.HasValue || note.EventDate >= fromDate.Value) &&
+            (!throughDate.HasValue || note.EventDate < throughDate.Value) &&
+            (term == null || note.Narrative.Contains(term) ||
+                (note.Person.FirstName ?? "").Contains(term) ||
+                (note.Person.LastName ?? "").Contains(term) ||
+                context.Users.Any(user => user.Id == note.Person.UserId && user.DisplayName.Contains(term))) &&
             context.Users.Any(user => user.Id == note.Person.UserId && user.AgencyId == actor.AgencyId &&
                 (user.Permissions & UserPermissions.CaseManagement) != 0 &&
                 (agencyWide || user.SupervisorId == actor.Id)));
         var ceiling = throughId ?? await query.Select(note => (int?)note.Id).MaxAsync() ?? 0;
-        var rows = await query.Where(note => note.Id > afterId && note.Id <= ceiling)
-            .OrderBy(note => note.Id).Take(NoteReviewRules.PageSize + 1)
+        // The queue is a work inbox: show the newest submission first. The returned
+        // cursor is opaque to the client and walks toward older IDs.
+        var rows = await query.Where(note => note.Id <= ceiling && (afterId <= 0 || note.Id < afterId))
+            .OrderByDescending(note => note.Id).Take(NoteReviewRules.PageSize + 1)
             .Include(note => note.Person).ThenInclude(person => person.Forms).ToListAsync();
         var more = rows.Count > NoteReviewRules.PageSize;
         rows = rows.Take(NoteReviewRules.PageSize).ToList();
@@ -167,6 +182,41 @@ public sealed class SupervisorService(
             note.ComplianceFailureReasons = note.Person.EvaluateComplianceGate(
                 DateTime.Today, requirements: requirements).Reasons;
         return new(rows, more ? rows[^1].Id : null, ceiling);
+    }
+
+    public async Task<NoteReviewFilterOptions> GetReviewFilterOptionsAsync(int supervisorId)
+    {
+        var actor = CurrentReviewer(supervisorId);
+        await using var context = contextFactory.CreateDbContext();
+        var agencyWide = UserPermissionRules.HasAgencyWideSupervisionPermissions(actor.Permissions);
+        var users = await context.Users.AsNoTracking()
+            .Where(user => user.AgencyId == actor.AgencyId &&
+                           (user.Permissions & UserPermissions.CaseManagement) != 0 &&
+                           (agencyWide || user.SupervisorId == actor.Id))
+            .OrderBy(user => user.DisplayName)
+            .Select(user => new NoteReviewCaseManagerOption(user.Id, user.DisplayName))
+            .ToListAsync();
+        var userIds = users.Select(user => user.UserId).ToList();
+        var clients = await context.People.AsNoTracking()
+            .Where(person => person.AgencyId == actor.AgencyId && userIds.Contains(person.UserId))
+            .Select(person => new
+            {
+                PersonId = person.Id,
+                person.UserId,
+                person.FirstName,
+                person.LastName
+            }).ToListAsync();
+        return new(
+            users,
+            clients.Select(row => new NoteReviewClientOption(
+                    row.PersonId, row.UserId, $"{row.FirstName} {row.LastName}".Trim()))
+                .Distinct().OrderBy(option => option.DisplayName).ToList());
+    }
+
+    private static string? NormalizeSearchTerm(string? value)
+    {
+        var term = value?.Trim();
+        return string.IsNullOrEmpty(term) ? null : term[..Math.Min(term.Length, 200)];
     }
 
     private async Task<List<Note>> GetLoggedNotesAsync(int supervisorId, bool allSupervisees)

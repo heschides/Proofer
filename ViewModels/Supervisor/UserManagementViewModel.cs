@@ -7,6 +7,7 @@ using System.Diagnostics;
 using Sati.Views;
 using System.Security;
 using System.Runtime.InteropServices;
+using Sati.Data.Cloud;
 
 namespace Sati.ViewModels.Supervisor
 {
@@ -46,6 +47,7 @@ namespace Sati.ViewModels.Supervisor
         [ObservableProperty] private User? selectedUser;
         [ObservableProperty] private User? selectedSupervisor;
         [ObservableProperty] private string statusMessage = string.Empty;
+        [ObservableProperty] private bool statusIsError;
         [ObservableProperty] private SecureString? resetPasswordValue;
         [ObservableProperty] private SecureString? resetPasswordConfirmation;
 
@@ -62,6 +64,7 @@ namespace Sati.ViewModels.Supervisor
         // -------------------------------------------------------------------------
 
         public bool HasSelectedUser => SelectedUser is not null;
+        public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
         // Presentation only. UserService enforces the same rule against the database, so
         // this decides what to offer rather than what is allowed.
@@ -97,6 +100,9 @@ namespace Sati.ViewModels.Supervisor
         partial void OnSelectedSupervisorChanged(User? value) =>
             OnPropertyChanged(nameof(SelectedSupervisorName));
 
+        partial void OnStatusMessageChanged(string value) =>
+            OnPropertyChanged(nameof(HasStatusMessage));
+
         // -------------------------------------------------------------------------
         // Commands
         // -------------------------------------------------------------------------
@@ -127,14 +133,14 @@ namespace Sati.ViewModels.Supervisor
                     SelectedSupervisor = _sessionService.CurrentUser;
                 SelectedUser.SupervisorId = SelectedSupervisor?.Id;
                 await _userService.UpdateAsync(CurrentActor(), SelectedUser);
-                StatusMessage = "Changes saved.";
+                SetStatus("Changes saved.");
                 await RefreshAsync();
                 UsersChanged?.Invoke();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"SaveChanges failed: {ex.Message}");
-                StatusMessage = "Failed to save changes.";
+                SetStatus("Changes were not saved. Please try again.", isError: true);
             }
         }
 
@@ -148,26 +154,49 @@ namespace Sati.ViewModels.Supervisor
             {
                 if (ResetPasswordValue is null || ResetPasswordValue.Length is < 8 or > 128)
                 {
-                    StatusMessage = "Enter a new password between 8 and 128 characters.";
+                    SetStatus("Enter a new password between 8 and 128 characters.", isError: true);
                     return;
                 }
                 if (ResetPasswordConfirmation is null ||
                     !SecureStringsMatch(ResetPasswordValue, ResetPasswordConfirmation))
                 {
-                    StatusMessage = "The new passwords do not match.";
+                    SetStatus("The new passwords do not match.", isError: true);
                     return;
                 }
 
-                await _userService.ResetPasswordAsync(CurrentActor(), SelectedUser, ResetPasswordValue);
-                StatusMessage = $"Password reset for {SelectedUser.DisplayName}.";
+                // Keep the target stable for the whole request. The selected row can change
+                // while a hosted reset is awaiting its response, but the confirmation must name
+                // the account the service actually received.
+                var target = SelectedUser;
+                SetStatus($"Resetting the password for {target.DisplayName}...");
+                await _userService.ResetPasswordAsync(CurrentActor(), target, ResetPasswordValue);
                 ClearResetPasswordInputs();
+                SetStatus($"Password reset for {target.DisplayName}.");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"ResetPassword failed: {ex.Message}");
-                StatusMessage = "Failed to reset password.";
+                SetStatus(DescribeResetFailure(ex), isError: true);
             }
         }
+
+        private void SetStatus(string message, bool isError = false)
+        {
+            StatusIsError = isError;
+            StatusMessage = message;
+        }
+
+        private static string DescribeResetFailure(Exception exception) => exception switch
+        {
+            SessionExpiredException =>
+                "The password was not reset because your session expired. Sign in again and retry.",
+            CloudApiException cloud => $"The password was not reset. {cloud.Message}",
+            CloudConnectivityException connectivity =>
+                $"Sati could not confirm the password reset. {connectivity.Message} Retry with the same password after the connection is stable.",
+            UnauthorizedAccessException unauthorized => $"The password was not reset. {unauthorized.Message}",
+            InvalidOperationException invalid => $"The password was not reset. {invalid.Message}",
+            _ => "Sati could not confirm the password reset. Retry with the same password; if it still fails, contact support."
+        };
 
         private void ClearResetPasswordInputs()
         {

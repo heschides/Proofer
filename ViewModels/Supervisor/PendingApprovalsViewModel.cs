@@ -35,6 +35,9 @@ namespace Sati.ViewModels.Supervisor
         // Notes whose consumers fail the compliance gate — waiting for compliance
         // to be met, or for a supervisor override with written justification.
         public ObservableCollection<PendingNoteViewModel> NonCompliantNotes { get; } = [];
+        public ObservableCollection<NoteReviewCaseManagerOption> CaseManagerOptions { get; } = [];
+        public ObservableCollection<NoteReviewClientOption> ClientOptions { get; } = [];
+        private IReadOnlyList<NoteReviewClientOption> _allClientOptions = [];
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -43,6 +46,13 @@ namespace Sati.ViewModels.Supervisor
         [ObservableProperty] private PendingNoteViewModel? selectedNote;
         [ObservableProperty] private string? returnReason;
         [ObservableProperty] private bool isReturnDialogVisible;
+        [ObservableProperty] private NoteReviewCaseManagerOption? selectedCaseManager;
+        [ObservableProperty] private NoteReviewClientOption? selectedClient;
+        [ObservableProperty] private DateTime? fromDate;
+        [ObservableProperty] private DateTime? toDate;
+        [ObservableProperty] private string searchTerm = string.Empty;
+        [ObservableProperty] private bool areFiltersAvailable = true;
+        [ObservableProperty] private string filterStatusMessage = string.Empty;
 
         // Override dialog state
         [ObservableProperty] private PendingNoteViewModel? overrideNote;
@@ -56,7 +66,9 @@ namespace Sati.ViewModels.Supervisor
         public bool HasPending => PendingNotes.Count > 0;
         public bool HasNonCompliant => NonCompliantNotes.Count > 0;
         public string EmptyStateMessage => IsLoading ? "Loading notes..." :
-            HasMore ? "No compliant notes among the notes loaded so far." : "No notes pending approval.";
+            HasMore ? "No compliant notes among the notes loaded so far." :
+            HasNonCompliant ? "No notes are ready for ordinary approval. Review Held for Compliance below." :
+            "No notes pending approval.";
         public string NonCompliantEmptyMessage => IsLoading ? "Loading notes..." :
             HasMore ? "No compliance holds among the notes loaded so far." : "No notes held for compliance.";
 
@@ -66,7 +78,7 @@ namespace Sati.ViewModels.Supervisor
 
         private readonly LatestRequestTracker _loads = new();
         private int _generation;
-        private int? _filterUserId;
+        private NoteReviewQuery _activeFilter = new();
         private int? _nextAfterId;
         private int? _throughId;
         [ObservableProperty] private bool isLoading;
@@ -75,18 +87,22 @@ namespace Sati.ViewModels.Supervisor
         [ObservableProperty] private string statusMessage = string.Empty;
         [ObservableProperty] private string maximumUnitsText = NoteReviewRules.DefaultMaximumUnits.ToString(System.Globalization.CultureInfo.InvariantCulture);
         public bool CanLoadMore => HasMore && !IsLoading && !IsBatchApproving;
+        public bool CanApplyFilters => AreFiltersAvailable && !IsLoading && !IsBatchApproving;
         public bool CanBatchApprove => !IsLoading && !IsBatchApproving &&
             int.TryParse(MaximumUnitsText, out var limit) && NoteReviewRules.ValidThreshold(limit);
         partial void OnIsLoadingChanged(bool value) => NotifyActions();
         partial void OnIsBatchApprovingChanged(bool value) => NotifyActions();
         partial void OnHasMoreChanged(bool value) => NotifyActions();
         partial void OnMaximumUnitsTextChanged(string value) => NotifyActions();
+        partial void OnAreFiltersAvailableChanged(bool value) => NotifyActions();
         private void NotifyActions()
         {
             OnPropertyChanged(nameof(EmptyStateMessage));
             OnPropertyChanged(nameof(NonCompliantEmptyMessage));
             LoadMoreCommand.NotifyCanExecuteChanged();
             BatchApproveCommand.NotifyCanExecuteChanged();
+            ApplyFiltersCommand.NotifyCanExecuteChanged();
+            ClearFiltersCommand.NotifyCanExecuteChanged();
         }
 
         public void Deactivate()
@@ -97,8 +113,86 @@ namespace Sati.ViewModels.Supervisor
 
         public async Task LoadAsync(int? filterByUserId = null)
         {
+            var actor = _sessionService.CurrentUser;
+            if (actor is null) return;
             _generation = _loads.Begin();
-            _filterUserId = filterByUserId;
+            var optionsGeneration = _generation;
+            try
+            {
+                var options = await _supervisorService.GetReviewFilterOptionsAsync(actor.Id);
+                if (!_loads.IsCurrent(optionsGeneration) || _sessionService.CurrentUser != actor) return;
+                CaseManagerOptions.Clear();
+                foreach (var option in options.CaseManagers) CaseManagerOptions.Add(option);
+                _allClientOptions = options.Clients;
+                SelectedCaseManager = CaseManagerOptions.FirstOrDefault(option => option.UserId == filterByUserId);
+                SelectedClient = null;
+                FromDate = ToDate = null;
+                SearchTerm = string.Empty;
+                RefreshClientOptions();
+                AreFiltersAvailable = true;
+                FilterStatusMessage = string.Empty;
+            }
+            catch (Exception)
+            {
+                if (!_loads.IsCurrent(optionsGeneration) || _sessionService.CurrentUser != actor) return;
+                AreFiltersAvailable = false;
+                FilterStatusMessage = "Filters are unavailable because their choices could not be loaded. " +
+                    "If you are using Demo, this version of Sati may not match the Demo service. " +
+                    "Install the matching update or contact support. The approval queue remains available.";
+            }
+            _activeFilter = BuildFilter();
+            await ReloadAsync();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanApplyFilters))]
+        private async Task ApplyFilters()
+        {
+            if (FromDate?.Date > ToDate?.Date)
+            {
+                StatusMessage = "The start date must be on or before the end date.";
+                return;
+            }
+            _activeFilter = BuildFilter();
+            await ReloadAsync();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanApplyFilters))]
+        private async Task ClearFilters()
+        {
+            SelectedCaseManager = null;
+            SelectedClient = null;
+            FromDate = ToDate = null;
+            SearchTerm = string.Empty;
+            RefreshClientOptions();
+            _activeFilter = new();
+            await ReloadAsync();
+        }
+
+        partial void OnSelectedCaseManagerChanged(NoteReviewCaseManagerOption? value)
+        {
+            if (SelectedClient is not null && value is not null && SelectedClient.UserId != value.UserId)
+                SelectedClient = null;
+            RefreshClientOptions();
+        }
+
+        private void RefreshClientOptions()
+        {
+            ClientOptions.Clear();
+            foreach (var option in _allClientOptions.Where(option =>
+                         SelectedCaseManager is null || option.UserId == SelectedCaseManager.UserId))
+                ClientOptions.Add(option);
+        }
+
+        private NoteReviewQuery BuildFilter() => new(
+            SelectedCaseManager?.UserId,
+            SelectedClient?.PersonId,
+            FromDate?.Date,
+            ToDate?.Date,
+            SearchTerm);
+
+        private async Task ReloadAsync()
+        {
+            _generation = _loads.Begin();
             _nextAfterId = 0;
             _throughId = null;
             PendingNotes.Clear();
@@ -121,18 +215,27 @@ namespace Sati.ViewModels.Supervisor
             IsLoading = true;
             try
             {
-                var page = await _supervisorService.GetReviewPageAsync(actor.Id, after, _throughId, _filterUserId);
+                var page = await _supervisorService.GetReviewPageAsync(actor.Id, after, _throughId, _activeFilter);
                 if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
                 foreach (var note in page.Notes)
                 {
                     var target = note.ComplianceFailureReasons.Count == 0 ? PendingNotes : NonCompliantNotes;
                     if (!target.Any(existing => existing.NoteId == note.Id))
-                        target.Add(new PendingNoteViewModel(note));
+                        target.Add(new PendingNoteViewModel(note,
+                            CaseManagerOptions.FirstOrDefault(option => option.UserId == note.Person.UserId)?.DisplayName));
                 }
                 _throughId = page.ThroughId;
                 _nextAfterId = page.NextAfterId;
                 HasMore = page.NextAfterId.HasValue;
                 StatusMessage = HasMore ? "Scroll down or choose Load more for the next 10 notes." : "All notes in this queue have been loaded.";
+                if (AreFiltersAvailable)
+                {
+                    var loaded = PendingNotes.Count + NonCompliantNotes.Count;
+                    FilterStatusMessage = HasActiveFilter(_activeFilter)
+                        ? $"Filters applied. {loaded} matching note{(loaded == 1 ? string.Empty : "s")} loaded" +
+                          (HasMore ? " so far." : ".")
+                        : "No filters applied.";
+                }
                 NotifyCounts();
             }
             catch (Exception)
@@ -150,7 +253,13 @@ namespace Sati.ViewModels.Supervisor
         {
             OnPropertyChanged(nameof(HasPending));
             OnPropertyChanged(nameof(HasNonCompliant));
+            OnPropertyChanged(nameof(EmptyStateMessage));
+            OnPropertyChanged(nameof(NonCompliantEmptyMessage));
         }
+
+        private static bool HasActiveFilter(NoteReviewQuery filter) =>
+            filter.UserId.HasValue || filter.PersonId.HasValue || filter.FromDate.HasValue ||
+            filter.ToDate.HasValue || !string.IsNullOrWhiteSpace(filter.SearchTerm);
 
         [RelayCommand(CanExecute = nameof(CanBatchApprove))]
         private async Task BatchApprove()
@@ -159,7 +268,7 @@ namespace Sati.ViewModels.Supervisor
             var actor = _sessionService.CurrentUser;
             if (actor is null) return;
             var generation = _generation;
-            var filter = _filterUserId;
+            var filter = _activeFilter;
             IsBatchApproving = true;
             var approved = 0;
             var skipped = 0;
@@ -206,9 +315,8 @@ namespace Sati.ViewModels.Supervisor
                 IsBatchApproving = false;
             }
             if (!_loads.IsCurrent(generation) || _sessionService.CurrentUser != actor) return;
-            var reload = LoadAsync(filter);
+            await ReloadAsync();
             var reloadGeneration = _generation;
-            await reload;
             if (_loads.IsCurrent(reloadGeneration) && _sessionService.CurrentUser == actor)
                 StatusMessage = $"Approved {approved}; skipped {skipped}. " +
                     (stopped ? "Stopped after an error. Reload before retrying; the last save may be unconfirmed."
@@ -348,7 +456,7 @@ namespace Sati.ViewModels.Supervisor
             IsReturnDialogVisible = false;
             OverrideNote = null;
             SelectedNote = null;
-            await LoadAsync(_filterUserId);
+            await ReloadAsync();
             System.Windows.MessageBox.Show(
                 "This note changed after you opened the approval queue. The queue has been refreshed; review the latest copy before acting.",
                 "Note Updated",
@@ -368,6 +476,7 @@ namespace Sati.ViewModels.Supervisor
         public string ClientName { get; }
         public int PersonId { get; }
         public int CaseManagerUserId { get; }
+        public string CaseManagerName { get; }
         public DateTime? EventDate { get; }
         public NoteType? NoteType { get; }
         public decimal? Units { get; }
@@ -376,13 +485,14 @@ namespace Sati.ViewModels.Supervisor
         public bool HasComplianceFailures => ComplianceFailureReasons.Count > 0;
         public bool IsComplianceException => false; // set by non-compliant queue context
 
-        public PendingNoteViewModel(Note note)
+        public PendingNoteViewModel(Note note, string? caseManagerName = null)
         {
             NoteId = note.Id;
             Revision = note.Revision;
             ClientName = note.Person.FullName;
             PersonId = note.PersonId;
             CaseManagerUserId = note.Person.UserId;
+            CaseManagerName = string.IsNullOrWhiteSpace(caseManagerName) ? "Case manager" : caseManagerName;
             EventDate = note.EventDate;
             NoteType = note.NoteType;
             Units = note.Units;

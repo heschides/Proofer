@@ -14,7 +14,10 @@ namespace Sati.Data
         Task<IEnumerable<Note>> GetNonCompliantNotesAsync(int supervisorId, bool allSupervisees = false);
 
         Task<Sati.Contracts.V1.NoteReviewPage<Note>> GetReviewPageAsync(
-            int supervisorId, int afterId = 0, int? throughId = null, int? userId = null);
+            int supervisorId, int afterId = 0, int? throughId = null,
+            Sati.Contracts.V1.NoteReviewQuery? filter = null);
+
+        Task<Sati.Contracts.V1.NoteReviewFilterOptions> GetReviewFilterOptionsAsync(int supervisorId);
 
         Task ApproveNoteAsync(int noteId, int supervisorId, int expectedRevision, int? maximumUnits = null);
 

@@ -6,7 +6,7 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Connected work and safer signing";
+    public const string ReleaseName = "Clear queues and current demos";
     public const string ReleaseDate = "September 6, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
@@ -15,6 +15,7 @@ public static class ProductReleaseNotes
             "Team chat is ready for controlled Demo testing",
             [
                 "Authorized staff can use API-mediated team rooms with membership, tenant, case, audit, concurrency, and reconnect protections.",
+                "A collapsible room dock and open-room tabs make it easier to move between conversations while preserving each room's unsent draft.",
                 "Chat remains off by default and is restricted to validated Demo and testing identities until agency acceptance is complete."
             ]),
         new(
@@ -42,6 +43,7 @@ public static class ProductReleaseNotes
             "Supervisors can work through large approval queues",
             [
                 "Pending Approvals loads 10 notes at a time. Scrolling down or choosing Load more retrieves the next page without losing the selected case-manager filter.",
+                "The newest submitted notes now appear first. Filters inside the queue can narrow the work by case manager, client, service-date range, or a search across narrative, client, and case-manager names.",
                 "Approve all within threshold is a deliberate button with a default maximum of 4 units per note. Opening the page, scrolling, or editing the threshold never approves anything.",
                 "Every batch item still passes supervision scope, compliance, revision, note validity, and service-time conflict checks. Notes that do not qualify remain for individual review."
             ]),
@@ -50,6 +52,26 @@ public static class ProductReleaseNotes
             [
                 "If a client save succeeds but the screen refresh fails afterward, Sati now says the record was saved and tells the user to reload the screen without repeating the save.",
                 "When a save result is truly unknown, create and edit messages now use the correct wording for that operation and ask the user to verify the record before retrying."
+            ]),
+        new(
+            "Billing periods explain what happens next",
+            [
+                "Billing-period choices show the case manager's name, claim count, workflow state, and whether the period is ready to submit.",
+                "Submit & Lock sits directly below the selected billing period, while 837P generation remains a separate step for submitted periods.",
+                "Sati blocks zero-unit, zero-dollar, snapshot-less, or otherwise invalid claims before locking a period or attempting an 837P file."
+            ]),
+        new(
+            "Account administration gives a definite password-reset result",
+            [
+                "The password-reset panel reports progress, success, validation problems, expired sessions, authorization failures, and uncertain connection results in plain language.",
+                "A successful Local password reset is verified against the newly persisted password hash."
+            ]),
+        new(
+            "The synthetic Demo caseload stays current",
+            [
+                "A daily Azure worker rolls showcase dates forward, completes ordinary fictional client profiles, preserves six clearly labeled teaching exceptions, and keeps the superhero and TV-show humor.",
+                "Each refresh validates the Demo identity, ordinary-profile completeness, deliberate exceptions, and synthetic billing readiness before reporting success.",
+                "This is a caseload refresh, not yet a full rollback of every demonstration action or a reset of demonstration passwords."
             ]),
         new(
             "Still planned before commercial production",

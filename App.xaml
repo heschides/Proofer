@@ -843,6 +843,7 @@
             <converters:PngBytesToImageConverter x:Key="PngBytesToImageConverter" />
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+            <converters:BillingPeriodLabelConverter x:Key="BillingPeriodLabelConverter" />
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
             <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
             <converters:BoardTabConverter x:Key="BoardTabConverter" />

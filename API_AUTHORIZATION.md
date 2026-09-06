@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory mechanically reconciled 2026-09-06: 168 protected routes. The table matches
+*Route inventory mechanically reconciled 2026-09-06: 169 protected routes. The table matches
 `ApiSurface.Routes` after excluding health and anonymous login, and `ApiSurfaceTests` checks that
 manifest against live endpoint registration. Every route added, removed, or rescoped must be
 reflected here in the same change.*
@@ -98,6 +98,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Supervisor | `GET /supervisor/supervisees` | Case manager user's `AgencyId` | Supervision permission sees assigned users with case-management permission; the current route returns directly assigned users. |
 | Supervisor | `GET /supervisor/notes` | Note person's own and owning user's `AgencyId` | Supervision permission sees assigned case managers; agency-wide supervision broadens that to every case manager in the agency. Administration implies agency-wide supervision but does not on its own substitute for supervision. |
 | Supervisor | `GET /supervisor/notes/page` | Note person's own and owning user's `AgencyId` | Existing paged review route: same supervision and caseload scope, bounded by the review page size and captured upper note ID. Added to this inventory during chat reconciliation; not a new chat route. |
+| Supervisor | `GET /supervisor/notes/filters` | Case manager and person's `AgencyId` | Returns only case-manager and client choices inside the caller's supervisory scope. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve` | Note person's own and owning user's `AgencyId` | Same supervisory scope; server owns approval transition and requires the caller's expected Note revision. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve-override` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records approver. |
 | Supervisor | `POST /supervisor/notes/{noteId}/return` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records returner. |
@@ -245,7 +246,7 @@ separately data-scoped queries, so removing one usually yields an empty result r
 See `API_SECURITY_AUDIT.md`, third pass, before relying on a green suite as evidence for those rows.
 
 The 2026-09-03 reconciliation includes the partial endpoint files `SafetyPlanEndpoints.cs` and
-`AnnualPacketEndpoints.cs`, not just `ApiEndpoints.cs`. The 141 protected routes match in both
+`AnnualPacketEndpoints.cs`, not just `ApiEndpoints.cs`. The 169 protected routes match in both
 directions after normalizing route parameter constraints. Re-run this comparison on route changes.
 
 Safety-plan regressions were proven to fail with the old same-agency-only supervisor check and
@@ -254,10 +255,12 @@ immutability fails when its append-only guard is removed, in both API and local 
 
 ### Supervisor review page (2026-09-05)
 
-`GET /api/v1/supervisor/notes/page?afterId=&throughId=&userId=` requires supervisor permission.
+`GET /api/v1/supervisor/notes/page?afterId=&throughId=&userId=&personId=&fromDate=&toDate=&searchTerm=` requires supervisor permission.
 A supplied userId passes `TenantAccess.CanAccessUserAsync` before reaching the query. The query
-also restricts every result to the actor's agency and supervised case managers, or agency-wide
-supervision when granted. Cursor values only narrow that authorized set. Page size is fixed at 10.
+also validates a supplied personId against that same review scope and restricts every result to the
+actor's agency and supervised case managers, or agency-wide supervision when granted. Date and text
+filters only narrow that authorized set. Cursor values only narrow that authorized set. Page size is fixed at 10,
+and the first page begins with the newest submitted note while the captured upper ID keeps later pages stable.
 The existing `POST /supervisor/notes/{noteId}/approve` optionally accepts `MaximumUnits`; the server
 rechecks threshold eligibility and service-time conflicts before the same revision-checked,
 audited approval. The threshold never grants additional access or a compliance override.

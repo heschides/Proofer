@@ -662,6 +662,31 @@ public sealed class NotePipelineTests
     }
 
     [Fact]
+    public async Task APeriodWithoutFrozenClaimDetailsCannotBeSubmitted()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var billing = fixture.BillingAs(fixture.AdminOne);
+        var noteId = await fixture.SeedNoteAsync(
+            fixture.PersonOneId, NoteStatus.Approved, fixture.BillableDate);
+        var line = await billing.CreateClaimLineAsync(noteId);
+
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var storedLine = await db.ClaimLines.SingleAsync(candidate => candidate.Id == line.Id);
+            storedLine.ClaimSnapshotJson = null;
+            await db.SaveChangesAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            billing.SubmitBillingPeriodAsync(line.BillingPeriodId));
+
+        Assert.Contains("not ready to submit", error.Message, StringComparison.OrdinalIgnoreCase);
+        await using var verification = fixture.Factory.CreateDbContext();
+        var period = await verification.BillingPeriods.SingleAsync(candidate => candidate.Id == line.BillingPeriodId);
+        Assert.Equal(BillingStatus.Draft, period.Status);
+    }
+
+    [Fact]
     public async Task TheDocumentedOverrideTravelsFromTheNoteOntoTheClaim()
     {
         await using var fixture = await PipelineFixture.CreateAsync();
@@ -813,7 +838,8 @@ public sealed class NotePipelineTests
             await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(i));
         await fixture.SeedNoteAsync(fixture.PersonTwoId, NoteStatus.Logged, fixture.ServiceDate(0));
         var service = fixture.SupervisionAs(fixture.SupervisorOne);
-        var first = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, userId: fixture.CaseManagerOne.Id);
+        var filter = new NoteReviewQuery(UserId: fixture.CaseManagerOne.Id);
+        var first = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, filter: filter);
         Assert.Equal(10, first.Notes.Count);
         Assert.NotNull(first.NextAfterId);
         Assert.All(first.Notes, note => Assert.Equal(fixture.PersonOneId, note.PersonId));
@@ -821,13 +847,14 @@ public sealed class NotePipelineTests
             await service.ApproveNoteAsync(note.Id, fixture.SupervisorOne.Id, note.Revision);
         var addedLater = await fixture.SeedNoteAsync(fixture.PersonOneId, NoteStatus.Logged, fixture.ServiceDate(0));
         var second = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, first.NextAfterId!.Value,
-            first.ThroughId, fixture.CaseManagerOne.Id);
+            first.ThroughId, filter);
         var third = await service.GetReviewPageAsync(fixture.SupervisorOne.Id, second.NextAfterId!.Value,
-            first.ThroughId, fixture.CaseManagerOne.Id);
+            first.ThroughId, filter);
         Assert.Equal(10, second.Notes.Count);
         Assert.Equal(3, third.Notes.Count);
         Assert.Null(third.NextAfterId);
         var ids = first.Notes.Concat(second.Notes).Concat(third.Notes).Select(note => note.Id).ToList();
+        Assert.Equal(ids.OrderByDescending(id => id), ids);
         Assert.Equal(23, ids.Distinct().Count());
         Assert.DoesNotContain(addedLater, ids);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>

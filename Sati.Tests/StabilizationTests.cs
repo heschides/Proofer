@@ -565,9 +565,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.48", version);
+        Assert.Equal("1.2.49", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Connected work and safer signing", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Clear queues and current demos", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "The Overview now fits the space you have" &&
@@ -1372,6 +1372,41 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void DailyDemoRefreshIsIdentityBoundCurrentAndDeliberatelyVaried()
+    {
+        var root = FindRepositoryRootFromSource();
+        var seed = File.ReadAllText(Path.Combine(root, "scripts", "Seed-DemoShowcaseData.ps1"));
+        var function = File.ReadAllText(Path.Combine(root, "Sati.DemoRefresh", "RefreshCaseload", "run.ps1"));
+        var binding = File.ReadAllText(Path.Combine(root, "Sati.DemoRefresh", "RefreshCaseload", "function.json"));
+        var publish = File.ReadAllText(Path.Combine(root, "scripts", "Publish-DemoRefresh.ps1"));
+        var firewall = File.ReadAllText(Path.Combine(root, "scripts", "Set-DemoRefreshFirewallRules.ps1"));
+        var grant = File.ReadAllText(Path.Combine(root, "scripts", "Grant-DemoRefreshIdentity.ps1"));
+
+        Assert.Contains("$Database -cne \"SatiDemo\"", seed);
+        Assert.Contains("$actualEnvironment -cne \"Demo\"", seed);
+        Assert.Contains("[DateTime]$AsOfDate", seed);
+        Assert.Contains("DEMO TEACHING CASE", seed);
+        Assert.Contains("IncompleteOrdinaryClients", seed);
+        Assert.Contains("UnreadyClaims", seed);
+        Assert.Contains("ClaimSnapshotJson", seed);
+        Assert.Contains("IDENTITY_ENDPOINT", function);
+        Assert.Contains("X-IDENTITY-HEADER", function);
+        Assert.DoesNotContain("Get-AzAccessToken", function);
+        Assert.Contains("%DemoRefreshSchedule%", binding);
+        Assert.Contains("'identity','assign'", publish);
+        Assert.Contains("WEBSITE_TIME_ZONE=Eastern Standard Time", publish);
+        Assert.Contains("possibleOutboundIpAddresses", firewall);
+        Assert.Contains("AlreadyAllowed", firewall);
+        Assert.Contains("-not $Apply", firewall);
+        Assert.DoesNotContain("0.0.0.0", firewall);
+        Assert.Contains("IdentityClientId", grant);
+        Assert.Contains("$clientId.ToByteArray()", grant);
+        Assert.Contains("member.sid=$sid", grant);
+        Assert.DoesNotContain("$principalId.ToByteArray()", grant);
+        Assert.DoesNotContain("SatiProduction", seed);
+    }
+
+    [Fact]
     public void DepositReconciliationAndAdjustmentCatalogUseExplicitSharedRules()
     {
         Assert.Equal(DepositReconciliationStatus.Matched,
@@ -1514,6 +1549,95 @@ public sealed class StabilizationTests
         Assert.Equal(1, viewModel.NotSubmittedCount);
         Assert.Equal("1 not submitted · 0 need attention · 0 awaiting payer · 0 settled",
             viewModel.SubmissionSummary);
+    }
+
+    [Fact]
+    public async Task BillingPeriodChoiceIdentifiesManagerAndSubmitCommandLocksTheDraft()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var alreadyLocked = new BillingPeriod
+        {
+            Id = 40, UserId = 10, CaseManagerName = "Alex Rivera", Month = 4, Year = 2026,
+            Status = BillingStatus.Submitted,
+            Lines = [new ClaimLine { Id = 1, Units = 1, ChargeAmount = 25 }]
+        };
+        var draft = new BillingPeriod
+        {
+            Id = 41, UserId = 11, CaseManagerName = "James Logan", Month = 4, Year = 2026,
+            Status = BillingStatus.Draft,
+            Lines =
+            [
+                new ClaimLine { Id = 2, Units = 1, ChargeAmount = 25 },
+                new ClaimLine { Id = 3, Units = 1, ChargeAmount = 25 }
+            ]
+        };
+        var billing = new StubBillingService([alreadyLocked, draft]);
+        var viewModel = new BillingSubmissionsViewModel(
+            billing, new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+
+        Assert.Same(draft, viewModel.SelectedPeriod);
+        Assert.True(viewModel.CanSubmitPeriod);
+        Assert.Contains("James Logan's April 2026 period", viewModel.SubmitAvailabilityMessage);
+        var label = new BillingPeriodLabelConverter().Convert(
+            draft, typeof(string), null!, CultureInfo.GetCultureInfo("en-US"));
+        Assert.Equal("April 2026 — James Logan — 2 claims — Draft — ready to submit", label);
+
+        await viewModel.SubmitPeriodCommand.ExecuteAsync(null);
+
+        Assert.Equal([draft.Id], billing.SubmittedPeriodIds);
+        Assert.Equal(BillingStatus.Submitted, viewModel.SelectedPeriod!.Status);
+        Assert.False(viewModel.CanSubmitPeriod);
+        Assert.Contains("already submitted and locked", viewModel.SubmitAvailabilityMessage);
+        Assert.Contains("ready for 837P generation", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ZeroChargeDraftIsMarkedForCorrectionAndCannotBeSubmitted()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var draft = new BillingPeriod
+        {
+            Id = 42, UserId = 11, CaseManagerName = "James Logan", Month = 4, Year = 2026,
+            Status = BillingStatus.Draft,
+            Lines = [new ClaimLine { Id = 4, Units = 1, ChargeAmount = 0 }]
+        };
+        var billing = new StubBillingService([draft]);
+        var viewModel = new BillingSubmissionsViewModel(
+            billing, new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+
+        Assert.False(viewModel.CanSubmitPeriod);
+        Assert.Contains("$0 charge", viewModel.SubmitAvailabilityMessage);
+        var label = new BillingPeriodLabelConverter().Convert(
+            draft, typeof(string), null!, CultureInfo.GetCultureInfo("en-US"));
+        Assert.Contains("needs claim correction", (string)label);
+    }
+
+    [Fact]
+    public void BillingPeriodSubmitActionPrecedesTheSeparate837GenerationArea()
+    {
+        var document = System.Xml.Linq.XDocument.Load(Path.Combine(
+            FindRepositoryRootFromSource(), "Views", "Billing", "BillingSubmissionsView.xaml"));
+        var elements = document.Descendants().ToList();
+        var selector = elements.FindIndex(element => element.Name.LocalName == "ComboBox" &&
+            element.Attributes().Any(attribute => attribute.Value == "Billing period"));
+        var submit = elements.FindIndex(element => element.Name.LocalName == "Button" &&
+            (string?)element.Attribute("Content") == "Submit & Lock Selected Period");
+        var generationHeading = elements.FindIndex(element => element.Name.LocalName == "TextBlock" &&
+            (string?)element.Attribute("Text") == "837 GENERATION RANGE");
+        var generate = elements.FindIndex(element => element.Name.LocalName == "Button" &&
+            (string?)element.Attribute("Content") == "Generate 837P Files for Range");
+
+        Assert.True(selector >= 0 && selector < submit);
+        Assert.True(submit < generationHeading);
+        Assert.True(generationHeading < generate);
     }
 
     [Fact]
@@ -1669,8 +1793,9 @@ public sealed class StabilizationTests
         IEnumerable<BillingPeriod>? periods = null,
         IReadOnlyList<RemittanceClaimOutcomeDto>? outcomes = null) : IBillingService
     {
-        private readonly IReadOnlyList<BillingPeriod> _periods = periods?.ToList() ?? [];
+        private readonly List<BillingPeriod> _periods = periods?.ToList() ?? [];
         private readonly IReadOnlyList<RemittanceClaimOutcomeDto> _outcomes = outcomes ?? [];
+        public List<int> SubmittedPeriodIds { get; } = [];
 
         public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
             throw new NotSupportedException();
@@ -1682,7 +1807,14 @@ public sealed class StabilizationTests
             string? complianceExceptionReason = null) => throw new NotSupportedException();
         public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId) =>
             throw new NotSupportedException();
-        public Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) => throw new NotSupportedException();
+        public Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId)
+        {
+            var period = _periods.Single(item => item.Id == billingPeriodId);
+            period.Status = BillingStatus.Submitted;
+            period.SubmittedAt = DateTime.UtcNow;
+            SubmittedPeriodIds.Add(billingPeriodId);
+            return Task.CompletedTask;
+        }
         public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor) => throw new NotSupportedException();
         public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
         public Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor) => throw new NotSupportedException();

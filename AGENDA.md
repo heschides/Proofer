@@ -1,6 +1,34 @@
 # Sati — Refactor Agenda
 
-## Release 1.2.48 — 2026-09-06 (DATT audit in progress)
+## Release 1.2.49 — 2026-09-06 (DATT audit in progress)
+
+"Clear queues and current demos." This release carries the supervisor approval filters and
+newest-first paging, billing-period names and 837P readiness guards, clearer administrator
+password-reset outcomes, the room-dock chat presentation, and the versioned daily Demo caseload
+refresh worker. The refresh remains synthetic-only and is distinct from a full baseline reset.
+
+- [x] Preflight: `master` equals `origin/master`; no migration file changed or was added;
+      `SatiContext` reports no pending model change; the temporary SQL firewall rule is absent.
+      No Demo migration or Production deployment is required or authorized.
+- [x] The daily Demo refresh was deployed separately under its restricted managed identity and
+      passed a live run plus an immediate repeat run before this DATT release began.
+- [x] Version 1.2.49 is coordinated. The Release build completed with zero errors and nine known
+      warnings; 2,067 automated tests passed, zero failed, and one optional local-AI case was
+      skipped. The dependency advisory audit covered all 13 projects and found no known vulnerable
+      packages. Focused security, paging, rendering, billing, and password-reset tests are included
+      in that passing total, and the changed-source secret scan found no credentials or keys.
+- [ ] Commit and push the verified source, publish and verify the matching Demo API, then build,
+      accept, and publish new Demo and Local installers without overwriting prior artifacts.
+- [ ] Record deployment, hashes, acceptance evidence, distribution paths, and the final evidence
+      commit. No Production API deployment or Production migration belongs to this release.
+
+**Branches.** Fully merged `signature-portal-design` was safely deleted locally and remotely at
+tips `9c19af4` and `359e8ef`. `team-chat-design`, `second-machine-setup`,
+`origin/claude/local-vs-github-workflow-dlcqpb`, and the linked
+`claude/cool-jang-f6b3c4` worktree are retained because they contain unique, uncertain, or active
+context.
+
+## Release 1.2.48 — 2026-09-06
 
 This release carries the reviewed in-app team chat and synthetic electronic-signature portal work.
 Both features remain disabled by default; the signature portal is restricted to synthetic testing.
@@ -20,8 +48,8 @@ Both features remain disabled by default; the signature portal is restricted to 
 - [x] Accepted installers are published without overwriting prior versions. Demo is 101,277,696
       bytes (`bdec62e1521d7bdabbe50e9106b90c4a122d80a0176fd0d4a138ca2c80061dbd`) in the Demo
       distribution folder; Local is 203,597,066 bytes (`7aac1f222b21a2e2f71f1c8764cd36f415158797104fb44bb2cd35bd4c78a8d9`) in the Desktop folder. Both checksum files match.
-- [ ] Final evidence commit remains pending. No Production API deployment or Production migration
-      was performed or authorized by this entry.
+- [x] Final evidence commit `5e2a3f9` is on `master` and `origin/master`. No Production API
+      deployment or Production migration was performed or authorized by this entry.
 
 ### Local Production machines
 
@@ -3203,7 +3231,10 @@ Address these pressure points when the affected code is next changed:
 - [x] Provision `SatiDemo` in Azure SQL without moving production data.
 - [x] Host the Demo API with managed identity and least-privilege SQL access.
 - [x] Restrict Azure SQL so tester devices do not connect directly.
-- [ ] Implement a nightly reset job with its own managed identity, validation, and failure alert.
+- [x] Deploy and live-test a daily canonical caseload refresh with rolling dates, a separate managed
+      identity, six deliberate teaching exceptions, profile/claim validation, and repeat-run safety.
+- [ ] Extend the refresh into a full baseline reset that pauses mutations, removes arbitrary Demo
+      changes, resets demonstration logins, and sends failures to an approved notification target.
 - [ ] Complete an API inventory and migrate all workflows included in the colleague Demo.
 - [ ] Run security, tenant-boundary, concurrency, reset, and clean-install acceptance tests.
 
@@ -4648,8 +4679,14 @@ match what shipped.
 - [x] Verify pagination after earlier approvals, threshold boundaries, user-triggered behavior,
       and stale-load suppression. Permission, threshold and stale-load tests fail when their
       respective guards are removed. Final targeted suites: 132 API and 52 desktop/domain passed.
-      No live approvals, deployment or database migration was performed. API must be updated
-      before this desktop client is distributed.
+      No live approvals or database migration was performed.
+- [x] Published the API-only Demo filter hotfix on 2026-09-06. The 8,777,987-byte package has
+      SHA-256 `CE17C1B5DD49F29795576B38741FB5758E69FC99D673A2B1CCB78433A40EAC79`;
+      OneDeploy deployment `753b493bd57e4d38b17af6714d8b8d19` succeeded. Liveness returned
+      `live`, readiness returned `Healthy`, and `/health/version` reported `Sati.Api` 1.2.48 with
+      contract revision `4FF4AE13D9DC`. The new protected filter route returned HTTP 401 without
+      a login instead of 404, confirming it is hosted. No Production service, database migration,
+      firewall rule, or installer was touched.
 
 ## Adaptive display modes — implemented 2026-09-05
 

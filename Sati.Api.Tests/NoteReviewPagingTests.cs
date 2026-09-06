@@ -18,6 +18,44 @@ public sealed class NoteReviewPagingTests(SatiApiFactory factory)
         Assert.All(page.Notes, note => Assert.Equal(12, note.Person!.UserId));
     }
 
+    [Fact]
+    public async Task FilterChoicesAndAllFourFiltersStayInsideReviewScope()
+    {
+        using var client = await factory.CreateAuthenticatedClientAsync("supervisor-one");
+        using var caseManager = await factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var narrative = $"review-filter-{Guid.NewGuid():N}";
+        var eventDate = new DateTime(2026, 9, 6);
+        var createdResponse = await caseManager.PostAsJsonAsync("/api/v1/notes", new SaveNoteRequest(
+            narrative, eventDate, "Logged", 15, null, 101, null, "Contact", null, null));
+        createdResponse.EnsureSuccessStatusCode();
+        var created = await createdResponse.Content.ReadFromJsonAsync<NoteDto>();
+        var options = await client.GetFromJsonAsync<NoteReviewFilterOptions>(
+            "/api/v1/supervisor/notes/filters");
+
+        Assert.NotNull(options);
+        Assert.Contains(options.CaseManagers, option => option.UserId == 12);
+        Assert.Contains(options.Clients, option => option.PersonId == 101 && option.UserId == 12);
+        Assert.DoesNotContain(options.Clients, option => option.PersonId == 201);
+
+        var page = await client.GetFromJsonAsync<NoteReviewPage<NoteDto>>(
+            "/api/v1/supervisor/notes/page?userId=12&personId=101" +
+            $"&fromDate=2026-09-06&toDate=2026-09-06&searchTerm={Uri.EscapeDataString(narrative)}");
+
+        var note = Assert.Single(page!.Notes);
+        Assert.Equal(created!.Id, note.Id);
+    }
+
+    [Fact]
+    public async Task PersonFilterOutsideReviewScopeIsForbidden()
+    {
+        using var client = await factory.CreateAuthenticatedClientAsync("supervisor-one");
+
+        var response = await client.GetAsync(
+            "/api/v1/supervisor/notes/page?personId=201");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     [Theory]
     [InlineData("case-manager-one")]
     [InlineData("supervisor-two")]
@@ -36,10 +74,12 @@ public sealed class NoteReviewPagingTests(SatiApiFactory factory)
     public async Task PagesAreBoundedAndDoNotSkipAfterApproval()
     {
         using var client = await factory.CreateAuthenticatedClientAsync("supervisor-one");
+        var personId = await factory.CreateBillingWorkflowPersonAsync();
         var ids = new List<int>();
-        for (var i = 0; i < 23; i++) ids.Add(await factory.CreateNoteInStatusAsync(2));
+        for (var i = 0; i < 23; i++)
+            ids.Add(await factory.CreateNoteInStatusAsync(2, personId));
         var first = await client.GetFromJsonAsync<NoteReviewPage<NoteDto>>(
-            $"/api/v1/supervisor/notes/page?afterId={ids[0]-1}&throughId={ids[^1]}&userId=12");
+            $"/api/v1/supervisor/notes/page?afterId=0&throughId={ids[^1]}&userId=12&personId={personId}");
         Assert.NotNull(first);
         Assert.Equal(10, first.Notes.Count);
         foreach (var note in first.Notes)
@@ -49,13 +89,14 @@ public sealed class NoteReviewPagingTests(SatiApiFactory factory)
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
         var second = await client.GetFromJsonAsync<NoteReviewPage<NoteDto>>(
-            $"/api/v1/supervisor/notes/page?afterId={first.NextAfterId}&throughId={first.ThroughId}&userId=12");
+            $"/api/v1/supervisor/notes/page?afterId={first.NextAfterId}&throughId={first.ThroughId}&userId=12&personId={personId}");
         var third = await client.GetFromJsonAsync<NoteReviewPage<NoteDto>>(
-            $"/api/v1/supervisor/notes/page?afterId={second!.NextAfterId}&throughId={first.ThroughId}&userId=12");
+            $"/api/v1/supervisor/notes/page?afterId={second!.NextAfterId}&throughId={first.ThroughId}&userId=12&personId={personId}");
         Assert.Equal(10, second.Notes.Count);
         Assert.Equal(3, third!.Notes.Count);
         Assert.Null(third.NextAfterId);
-        Assert.Equal(ids, first.Notes.Concat(second.Notes).Concat(third.Notes).Select(n => n.Id));
+        Assert.Equal(ids.AsEnumerable().Reverse(),
+            first.Notes.Concat(second.Notes).Concat(third.Notes).Select(n => n.Id));
         Assert.Equal(HttpStatusCode.Forbidden,
             (await client.GetAsync("/api/v1/supervisor/notes/page?userId=22")).StatusCode);
     }

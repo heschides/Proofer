@@ -1381,6 +1381,10 @@ internal static partial class ApiEndpoints
             int? afterId,
             int? throughId,
             int? userId,
+            int? personId,
+            DateTime? fromDate,
+            DateTime? toDate,
+            string? searchTerm,
             ClaimsPrincipal principal,
             ApiDbContext db,
             ApiClock clock,
@@ -1393,6 +1397,18 @@ internal static partial class ApiEndpoints
             if (userId is int selectedUser &&
                 !await TenantAccess.CanAccessUserAsync(db, actor, selectedUser, cancellationToken))
                 return Results.Forbid();
+            if (fromDate?.Date > toDate?.Date)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["dateRange"] = ["The start date must be on or before the end date."]
+                });
+            var term = string.IsNullOrWhiteSpace(searchTerm)
+                ? null
+                : searchTerm.Trim()[..Math.Min(searchTerm.Trim().Length, 200)];
+            var startDate = fromDate?.Date;
+            var endDate = toDate is DateTime selectedEnd && selectedEnd.Date < DateTime.MaxValue.Date
+                ? selectedEnd.Date.AddDays(1)
+                : (DateTime?)null;
             var canReviewAgency = actor.HasAgencyWideSupervisionPermissions;
             var caseManagerIds = await db.Users.AsNoTracking()
                 .Where(user => user.AgencyId == actor.AgencyId &&
@@ -1400,17 +1416,33 @@ internal static partial class ApiEndpoints
                                (canReviewAgency || user.SupervisorId == actor.UserId))
                 .Select(user => user.Id)
                 .ToListAsync(cancellationToken);
+            if (personId is int selectedPerson &&
+                !await db.People.AsNoTracking().AnyAsync(person =>
+                    person.Id == selectedPerson && person.AgencyId == actor.AgencyId &&
+                    caseManagerIds.Contains(person.UserId), cancellationToken))
+                return Results.Forbid();
 
             var query = (from note in db.Notes.AsNoTracking()
                               join person in db.People.AsNoTracking() on note.PersonId equals person.Id
+                              join owner in db.Users.AsNoTracking() on person.UserId equals owner.Id
                               where note.Status == NoteWorkflow.Logged &&
                                     person.AgencyId == actor.AgencyId &&
                                     caseManagerIds.Contains(person.UserId) &&
-                                    (!userId.HasValue || person.UserId == userId.Value)
+                                    (!userId.HasValue || person.UserId == userId.Value) &&
+                                    (!personId.HasValue || person.Id == personId.Value) &&
+                                    (!startDate.HasValue || note.EventDate >= startDate.Value) &&
+                                    (!endDate.HasValue || note.EventDate < endDate.Value) &&
+                                    (term == null || note.Narrative.Contains(term) ||
+                                        (person.FirstName ?? "").Contains(term) ||
+                                        (person.LastName ?? "").Contains(term) ||
+                                        owner.DisplayName.Contains(term))
                               select new { Note = note, Person = person });
             var ceiling = throughId ?? await query.Select(row => (int?)row.Note.Id).MaxAsync(cancellationToken) ?? 0;
-            var rows = await query.Where(row => row.Note.Id > (afterId ?? 0) && row.Note.Id <= ceiling)
-                .OrderBy(row => row.Note.Id).Take(NoteReviewRules.PageSize + 1).ToListAsync(cancellationToken);
+            // This is a work inbox, so the most recently submitted note must be on
+            // the first page. NextAfterId is an opaque cursor that walks backward.
+            var cursor = afterId ?? 0;
+            var rows = await query.Where(row => row.Note.Id <= ceiling && (cursor <= 0 || row.Note.Id < cursor))
+                .OrderByDescending(row => row.Note.Id).Take(NoteReviewRules.PageSize + 1).ToListAsync(cancellationToken);
             var more = rows.Count > NoteReviewRules.PageSize;
             rows = rows.Take(NoteReviewRules.PageSize).ToList();
             var personIds = rows.Select(row => row.Person.Id).Distinct().ToList();
@@ -1443,6 +1475,40 @@ internal static partial class ApiEndpoints
                     row.Compliance.Reasons))
                 .ToList();
             return Results.Ok(new NoteReviewPage<NoteDto>(result, more ? rows[^1].Note.Id : null, ceiling));
+        });
+
+        api.MapGet("/supervisor/notes/filters", async Task<IResult> (
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasSupervisorPermissions)
+                return Results.Forbid();
+
+            var canReviewAgency = actor.HasAgencyWideSupervisionPermissions;
+            var users = await db.Users.AsNoTracking()
+                .Where(user => user.AgencyId == actor.AgencyId &&
+                               (user.Permissions & UserPermissions.CaseManagement) != 0 &&
+                               (canReviewAgency || user.SupervisorId == actor.UserId))
+                .OrderBy(user => user.DisplayName)
+                .Select(user => new NoteReviewCaseManagerOption(user.Id, user.DisplayName))
+                .ToListAsync(cancellationToken);
+            var userIds = users.Select(user => user.UserId).ToList();
+            var clients = await db.People.AsNoTracking()
+                .Where(person => person.AgencyId == actor.AgencyId && userIds.Contains(person.UserId))
+                .Select(person => new
+                {
+                    PersonId = person.Id,
+                    person.UserId,
+                    person.FirstName,
+                    person.LastName
+                }).ToListAsync(cancellationToken);
+            return Results.Ok(new NoteReviewFilterOptions(
+                users,
+                clients.Select(row => new NoteReviewClientOption(
+                        row.PersonId, row.UserId, $"{row.FirstName} {row.LastName}".Trim()))
+                    .Distinct().OrderBy(option => option.DisplayName).ToList()));
         });
 
         api.MapGet("/supervisor/notes", async Task<IResult> (
@@ -4469,8 +4535,13 @@ internal static partial class ApiEndpoints
             if (!actor.HasBillingPermissions)
                 return Results.Forbid();
             var targetUserId = userId ?? actor.UserId;
-            if (month is < 1 or > 12 || year is < 2000 or > 2200 ||
-                !await db.Users.AnyAsync(user => user.Id == targetUserId && user.AgencyId == actor.AgencyId, cancellationToken))
+            var ownerName = month is >= 1 and <= 12 && year is >= 2000 and <= 2200
+                ? await db.Users.AsNoTracking()
+                    .Where(user => user.Id == targetUserId && user.AgencyId == actor.AgencyId)
+                    .Select(user => user.DisplayName)
+                    .SingleOrDefaultAsync(cancellationToken)
+                : null;
+            if (ownerName is null)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["The billing period is invalid."] });
 
             var period = await db.BillingPeriods.Include(candidate => candidate.Lines)
@@ -4489,7 +4560,7 @@ internal static partial class ApiEndpoints
                 db.BillingPeriods.Add(period);
                 await db.SaveChangesAsync(cancellationToken);
             }
-            return Results.Ok(ContractMapper.ToBillingPeriod(period));
+            return Results.Ok(ContractMapper.ToBillingPeriod(period, ownerName));
         });
 
         api.MapGet("/billing/periods", async Task<IResult> (
@@ -4506,9 +4577,9 @@ internal static partial class ApiEndpoints
                         join owner in db.Users.AsNoTracking() on period.UserId equals owner.Id
                         where owner.AgencyId == actor.AgencyId && (!userId.HasValue || period.UserId == userId.Value)
                         orderby period.Year descending, period.Month descending
-                        select period;
+                        select new { Period = period, owner.DisplayName };
             return Results.Ok((await query.ToListAsync(cancellationToken))
-                .Select(ContractMapper.ToBillingPeriod)
+                .Select(row => ContractMapper.ToBillingPeriod(row.Period, row.DisplayName))
                 .ToList());
         });
 
@@ -4904,14 +4975,16 @@ internal static partial class ApiEndpoints
             var actor = Actor.From(principal);
             if (!actor.HasBillingPermissions)
                 return Results.Forbid();
-            var period = await (from candidate in db.BillingPeriods.Include(value => value.Lines)
-                                join owner in db.Users on candidate.UserId equals owner.Id
-                                where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
-                                select candidate).SingleOrDefaultAsync(cancellationToken);
-            if (period is null)
+            var selected = await (from candidate in db.BillingPeriods.Include(value => value.Lines)
+                                  join owner in db.Users on candidate.UserId equals owner.Id
+                                  where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
+                                  select new { Period = candidate, owner.DisplayName })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (selected is null)
                 return Results.NotFound();
+            var period = selected.Period;
             if (period.Status == 1)
-                return Results.Ok(ContractMapper.ToBillingPeriod(period));
+                return Results.Ok(ContractMapper.ToBillingPeriod(period, selected.DisplayName));
             if (period.Status != 0)
                 return Results.Conflict(new ApiErrorDto("invalid_period_status", "Only draft billing periods can be submitted.", string.Empty));
             if (period.Lines.Count == 0)
@@ -4921,6 +4994,8 @@ internal static partial class ApiEndpoints
                     ["period"] = ["A billing period with no claim lines cannot be submitted."]
                 });
             }
+            if (EdiReadinessConflict(period) is { } readinessConflict)
+                return readinessConflict;
             period.Status = 1;
             period.SubmittedAt = DateTime.UtcNow;
             auditTrail.Record(actor, AuditActions.BillingPeriodSubmitted, "BillingPeriod", periodId);
@@ -4934,12 +5009,13 @@ internal static partial class ApiEndpoints
                 var completed = await (from candidate in db.BillingPeriods.AsNoTracking().Include(value => value.Lines)
                                        join owner in db.Users.AsNoTracking() on candidate.UserId equals owner.Id
                                        where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
-                                       select candidate).SingleOrDefaultAsync(cancellationToken);
-                if (completed?.Status == 1)
-                    return Results.Ok(ContractMapper.ToBillingPeriod(completed));
+                                       select new { Period = candidate, owner.DisplayName })
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (completed?.Period.Status == 1)
+                    return Results.Ok(ContractMapper.ToBillingPeriod(completed.Period, completed.DisplayName));
                 return Results.Conflict(new ApiErrorDto("billing_period_changed", "The billing period changed while it was being submitted.", string.Empty));
             }
-            return Results.Ok(ContractMapper.ToBillingPeriod(period));
+            return Results.Ok(ContractMapper.ToBillingPeriod(period, selected.DisplayName));
         });
 
         api.MapPost("/billing/periods/{periodId:int}/edi", async Task<IResult> (
@@ -4980,6 +5056,8 @@ internal static partial class ApiEndpoints
                     "billing_period_not_submitted",
                     "Submit and lock the billing period before generating its 837P file.",
                     string.Empty));
+            if (EdiReadinessConflict(period) is { } readinessConflict)
+                return readinessConflict;
 
             var noteIds = period.Lines.Select(line => line.NoteId).Distinct().ToList();
             var sourceRows = await (from note in db.Notes.AsNoTracking()
@@ -6343,6 +6421,38 @@ internal static partial class ApiEndpoints
             "claim_line_exists",
             "This service note already has a billing claim line.",
             string.Empty));
+
+    private static IResult? EdiReadinessConflict(ServerBillingPeriod period)
+    {
+        if (period.Lines.Any(line => line.Units <= 0 || line.ChargeAmount <= 0))
+        {
+            return Results.Conflict(new ApiErrorDto(
+                "billing_claim_amount_invalid",
+                "This billing period contains one or more claims with zero units or a $0 charge. Correct and rebuild those claims before submitting or generating an 837P file.",
+                string.Empty));
+        }
+
+        if (period.Lines.Any(line => string.IsNullOrWhiteSpace(line.ClaimSnapshotJson)))
+        {
+            return Results.Conflict(new ApiErrorDto(
+                "billing_snapshot_missing",
+                "This older billing period is missing the frozen claim details required for an 837P file. It cannot be generated safely; the affected claims must be rebuilt into a new billing period.",
+                string.Empty));
+        }
+
+        try
+        {
+            ServerEdiGenerator.ValidatePeriod(period);
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.Conflict(new ApiErrorDto(
+                "billing_period_not_edi_ready",
+                "This billing period contains incomplete or invalid frozen claim details and cannot produce an 837P file. Review and rebuild the affected claims before submitting it.",
+                string.Empty));
+        }
+    }
 
     private static bool IsDuplicateClaimLine(DbUpdateException exception) =>
         exception.InnerException is SqlException sqlException &&

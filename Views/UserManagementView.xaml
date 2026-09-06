@@ -202,11 +202,24 @@
 
                     <!-- Status message -->
                     <TextBlock Text="{Binding StatusMessage}"
+                               AutomationProperties.AutomationId="UserManagementStatus"
+                               AutomationProperties.Name="{Binding StatusMessage}"
                                AutomationProperties.LiveSetting="Polite"
                                FontSize="12"
-                               Foreground="{DynamicResource SuccessStrongBrush}"
-                               Visibility="{Binding StatusMessage,
-                                   Converter={StaticResource BoolToVisibilityConverter}}" />
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasStatusMessage,
+                                   Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource SuccessStrongBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusIsError}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource DangerStrongBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                 </StackPanel>
             </StackPanel>

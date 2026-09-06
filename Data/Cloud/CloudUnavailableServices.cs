@@ -137,14 +137,22 @@ public sealed class CloudPersonContactService(CloudApiClient api) : IPersonConta
 public sealed class CloudSupervisorService(CloudApiClient api) : ISupervisorService
 {
     public async Task<NoteReviewPage<Note>> GetReviewPageAsync(
-        int supervisorId, int afterId = 0, int? throughId = null, int? userId = null)
+        int supervisorId, int afterId = 0, int? throughId = null, NoteReviewQuery? filter = null)
     {
         var path = $"/api/v1/supervisor/notes/page?afterId={afterId}";
         if (throughId is int ceiling) path += $"&throughId={ceiling}";
-        if (userId is int selectedUser) path += $"&userId={selectedUser}";
+        if (filter?.UserId is int selectedUser) path += $"&userId={selectedUser}";
+        if (filter?.PersonId is int selectedPerson) path += $"&personId={selectedPerson}";
+        if (filter?.FromDate is DateTime fromDate) path += $"&fromDate={fromDate:yyyy-MM-dd}";
+        if (filter?.ToDate is DateTime toDate) path += $"&toDate={toDate:yyyy-MM-dd}";
+        if (!string.IsNullOrWhiteSpace(filter?.SearchTerm))
+            path += $"&searchTerm={Uri.EscapeDataString(filter.SearchTerm.Trim())}";
         var page = await api.GetAsync<NoteReviewPage<NoteDto>>(path);
         return new(page.Notes.Select(CloudContractMapper.ToNote).ToList(), page.NextAfterId, page.ThroughId);
     }
+
+    public Task<NoteReviewFilterOptions> GetReviewFilterOptionsAsync(int supervisorId) =>
+        api.GetAsync<NoteReviewFilterOptions>("/api/v1/supervisor/notes/filters");
 
     public async Task<IEnumerable<Note>> GetPendingNotesAsync(int supervisorId, bool allSupervisees = false) =>
         (await api.GetAsync<List<NoteDto>>($"/api/v1/supervisor/notes?compliant=true&allSupervisees={allSupervisees.ToString().ToLowerInvariant()}"))

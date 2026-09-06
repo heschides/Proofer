@@ -2,6 +2,21 @@ namespace Sati.Contracts.V1;
 
 public sealed record NoteReviewPage<T>(IReadOnlyList<T> Notes, int? NextAfterId, int ThroughId);
 
+public sealed record NoteReviewQuery(
+    int? UserId = null,
+    int? PersonId = null,
+    DateTime? FromDate = null,
+    DateTime? ToDate = null,
+    string? SearchTerm = null);
+
+public sealed record NoteReviewCaseManagerOption(int UserId, string DisplayName);
+
+public sealed record NoteReviewClientOption(int PersonId, int UserId, string DisplayName);
+
+public sealed record NoteReviewFilterOptions(
+    IReadOnlyList<NoteReviewCaseManagerOption> CaseManagers,
+    IReadOnlyList<NoteReviewClientOption> Clients);
+
 /// <summary>Additional eligibility for supervisor-requested automatic approval.
 /// Compliance, reviewer scope, revision, and overlapping time are checked at persistence.</summary>
 public static class NoteReviewRules

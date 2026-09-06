@@ -74,7 +74,23 @@ namespace Sati.ViewModels.Billing
         public bool HasSelectedPeriod => SelectedPeriod is not null;
         public bool HasGeneratedFile => !string.IsNullOrWhiteSpace(LastGeneratedPath);
         public bool CanSubmitPeriod => !IsGenerating && SelectedPeriod is
-            { Status: BillingStatus.Draft, Lines.Count: > 0 };
+            { Status: BillingStatus.Draft, Lines.Count: > 0 } period &&
+            !HasInvalidClaimAmounts(period);
+        public string SubmitAvailabilityMessage => SelectedPeriod switch
+        {
+            null => "Choose a draft billing period to submit and lock.",
+            { Status: BillingStatus.Draft, Lines.Count: 0 } =>
+                "This draft has no claims and cannot be submitted.",
+            { Status: BillingStatus.Draft } period when HasInvalidClaimAmounts(period) =>
+                "This draft contains a claim with zero units or a $0 charge. Correct and rebuild the affected claim before submitting.",
+            { Status: BillingStatus.Draft } period =>
+                $"Ready: submitting will permanently lock {PeriodName(period)} with " +
+                $"{period.Lines.Count} {(period.Lines.Count == 1 ? "claim" : "claims")}.",
+            { Status: BillingStatus.Submitted } period =>
+                $"{PeriodName(period)} is already submitted and locked. Use the range below to generate its 837P file.",
+            { } period =>
+                $"{PeriodName(period)} is {period.Status.ToString().ToLowerInvariant()} and cannot be submitted again."
+        };
         public bool CanGenerateEdi => !IsGenerating && IsRangeValid && GenerationPeriods.Count > 0;
         public bool IsRangeValid => RangeStart.HasValue && RangeEnd.HasValue &&
             MonthStart(RangeStart.Value) <= MonthStart(RangeEnd.Value);
@@ -90,6 +106,7 @@ namespace Sati.ViewModels.Billing
             OnPropertyChanged(nameof(HasSelectedPeriod));
             OnPropertyChanged(nameof(CanSubmitPeriod));
             OnPropertyChanged(nameof(CanGenerateEdi));
+            OnPropertyChanged(nameof(SubmitAvailabilityMessage));
         }
 
         partial void OnLastGeneratedPathChanged(string? value)
@@ -115,6 +132,7 @@ namespace Sati.ViewModels.Billing
 
             try
             {
+                var previouslySelectedId = SelectedPeriod?.Id;
                 BillingPeriods.Clear();
                 GenerationPeriods.Clear();
                 SubmissionHistory.Clear();
@@ -125,6 +143,11 @@ namespace Sati.ViewModels.Billing
 
                 foreach (var period in periods)
                     BillingPeriods.Add(period);
+
+                SelectedPeriod = BillingPeriods.SingleOrDefault(period => period.Id == previouslySelectedId)
+                    ?? BillingPeriods.FirstOrDefault(period =>
+                        period.Status == BillingStatus.Draft && period.Lines.Count > 0)
+                    ?? BillingPeriods.FirstOrDefault();
 
                 foreach (var item in history)
                     SubmissionHistory.Add(item);
@@ -197,12 +220,14 @@ namespace Sati.ViewModels.Billing
             if (!string.Equals(_pendingBatchFingerprint, fingerprint, StringComparison.Ordinal))
                 ResetPendingBatch(fingerprint);
 
+            BillingPeriod? currentPeriod = null;
             try
             {
                 IsGenerating = true;
                 var completed = 0;
                 foreach (var period in periods)
                 {
+                    currentPeriod = period;
                     StatusMessage = $"Generating 837P file {completed + 1} of {periods.Count}...";
                     if (!_pendingEdiKeys.TryGetValue(period.Id, out var key))
                     {
@@ -225,7 +250,13 @@ namespace Sati.ViewModels.Billing
             catch (Exception ex)
             {
                 Debug.WriteLine($"GenerateEdi failed: {ex.Message}");
-                StatusMessage = $"Error: {ex.Message}";
+                var periodName = currentPeriod is null
+                    ? "the selected range"
+                    : PeriodName(currentPeriod);
+                var supportReference = ex is Sati.Data.Cloud.CloudApiException { CorrelationId.Length: > 0 } cloud
+                    ? $" Support reference: {cloud.CorrelationId}."
+                    : string.Empty;
+                StatusMessage = $"Could not generate {periodName}: {ex.Message}{supportReference}";
             }
             finally
             {
@@ -355,6 +386,17 @@ namespace Sati.ViewModels.Billing
         }
 
         private static DateTime MonthStart(DateTime value) => new(value.Year, value.Month, 1);
+
+        private static bool HasInvalidClaimAmounts(BillingPeriod period) =>
+            period.Lines.Any(line => line.Units is null or <= 0 || line.ChargeAmount <= 0);
+
+        private static string PeriodName(BillingPeriod period)
+        {
+            var manager = string.IsNullOrWhiteSpace(period.CaseManagerName)
+                ? $"case manager #{period.UserId}"
+                : period.CaseManagerName;
+            return $"{manager}'s {new DateTime(period.Year, period.Month, 1):MMMM yyyy} period";
+        }
 
         private AgencyActor CurrentActor() => _sessionService.CurrentUser?.ToAgencyActor()
             ?? throw new UnauthorizedAccessException("A signed-in user is required.");

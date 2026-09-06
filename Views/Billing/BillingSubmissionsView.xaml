@@ -29,23 +29,34 @@
             <TextBlock Text="BILLING PERIOD"
                        Style="{StaticResource LabelStyle}" />
             <ComboBox AutomationProperties.Name="Billing period" ItemsSource="{Binding BillingPeriods}"
-                      SelectedItem="{Binding SelectedPeriod}"
+                      SelectedItem="{Binding SelectedPeriod, Mode=TwoWay}"
                       IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
-                      Width="300"
+                      Width="540"
+                      MaxDropDownHeight="360"
                       HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock>
-                            <Run Text="{Binding Year, Mode=OneWay}" />
-                            <Run Text=" — Month " />
-                            <Run Text="{Binding Month, Mode=OneWay}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Lines.Count, Mode=OneWay}" />
-                            <Run Text=" claims)" />
-                        </TextBlock>
+                        <TextBlock Text="{Binding Converter={StaticResource BillingPeriodLabelConverter}}"
+                                   TextTrimming="CharacterEllipsis" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
+            <TextBlock Text="{Binding SubmitAvailabilityMessage}"
+                       AutomationProperties.LiveSetting="Polite"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       MaxWidth="540"
+                       HorizontalAlignment="Left"
+                       Margin="0,6,0,0" />
+            <Button Content="Submit &amp; Lock Selected Period"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="220"
+                    HorizontalAlignment="Left"
+                    Command="{Binding SubmitPeriodCommand}"
+                    IsEnabled="{Binding CanSubmitPeriod}"
+                    ToolTip="{Binding SubmitAvailabilityMessage}"
+                    Margin="0,10,0,0" />
         </StackPanel>
 
         <!-- Inclusive billing-month range. A locked monthly period is never split. -->
@@ -76,7 +87,7 @@
                        TextWrapping="Wrap" />
         </StackPanel>
 
-        <!-- Lock and generate actions -->
+        <!-- 837 generation actions. Period locking belongs with the selector above. -->
         <StackPanel Grid.Row="3"
                     Margin="0,0,0,16">
             <CheckBox Content="Test mode (OATEST in filename — safe to upload to Office Ally)"
@@ -86,12 +97,6 @@
                       FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}"
                       Margin="0,0,0,12" />
             <StackPanel Orientation="Horizontal">
-                <Button Content="Submit &amp; Lock Selected Period"
-                        Style="{StaticResource PrimaryButton}"
-                        Width="220"
-                        Command="{Binding SubmitPeriodCommand}"
-                        IsEnabled="{Binding CanSubmitPeriod}"
-                        Margin="0,0,12,0" />
                 <Button Content="Generate 837P Files for Range"
                         Style="{StaticResource PrimaryButton}"
                         Width="220"

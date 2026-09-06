@@ -1,11 +1,13 @@
 param(
     [string]$SqlServer = "(localdb)\MSSQLLocalDB",
-    [string]$Database = "SatiDemo"
+    [string]$Database = "SatiDemo",
+    [string]$AccessToken,
+    [DateTime]$AsOfDate = [DateTime]::Today
 )
 
 $ErrorActionPreference = "Stop"
 $seedTag = "DEMO_SHOWCASE_V1"
-$today = [DateTime]::Today
+$today = $AsOfDate.Date
 
 if ($Database -cne "SatiDemo") {
     throw "This seed is hard-limited to the SatiDemo database."
@@ -358,8 +360,14 @@ function New-AssessmentDocument(
     }
 }
 
-$connectionString = "Server=$SqlServer;Database=$Database;Integrated Security=true;Encrypt=false;Connect Timeout=30;"
+$connectionString = if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+    "Server=$SqlServer;Database=$Database;Integrated Security=true;Encrypt=false;Connect Timeout=30;"
+}
+else {
+    "Server=$SqlServer;Database=$Database;Encrypt=true;TrustServerCertificate=false;Connect Timeout=30;"
+}
 $connection = [System.Data.SqlClient.SqlConnection]::new($connectionString)
+if (-not [string]::IsNullOrWhiteSpace($AccessToken)) { $connection.AccessToken = $AccessToken }
 $connection.Open()
 
 $identityCommand = $connection.CreateCommand()
@@ -380,6 +388,79 @@ if ($actualDatabase -cne "SatiDemo" -or $actualEnvironment -cne "Demo") {
 
 $transaction = $connection.BeginTransaction()
 try {
+    $personColumns = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $columnCommand = $connection.CreateCommand()
+    $columnCommand.Transaction = $transaction
+    $columnCommand.CommandText = "SELECT name FROM sys.columns WHERE object_id=OBJECT_ID('dbo.People');"
+    $columnReader = $columnCommand.ExecuteReader()
+    while ($columnReader.Read()) { [void]$personColumns.Add($columnReader.GetString(0)) }
+    $columnReader.Close()
+    $hasPersonProviders = [int](Invoke-SeedScalar "SELECT COUNT(*) FROM sys.tables WHERE object_id=OBJECT_ID('dbo.PersonProviders');") -eq 1
+    $hasStoredFormCompliance = [int](Invoke-SeedScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('dbo.Forms') AND name='IsCompliant';") -eq 1
+
+    $optionalAssignments = [System.Collections.Generic.List[string]]::new()
+    if ($personColumns.Contains('IsTestData')) { $optionalAssignments.Add('IsTestData = 1') }
+    if ($personColumns.Contains('CredibleClientId')) { $optionalAssignments.Add("CredibleClientId = COALESCE(NULLIF(CredibleClientId,''),CONCAT('CR-',RIGHT(CONCAT('000000',Id),6)))") }
+    if ($personColumns.Contains('Email')) { $optionalAssignments.Add("Email = COALESCE(NULLIF(Email,''),CONCAT('hero',Id,'@demo.sati.invalid'))") }
+    if ($personColumns.Contains('VrCounselorName')) { $optionalAssignments.Add("VrCounselorName = CASE WHEN OpenWithVR=1 THEN COALESCE(NULLIF(VrCounselorName,''),'Leslie Knope') ELSE VrCounselorName END") }
+    if ($personColumns.Contains('VrAssistantName')) { $optionalAssignments.Add("VrAssistantName = CASE WHEN OpenWithVR=1 THEN COALESCE(NULLIF(VrAssistantName,''),'Clark Kent') ELSE VrAssistantName END") }
+    if ($personColumns.Contains('RepPayeeMonthlyIncome')) { $optionalAssignments.Add('RepPayeeMonthlyIncome = CASE WHEN CaseManagerIsRepPayee=1 THEN COALESCE(RepPayeeMonthlyIncome,1250 + (Id % 500)) ELSE RepPayeeMonthlyIncome END') }
+    if ($personColumns.Contains('RepPayeeRegularCheckRequestNeeds')) { $optionalAssignments.Add("RepPayeeRegularCheckRequestNeeds = CASE WHEN CaseManagerIsRepPayee=1 THEN COALESCE(NULLIF(RepPayeeRegularCheckRequestNeeds,''),'Monthly rent, utilities, groceries, and one entirely reasonable cape-cleaning allowance.') ELSE RepPayeeRegularCheckRequestNeeds END") }
+    $optionalSql = if ($optionalAssignments.Count) { ",`n    " + ($optionalAssignments -join ",`n    ") } else { '' }
+
+    # Almost every consumer is a complete, usable working record. Six stable records are
+    # deliberately incomplete teaching cases so demonstrations can show Sati's warnings.
+    # Ranking by Id keeps the same fictional people in those roles after every reset.
+    Invoke-SeedNonQuery @"
+;WITH ranked AS
+(
+    SELECT p.*,
+           ROW_NUMBER() OVER (ORDER BY CASE WHEN EXISTS
+               (SELECT 1 FROM dbo.Notes n JOIN dbo.ClaimLines c ON c.NoteId=n.Id WHERE n.PersonId=p.Id)
+               THEN 1 ELSE 0 END, p.Id) AS DemoRank
+    FROM dbo.People p
+    JOIN dbo.Users u ON u.Id = p.UserId
+    WHERE u.AgencyId = 2
+)
+UPDATE ranked
+SET FirstName = COALESCE(NULLIF(LTRIM(RTRIM(FirstName)),''), CONCAT('Hero ', Id)),
+    LastName = COALESCE(NULLIF(LTRIM(RTRIM(LastName)),''), 'McDemo'),
+    BirthDate = CASE WHEN BirthDate < '1940-01-01' OR BirthDate > DATEADD(year,-18,@Today)
+                     THEN DATEADD(day,-(9000 + (Id % 12000)),@Today) ELSE BirthDate END,
+    Gender = CASE WHEN Gender IS NULL OR Gender = 0 THEN 1 + (Id % 3) ELSE Gender END,
+    EffectiveDate = CASE WHEN DemoRank = 5 THEN NULL
+                         ELSE COALESCE(EffectiveDate, DATEADD(day,-(120 + (Id % 1200)),@Today)) END,
+    Waiver = CASE WHEN Waiver IS NULL OR Waiver = 0 THEN 1 + (Id % 2) ELSE Waiver END,
+    MaineCareId = CASE WHEN DemoRank = 1 THEN NULL
+                       ELSE COALESCE(NULLIF(MaineCareId,''), CONCAT('DEMO',RIGHT(CONCAT('00000000',Id),8))) END,
+    DiagnosisCode = CASE WHEN DemoRank = 2 THEN NULL ELSE COALESCE(NULLIF(DiagnosisCode,''),'F89') END,
+    PlaceOfService = COALESCE(PlaceOfService,11),
+    EvergreenId = COALESCE(NULLIF(EvergreenId,''),CONCAT('EIS-',RIGHT(CONCAT('000000',Id),6))),
+    PhoneNumber = COALESCE(NULLIF(PhoneNumber,''),CONCAT('207-555-',RIGHT(CONCAT('0000',1000 + (Id % 9000)),4))),
+    Address = COALESCE(NULLIF(Address,''),CONCAT(10 + (Id % 890),' Hero Lane, Augusta, ME 04330')),
+    BillingStreet = CASE WHEN DemoRank = 3 THEN NULL ELSE COALESCE(NULLIF(BillingStreet,''),CONCAT(10 + (Id % 890),' Hero Lane')) END,
+    BillingCity = CASE WHEN DemoRank = 3 THEN NULL ELSE COALESCE(NULLIF(BillingCity,''),'Augusta') END,
+    BillingState = CASE WHEN DemoRank = 3 THEN NULL ELSE COALESCE(NULLIF(BillingState,''),'ME') END,
+    BillingZip = CASE WHEN DemoRank = 3 THEN NULL ELSE COALESCE(NULLIF(BillingZip,''),'04330') END,
+    PrimaryCareProvider = CASE WHEN DemoRank = 4 THEN NULL ELSE COALESCE(NULLIF(PrimaryCareProvider,''),'Dr. Beverly Crusher') END,
+    HealthcareSystemName = CASE WHEN DemoRank = 4 THEN NULL ELSE COALESCE(NULLIF(HealthcareSystemName,''),'Princeton-Plainsboro Community Health') END,
+    GuardianName = CASE WHEN HasGuardian = 1 THEN COALESCE(NULLIF(GuardianName,''),'Diana Prince') ELSE GuardianName END,
+    DayProgramCount = CASE WHEN HasCommunitySupportDayProgram = 1 AND DayProgramCount < 1 THEN 1 ELSE DayProgramCount END,
+    Bio = CASE DemoRank
+        WHEN 1 THEN '[DEMO TEACHING CASE — missing MaineCare ID] A capable neighborhood hero whose eligibility paperwork vanished into a filing cabinet labeled Definitely Not A Secret Lair.'
+        WHEN 2 THEN '[DEMO TEACHING CASE — missing diagnosis] A sitcom regular with excellent attendance, three catchphrases, and one diagnosis field still awaiting verified documentation.'
+        WHEN 3 THEN '[DEMO TEACHING CASE — incomplete billing address] Mail reliably reaches the Hall of Justice, but the structured claim address has not survived the latest continuity reboot.'
+        WHEN 4 THEN '[DEMO TEACHING CASE — missing healthcare provider] This client can name every actor who played a television doctor but still needs an actual primary-care provider recorded.'
+        WHEN 5 THEN '[DEMO TEACHING CASE — missing effective date] Services are discussed enthusiastically, though nobody wrote down when this season officially began.'
+        WHEN 6 THEN '[DEMO TEACHING CASE — no active support flags] The ensemble cast keeps offering help, but the authorization record has not identified which supports are actually active.'
+        ELSE COALESCE(NULLIF(Bio,''),CONCAT('A resourceful member of the Sati cinematic universe. ',FirstName,' balances ordinary community goals with the occasional scheduling crisis, misunderstood prophecy, or poorly timed commercial break.'))
+    END,
+    HasHomeSupport = CASE WHEN DemoRank = 6 THEN 0 WHEN HasHomeSupport=0 AND HasSharedLiving=0 AND HasCommunitySupport1To1=0 AND HasCommunitySupportDayProgram=0 THEN CASE WHEN Id%3=0 THEN 1 ELSE 0 END ELSE HasHomeSupport END,
+    HasSharedLiving = CASE WHEN DemoRank = 6 THEN 0 WHEN HasHomeSupport=0 AND HasSharedLiving=0 AND HasCommunitySupport1To1=0 AND HasCommunitySupportDayProgram=0 THEN CASE WHEN Id%3=1 THEN 1 ELSE 0 END ELSE HasSharedLiving END,
+    HasCommunitySupport1To1 = CASE WHEN DemoRank = 6 THEN 0 WHEN HasHomeSupport=0 AND HasSharedLiving=0 AND HasCommunitySupport1To1=0 AND HasCommunitySupportDayProgram=0 THEN CASE WHEN Id%3=2 THEN 1 ELSE 0 END ELSE HasCommunitySupport1To1 END
+    $optionalSql;
+"@ @{ Today=$today } | Out-Null
+
     $providers = @(
         @{ Type="Waiver"; Name="Greendale Human Being Services"; Street="1 Community College Way"; City="Greendale"; State="ME"; Zip="04001"; Contact="Dean Pelton"; Phone="207-555-0101"; Services=15; Pass=$true; Eis="Greendale Purchasing - Room 101"; Program="Annie Edison - annie@greendale.demo"; Billing="Abed Nadir - billing@greendale.demo" },
         @{ Type="Healthcare"; Name="Princeton-Plainsboro Community Health"; Street="221 Diagnostic Drive"; City="Portland"; State="ME"; Zip="04101"; Contact="Lisa Cuddy"; Phone="207-555-0102"; Services=0; Pass=$false; Eis=$null; Program=$null; Billing=$null },
@@ -503,23 +584,48 @@ VALUES
             } | Out-Null
 
             $progressDate = $visitDate.AddDays(-21)
-            $returned = (([int]$person.Id % 11) -eq 0)
+            $returned = (([int]$person.Id % 29) -eq 0)
+            $awaitingReview = -not $returned -and (([int]$person.Id % 17) -eq 0)
+            $progressStatus = if ($returned) { 7 } elseif ($awaitingReview) { 2 } else { 6 }
             $progressNarrative = "$name practiced $($theme.Skill) using a short written checklist. $($person.FirstName) completed the first steps independently, asked for clarification once, and chose to repeat the final step. The checklist worked better than verbal reminders. Plan: use the same checklist twice before the next review and let $($person.FirstName) decide whether any step should be rewritten."
             Invoke-SeedNonQuery $noteSql @{
-                Narrative=$progressNarrative; Status=if ($returned) { 7 } else { 2 }; PersonId=[int]$person.Id; EventDate=$progressDate
+                Narrative=$progressNarrative; Status=$progressStatus; PersonId=[int]$person.Id; EventDate=$progressDate
                 FormType=$null; NoteType=3
                 ReturnReason=if ($returned) { "Please clarify who provided the checklist; 'a mysterious benefactor' is not billable documentation." } else { $null }
                 ReturnedById=if ($returned) { 1007 } else { $null }; ReturnedAt=if ($returned) { $progressDate.AddDays(2) } else { $null }
-                ApprovedAt=$null; ApprovedById=$null; Minutes=45
+                ApprovedAt=if ($progressStatus -eq 6) { $progressDate.AddDays(1) } else { $null }
+                ApprovedById=if ($progressStatus -eq 6) { 1007 } else { $null }; Minutes=45
                 StartTime=(([int]$person.Id * 19) % 420); SeedTag=$seedTag; VisitJson=$null
             } | Out-Null
         }
     }
 
+    # Move the seeded working notes with the reset day. The narratives remain funny and
+    # recognizable; only their operational dates roll forward.
+    Invoke-SeedNonQuery @"
+UPDATE note
+SET EventDate = DATEADD(day, -(
+        CASE note.NoteType WHEN 0 THEN 2 + ((note.PersonId * 11) % 45)
+                           WHEN 1 THEN 11 + ((note.PersonId * 11) % 45)
+                           ELSE 23 + ((note.PersonId * 11) % 45) END), @Today),
+    Status = CASE WHEN note.NoteType=3 AND note.PersonId%29=0 THEN 7
+                  WHEN note.NoteType=3 AND note.PersonId%17=0 THEN 2
+                  WHEN note.NoteType=3 THEN 6 ELSE note.Status END,
+    ApprovedAt = CASE WHEN note.NoteType<>3 OR (note.PersonId%29<>0 AND note.PersonId%17<>0) THEN DATEADD(day,1,DATEADD(day,-(
+        CASE note.NoteType WHEN 0 THEN 2 + ((note.PersonId * 11) % 45)
+                           WHEN 1 THEN 11 + ((note.PersonId * 11) % 45)
+                           ELSE 23 + ((note.PersonId * 11) % 45) END),@Today)) ELSE NULL END,
+    ReturnedAt = CASE WHEN note.NoteType=3 AND note.PersonId%29=0 THEN DATEADD(day,2,DATEADD(day,-(23 + ((note.PersonId * 11) % 45)),@Today)) ELSE NULL END,
+    ReturnedById = CASE WHEN note.NoteType=3 AND note.PersonId%29=0 THEN 1007 ELSE NULL END,
+    ReturnReason = CASE WHEN note.NoteType=3 AND note.PersonId%29=0 THEN 'Please clarify which supporting cast member provided the checklist.' ELSE NULL END,
+    ApprovedById = CASE WHEN note.NoteType<>3 OR (note.PersonId%29<>0 AND note.PersonId%17<>0) THEN 1007 ELSE NULL END
+FROM dbo.Notes note
+WHERE note.CaseManagerJustification=@SeedTag;
+"@ @{ Today=$today; SeedTag=$seedTag } | Out-Null
+
     # Associate active support-network contacts with directory organizations by
     # exact Organization name; these are synthetic profile contacts, not history.
     for ($index = 0; $index -lt $people.Count; $index++) {
-        if (($index % 2) -ne 0) { continue }
         $person = $people[$index]
         $provider = $waiverProviders[$index % $waiverProviders.Count]
         $email = "support$($person.Id)@demo.sati.invalid"
@@ -535,6 +641,16 @@ VALUES
             PersonId=[int]$person.Id; FirstName="Casey"; LastName="Coordinator"
             Organization=[string]$provider.Name; Phone=[string]$provider.Phone; Email=$email
         } | Out-Null
+
+        if ($hasPersonProviders) {
+            Invoke-SeedNonQuery @"
+IF NOT EXISTS (SELECT 1 FROM dbo.PersonProviders WHERE PersonId=@PersonId AND ProviderId=@ProviderId AND EndDate IS NULL)
+INSERT dbo.PersonProviders
+    (PersonId, ProviderId, Role, IsPrimaryCare, StartDate, EndDate, HasActiveRelease, SortOrder)
+VALUES
+    (@PersonId, @ProviderId, 'Community support provider', 0, DATEADD(day,-180,@Today), NULL, 1, 0);
+"@ @{ PersonId=[int]$person.Id; ProviderId=[int]$provider.Id; Today=$today } | Out-Null
+        }
     }
 
     # Complete comprehensive-assessment form rows for every demo consumer. PCP
@@ -553,14 +669,20 @@ VALUES
             @{ Type="PCP"; Enum=4; Label="Person-Centered Plan"; Joke="The plan contains goals, responsible parties, and zero secret identities." },
             @{ Type="ComprehensiveAssessment"; Enum=5; Label="Comprehensive Assessment"; Joke="Every domain was addressed; no answer was simply 'everybody lies.'" }
         )) {
-            if ($formSpec.Type -eq "PCP" -and ($index % 2) -ne 0) { continue }
+            if ($formSpec.Type -eq "PCP" -and $index -lt 3) { continue }
             $formId = Invoke-SeedScalar @"
 SELECT TOP (1) Id FROM dbo.Forms
 WHERE PersonId=@PersonId AND Type=@Type AND DueDate>@CycleStart AND DueDate<=@CycleEnd
 ORDER BY DueDate DESC;
 "@ @{ PersonId=[int]$person.Id; Type=$formSpec.Type; CycleStart=$cycleStart; CycleEnd=$cycleEnd }
             if ($null -eq $formId -or $formId -is [DBNull]) { continue }
-            Invoke-SeedNonQuery "UPDATE dbo.Forms SET IsCompliant=1, CompletedDate=@CompletedOn, OpenedDate=COALESCE(OpenedDate, DATEADD(day,-7,@CompletedOn)) WHERE Id=@Id;" @{ CompletedOn=$completedOn; Id=[int]$formId } | Out-Null
+            $formCompletionSql = if ($hasStoredFormCompliance) {
+                "UPDATE dbo.Forms SET IsCompliant=1, CompletedDate=@CompletedOn, OpenedDate=COALESCE(OpenedDate, DATEADD(day,-7,@CompletedOn)) WHERE Id=@Id;"
+            }
+            else {
+                "UPDATE dbo.Forms SET CompletedDate=@CompletedOn, OpenedDate=COALESCE(OpenedDate, DATEADD(day,-7,@CompletedOn)) WHERE Id=@Id;"
+            }
+            Invoke-SeedNonQuery $formCompletionSql @{ CompletedOn=$completedOn; Id=[int]$formId } | Out-Null
 
             $formMarker = "$seedTag`_FORM_$($formSpec.Type)_$($person.Id)"
             $formNarrative = "$($formSpec.Label) for $($person.FirstName) $($person.LastName) was completed with the person's preferences, strengths, chosen outcomes, provider responsibilities, and follow-up dates documented. $($formSpec.Joke) Copies and next steps were reviewed in plain language."
@@ -715,6 +837,50 @@ VALUES
         }
     }
 
+    Invoke-SeedNonQuery @"
+UPDATE dbo.ATRequests
+SET SubmittedDate=DATEADD(day,-(10 + (Id % 120)),@Today),
+    DecisionDate=CASE WHEN Status IN ('Approved','Received') THEN DATEADD(day,-(4 + (Id % 120)),@Today) ELSE NULL END
+WHERE CaseManagerEmail LIKE 'showcase-at-%@demo.sati.invalid';
+
+UPDATE dbo.ComprehensiveAssessments
+SET CreatedAt=DATEADD(day,-30,@Today), UpdatedAt=DATEADD(day,-10,@Today),
+    SubmittedAt=DATEADD(day,-14,@Today), ApprovedAt=DATEADD(day,-10,@Today)
+WHERE Status='Approved' AND DocumentJson LIKE '%Confirm current waiver-service authorizations%';
+"@ @{ Today=$today } | Out-Null
+
+    # Synthetic-only repair: old Demo claim lines predated frozen snapshots and rates.
+    # The live application still fails closed; only this identity-checked seed tool may rebuild them.
+    Invoke-SeedNonQuery @"
+UPDATE claim
+SET Units = CASE WHEN claim.Units IS NULL OR claim.Units<=0 THEN 1 ELSE claim.Units END,
+    ChargeAmount = CASE WHEN claim.ChargeAmount<=0 THEN
+        ROUND((CASE WHEN claim.Units IS NULL OR claim.Units<=0 THEN 1 ELSE claim.Units END) * agency.BillingUnitRate,2)
+        ELSE claim.ChargeAmount END,
+    ClaimSnapshotJson = CASE WHEN NULLIF(LTRIM(RTRIM(claim.ClaimSnapshotJson)),'') IS NULL THEN
+        (SELECT 1 AS [Version], agency.Id AS AgencyId, person.Id AS PersonId,
+                person.FirstName AS SubscriberFirstName, person.LastName AS SubscriberLastName,
+                person.BirthDate AS SubscriberBirthDate,
+                CASE person.Gender WHEN 1 THEN 'M' WHEN 2 THEN 'F' ELSE 'U' END AS SubscriberGenderCode,
+                person.MaineCareId AS SubscriberMemberId, person.BillingStreet AS SubscriberStreet,
+                person.BillingCity AS SubscriberCity, person.BillingState AS SubscriberState,
+                person.BillingZip AS SubscriberZip, agency.Name AS BillingProviderName,
+                agency.Npi AS BillingProviderNpi, agency.TaxId AS BillingProviderTaxId,
+                agency.Street AS BillingProviderStreet, agency.City AS BillingProviderCity,
+                agency.State AS BillingProviderState, agency.Zip AS BillingProviderZip,
+                agency.EdiSubmitterId AS SubmitterId, agency.EdiContactName AS SubmitterContactName,
+                agency.EdiContactPhone AS SubmitterContactPhone, agency.EdiPayerName AS PayerName,
+                agency.EdiPayerId AS PayerId FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        ELSE claim.ClaimSnapshotJson END
+FROM dbo.ClaimLines claim
+JOIN dbo.BillingPeriods period ON period.Id=claim.BillingPeriodId
+JOIN dbo.Users owner ON owner.Id=period.UserId AND owner.AgencyId=2
+JOIN dbo.Notes note ON note.Id=claim.NoteId
+JOIN dbo.People person ON person.Id=note.PersonId
+JOIN dbo.Agencies agency ON agency.Id=owner.AgencyId
+WHERE agency.BillingUnitRate>0;
+"@ | Out-Null
+
     $transaction.Commit()
 }
 catch {
@@ -726,7 +892,10 @@ finally {
 }
 
 # Read-back validation occurs on a new connection after commit.
+$emailCompletenessSql = if ($personColumns.Contains('Email')) { " OR NULLIF(p.Email,'') IS NULL" } else { '' }
+$completedFormsPredicate = if ($hasStoredFormCompliance) { 'IsCompliant=1 AND CompletedDate IS NOT NULL' } else { 'CompletedDate IS NOT NULL' }
 $check = [System.Data.SqlClient.SqlConnection]::new($connectionString)
+if (-not [string]::IsNullOrWhiteSpace($AccessToken)) { $check.AccessToken = $AccessToken }
 $check.Open()
 $checkCommand = $check.CreateCommand()
 $checkCommand.CommandText = @"
@@ -735,13 +904,37 @@ SELECT
     (SELECT EnvironmentName FROM dbo.SatiDatabaseIdentity WHERE Id=1) AS EnvironmentName,
     (SELECT COUNT(*) FROM dbo.Providers) AS Providers,
     (SELECT COUNT(*) FROM dbo.Notes WHERE CaseManagerJustification LIKE 'DEMO_SHOWCASE_V1%') AS ShowcaseNotes,
-    (SELECT COUNT(*) FROM dbo.Forms WHERE IsCompliant=1 AND CompletedDate IS NOT NULL) AS CompletedForms,
+    (SELECT COUNT(*) FROM dbo.Forms WHERE $completedFormsPredicate) AS CompletedForms,
     (SELECT COUNT(*) FROM dbo.ComprehensiveAssessments WHERE Status='Approved') AS ApprovedAssessments,
     (SELECT COUNT(*) FROM dbo.PersonContacts WHERE Email LIKE '%@demo.sati.invalid') AS ShowcaseContacts,
-    (SELECT COUNT(*) FROM dbo.ATRequests WHERE CaseManagerEmail LIKE 'showcase-at-%@demo.sati.invalid') AS ShowcaseATRequests;
+    (SELECT COUNT(*) FROM dbo.ATRequests WHERE CaseManagerEmail LIKE 'showcase-at-%@demo.sati.invalid') AS ShowcaseATRequests,
+    (SELECT COUNT(*) FROM dbo.People p JOIN dbo.Users u ON u.Id=p.UserId WHERE u.AgencyId=2) AS CaseloadClients,
+    (SELECT COUNT(*) FROM dbo.People p JOIN dbo.Users u ON u.Id=p.UserId WHERE u.AgencyId=2 AND p.Bio LIKE '[[]DEMO TEACHING CASE%') AS TeachingCases,
+    (SELECT COUNT(*) FROM dbo.People p JOIN dbo.Users u ON u.Id=p.UserId
+       WHERE u.AgencyId=2 AND p.Bio NOT LIKE '[[]DEMO TEACHING CASE%'
+         AND (NULLIF(p.FirstName,'') IS NULL OR NULLIF(p.LastName,'') IS NULL OR p.EffectiveDate IS NULL
+              OR NULLIF(p.MaineCareId,'') IS NULL OR NULLIF(p.DiagnosisCode,'') IS NULL OR p.PlaceOfService IS NULL
+              OR NULLIF(p.PhoneNumber,'') IS NULL$emailCompletenessSql OR NULLIF(p.Address,'') IS NULL
+              OR NULLIF(p.BillingStreet,'') IS NULL OR NULLIF(p.BillingCity,'') IS NULL
+              OR NULLIF(p.BillingState,'') IS NULL OR NULLIF(p.BillingZip,'') IS NULL
+              OR NULLIF(p.PrimaryCareProvider,'') IS NULL OR NULLIF(p.HealthcareSystemName,'') IS NULL)) AS IncompleteOrdinaryClients,
+    (SELECT COUNT(*) FROM dbo.ClaimLines claim JOIN dbo.BillingPeriods period ON period.Id=claim.BillingPeriodId
+       JOIN dbo.Users u ON u.Id=period.UserId WHERE u.AgencyId=2
+       AND (claim.Units IS NULL OR claim.Units<=0 OR claim.ChargeAmount<=0 OR NULLIF(LTRIM(RTRIM(claim.ClaimSnapshotJson)),'') IS NULL)) AS UnreadyClaims;
 "@
 $reader = $checkCommand.ExecuteReader()
 $result = [System.Data.DataTable]::new()
 $result.Load($reader)
 $check.Dispose()
+$row = $result.Rows[0]
+if ([int]$row.CaseloadClients -lt 1) { throw 'The refreshed Demo caseload is empty.' }
+if ([int]$row.TeachingCases -ne [Math]::Min(6, [int]$row.CaseloadClients)) {
+    throw "Demo refresh created $($row.TeachingCases) teaching cases; expected $([Math]::Min(6,[int]$row.CaseloadClients))."
+}
+if ([int]$row.IncompleteOrdinaryClients -ne 0) {
+    throw "Demo refresh left $($row.IncompleteOrdinaryClients) ordinary clients incomplete."
+}
+if ([int]$row.UnreadyClaims -ne 0) {
+    throw "Demo refresh left $($row.UnreadyClaims) claims unready for 837P generation."
+}
 $result | Format-Table -AutoSize

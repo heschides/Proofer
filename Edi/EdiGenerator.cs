@@ -35,13 +35,7 @@ namespace Sati.Helpers
             var icn = controlNumber; // interchange control number
             var gcn = "1"; // group control number — one group per file
 
-            var rows = period.Lines
-                .Select(line => new EdiSnapshotRow(
-                    line,
-                    ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson)))
-                .ToList();
-            if (rows.Count == 0)
-                throw new InvalidOperationException("The billing period has no claim lines.");
+            var rows = ReadAndValidateRows(period);
 
             // Group the immutable claim snapshots by consumer. No mutable Person or Agency value
             // is read while rendering a financial record.
@@ -50,7 +44,6 @@ namespace Sati.Helpers
                 .ToList();
             var envelope = rows[0].Snapshot;
             var submitterId = envelope.SubmitterId;
-            Validate(envelope, rows);
 
             var sb = new System.Text.StringBuilder();
 
@@ -309,6 +302,23 @@ namespace Sati.Helpers
             return sb.ToString();
         }
 
+        public static void ValidatePeriod(BillingPeriod period) =>
+            _ = ReadAndValidateRows(period);
+
+        private static List<EdiSnapshotRow> ReadAndValidateRows(BillingPeriod period)
+        {
+            var rows = period.Lines
+                .Select(line => new EdiSnapshotRow(
+                    line,
+                    ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson)))
+                .ToList();
+            if (rows.Count == 0)
+                throw new InvalidOperationException("The billing period has no claim lines.");
+
+            Validate(rows[0].Snapshot, rows);
+            return rows;
+        }
+
         // Builds a segment string: SEGID*elem1*elem2*...*elemN~
         private static string Seg(string id, params string[] elements)
         {
@@ -330,6 +340,7 @@ namespace Sati.Helpers
                 !BillingRules.IsSafeX12Element(envelope.PayerName, 60) ||
                 !BillingRules.IsSafeX12Element(envelope.PayerId, 80) ||
                 !BillingRules.IsSafeX12Element(envelope.SubmitterContactName, 60) ||
+                string.IsNullOrWhiteSpace(envelope.SubmitterContactPhone) ||
                 envelope.SubmitterContactPhone.Length is < 10 or > 15 ||
                 envelope.SubmitterContactPhone.Any(character => !char.IsDigit(character)))
                 throw new InvalidOperationException("The agency billing and EDI configuration is incomplete or invalid.");

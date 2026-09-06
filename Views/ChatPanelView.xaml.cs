@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Collections.Specialized;
+using System.Windows.Media;
 using Sati.ViewModels.Children;
 
 namespace Sati.Views;
@@ -19,17 +20,14 @@ public partial class ChatPanelView : UserControl
         SizeChanged += (_, _) => ApplyLayout();
     }
 
-    private void ApplyLayout()
-    {
-        LayoutRoot.Height = Math.Max(432, ActualHeight - 32);
-        var compact = ActualWidth < 800;
-        var grid = (Grid)RoomList.Parent;
-        grid.ColumnDefinitions[0].MinWidth = compact ? 0 : 150;
-        grid.ColumnDefinitions[0].Width = new GridLength(compact ? 0 : 220);
-        grid.ColumnDefinitions[1].Width = new GridLength(compact ? 0 : 8);
-        RoomList.Visibility = RoomSplitter.Visibility = RoomHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        CompactRoomPicker.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
-    }
+    /// <summary>
+    /// The workspace is one column at every width, so the only thing left to size is the
+    /// floor. Below it the outer scroller takes over rather than crushing the transcript
+    /// and the composer into unusable slivers. 32 is the layout root's vertical margin.
+    /// </summary>
+    private void ApplyLayout() => LayoutRoot.Height = Math.Max(MinimumWorkspaceHeight, ActualHeight - 32);
+
+    private const double MinimumWorkspaceHeight = 440;
 
     private void Attach()
     {
@@ -51,8 +49,27 @@ public partial class ChatPanelView : UserControl
     private void OnSent(object? sender, EventArgs args)
     {
         if (!IsVisible) return;
-        ComposeBox.Focus();
-        if (_viewModel?.Messages.LastOrDefault() is { } message) MessageHistory.ScrollIntoView(message);
+        // The composer and the transcript live inside the selected room tab's template,
+        // so they are rebuilt whenever the tab changes and cannot be held as fields.
+        // They are located by the same automation names assistive technology uses.
+        Find<TextBox>("Chat message draft")?.Focus();
+        if (_viewModel?.Messages.LastOrDefault() is { } message)
+            Find<ListBox>("Chat message history")?.ScrollIntoView(message);
+    }
+
+    /// <summary>The first realized descendant of that type carrying that automation name.</summary>
+    private T? Find<T>(string automationName) where T : FrameworkElement =>
+        Descendants(this).OfType<T>().FirstOrDefault(item => AutomationProperties.GetName(item) == automationName);
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            yield return child;
+            foreach (var descendant in Descendants(child)) yield return descendant;
+        }
     }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs args)

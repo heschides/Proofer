@@ -314,6 +314,21 @@ public sealed class LocalUserManagementAuthorizationTests : IDisposable
             NewService().ResetPasswordAsync(
                 supervisor.ToAgencyActor(), admin, Secure(StrongPassword)));
     }
+
+    [Fact]
+    public async Task AnAdministratorResetPersistsAUsableReplacementPassword()
+    {
+        var admin = await SeedAsync(11, "admin", UserRole.Admin);
+        var target = await SeedAsync(12, "target", UserRole.CaseManager);
+
+        await NewService().ResetPasswordAsync(
+            admin.ToAgencyActor(), target, Secure(StrongPassword));
+
+        await using var context = _factory.CreateDbContext();
+        var stored = await context.Users.AsNoTracking().SingleAsync(user => user.Id == target.Id);
+        Assert.True(new PasswordHasher().Verify(Secure(StrongPassword), stored.PasswordHash, stored.Salt));
+    }
+
     private sealed class ContextFactory(DbContextOptions<SatiContext> options)
         : IDbContextFactory<SatiContext>
     {

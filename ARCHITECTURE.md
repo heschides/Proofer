@@ -1,6 +1,26 @@
 # Sati — Architecture Reference
 
-*Living document. Updated during structured review sessions. Last updated: 2026-09-05.*
+*Living document. Updated during structured review sessions. Last updated: 2026-09-06.*
+
+## Daily Demo caseload refresh
+
+`Sati.DemoRefresh` is a timer-triggered Azure Function that runs at 3:15 AM Eastern. It obtains an
+Azure SQL token from its system-assigned managed identity, never a stored database credential. The
+identity is separate from the Demo API and belongs only to the `sati_demo_refresh` database role,
+which has SELECT, INSERT, and UPDATE on `dbo` but no DELETE or schema authority. Azure SQL admits
+only the Function's published exact outbound addresses in addition to the API addresses.
+
+The versioned `scripts/Seed-DemoShowcaseData.ps1` owns the canonical working-caseload refresh. It
+anchors showcase dates to the run date, fills ordinary synthetic client profiles, retains exactly
+six labeled incomplete teaching cases, maintains funny superhero/TV bios and note narratives, and
+repairs synthetic billing rows that could not enter the 837P pipeline. Each run is transactional and
+then validates the Demo identity marker, caseload presence, deliberate-exception count, ordinary
+profile completeness, and claim readiness on a new connection. The cloud run and an immediate
+idempotency run passed on 2026-09-06.
+
+This is a daily canonical caseload refresh, not yet the stronger full-baseline reset. It does not
+pause API mutations, remove every user-created Demo row, or reset demonstration passwords. That
+broader reset and its notification alert remain separate operational work.
 
 ## Electronic signatures (synthetic-data build)
 

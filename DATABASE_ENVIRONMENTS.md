@@ -1,7 +1,7 @@
 # Production and Demo Data Environments
 
-*Current as of 2026-08-15. Packaged client release 1.2.17. The Demo nightly reset described below
-is a design, not a running job — see the checklist at the end of this file.*
+*Current as of 2026-09-06. The daily Demo caseload refresh is running; the stronger full-baseline
+reset described below remains future work — see the checklist at the end of this file.*
 
 Sati maintains deliberately separate Production and Demo identities. This separation protects
 real working data during development and prepares the synthetic Demo environment for Azure.
@@ -88,6 +88,25 @@ The scheduled reset should:
 The reset job should run in Azure under its own managed identity with only the permissions needed
 for reset operations. Its permissions should be separate from the normal API identity.
 
+### Running daily caseload refresh
+
+On September 6, 2026, `sati-demo-refresh-satilogica` was deployed as a timer-triggered Azure
+Function scheduled for 3:15 AM Eastern. Its separate system-assigned managed identity maps to the
+`sati_demo_refresh` database role, which has SELECT, INSERT, and UPDATE on `dbo`, but no DELETE or
+schema permissions. The SQL firewall admits the Function's exact published possible outbound
+addresses; the temporary workstation rule used to establish the contained identity was removed and
+verified absent.
+
+The refresh keeps dates current, fills ordinary agency-2 client profiles and related showcase data,
+preserves exactly six labeled incomplete teaching cases, retains funny superhero/TV biographies and
+case notes, and repairs synthetic zero-value or snapshot-less claim rows. It validates the `Demo`
+marker, caseload count, deliberate-exception count, ordinary-client completeness, and claim
+readiness after each transaction. The first live run and an immediate idempotency run both passed.
+
+This does not yet stop mutations, delete all user-created Demo activity, or reset demonstration
+passwords. Those stronger full-reset requirements and a notification action for failure alerts
+remain outstanding.
+
 ## Current Azure Demo database
 
 Provisioned and validated on August 11, 2026:
@@ -102,7 +121,7 @@ Provisioned and validated on August 11, 2026:
 | Authentication | Microsoft Entra-only; `Joshua White` is the server Entra administrator |
 | Compute | Free-limit General Purpose serverless, `GP_S_Gen5_2`, 0.5 minimum vCore |
 | Cost guard | `AutoPause` when the monthly free allowance is exhausted |
-| Network | Public endpoint with three exact App Service outbound-IP rules; tester IPs are not allowed |
+| Network | Public endpoint with exact API and Demo-refresh outbound-IP rules; tester IPs are not allowed |
 | SSN key vault | `sati-demo-kv-satilogica`, key `ssn-demo`; purge protection enabled; API identity has only `wrapKey` / `unwrapKey` |
 
 The imported database was read back through an exact-IP temporary firewall rule and matched the
@@ -277,7 +296,8 @@ firewall rule was removed and verified absent. No Production-cloud database was 
 - [x] Implement token-based API authentication and authorization for the initial Demo surface.
 - [x] Move the initial Demo workflows to HTTP-backed service implementations.
 - [x] Remove client-side `Database.Migrate()` and EF registration from Demo.
-- [ ] Configure the nightly reset and failure alerts.
+- [x] Configure and live-test the daily canonical caseload refresh with its own identity and validation.
+- [ ] Configure full-baseline restoration, mutation pause, login reset, and failure notifications.
 - [ ] Test from a clean computer outside the development network.
 - [x] Verify that the Demo client configuration contains no database credential or Azure SQL connection.
 - [ ] Exercise backup, restore, and environment-rejection procedures.

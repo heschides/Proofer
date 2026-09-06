@@ -18,6 +18,11 @@ public sealed partial class ChatRoomItem(ChatRoomDto room) : ObservableObject
     public string PickerLabel => $"{Name} · {ConsumerIdentity}";
     public string Summary => Room.IsArchived ? "Archived · read only" : Room.UnreadCount > 0 ? "Unread messages" : "Up to date";
     public string AccessibleName => $"{PickerLabel}. {Summary}";
+    // Room status travels as words as well as colour, so a picker row stays readable
+    // for a user who cannot distinguish the accent hue.
+    public bool IsArchived => Room.IsArchived;
+    public bool HasUnread => !Room.IsArchived && Room.UnreadCount > 0;
+    public string UnreadBadge => Room.UnreadCount > 99 ? "99+" : Room.UnreadCount.ToString();
     public void Update(ChatRoomDto value)
     {
         Room = value;
@@ -25,12 +30,55 @@ public sealed partial class ChatRoomItem(ChatRoomDto room) : ObservableObject
     }
 }
 
-public sealed record ChatMessageItem(ChatMessageDto Message)
+/// <summary>
+/// One rendered post. <c>IsOwnMessage</c> and <c>StartsGroup</c> are presentation state fixed at
+/// construction because this is a value record: the transcript cannot recompute them afterwards,
+/// so every write to the message list supplies the item it will sit under.
+/// <see cref="AccessibleName"/> always carries the full author and time regardless of grouping,
+/// so a collapsed continuation never hides authorship from a screen reader.
+/// </summary>
+public sealed record ChatMessageItem(ChatMessageDto Message, bool IsOwnMessage = false, bool StartsGroup = true)
 {
     public long Id => Message.Id;
     public string Header => $"{Message.AuthorDisplayName} · {Message.PostedAtUtc.ToLocalTime():g}";
     public string Body => Message.RedactedAtUtc is null ? Message.Body ?? "" : $"Message hidden on {Message.RedactedAtUtc.Value.ToLocalTime():g}. Original retained for authorized review.";
     public string AccessibleName => $"{Header}. {Body}";
+    public bool IsRedacted => Message.RedactedAtUtc is not null;
+    public string AuthorLabel => IsOwnMessage ? "You" : Message.AuthorDisplayName;
+    public string PostedLabel => Message.PostedAtUtc.ToLocalTime().ToString("t");
+    public string Initials => Avatar(Message.AuthorDisplayName);
+
+    /// <summary>Up to two initials for the transcript avatar. Staff names only, never a consumer.</summary>
+    private static string Avatar(string name)
+    {
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "?";
+        var first = char.ToUpperInvariant(words[0][0]);
+        return words.Length == 1 ? first.ToString() : $"{first}{char.ToUpperInvariant(words[^1][0])}";
+    }
+
+    /// <summary>
+    /// Decides whether <paramref name="current"/> opens a new visual group in the transcript.
+    /// A message that starts a group is drawn with an avatar, an author name and a time above
+    /// the body. A continuation shows only its body, tucked under the message before it.
+    /// </summary>
+    /// <param name="previous">The item rendered directly above, or null at the top of the list.</param>
+    /// <param name="current">The post about to be rendered.</param>
+    public static bool StartsNewGroup(ChatMessageItem? previous, ChatMessageDto current)
+    {
+        if (previous is null) return true;
+        // A hidden message stands alone on both sides. Its body carries its own redaction
+        // date, so it reads wrongly tucked under someone's byline, and the posts around it
+        // must not appear to continue it.
+        if (current.RedactedAtUtc is not null || previous.IsRedacted) return true;
+        if (previous.Message.AuthorUserId != current.AuthorUserId) return true;
+        // Compared as an absolute duration so a clock that runs backwards between two posts
+        // breaks the group rather than silently folding a later message into an earlier one.
+        return (current.PostedAtUtc - previous.Message.PostedAtUtc).Duration() > GroupingWindow;
+    }
+
+    /// <summary>How long one author may keep talking before the transcript repeats their byline.</summary>
+    private static readonly TimeSpan GroupingWindow = TimeSpan.FromMinutes(5);
 }
 
 public sealed partial class ChatCandidateItem(ChatCandidateDto candidate) : ObservableObject
@@ -41,6 +89,17 @@ public sealed partial class ChatCandidateItem(ChatCandidateDto candidate) : Obse
 }
 
 public sealed record ChatConsumerChoice(int? Id, string Name);
+
+/// <summary>
+/// One of the two views of an open room's transcript. History is a read-only snapshot with its
+/// own backward cursor; the live view is the only one that accepts a new message.
+/// </summary>
+public sealed record ChatTranscriptTab(string Name, bool IsHistory)
+{
+    public string AccessibleName => IsHistory
+        ? "Older messages, read only"
+        : "Latest messages";
+}
 
 /// <summary>
 /// All content loads are scoped to one account, visible workspace and selection.
@@ -72,15 +131,32 @@ public sealed partial class ChatViewModel : ObservableObject
     private int _accountEpoch;
     private long? _editingRevision;
     private bool _loadingRoomDetails;
+    private bool _syncingTranscriptTab;
 
     public ChatViewModel(IChatService service, ISessionService session, IAdminService admin)
     {
         _service = service;
         _session = session;
         _admin = admin;
+        SyncTranscriptTab();
     }
 
+    /// <summary>Whether the older-messages tab has anything to show or is already showing it.</summary>
+    public bool CanBrowseHistory => HasOlderMessages || IsBrowsingHistory;
+
+    /// <summary>Every room the account may read, as listed by the server.</summary>
     public ObservableCollection<ChatRoomItem> Rooms { get; } = [];
+
+    /// <summary>
+    /// The rooms currently open as tabs. These are the same instances held by
+    /// <see cref="Rooms"/>, and <see cref="ForgetRoom"/> is the only way either loses one,
+    /// so a tab can never outlive the account's access to the room behind it.
+    /// </summary>
+    public ObservableCollection<ChatRoomItem> OpenRooms { get; } = [];
+
+    public ObservableCollection<ChatTranscriptTab> TranscriptTabs { get; } =
+        [new("Latest", false), new("Older messages", true)];
+
     public ObservableCollection<ChatMessageItem> Messages { get; } = [];
     public ObservableCollection<ChatMemberDto> Members { get; } = [];
     public ObservableCollection<ChatCandidateDto> MemberCandidates { get; } = [];
@@ -117,13 +193,24 @@ public sealed partial class ChatViewModel : ObservableObject
     [ObservableProperty] private string roomDescription = string.Empty;
     [ObservableProperty] private string redactionReason = string.Empty;
     [ObservableProperty] private bool showRoomEditor;
+    [ObservableProperty] private bool isRoomListCollapsed;
+    [ObservableProperty] private ChatTranscriptTab? selectedTranscriptTab;
     [ObservableProperty] private string newRoomName = string.Empty;
     [ObservableProperty] private string newRoomDescription = string.Empty;
     [ObservableProperty] private ChatConsumerChoice? newRoomConsumer;
 
     partial void OnUnreadRoomCountChanged(int value) => OnPropertyChanged(nameof(NavigationLabel));
-    partial void OnIsBrowsingHistoryChanged(bool value) => NotifyRoomProperties();
-    partial void OnHasOlderMessagesChanged(bool value) => LoadOlderCommand.NotifyCanExecuteChanged();
+    partial void OnIsBrowsingHistoryChanged(bool value)
+    {
+        NotifyRoomProperties();
+        OnPropertyChanged(nameof(CanBrowseHistory));
+        SyncTranscriptTab();
+    }
+    partial void OnHasOlderMessagesChanged(bool value)
+    {
+        LoadOlderCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanBrowseHistory));
+    }
     partial void OnIsEnabledChanged(bool value) => NotifyRoomProperties();
     partial void OnDraftChanged(string value) => SendCommand.NotifyCanExecuteChanged();
     partial void OnSelectedMessageChanged(ChatMessageItem? value) => RedactCommand.NotifyCanExecuteChanged();
@@ -158,12 +245,100 @@ public sealed partial class ChatViewModel : ObservableObject
 
     partial void OnSelectedRoomChanged(ChatRoomItem? value)
     {
+        // Choosing a room in the dock is what opens its tab. This runs before the property
+        // change is announced, so the tab strip already holds the item it is asked to select.
+        if (value is not null && !OpenRooms.Contains(value)) OpenRooms.Add(value);
         _messageLoads.Invalidate();
         ClearRoomContent();
         Draft = value is not null && _drafts.TryGetValue(value.Id, out var saved) ? saved : string.Empty;
         ApplyRoomDetails(value?.Room);
         NotifyRoomProperties();
         SelectionLoadTask = LoadSelectedRoomAsync();
+    }
+
+    /// <summary>
+    /// Selecting a transcript tab runs the matching command rather than changing what is
+    /// displayed on its own. If the command cannot run right now the tab snaps back to what
+    /// the transcript is actually showing, so the header never claims a view that is not loaded.
+    /// </summary>
+    partial void OnSelectedTranscriptTabChanged(ChatTranscriptTab? value)
+    {
+        if (_syncingTranscriptTab || value is null) return;
+        if (value.IsHistory)
+        {
+            if (LoadOlderCommand.CanExecute(null)) { LoadOlderCommand.Execute(null); return; }
+            Status = HasOlderMessages
+                ? "Chat is busy. Try older messages again in a moment."
+                : "This room has no older messages to load.";
+            SyncTranscriptTab();
+        }
+        else if (IsBrowsingHistory)
+        {
+            if (ReturnToLatestCommand.CanExecute(null)) { ReturnToLatestCommand.Execute(null); return; }
+            Status = "Chat is busy. Try returning to the latest messages in a moment.";
+            SyncTranscriptTab();
+        }
+    }
+
+    private void SyncTranscriptTab()
+    {
+        _syncingTranscriptTab = true;
+        SelectedTranscriptTab = TranscriptTabs[IsBrowsingHistory ? 1 : 0];
+        _syncingTranscriptTab = false;
+    }
+
+    /// <summary>
+    /// Opens a room as a tab without disturbing anything else. Reaching a room this way is the
+    /// same act as selecting it, so it goes through the one selection path.
+    /// </summary>
+    [RelayCommand]
+    private void OpenRoom(ChatRoomItem? room)
+    {
+        if (room is null || !Rooms.Contains(room)) return;
+        SelectedRoom = room;
+    }
+
+    /// <summary>
+    /// Closing a tab only stops showing the room. Membership, server history and the saved draft
+    /// are untouched, and reopening the room from the dock restores the draft. The neighbour is
+    /// selected before the removal so the tab strip never picks a replacement of its own.
+    /// </summary>
+    [RelayCommand]
+    private void CloseRoom(ChatRoomItem? room)
+    {
+        if (room is null) return;
+        var index = OpenRooms.IndexOf(room);
+        if (index < 0) return;
+        if (SelectedRoom == room)
+            SelectedRoom = OpenRooms.Count == 1 ? null
+                : OpenRooms[index == OpenRooms.Count - 1 ? index - 1 : index + 1];
+        OpenRooms.Remove(room);
+    }
+
+    [RelayCommand]
+    private void ToggleRoomList() => IsRoomListCollapsed = !IsRoomListCollapsed;
+
+    /// <summary>
+    /// The one way a room leaves this client. A room the account can no longer reach has to
+    /// disappear from the open tabs as well as the list, or a closed-over tab keeps showing a
+    /// transcript the server has already refused. Its draft and pending send go with it.
+    /// </summary>
+    private void ForgetRoom(int roomId)
+    {
+        if (SelectedRoom?.Id == roomId) CloseRoom(SelectedRoom);
+        foreach (var open in OpenRooms.Where(room => room.Id == roomId).ToArray()) OpenRooms.Remove(open);
+        foreach (var listed in Rooms.Where(room => room.Id == roomId).ToArray()) Rooms.Remove(listed);
+        _drafts.Remove(roomId);
+        _pending.Remove(roomId);
+    }
+
+    private void ForgetAllRooms()
+    {
+        SelectedRoom = null;
+        OpenRooms.Clear();
+        Rooms.Clear();
+        _drafts.Clear();
+        _pending.Clear();
     }
 
     private void NotifyRoomProperties()
@@ -203,12 +378,9 @@ public sealed partial class ChatViewModel : ObservableObject
         _suspended = true;
         SetSurfaceState(false, true);
         _changingSelection = true;
-        SelectedRoom = null;
+        ForgetAllRooms();
         _changingSelection = false;
-        Rooms.Clear();
         Consumers.Clear();
-        _drafts.Clear();
-        _pending.Clear();
         Draft = NewRoomName = NewRoomDescription = string.Empty;
         NewRoomConsumer = null;
         ShowRoomEditor = false;
@@ -307,18 +479,14 @@ public sealed partial class ChatViewModel : ObservableObject
             IsEnabled = availability.Enabled;
             if (!IsEnabled)
             {
-                Rooms.Clear(); SelectedRoom = null;
-                _drafts.Clear(); _pending.Clear(); Draft = string.Empty;
+                ForgetAllRooms(); Draft = string.Empty;
                 Status = availability.Explanation; return;
             }
             var rooms = await _service.GetRoomsAsync(token);
             if (!CanPublish(request, _roomLoads, token)) return;
             var allowed = rooms.Where(room => room.MembershipId is > 0).Take(ChatLimits.MaxRoomsPerUser).ToDictionary(room => room.Id);
             foreach (var old in Rooms.Where(room => !allowed.ContainsKey(room.Id)).ToArray())
-            {
-                if (SelectedRoom?.Id == old.Id) SelectedRoom = null;
-                Rooms.Remove(old); _drafts.Remove(old.Id); _pending.Remove(old.Id);
-            }
+                ForgetRoom(old.Id);
             foreach (var room in allowed.Values)
             {
                 var item = Rooms.FirstOrDefault(current => current.Id == room.Id);
@@ -403,10 +571,17 @@ public sealed partial class ChatViewModel : ObservableObject
                 {
                     if (change.Message.RoomId != selected.Id) throw new InvalidOperationException();
                     var prior = Messages.FirstOrDefault(message => message.Id == change.Message.Id);
-                    if (prior is not null) Messages[Messages.IndexOf(prior)] = new(change.Message);
-                    else if (change.Kind == "message" && !IsBrowsingHistory) Messages.Add(new(change.Message));
+                    if (prior is not null)
+                    {
+                        var index = Messages.IndexOf(prior);
+                        Messages[index] = Render(change.Message, index > 0 ? Messages[index - 1] : null);
+                    }
+                    else if (change.Kind == "message" && !IsBrowsingHistory) Messages.Add(Render(change.Message, Messages.LastOrDefault()));
                 }
                 while (Messages.Count > 300) { Messages.RemoveAt(0); HasOlderMessages = true; }
+                // Trimming the head can strand a continuation with nothing above it.
+                // Re-render the survivor so the transcript always opens on a full group.
+                if (Messages.Count > 0 && !Messages[0].StartsGroup) Messages[0] = Messages[0] with { StartsGroup = true };
                 if (!IsBrowsingHistory && Messages.Count > 0) _oldestSequence = Messages.Min(message => message.Message.Sequence);
                 var advanced = page.NextSequence > _sequence;
                 _sequence = page.NextSequence;
@@ -433,11 +608,18 @@ public sealed partial class ChatViewModel : ObservableObject
 
     private bool CanSend() => CanCompose && !IsBusy && (HasPendingSend || !string.IsNullOrWhiteSpace(Draft));
 
+    /// <summary>
+    /// Wraps a post for display against the item it will sit under. Authorship is decided here,
+    /// server-side identity against the signed-in account, never from anything the row carries.
+    /// </summary>
+    private ChatMessageItem Render(ChatMessageDto message, ChatMessageItem? previous) =>
+        new(message, message.AuthorUserId == _accountId, ChatMessageItem.StartsNewGroup(previous, message));
+
     private void ApplyHistoryPage(ChatPageDto page, int roomId)
     {
         if (page.Changes.Any(change => change.Message.RoomId != roomId)) throw new InvalidOperationException();
         Messages.Clear();
-        foreach (var message in page.Changes.Select(change => change.Message).DistinctBy(message => message.Id).OrderBy(message => message.Sequence).Take(ChatLimits.MaxPageSize)) Messages.Add(new(message));
+        foreach (var message in page.Changes.Select(change => change.Message).DistinctBy(message => message.Id).OrderBy(message => message.Sequence).Take(ChatLimits.MaxPageSize)) Messages.Add(Render(message, Messages.LastOrDefault()));
         _oldestSequence = page.NextSequence;
         HasOlderMessages = page.HasMore;
     }
@@ -688,15 +870,8 @@ public sealed partial class ChatViewModel : ObservableObject
         if (exception is CloudApiException { StatusCode: HttpStatusCode.Unauthorized }) { SuspendAndClear(); return; }
         if (exception is CloudApiException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.NotFound })
         {
-            var roomId = SelectedRoom?.Id;
-            SelectedRoom = null;
-            if (roomId is int id)
-            {
-                _drafts.Remove(id); _pending.Remove(id);
-                var denied = Rooms.FirstOrDefault(room => room.Id == id);
-                if (denied is not null) Rooms.Remove(denied);
-            }
-            else { Rooms.Clear(); _drafts.Clear(); _pending.Clear(); }
+            if (SelectedRoom?.Id is int id) ForgetRoom(id);
+            else ForgetAllRooms();
             UnreadRoomCount = Rooms.Count(room => room.Room.UnreadCount > 0);
             Status = "This room is no longer available to your account.";
             return;

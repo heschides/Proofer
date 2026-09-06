@@ -1,0 +1,12 @@
+{
+  "bindings": [
+    {
+      "name": "Timer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "%DemoRefreshSchedule%",
+      "runOnStartup": false,
+      "useMonitor": true
+    }
+  ]
+}

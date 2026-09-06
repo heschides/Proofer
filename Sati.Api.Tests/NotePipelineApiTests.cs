@@ -485,6 +485,8 @@ public sealed class NotePipelineApiTests
         var submit = await admin.PostAsync(
             $"/api/v1/billing/periods/{line.BillingPeriodId}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+        var submittedPeriod = await submit.Content.ReadFromJsonAsync<BillingPeriodDto>();
+        Assert.Equal("case-manager-one", submittedPeriod!.CaseManagerName);
     }
 
     [Fact]

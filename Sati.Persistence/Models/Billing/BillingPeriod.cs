@@ -11,6 +11,10 @@ namespace Sati.Models.Billing
         public BillingStatus Status { get; set; }
         public DateTime? SubmittedAt { get; set; }
 
+        // Supplied by the local query or API contract for display only.
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string CaseManagerName { get; set; } = string.Empty;
+
         public User User { get; set; } = null!;
         public ICollection<ClaimLine> Lines { get; set; } = new List<ClaimLine>();
     }

@@ -17,14 +17,8 @@ internal static class ServerEdiGenerator
         DateTime generatedAt,
         string controlNumber)
     {
-        var rows = period.Lines.Select(line => new EdiRow(
-            line,
-            ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson))).ToList();
-        if (rows.Count == 0)
-            throw new InvalidOperationException("The billing period has no claim lines.");
-
+        var rows = ReadAndValidateRows(period);
         var envelope = rows[0].Snapshot;
-        Validate(envelope, rows);
         var submitterId = envelope.SubmitterId;
         var date = generatedAt.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var time = generatedAt.ToString("HHmm", CultureInfo.InvariantCulture);
@@ -88,6 +82,25 @@ internal static class ServerEdiGenerator
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Fails closed before a billing period is locked when its immutable claim data cannot
+    /// safely produce an 837P. Generation calls the same method so the two paths cannot drift.
+    /// </summary>
+    public static void ValidatePeriod(ServerBillingPeriod period) =>
+        _ = ReadAndValidateRows(period);
+
+    private static List<EdiRow> ReadAndValidateRows(ServerBillingPeriod period)
+    {
+        var rows = period.Lines.Select(line => new EdiRow(
+            line,
+            ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson))).ToList();
+        if (rows.Count == 0)
+            throw new InvalidOperationException("The billing period has no claim lines.");
+
+        Validate(rows[0].Snapshot, rows);
+        return rows;
+    }
+
     private static void Validate(ProfessionalClaimSnapshot envelope, IReadOnlyList<EdiRow> rows)
     {
         if (!BillingRules.IsSafeX12Element(envelope.BillingProviderName, 60) ||
@@ -101,6 +114,7 @@ internal static class ServerEdiGenerator
             !BillingRules.IsSafeX12Element(envelope.PayerName, 60) ||
             !BillingRules.IsSafeX12Element(envelope.PayerId, 80) ||
             !BillingRules.IsSafeX12Element(envelope.SubmitterContactName, 60) ||
+            string.IsNullOrWhiteSpace(envelope.SubmitterContactPhone) ||
             envelope.SubmitterContactPhone.Length is < 10 or > 15 ||
             envelope.SubmitterContactPhone.Any(character => !char.IsDigit(character)))
             throw new InvalidOperationException("The claim provider snapshot is incomplete or invalid.");

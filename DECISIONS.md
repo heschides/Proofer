@@ -2,7 +2,7 @@
 
 *Living document. The "why" behind choices that no diagram preserves. ARCHITECTURE.md
 says what owns what; this says why it was built that way and what was rejected. Newest
-sections at the bottom. Last updated: 2026-09-03.*
+sections at the bottom. Last updated: 2026-09-06.*
 
 ---
 
@@ -86,9 +86,17 @@ Migrations define structure. A versioned canonical seed defines the synthetic su
 dataset and stored demonstration logins. The intended design is a scheduled Azure job restoring
 that baseline nightly under a reset-specific managed identity, separate from the API identity.
 
-**Not yet configured as of 2026-08-15.** The design is settled; the job is not running. Demo data
-persists between demonstrations until it is reset by hand. `DATABASE_ENVIRONMENTS.md` carries the
-required reset sequence and `AGENDA.md` tracks the work. Do not describe Demo as self-resetting.
+**Daily caseload refresh configured 2026-09-06.** A timer-triggered Azure Function now updates the
+canonical working caseload at 3:15 AM Eastern under its own managed identity and restricted SQL
+role. It rolls dates forward, completes ordinary synthetic profiles, preserves six labeled teaching
+exceptions and the superhero/TV humor, repairs synthetic claim prerequisites, and fails unless its
+post-commit validation passes. A live run and an immediate repeat run both succeeded.
+
+This deliberately does not claim the stronger baseline-restoration workflow described above. It
+does not stop concurrent mutations, remove every user-created Demo row, or reset stored Demo
+passwords. Full baseline restoration and a notification destination for failure alerts remain
+tracked in `AGENDA.md`; until then, describe the deployed feature as the daily Demo caseload refresh,
+not a complete nightly reset.
 
 ### Automated tests are a platform prerequisite
 
@@ -3158,3 +3166,67 @@ after awaited work before evidence or disclosure is committed.
 
 `SIGNATURE_PORTAL_GUIDE.md`, `Sati.Portal/README.md`, and `SIGNATURE_PORTAL_VALIDATION.md` distinguish
 completed local work from deployment, legal, program, accessibility and operations prerequisites.
+
+## 2026-09-06 — Team chat is a room dock with open rooms as tabs
+
+The chat workspace was rebuilt as presentation only. No service, contract, authorization, audit or
+concurrency behaviour changed, and no rule moved out of `Sati.Contracts.V1.ChatAccess`.
+
+Rooms live in a collapsible dock on the left. Choosing one opens it as a tab, and each tab holds
+that room's pane: the transcript under two subordinate tabs for the latest messages and older
+history, then the composer. Collapsing the dock leaves a rail carrying the toggle and the unread
+room count, so a hidden list still says there is something to read. The earlier `GridSplitter`
+sidebar, its separate below-800px layout, and the room drop-down that briefly replaced both are all
+gone; code-behind now sizes only the workspace floor.
+
+Tabs are a way back to a room, not several live conversations. The view model keeps one selection
+and one loaded transcript, so every existing guarantee about cursors, membership episodes and
+snapshot boundaries continues to hold unchanged; the per-room draft is what makes returning to a
+tab feel continuous. Opening a tab and selecting a room are the same act, routed through
+`SelectedRoom`.
+
+`OpenRooms` holds the same instances as `Rooms`, and `ForgetRoom`/`ForgetAllRooms` are the only way
+either loses one. A room the account can no longer reach leaves the tabs, the room list, the saved
+draft and any pending send together. Before this there were four hand-written removal sites —
+access withdrawn on refresh, chat disabled, a 403 or 404 from the server, and sign-out — and a tab
+strip added on top of them would have kept showing a transcript the server had already refused.
+
+The transcript's subordinate tabs run the history commands rather than deciding what is displayed.
+A tab that cannot act snaps back to the loaded view and writes the reason to the status line, so a
+header can never claim a page the view model has not loaded. History remains read-only, and the
+composer stays disabled while it is shown.
+
+Every message reads from the same left margin. Alternating sides wasted the middle of a wide pane
+and made long bodies wrap early, so authorship is carried by the accent fill and the written-out
+author name instead of by position.
+
+A filled surface in this view is painted with `AccentBrush` and lettered with `OnAccentBrush`, and
+with nothing else. Those two keys invert together across the themes — the accent is dark on
+`SunlitShell` and light on `MidnightOpal` — so the pair is the one combination legible on all
+fifteen. Every state also carries a word: unread shows a count, archived says "Archived", a hidden
+message says it is hidden and stays visually drab. Selection in the dock, the tab strips and the
+transcript is drawn with an accent rule and font weight rather than a filled block, following the
+rule already documented on `NavTabButton`.
+
+`ChatMessageItem` is a value record, so `IsOwnMessage` and `StartsGroup` are fixed when the item is
+constructed and cannot be recomputed by the view. Every write to the message list therefore passes
+the item the new one will sit under, and trimming the head re-renders the survivor so the transcript
+always opens on a complete group. `ChatMessageItem.StartsNewGroup` is the one owner of when a post
+repeats its author: the user chose grouping by a single author within five minutes, with a hidden
+message standing alone on both sides because its body carries its own redaction date and the posts
+around it must not appear to continue it. Elapsed time is compared as an absolute duration, so a
+clock that runs backwards between two posts breaks the group rather than folding a later message
+into an earlier one. Authorship compares the server-supplied author id against the signed-in account
+and is never taken from anything else the row carries. `AccessibleName` still carries author and
+time for every row, so folding a byline into the group above never hides authorship from a screen
+reader.
+
+Redaction moved out of a permanently visible expander. It appears in the transcript only once a
+supervisor or administrator has selected a message, and still states that the original is retained.
+Membership and room administration moved behind a "Room details" disclosure so they stop competing
+with the transcript for vertical space. Browsing history and having a message selected are
+independent states, so the two occupy separate rows and can never overlap.
+
+The composer and the transcript now live inside the selected tab's template and are rebuilt when
+the tab changes, so code-behind can no longer hold them as fields. It locates them by the same
+automation names assistive technology uses, which keeps one set of names authoritative for both.

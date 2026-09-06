@@ -241,7 +241,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.48", release["releaseVersion"]);
+        Assert.Equal("1.2.49", release["releaseVersion"]);
     }
 
     [Fact]
@@ -521,6 +521,48 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task AdministratorResetPersistsAUsableReplacementPassword()
+    {
+        const string replacement = "Replacement-Password-42!";
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        string originalHash;
+        string originalSalt;
+        await using (var beforeScope = _factory.Services.CreateAsyncScope())
+        {
+            var beforeDb = beforeScope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var before = await beforeDb.Users.AsNoTracking().SingleAsync(user => user.Id == 12);
+            originalHash = before.PasswordHash;
+            originalSalt = before.Salt;
+        }
+
+        try
+        {
+            var response = await client.PutAsJsonAsync(
+                "/api/v1/users/12/password",
+                new ResetPasswordRequest(replacement));
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var afterScope = _factory.Services.CreateAsyncScope();
+            var afterDb = afterScope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var verifier = afterScope.ServiceProvider.GetRequiredService<Sati.Api.Security.PasswordVerifier>();
+            var after = await afterDb.Users.AsNoTracking().SingleAsync(user => user.Id == 12);
+            Assert.True(verifier.Verify(replacement, after.PasswordHash, after.Salt));
+            Assert.False(verifier.Verify("Correct-Horse-42!", after.PasswordHash, after.Salt));
+        }
+        finally
+        {
+            // This factory is shared by the API collection. Restore its seeded credential so
+            // this positive write test cannot change what a later test observes.
+            await using var restoreScope = _factory.Services.CreateAsyncScope();
+            var restoreDb = restoreScope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var user = await restoreDb.Users.SingleAsync(candidate => candidate.Id == 12);
+            user.PasswordHash = originalHash;
+            user.Salt = originalSalt;
+            await restoreDb.SaveChangesAsync();
+        }
+    }
+
+    [Fact]
     public async Task ProductivityReportReturnsOnlyTheCaseManagersOwnMonthlyUnits()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
@@ -734,6 +776,41 @@ public sealed class TenantAuthorizationTests
             new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LegacyClaimsWithoutFrozenDetailsFailClearlyBeforeSubmissionOrGeneration()
+    {
+        var periods = await _factory.CreateLegacyBillingPeriodsWithoutSnapshotsAsync();
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var submit = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{periods.DraftPeriodId}/submit",
+            new { });
+        var generate = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{periods.SubmittedPeriodId}/edi",
+            new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
+
+        Assert.Equal(HttpStatusCode.Conflict, submit.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, generate.StatusCode);
+        Assert.Equal("billing_snapshot_missing", (await submit.Content.ReadFromJsonAsync<ApiErrorDto>())!.Code);
+        Assert.Equal("billing_snapshot_missing", (await generate.Content.ReadFromJsonAsync<ApiErrorDto>())!.Code);
+    }
+
+    [Fact]
+    public async Task ZeroChargeClaimsCannotBeSubmittedForEdiGeneration()
+    {
+        var periodId = await _factory.CreateZeroChargeDraftBillingPeriodAsync();
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{periodId}/submit",
+            new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
+        Assert.Equal("billing_claim_amount_invalid", error!.Code);
+        Assert.Contains("$0 charge", error.Message);
     }
 
     [Fact]

@@ -158,9 +158,14 @@ internal static class ContractMapper
         contact.HasActiveRelease,
         contact.IsActive);
 
-    public static BillingPeriodDto ToBillingPeriod(ServerBillingPeriod period) => new(
+    public static BillingPeriodDto ToBillingPeriod(
+        ServerBillingPeriod period,
+        string? caseManagerName = null) => new(
         period.Id,
         period.UserId,
+        string.IsNullOrWhiteSpace(caseManagerName)
+            ? $"Case manager #{period.UserId}"
+            : caseManagerName,
         period.Month,
         period.Year,
         NameAt(["Draft", "Submitted", "Accepted", "Rejected"], period.Status, "Draft"),

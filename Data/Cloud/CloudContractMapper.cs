@@ -306,6 +306,9 @@ internal static class CloudContractMapper
     {
         Id = dto.Id,
         UserId = dto.UserId,
+        CaseManagerName = string.IsNullOrWhiteSpace(dto.CaseManagerName)
+            ? $"Case manager #{dto.UserId}"
+            : dto.CaseManagerName,
         Month = dto.Month,
         Year = dto.Year,
         Status = Parse<BillingStatus>(dto.Status),

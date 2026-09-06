@@ -346,6 +346,153 @@ public sealed class ChatViewModelTests
         await fixture.ViewModel.StopAsync();
     }
 
+    /// <summary>
+    /// One author keeps a group for five minutes. Anyone else, a longer gap, or a hidden
+    /// message on either side of the boundary starts a fresh one.
+    /// </summary>
+    [Theory]
+    [InlineData(7, 0, false, false, true)]      // same author, same minute
+    [InlineData(7, 5, false, false, true)]      // same author, exactly at the window
+    [InlineData(7, 6, false, false, false)]     // same author, past the window
+    [InlineData(9, 0, false, false, false)]     // a different author never continues
+    [InlineData(7, 1, true, false, false)]      // a hidden message stands alone
+    [InlineData(7, 1, false, true, false)]      // and nothing continues from one
+    [InlineData(7, -6, false, false, false)]    // a backwards clock breaks the group
+    public void MessagesGroupByOneAuthorWithinFiveMinutesAndNeverAcrossAHiddenMessage(
+        int author, int minutes, bool currentHidden, bool previousHidden, bool grouped)
+    {
+        var posted = new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc);
+        DateTime? hidden = new DateTime(2026, 9, 5, 13, 0, 0, DateTimeKind.Utc);
+        var previous = new ChatMessageItem(new(1, 1, 1, 7, "Dana Riverstone", posted, "First",
+            previousHidden ? hidden : null, previousHidden ? 1 : null));
+        var current = new ChatMessageDto(2, 1, 2, author, "Author", posted.AddMinutes(minutes), "Second",
+            currentHidden ? hidden : null, currentHidden ? 1 : null);
+
+        Assert.Equal(!grouped, ChatMessageItem.StartsNewGroup(previous, current));
+        Assert.True(ChatMessageItem.StartsNewGroup(null, current), "The top of the transcript always starts a group.");
+    }
+
+    /// <summary>
+    /// A room the account may no longer read has to leave the open tabs, not only the room
+    /// list. A tab that outlived its access would keep showing a transcript the server has
+    /// already refused. Fails against any removal path that touches only <c>Rooms</c>.
+    /// </summary>
+    [Fact]
+    public async Task LosingAccessToARoomClosesItsTabAndDiscardsItsDraft()
+    {
+        var fixture = new ChatFixture();
+        fixture.Start();
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[0];
+        await fixture.ViewModel.SelectionLoadTask;
+        fixture.ViewModel.Draft = "Synthetic example: a draft that must not survive.";
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[1];
+        await fixture.ViewModel.SelectionLoadTask;
+        Assert.Equal(2, fixture.ViewModel.OpenRooms.Count);
+
+        // The server stops listing the first room.
+        fixture.Service.Rooms = [fixture.Service.Rooms[1]];
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Single(fixture.ViewModel.Rooms);
+        Assert.Single(fixture.ViewModel.OpenRooms);
+        Assert.DoesNotContain(fixture.ViewModel.OpenRooms, room => room.Id == 1);
+        // Reopening the surviving room must not hand back the withdrawn room's text.
+        fixture.ViewModel.SelectedRoom = null;
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[0];
+        Assert.DoesNotContain("must not survive", fixture.ViewModel.Draft);
+        await fixture.ViewModel.StopAsync();
+    }
+
+    /// <summary>
+    /// Closing a tab is a display action. It keeps membership and the saved draft, and it
+    /// picks the neighbour rather than leaving the workspace on nothing.
+    /// </summary>
+    [Fact]
+    public async Task ClosingATabKeepsTheRoomAndItsDraftAndSelectsANeighbour()
+    {
+        var fixture = new ChatFixture();
+        fixture.Start();
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[0];
+        await fixture.ViewModel.SelectionLoadTask;
+        fixture.ViewModel.Draft = "Synthetic example: still here later.";
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[1];
+        await fixture.ViewModel.SelectionLoadTask;
+
+        fixture.ViewModel.CloseRoomCommand.Execute(fixture.ViewModel.OpenRooms[1]);
+        Assert.Single(fixture.ViewModel.OpenRooms);
+        Assert.Same(fixture.ViewModel.Rooms[0], fixture.ViewModel.SelectedRoom);
+        Assert.Equal(2, fixture.ViewModel.Rooms.Count);
+        Assert.Equal("Synthetic example: still here later.", fixture.ViewModel.Draft);
+
+        fixture.ViewModel.CloseRoomCommand.Execute(fixture.ViewModel.OpenRooms[0]);
+        Assert.Empty(fixture.ViewModel.OpenRooms);
+        Assert.Null(fixture.ViewModel.SelectedRoom);
+        Assert.Equal(2, fixture.ViewModel.Rooms.Count);
+        await fixture.ViewModel.StopAsync();
+    }
+
+    /// <summary>
+    /// The transcript tabs run the history commands rather than deciding what is shown. A
+    /// tab that cannot act snaps back and says why, so the header never claims a view the
+    /// view model has not loaded.
+    /// </summary>
+    [Fact]
+    public async Task TranscriptTabsFollowTheLoadedViewAndSnapBackWhenThereIsNoHistory()
+    {
+        var fixture = new ChatFixture();
+        fixture.Start();
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[0];
+        await fixture.ViewModel.SelectionLoadTask;
+        Assert.False(fixture.ViewModel.CanBrowseHistory);
+
+        fixture.ViewModel.SelectedTranscriptTab = fixture.ViewModel.TranscriptTabs[1];
+        Assert.False(fixture.ViewModel.SelectedTranscriptTab!.IsHistory);
+        Assert.Contains("no older messages", fixture.ViewModel.Status);
+        Assert.False(fixture.ViewModel.IsBrowsingHistory);
+
+        // With history available the tab loads it, and returning to latest follows back.
+        fixture.Service.History = (_, before) => Task.FromResult(
+            new ChatPageDto([new(1, "message", Message(1, "Older synthetic example."))], before, true, 1));
+        fixture.ViewModel.HasOlderMessages = true;
+        Assert.True(fixture.ViewModel.CanBrowseHistory);
+        fixture.ViewModel.SelectedTranscriptTab = fixture.ViewModel.TranscriptTabs[1];
+        await fixture.ViewModel.LoadOlderCommand.ExecutionTask!;
+        Assert.True(fixture.ViewModel.IsBrowsingHistory);
+        Assert.True(fixture.ViewModel.SelectedTranscriptTab!.IsHistory);
+        Assert.False(fixture.ViewModel.CanCompose);
+        await fixture.ViewModel.StopAsync();
+    }
+
+    /// <summary>
+    /// Closing the shell cancels the visibility token while reads are still in flight, and the
+    /// window's Closed handler is async void, so a fault escaping StopAsync would take the
+    /// process down on exit rather than being reported. Cancelling an in-flight read is an
+    /// ordinary shutdown event and must leave StopAsync completing normally.
+    /// </summary>
+    [Fact]
+    public async Task CancellingAnInFlightReadDuringShutdownDoesNotFaultStopAsync()
+    {
+        var fixture = new ChatFixture();
+        fixture.Start();
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+        var inFlight = NewPageSource();
+        fixture.Service.Page = (_, _) => inFlight.Task;
+        fixture.ViewModel.SelectedRoom = fixture.ViewModel.Rooms[0];
+        var load = fixture.ViewModel.SelectionLoadTask;
+
+        var stop = fixture.ViewModel.StopAsync();
+        // What HttpClient raises when the request token is cancelled mid-exchange.
+        inFlight.SetException(new TaskCanceledException("The operation was canceled."));
+
+        await stop;
+        await load;
+        Assert.Empty(fixture.ViewModel.Messages);
+        Assert.Empty(fixture.ViewModel.OpenRooms);
+    }
+
     private static TaskCompletionSource<ChatPageDto> NewPageSource() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal static ChatMessageDto Message(int room, string? body) => new(room * 10, room, 1, 1, "Example staff", new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc), body, null, null);
     internal static ChatPageDto Page(int room, string body) => new([new(1, "message", Message(room, body))], 1, false, 1);
