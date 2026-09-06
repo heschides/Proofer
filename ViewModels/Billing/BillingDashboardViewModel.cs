@@ -50,7 +50,7 @@ namespace Sati.ViewModels.Billing
         {
             CurrentSubView = _overviewViewModel;
             if (!_overviewViewModel.HasLoaded)
-                await _overviewViewModel.LoadAsync();
+                await _overviewViewModel.LoadAsync(waitForExisting: true);
         }
 
         [RelayCommand]
@@ -58,7 +58,7 @@ namespace Sati.ViewModels.Billing
         {
             CurrentSubView = _queueViewModel;
             if (!_queueViewModel.HasLoaded)
-                await _queueViewModel.LoadAsync();
+                await _queueViewModel.LoadAsync(waitForExisting: true);
         }
 
         [RelayCommand]
@@ -66,7 +66,7 @@ namespace Sati.ViewModels.Billing
         {
             CurrentSubView = _submissionsViewModel;
             if (!_submissionsViewModel.HasLoaded)
-                await _submissionsViewModel.LoadAsync();
+                await _submissionsViewModel.LoadAsync(waitForExisting: true);
         }
 
         [RelayCommand]
@@ -74,7 +74,7 @@ namespace Sati.ViewModels.Billing
         {
             CurrentSubView = _remittancesViewModel;
             if (!_remittancesViewModel.HasLoaded)
-                await _remittancesViewModel.LoadAsync();
+                await _remittancesViewModel.LoadAsync(waitForExisting: true);
         }
 
         [RelayCommand]
@@ -82,9 +82,24 @@ namespace Sati.ViewModels.Billing
         {
             CurrentSubView = _alertsViewModel;
             if (!_alertsViewModel.HasLoaded)
-                await _alertsViewModel.LoadAsync();
+                await _alertsViewModel.LoadAsync(waitForExisting: true);
         }
 
-        public Task InitializeAsync() => Task.CompletedTask;
+        public async Task InitializeAsync()
+        {
+            CurrentSubView = null;
+            await _overviewViewModel.LoadAsync(waitForExisting: true);
+            CurrentSubView = _overviewViewModel;
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            CurrentSubView = null;
+            _overviewViewModel.ClearForAccountSwitch();
+            _queueViewModel.ClearForAccountSwitch();
+            _submissionsViewModel.ClearForAccountSwitch();
+            _remittancesViewModel.ClearForAccountSwitch();
+            _alertsViewModel.ClearForAccountSwitch();
+        }
     }
 }

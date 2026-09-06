@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Data.Billing;
 using Sati.Models.Billing;
+using Sati.Services;
 
 namespace Sati.ViewModels.Billing;
 
@@ -11,6 +12,7 @@ public partial class BillingOverviewViewModel(
     ISessionService sessionService) : ObservableObject
 {
     private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private readonly LatestRequestTracker _accountLoads = new();
     [ObservableProperty] private string procedureCode = string.Empty;
     [ObservableProperty] private string? modifier;
     [ObservableProperty] private decimal? unitRate;
@@ -24,15 +26,22 @@ public partial class BillingOverviewViewModel(
 
     public bool HasLoaded { get; private set; }
 
-    public async Task LoadAsync()
+    public async Task LoadAsync(bool waitForExisting = false)
     {
-        if (!await _loadGate.WaitAsync(0))
+        if (waitForExisting)
+            await _loadGate.WaitAsync();
+        else if (!await _loadGate.WaitAsync(0))
             return;
+        var account = sessionService.CurrentUser;
+        var request = _accountLoads.Begin();
 
         try
         {
             IsBusy = true;
-            var configuration = await billingService.GetBillingConfigurationAsync(CurrentActor());
+            var configuration = await billingService.GetBillingConfigurationAsync(
+                account?.ToAgencyActor() ?? throw new UnauthorizedAccessException("A signed-in user is required."));
+            if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(sessionService.CurrentUser, account))
+                return;
             ProcedureCode = configuration.ProcedureCode;
             Modifier = configuration.Modifier;
             UnitRate = configuration.UnitRate;
@@ -46,13 +55,31 @@ public partial class BillingOverviewViewModel(
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Unable to load billing configuration: {ex.Message}";
+            if (_accountLoads.IsCurrent(request) && ReferenceEquals(sessionService.CurrentUser, account))
+                StatusMessage = $"Unable to load billing configuration: {ex.Message}";
         }
         finally
         {
-            IsBusy = false;
+            if (_accountLoads.IsCurrent(request) && ReferenceEquals(sessionService.CurrentUser, account))
+                IsBusy = false;
             _loadGate.Release();
         }
+    }
+
+    public void ClearForAccountSwitch()
+    {
+        _accountLoads.Invalidate();
+        ProcedureCode = string.Empty;
+        Modifier = null;
+        UnitRate = null;
+        EdiSubmitterId = string.Empty;
+        PayerName = string.Empty;
+        PayerId = string.Empty;
+        ContactName = string.Empty;
+        ContactPhone = string.Empty;
+        StatusMessage = null;
+        IsBusy = false;
+        HasLoaded = false;
     }
 
     [RelayCommand]

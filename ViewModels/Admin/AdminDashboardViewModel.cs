@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Models;
+using Sati.Services;
 
 namespace Sati.ViewModels.Admin;
 
@@ -13,6 +14,7 @@ public partial class AdminDashboardViewModel(
     IPersonService? personService = null) : ObservableObject
 {
     private CancellationTokenSource? _historyCancellation;
+    private readonly LatestRequestTracker _accountLoads = new();
 
     public ObservableCollection<AdminActivityRow> RecentActivity { get; } = [];
     public ObservableCollection<AdminPersonListItemDto> People { get; } = [];
@@ -113,6 +115,8 @@ public partial class AdminDashboardViewModel(
         StatusMessage = string.Empty;
         NoticeMessage = string.Empty;
         var selectedId = SelectedPerson?.PersonId;
+        var account = sessionService.CurrentUser;
+        var request = _accountLoads.Begin();
         try
         {
             var overviewTask = adminService.GetOverviewAsync();
@@ -121,6 +125,8 @@ public partial class AdminDashboardViewModel(
             var operationsTask = adminService.GetOperationsAsync();
             var incidentsTask = adminService.GetIncidentsAsync();
             await Task.WhenAll(overviewTask, peopleTask, activityTask, operationsTask, incidentsTask);
+            if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(sessionService.CurrentUser, account))
+                return;
 
             Overview = await overviewTask;
             Operations = await operationsTask;
@@ -138,12 +144,38 @@ public partial class AdminDashboardViewModel(
         }
         catch (Exception ex)
         {
-            StatusMessage = $"The Admin dashboard could not be loaded. {ex.Message}";
+            if (_accountLoads.IsCurrent(request) && ReferenceEquals(sessionService.CurrentUser, account))
+                StatusMessage = $"The Admin dashboard could not be loaded. {ex.Message}";
         }
         finally
         {
-            IsBusy = false;
+            if (_accountLoads.IsCurrent(request) && ReferenceEquals(sessionService.CurrentUser, account))
+                IsBusy = false;
         }
+    }
+
+    public void ClearForAccountSwitch()
+    {
+        _accountLoads.Invalidate();
+        _historyCancellation?.Cancel();
+        _historyCancellation?.Dispose();
+        _historyCancellation = null;
+        SelectedPerson = null;
+        SelectedIncident = null;
+        Overview = null;
+        Operations = null;
+        Health = null;
+        People.Clear();
+        PersonHistory.Clear();
+        RecentActivity.Clear();
+        Incidents.Clear();
+        FilteredIncidents.Clear();
+        ConsumerDeletionReason = string.Empty;
+        StatusChangeNote = string.Empty;
+        StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
+        LastRefreshedAt = null;
+        IsBusy = false;
     }
 
     partial void OnSelectedPersonChanged(AdminPersonListItemDto? value)

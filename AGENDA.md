@@ -1,6 +1,39 @@
 # Sati — Refactor Agenda
 
-## Release 1.2.49 — 2026-09-06 (DATT audit in progress)
+## Release 1.3.0 — 2026-09-06 (DATT audit in progress)
+
+"Private handoffs and test claims." This release prevents outgoing-account content from being
+displayed during an account change and completes the synthetic Demo 837P response loop. The mock
+workflow remains Demo-only and does not transmit a claim to a real clearinghouse or payer.
+
+- [x] Make account replacement a full-shell privacy barrier: cover the shell before either account
+      dialog, save or cancel safely, clear every shell-lifetime account workspace before installing
+      the replacement identity, load the new workspace behind the shield, and reject late results
+      from old-account asynchronous requests.
+- [x] Connect the existing Demo-only mock clearinghouse to Billing Submissions. Require explicitly
+      generated test 837P files, submit their exact retained content once, record the synthetic
+      transmission plus selected 999/277CA/835 path, and refresh Submission Home for review.
+- [x] Preflight: `master` equals `origin/master`; the release scope is limited to the reviewed
+      account-handoff and mock-clearinghouse work plus coordinated release records. No migration,
+      persistence model, or API schema file changed, so no Demo migration, workstation firewall
+      rule, or Production deployment is required or authorized.
+- [x] Version 1.3.0 is coordinated across the desktop, API, installer builders, readiness checks,
+      version assertions, installer examples, and Settings release notes.
+- [x] Release validation passed. The complete solution builds with zero errors and nine known
+      warnings; 2,071 automated tests passed, zero failed, and one optional local-AI evaluation was
+      skipped because its explicit on-device authorization flag is absent. The dependency advisory
+      audit covered all 13 projects and found no known vulnerable packages. The changed-source
+      secret scan found no credential or key patterns, and the model-consistency test reports no
+      pending EF model change.
+- [ ] Source publication, Demo API publication, installer acceptance, and distribution publication
+      are pending completion of this DATT audit.
+
+**Branches.** `team-chat-design`, `second-machine-setup`, and
+`origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
+fully merged `claude/cool-jang-f6b3c4` branch is retained because its linked worktree is still
+checked out.
+
+## Release 1.2.49 — 2026-09-06
 
 "Clear queues and current demos." This release carries the supervisor approval filters and
 newest-first paging, billing-period names and 837P readiness guards, clearer administrator

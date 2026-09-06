@@ -5,6 +5,7 @@ using Sati.Data.Billing;
 using Sati.Edi;
 using Sati.Models.Billing;
 using Sati.Contracts.V1;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
@@ -16,7 +17,9 @@ namespace Sati.ViewModels.Billing
         private readonly IEdiService _ediService;
         private readonly ISessionService _sessionService;
         private readonly SemaphoreSlim _loadGate = new(1, 1);
+        private readonly LatestRequestTracker _accountLoads = new();
         private readonly Dictionary<int, string> _pendingEdiKeys = [];
+        private readonly HashSet<int> _generatedTestPeriodIds = [];
         private string? _pendingBatchFingerprint;
         private bool _settingInitialRange;
 
@@ -34,6 +37,8 @@ namespace Sati.ViewModels.Billing
         public ObservableCollection<BillingPeriod> GenerationPeriods { get; } = [];
         public ObservableCollection<BillingSubmissionHistoryDto> SubmissionHistory { get; } = [];
         public ObservableCollection<BillingSubmissionBatchRow> SubmissionBatches { get; } = [];
+        public IReadOnlyList<MockClearinghouseScenarioOption> MockClearinghouseScenarios { get; } =
+            MockClearinghouseScenarioOption.All;
 
         /// <summary>
         /// Counts of what is shown, by what a biller would do about it. These describe the
@@ -69,6 +74,8 @@ namespace Sati.ViewModels.Billing
         [ObservableProperty] private string? submissionSearchText;
         [ObservableProperty] private bool outstandingOnly = true;
         [ObservableProperty] private string selectedSubmissionStatus = "All statuses";
+        [ObservableProperty] private MockClearinghouseScenarioOption selectedMockClearinghouseScenario =
+            MockClearinghouseScenarioOption.All[0];
         public bool HasLoaded { get; private set; }
 
         public bool HasSelectedPeriod => SelectedPeriod is not null;
@@ -92,6 +99,23 @@ namespace Sati.ViewModels.Billing
                 $"{PeriodName(period)} is {period.Status.ToString().ToLowerInvariant()} and cannot be submitted again."
         };
         public bool CanGenerateEdi => !IsGenerating && IsRangeValid && GenerationPeriods.Count > 0;
+        public bool ShowsMockClearinghouse => _billingService.SupportsMockClearinghouse;
+        public bool CanSubmitToMockClearinghouse =>
+            ShowsMockClearinghouse && IsTestMode && !IsGenerating && MockSubmissionPeriods().Count > 0;
+        public string MockClearinghouseAvailabilityMessage
+        {
+            get
+            {
+                if (!ShowsMockClearinghouse)
+                    return "The mock clearinghouse is available only in Demo.";
+                if (!IsTestMode)
+                    return "Turn on Test mode and generate the 837P files before using the mock clearinghouse.";
+                var ready = MockSubmissionPeriods().Count;
+                return ready == 0
+                    ? "Generate the test 837P files for this range first. Only files generated in this session can be submitted."
+                    : $"{ready} generated test 837P {(ready == 1 ? "file is" : "files are")} ready for simulated submission.";
+            }
+        }
         public bool IsRangeValid => RangeStart.HasValue && RangeEnd.HasValue &&
             MonthStart(RangeStart.Value) <= MonthStart(RangeEnd.Value);
         public string RangeSummary => !IsRangeValid
@@ -116,30 +140,45 @@ namespace Sati.ViewModels.Billing
         {
             OnPropertyChanged(nameof(CanSubmitPeriod));
             OnPropertyChanged(nameof(CanGenerateEdi));
+            NotifyMockClearinghouseStateChanged();
         }
 
         partial void OnRangeStartChanged(DateTime? value) => RebuildGenerationPeriods();
         partial void OnRangeEndChanged(DateTime? value) => RebuildGenerationPeriods();
-        partial void OnIsTestModeChanged(bool value) => ResetPendingBatch();
+        partial void OnIsTestModeChanged(bool value)
+        {
+            ResetPendingBatch();
+            _generatedTestPeriodIds.Clear();
+            NotifyMockClearinghouseStateChanged();
+        }
         partial void OnSubmissionSearchTextChanged(string? value) => ApplySubmissionFilters();
         partial void OnOutstandingOnlyChanged(bool value) => ApplySubmissionFilters();
         partial void OnSelectedSubmissionStatusChanged(string value) => ApplySubmissionFilters();
 
-        public async Task LoadAsync()
+        public async Task LoadAsync(bool waitForExisting = false)
         {
-            if (!await _loadGate.WaitAsync(0))
+            if (waitForExisting)
+                await _loadGate.WaitAsync();
+            else if (!await _loadGate.WaitAsync(0))
                 return;
+            var user = _sessionService.CurrentUser;
+            var request = _accountLoads.Begin();
 
             try
             {
                 var previouslySelectedId = SelectedPeriod?.Id;
-                BillingPeriods.Clear();
-                GenerationPeriods.Clear();
-                SubmissionHistory.Clear();
-                var user = _sessionService.CurrentUser!;
+                user = _sessionService.CurrentUser
+                    ?? throw new UnauthorizedAccessException("A signed-in user is required.");
                 var actor = user.ToAgencyActor();
                 var periods = await _billingService.GetAllBillingPeriodsAsync(actor);
                 var history = await _billingService.GetSubmissionHistoryAsync(actor);
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, user))
+                    return;
+
+                BillingPeriods.Clear();
+                GenerationPeriods.Clear();
+                SubmissionHistory.Clear();
+                _generatedTestPeriodIds.Clear();
 
                 foreach (var period in periods)
                     BillingPeriods.Add(period);
@@ -171,7 +210,8 @@ namespace Sati.ViewModels.Billing
             catch (Exception ex)
             {
                 Debug.WriteLine($"BillingSubmissionsViewModel.LoadAsync failed: {ex.Message}");
-                StatusMessage = "Failed to load billing periods.";
+                if (_accountLoads.IsCurrent(request) && ReferenceEquals(_sessionService.CurrentUser, user))
+                    StatusMessage = "Failed to load billing periods.";
             }
             finally
             {
@@ -239,12 +279,17 @@ namespace Sati.ViewModels.Billing
                         period.Id,
                         isTest,
                         key);
+                    if (isTest)
+                        _generatedTestPeriodIds.Add(period.Id);
                     completed++;
                 }
 
+                await RefreshSubmissionHistoryAsync();
                 StatusMessage = periods.Count == 1
                     ? $"1 file saved: {LastGeneratedPath}"
                     : $"{periods.Count} files saved. The last file is: {LastGeneratedPath}";
+                if (isTest && _billingService.SupportsMockClearinghouse)
+                    StatusMessage += " They are ready for the mock clearinghouse below.";
                 ResetPendingBatch();
             }
             catch (Exception ex)
@@ -261,6 +306,67 @@ namespace Sati.ViewModels.Billing
             finally
             {
                 IsGenerating = false;
+                NotifyMockClearinghouseStateChanged();
+            }
+        }
+
+        [RelayCommand]
+        private async Task SubmitToMockClearinghouse()
+        {
+            var periods = MockSubmissionPeriods();
+            if (!CanSubmitToMockClearinghouse || periods.Count == 0)
+                return;
+
+            var completed = 0;
+            var responseTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var claimOutcomes = 0;
+            var deposits = 0;
+            try
+            {
+                IsGenerating = true;
+                foreach (var period in periods)
+                {
+                    StatusMessage = $"Submitting test 837P file {completed + 1} of {periods.Count} to the mock clearinghouse...";
+                    var result = await _billingService.SubmitToMockClearinghouseAsync(
+                        CurrentActor(), period.Id, SelectedMockClearinghouseScenario.Scenario);
+                    responseTypes.Add("999");
+                    if (result.ClaimAcknowledgement is not null)
+                        responseTypes.Add("277CA");
+                    if (result.RemittanceAdvice is not null)
+                        responseTypes.Add("835");
+                    claimOutcomes += result.ClaimOutcomesRecorded;
+                    deposits += result.DepositRecorded ? 1 : 0;
+                    _generatedTestPeriodIds.Remove(period.Id);
+                    completed++;
+                }
+
+                await RefreshSubmissionHistoryAsync();
+                var responses = string.Join(", ", responseTypes.Order(StringComparer.OrdinalIgnoreCase));
+                StatusMessage =
+                    $"Mock clearinghouse processed {completed} test 837P {(completed == 1 ? "file" : "files")} as " +
+                    $"{SelectedMockClearinghouseScenario.Label}. Responses recorded: {responses}. " +
+                    $"Claim outcomes: {claimOutcomes}; remittance deposits: {deposits}. " +
+                    "Review Submission Home below and the Remittances tab.";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Mock clearinghouse submission failed: {ex.Message}");
+                try
+                {
+                    await RefreshSubmissionHistoryAsync();
+                }
+                catch (Exception refreshFailure)
+                {
+                    Debug.WriteLine($"Submission history refresh after mock failure also failed: {refreshFailure.Message}");
+                }
+                StatusMessage = completed == 0
+                    ? $"Mock clearinghouse submission failed: {ex.Message}"
+                    : $"The mock clearinghouse processed {completed} file(s), then stopped: {ex.Message}";
+            }
+            finally
+            {
+                IsGenerating = false;
+                NotifyMockClearinghouseStateChanged();
             }
         }
 
@@ -290,9 +396,60 @@ namespace Sati.ViewModels.Billing
             }
 
             ResetPendingBatch();
+            _generatedTestPeriodIds.Clear();
             OnPropertyChanged(nameof(IsRangeValid));
             OnPropertyChanged(nameof(CanGenerateEdi));
             OnPropertyChanged(nameof(RangeSummary));
+            NotifyMockClearinghouseStateChanged();
+        }
+
+        private List<BillingPeriod> MockSubmissionPeriods() => GenerationPeriods
+            .Where(period => _generatedTestPeriodIds.Contains(period.Id))
+            .ToList();
+
+        private async Task RefreshSubmissionHistoryAsync()
+        {
+            var account = _sessionService.CurrentUser
+                ?? throw new UnauthorizedAccessException("A signed-in user is required.");
+            var request = _accountLoads.Begin();
+            var history = await _billingService.GetSubmissionHistoryAsync(account.ToAgencyActor());
+            if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                return;
+            SubmissionHistory.Clear();
+            foreach (var item in history)
+                SubmissionHistory.Add(item);
+            RebuildSubmissionBatches();
+        }
+
+        private void NotifyMockClearinghouseStateChanged()
+        {
+            OnPropertyChanged(nameof(CanSubmitToMockClearinghouse));
+            OnPropertyChanged(nameof(MockClearinghouseAvailabilityMessage));
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            _accountLoads.Invalidate();
+            SelectedPeriod = null;
+            BillingPeriods.Clear();
+            GenerationPeriods.Clear();
+            SubmissionHistory.Clear();
+            SubmissionBatches.Clear();
+            _allSubmissionBatches.Clear();
+            _generatedTestPeriodIds.Clear();
+            ResetPendingBatch();
+            LastGeneratedPath = null;
+            StatusMessage = null;
+            RangeStart = null;
+            RangeEnd = null;
+            SubmissionSearchText = null;
+            OutstandingOnly = true;
+            SubmissionStatusFilters.Clear();
+            SubmissionStatusFilters.Add("All statuses");
+            SelectedSubmissionStatus = "All statuses";
+            SelectedMockClearinghouseScenario = MockClearinghouseScenarioOption.All[0];
+            HasLoaded = false;
+            NotifyMockClearinghouseStateChanged();
         }
 
         private void ResetPendingBatch(string? fingerprint = null)
@@ -415,6 +572,24 @@ namespace Sati.ViewModels.Billing
                 Debug.WriteLine($"OpenOutputFolder failed: {ex.Message}");
             }
         }
+    }
+
+    public sealed record MockClearinghouseScenarioOption(
+        MockClearinghouseScenario Scenario,
+        string Label,
+        string Explanation)
+    {
+        public static IReadOnlyList<MockClearinghouseScenarioOption> All { get; } =
+        [
+            new(MockClearinghouseScenario.Accepted, "Accepted and paid", "999 and 277CA accepted; 835 pays the claims in full."),
+            new(MockClearinghouseScenario.SyntaxRejected, "837 syntax rejected", "999 rejects the file; no claims or remittance follow."),
+            new(MockClearinghouseScenario.ClaimsRejected, "Claims rejected", "999 accepts the file; 277CA rejects every claim."),
+            new(MockClearinghouseScenario.PartiallyAccepted, "Partially accepted", "277CA accepts some claims and rejects others."),
+            new(MockClearinghouseScenario.PartialPayment, "Partially paid", "835 pays less than billed and records a contractual adjustment."),
+            new(MockClearinghouseScenario.Denied, "Denied on remittance", "Claims are accepted, then denied with a reason code on the 835."),
+            new(MockClearinghouseScenario.ProviderLevelAdjustment, "Provider-level adjustment", "835 includes an adjustment that changes the deposit total."),
+            new(MockClearinghouseScenario.Reversal, "Payment reversed", "835 reverses a previously paid claim."),
+        ];
     }
 
     public sealed record BillingSubmissionBatchRow(

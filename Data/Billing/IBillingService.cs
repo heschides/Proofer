@@ -6,6 +6,7 @@ namespace Sati.Data.Billing
 {
     public interface IBillingService
     {
+        bool SupportsMockClearinghouse => false;
         Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year);
         Task<IEnumerable<BillingPeriod>> GetBillingPeriodsAsync(AgencyActor actor, int userId);
         Task<IEnumerable<BillingPeriod>> GetAllBillingPeriodsAsync(AgencyActor actor);
@@ -17,6 +18,11 @@ namespace Sati.Data.Billing
         Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor);
         Task SaveBillingConfigurationAsync(AgencyActor actor, BillingConfiguration configuration);
         Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor actor);
+        Task<MockClearinghouseResultDto> SubmitToMockClearinghouseAsync(
+            AgencyActor actor,
+            int billingPeriodId,
+            MockClearinghouseScenario scenario) => Task.FromException<MockClearinghouseResultDto>(
+                new NotSupportedException("The mock clearinghouse is available only in Demo."));
         Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor actor);
         Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor actor);
     }

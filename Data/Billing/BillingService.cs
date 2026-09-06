@@ -10,6 +10,7 @@ namespace Sati.Services.Billing
 {
     public class BillingService : IBillingService
     {
+        public bool SupportsMockClearinghouse => false;
         private readonly IDbContextFactory<SatiContext> _contextFactory;
         private BillingComplianceRequirements _complianceRequirements =
             BillingComplianceGate.DefaultRequirements;
@@ -378,6 +379,12 @@ namespace Sati.Services.Billing
                               item.Reference, item.ResponseType, item.ResponseCode,
                               item.Explanation, item.IsSynthetic)).ToListAsync();
         }
+
+        public Task<MockClearinghouseResultDto> SubmitToMockClearinghouseAsync(
+            AgencyActor actor,
+            int billingPeriodId,
+            MockClearinghouseScenario scenario) =>
+            throw new NotSupportedException("The mock clearinghouse is available only in Demo.");
 
         public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor suppliedActor)
         {

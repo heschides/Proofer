@@ -68,6 +68,7 @@ internal static class AuditActions
     public const string BillingPeriodSubmitted = "billing-period.submitted";
     public const string BillingClaimLineCreated = "billing-claim-line.created";
     public const string BillingEdiGenerated = "billing-edi.generated";
+    public const string BillingEdiTransmitted = "billing-edi.transmitted";
     public const string BillingConfigurationUpdated = "billing-configuration.updated";
     public const string AtRequestPublished = "at-request.published";
     public const string AtRequestReopened = "at-request.reopened";

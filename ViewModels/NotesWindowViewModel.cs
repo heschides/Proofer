@@ -19,6 +19,7 @@ namespace Sati.ViewModels
         private readonly IPersonService _personService;
         private readonly ISessionService _sessionService;
         private readonly INoteService _noteService;
+        private readonly LatestRequestTracker _accountLoads = new();
 
         // True when the open dialog was triggered by a billing-window block rather
         // than a paperwork-gate failure. Same fork as the entry module: window
@@ -310,11 +311,15 @@ namespace Sati.ViewModels
         [RelayCommand]
         public async Task ReloadAsync()
         {
+            var request = _accountLoads.Begin();
+            var account = _sessionService.CurrentUser;
             try
             {
-                var userId = _sessionService.CurrentUser?.Id
+                var userId = account?.Id
                     ?? throw new InvalidOperationException("A signed-in user is required to load notes.");
                 var people = await LoadPeopleWithFullNotesAsync(userId);
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                    return;
 
                 // Publish only after the full replacement is available. A failed
                 // refresh leaves the previously loaded notes visible rather than
@@ -344,12 +349,33 @@ namespace Sati.ViewModels
             }
             catch (Exception ex)
             {
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                    return;
                 var reference = AppErrorLog.Record(ex, "notes-log.load");
                 HasLoadError = true;
                 LoadErrorMessage =
                     "The notes log could not be loaded. Your other workspaces are still available. " +
                     $"Choose Retry. Support reference: {reference}.";
             }
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            _accountLoads.Invalidate();
+            SelectedNote = null;
+            ClearFilters();
+            _allNotes.Clear();
+            FilterPeople.Clear();
+            FilterPeople.Add(AllPersonsSentinel);
+            NoteEntry.Reset();
+            NotesView.Refresh();
+            HasLoadError = false;
+            LoadErrorMessage = string.Empty;
+            OnPropertyChanged(nameof(ReturnedCount));
+            OnPropertyChanged(nameof(HeldCount));
+            OnPropertyChanged(nameof(HasReturned));
+            OnPropertyChanged(nameof(HasHeld));
+            OnPropertyChanged(nameof(HasAttentionItems));
         }
 
         private async Task<List<Person>> LoadPeopleWithFullNotesAsync(int userId)

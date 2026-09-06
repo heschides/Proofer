@@ -111,6 +111,34 @@ namespace Sati.ViewModels.Supervisor
             IsLoading = false;
         }
 
+        public void ClearForAccountSwitch()
+        {
+            Deactivate();
+            SelectedNote = null;
+            OverrideNote = null;
+            IsReturnDialogVisible = false;
+            IsOverrideDialogVisible = false;
+            ReturnReason = null;
+            OverrideReason = null;
+            SelectedCaseManager = null;
+            SelectedClient = null;
+            FromDate = null;
+            ToDate = null;
+            SearchTerm = string.Empty;
+            PendingNotes.Clear();
+            NonCompliantNotes.Clear();
+            CaseManagerOptions.Clear();
+            ClientOptions.Clear();
+            _allClientOptions = [];
+            _activeFilter = new();
+            _nextAfterId = null;
+            _throughId = null;
+            HasMore = false;
+            StatusMessage = string.Empty;
+            FilterStatusMessage = string.Empty;
+            NotifyActions();
+        }
+
         public async Task LoadAsync(int? filterByUserId = null)
         {
             var actor = _sessionService.CurrentUser;

@@ -502,6 +502,7 @@ public sealed class CloudConsumerBillingLossReportService(CloudApiClient api) : 
 
 public sealed class CloudBillingService(CloudApiClient api) : IBillingService
 {
+    public bool SupportsMockClearinghouse => true;
     private readonly Dictionary<int, IReadOnlyList<string>> _candidateErrors = [];
 
     public async Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
@@ -565,6 +566,14 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
 
     public async Task<IReadOnlyList<BillingSubmissionHistoryDto>> GetSubmissionHistoryAsync(AgencyActor actor) =>
         await api.GetAsync<List<BillingSubmissionHistoryDto>>("/api/v1/billing/submissions");
+
+    public async Task<MockClearinghouseResultDto> SubmitToMockClearinghouseAsync(
+        AgencyActor actor,
+        int billingPeriodId,
+        MockClearinghouseScenario scenario) =>
+        await api.PostAsync<MockClearinghouseRequest, MockClearinghouseResultDto>(
+            $"/api/v1/billing/periods/{billingPeriodId}/mock-clearinghouse",
+            new MockClearinghouseRequest(scenario));
 
     public async Task<IReadOnlyList<RemittanceClaimOutcomeDto>> GetRemittanceOutcomesAsync(AgencyActor actor) =>
         await api.GetAsync<List<RemittanceClaimOutcomeDto>>("/api/v1/billing/remittances");

@@ -391,6 +391,8 @@ namespace Sati.ViewModels.Children
             try
             {
                 var loaded = await _scratchpadService.LoadTodayAsync(userId);
+                if (_sessionService.CurrentUser?.Id != userId || _loadedUserId != userId)
+                    return false;
                 _scratchpad = loaded;
                 _lastSavedScratchpadContent = loaded.Content;
                 ScratchpadContent = loaded.Content;
@@ -403,6 +405,8 @@ namespace Sati.ViewModels.Children
             catch (Exception ex)
             {
                 Debug.WriteLine($"Today's Work load failed: {ex.Message}");
+                if (_sessionService.CurrentUser?.Id != userId || _loadedUserId != userId)
+                    return false;
                 var reference = AppErrorLog.Record(ex, "scratchpad.load.today");
                 HasScratchpadLoadError = true;
                 ScratchpadLoadErrorMessage =
@@ -417,6 +421,8 @@ namespace Sati.ViewModels.Children
             try
             {
                 var loaded = await _scratchpadService.LoadTomorrowAsync(userId);
+                if (_sessionService.CurrentUser?.Id != userId || _loadedUserId != userId)
+                    return false;
                 _tomorrowAgenda = loaded;
                 _lastSavedTomorrowAgendaContent = loaded.Content;
                 TomorrowAgendaContent = loaded.Content;
@@ -430,6 +436,8 @@ namespace Sati.ViewModels.Children
             catch (Exception ex)
             {
                 Debug.WriteLine($"Tomorrow's Agenda load failed: {ex.Message}");
+                if (_sessionService.CurrentUser?.Id != userId || _loadedUserId != userId)
+                    return false;
                 var reference = AppErrorLog.Record(ex, "scratchpad.load.tomorrow");
                 HasTomorrowAgendaLoadError = true;
                 TomorrowAgendaLoadErrorMessage =
@@ -439,7 +447,9 @@ namespace Sati.ViewModels.Children
             }
         }
 
-        private void ResetForUser(int userId)
+        public void ClearForAccountSwitch() => ResetForUser(null);
+
+        private void ResetForUser(int? userId)
         {
             _scratchpadTimer?.Stop();
             _loadedUserId = userId;
@@ -458,6 +468,7 @@ namespace Sati.ViewModels.Children
             ScratchpadLoadErrorMessage = string.Empty;
             HasTomorrowAgendaLoadError = false;
             TomorrowAgendaLoadErrorMessage = string.Empty;
+            ClearExpiredSessionWarning();
             _scheduledWorkLoads.Invalidate();
             ReplaceScheduledWork([]);
             HasScheduledWorkLoadError = false;

@@ -28,6 +28,11 @@ public sealed class ClaimExchangeLoopTests
     private static async Task<MockClearinghouseResultDto> RunAsync(
         HttpClient client, MockClearinghouseScenario scenario)
     {
+        var generation = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{SubmittedPeriodId}/edi",
+            new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
+        generation.EnsureSuccessStatusCode();
+
         var response = await client.PostAsJsonAsync(
             $"/api/v1/billing/periods/{SubmittedPeriodId}/mock-clearinghouse",
             new MockClearinghouseRequest(scenario));
@@ -103,6 +108,7 @@ public sealed class ClaimExchangeLoopTests
 
         Assert.Equal(
             [
+                nameof(BillingSubmissionStage.Transmitted),
                 nameof(BillingSubmissionStage.FunctionalAccepted),
                 nameof(BillingSubmissionStage.ClaimAccepted),
                 nameof(BillingSubmissionStage.Paid)
@@ -117,6 +123,16 @@ public sealed class ClaimExchangeLoopTests
         Assert.Contains(submissions, row =>
             row.BillingPeriodId == SubmittedPeriodId &&
             row.Stage == nameof(BillingSubmissionStage.Paid));
+        var latestGeneration = submissions
+            .Where(row => row.BillingPeriodId == SubmittedPeriodId &&
+                row.Stage == nameof(BillingSubmissionStage.Generated))
+            .OrderByDescending(row => row.OccurredAtUtc)
+            .First();
+        Assert.True(latestGeneration.IsSynthetic);
+        Assert.Contains(submissions, row =>
+            row.BillingPeriodId == SubmittedPeriodId &&
+            row.Stage == nameof(BillingSubmissionStage.Transmitted) &&
+            row.Reference == latestGeneration.Reference);
 
         var remittances = await admin.GetFromJsonAsync<List<RemittanceClaimOutcomeDto>>(
             "/api/v1/billing/remittances");
@@ -184,7 +200,12 @@ public sealed class ClaimExchangeLoopTests
 
         var result = await RunAsync(admin, MockClearinghouseScenario.SyntaxRejected);
 
-        Assert.Equal([nameof(BillingSubmissionStage.FunctionalRejected)], result.StagesRecorded);
+        Assert.Equal(
+            [
+                nameof(BillingSubmissionStage.Transmitted),
+                nameof(BillingSubmissionStage.FunctionalRejected)
+            ],
+            result.StagesRecorded);
         Assert.Equal(0, result.ClaimOutcomesRecorded);
         Assert.False(result.DepositRecorded);
         Assert.Null(result.ClaimAcknowledgement);

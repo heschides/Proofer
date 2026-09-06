@@ -392,8 +392,12 @@ namespace Sati.Views
             if (!await _accountSwitchGate.WaitAsync(0))
                 return;
 
+            var accountChanged = false;
+            var sameAccountReauthenticated = false;
             try
             {
+                _shellViewModel.BeginAccountTransition();
+                await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.Render);
                 var login = _loginWindowFactory();
                 login.Owner = this;
                 login.Title = "Session Expired — Sign in to continue";
@@ -403,11 +407,13 @@ namespace Sati.Views
                 if (user.Id == expected.Id)
                 {
                     _shellViewModel.Scratchpad.ResumeAfterReauthentication();
-                    _shellViewModel.ResumeChatAccount();
+                    sameAccountReauthenticated = true;
                     return;
                 }
 
+                _shellViewModel.ClearOutgoingAccountContent();
                 _sessionService.SetUser(user);
+                accountChanged = true;
                 await _textShortcutService.LoadForUserAsync(user.Id);
                 await _applicationRunState.StartSessionAsync(user, _incidentReporter);
                 await _incidentReporter.FlushAsync();
@@ -416,6 +422,10 @@ namespace Sati.Views
             }
             finally
             {
+                if (accountChanged)
+                    _shellViewModel.CompleteAccountTransition();
+                else
+                    _shellViewModel.CancelAccountTransition(sameAccountReauthenticated);
                 _accountSwitchGate.Release();
             }
         }
@@ -426,9 +436,11 @@ namespace Sati.Views
             if (!await _accountSwitchGate.WaitAsync(0))
                 return;
 
+            var accountChanged = false;
             try
             {
-                _shellViewModel.Chat.SuspendAndClear();
+                _shellViewModel.BeginAccountTransition();
+                await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.Render);
                 var currentUser = _sessionService.CurrentUser;
                 if (currentUser is null)
                     return;
@@ -468,7 +480,9 @@ namespace Sati.Views
 
                 if (result == true && newUser is not null)
                 {
+                    _shellViewModel.ClearOutgoingAccountContent();
                     _sessionService.SetUser(newUser);
+                    accountChanged = true;
                     await _textShortcutService.LoadForUserAsync(newUser.Id);
                     await _applicationRunState.StartSessionAsync(newUser, _incidentReporter);
                     await _incidentReporter.FlushAsync();
@@ -478,8 +492,11 @@ namespace Sati.Views
             }
             finally
             {
+                if (accountChanged)
+                    _shellViewModel.CompleteAccountTransition();
+                else
+                    _shellViewModel.CancelAccountTransition();
                 _accountSwitchGate.Release();
-                _shellViewModel.ResumeChatAccount();
             }
         }
 

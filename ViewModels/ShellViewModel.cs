@@ -101,6 +101,10 @@ namespace Sati.ViewModels
 
         [ObservableProperty] private object? currentViewModel;
 
+        // Opaque shell-wide privacy boundary used while account credentials and
+        // user-scoped workspaces are changing. This is independent of the idle screen.
+        [ObservableProperty] private bool isAccountTransitionActive;
+
         // Open/closed state of the scratchpad panel. The actual column collapse and
         // width-restore lives in ShellWindow.xaml.cs, which reacts to this changing —
         // remembering a user-dragged GridSplitter width is pure view layout, not a
@@ -249,6 +253,50 @@ namespace Sati.ViewModels
         }
 
         public void SetCompactDisplayMode(bool enabled) => IsCompactDisplayMode = enabled;
+
+        /// <summary>
+        /// Covers the entire shell before another account can authenticate. The outgoing
+        /// content stays intact underneath until its drafts have been saved or the user
+        /// cancels, but none of it remains visible around the account dialog.
+        /// </summary>
+        public void BeginAccountTransition()
+        {
+            IsAccountTransitionActive = true;
+            Chat.SuspendAndClear();
+        }
+
+        /// <summary>
+        /// Called only after the switch dialog has authenticated a replacement account,
+        /// and before ISessionService is changed. From this point the old account's
+        /// workspace is both hidden and synchronously cleared.
+        /// </summary>
+        public void ClearOutgoingAccountContent()
+        {
+            if (!IsAccountTransitionActive)
+                throw new InvalidOperationException("The account privacy shield must be active before clearing account content.");
+
+            CurrentViewModel = null;
+            IsScratchpadVisible = false;
+            Scratchpad.ClearForAccountSwitch();
+            NotesViewModel.Reset();
+            _supervisorDashboardViewModel.ClearForAccountSwitch();
+            _billingDashboardViewModel.ClearForAccountSwitch();
+            _adminDashboardViewModel.ClearForAccountSwitch();
+        }
+
+        public void CompleteAccountTransition()
+        {
+            IsScratchpadVisible = true;
+            IsAccountTransitionActive = false;
+            ResumeChatAccount();
+        }
+
+        public void CancelAccountTransition(bool resumeChat = true)
+        {
+            IsAccountTransitionActive = false;
+            if (resumeChat)
+                ResumeChatAccount();
+        }
 
         private void ApplyEasyEyesMode(bool enabled)
         {
@@ -427,7 +475,11 @@ namespace Sati.ViewModels
                 await InitializeSupervisorAsync();
             if (IsCaseManagementAvailable) NavigateToCaseManagement();
             else if (IsSupervisionAvailable) NavigateToSupervisorDashboard();
-            else if (IsBillingAvailable) NavigateToBilling();
+            else if (IsBillingAvailable)
+            {
+                await _billingDashboardViewModel.InitializeAsync();
+                NavigateToBilling();
+            }
             else if (IsAdminAvailable) await NavigateToAdmin();
         }
 

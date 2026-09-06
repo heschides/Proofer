@@ -2312,6 +2312,10 @@ namespace Sati.ViewModels.Children
 
         public void Reset()
         {
+            _aiDraftRequests.Invalidate();
+            _dayScheduleLoad.Invalidate();
+            _freshnessChecks.Invalidate();
+            _suggestedFollowUpRequests.Invalidate();
             _editingNote = null;
             _isStartingScheduledWork = false;
             _pendingVisitDocumentation = null;

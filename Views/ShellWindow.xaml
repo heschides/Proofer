@@ -390,6 +390,42 @@
             </Border>
         </Grid>
 
+        <!-- ACCOUNT-TRANSITION PRIVACY SHIELD
+             This is deliberately opaque and above the complete shell, including the
+             navigation header and Work Agenda. It is raised before an account picker
+             authenticates another user and remains until the old account is cleared
+             and the new account has finished loading. -->
+        <Border Panel.ZIndex="20"
+                Visibility="{Binding IsAccountTransitionActive,
+                    Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="{DynamicResource WindowBackgroundBrush}"
+                IsHitTestVisible="True"
+                AutomationProperties.Name="Account information hidden while switching users"
+                AutomationProperties.LiveSetting="Assertive">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        MaxWidth="440">
+                <Image Source="pack://application:,,,/Sati;component/images/sati-watercolor-leaf.png"
+                       Width="88"
+                       Height="88"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Text="Switching account"
+                           Margin="0,16,0,0"
+                           HorizontalAlignment="Center"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="The previous account's information is hidden while Sati prepares the next workspace."
+                           Margin="0,8,0,0"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           FontSize="13"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+
         <!-- INACTIVITY PRIVACY SCREEN
              Hit-test visible on purpose: the click that wakes the session must not
              also press a control on a screen the user cannot currently read. The

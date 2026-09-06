@@ -1254,6 +1254,17 @@ correctness is a named, testable thing rather than an ad-hoc flag in each ViewMo
   configuration. Keeping these out of the ViewModels is what allows them to be unit-tested without
   a window.
 
+Account switching is also an explicit privacy barrier. `ShellWindow` raises an opaque,
+hit-test-visible shield over the complete shell before it opens either account dialog. After a
+replacement account authenticates, `ShellViewModel.ClearOutgoingAccountContent` synchronously
+removes the old current view, scratchpads, clinical workspaces, supervisor queues, billing views,
+administrator data, and chat before `ISessionService.SetUser` installs the new identity. The new
+workspace initializes behind the shield and is revealed only after navigation completes. A
+cancelled switch removes the shield without clearing the outgoing user's saved-in-place workspace.
+Every user-scoped asynchronous load in a shell-lifetime view model must additionally bind its result
+to both a `LatestRequestTracker` identity and the same session-user instance; hiding or clearing a
+collection alone cannot prevent a late response from repopulating it.
+
 ### `IncidentOutbox` (`Data/Cloud`)
 - Durable local queue for incident reports, retried after sign-in when a connection or process
   interruption prevented delivery. Stored under `%LOCALAPPDATA%\SatiLogica\Sati\IncidentOutbox`.
@@ -1546,7 +1557,8 @@ in the existing note-entry module.
 `GuidanceViewModel`/`HelpersViewModel`: static content.
 
 ### Billing ViewModels
-`BillingDashboardViewModel`: `HasLoaded` guards; fire-and-forget `LoadAsync` (unobservable).
+`BillingDashboardViewModel`: account-switch clearing and awaited initialization keep its singleton
+children from carrying one billing user's data into another account.
 `BillingQueueViewModel`: sequential promotion (intentional — don't parallelize);
 `IsComplianceOverride` reads correctly (contrast supervisor queue's hardcoded false); profiling
 `Debug.WriteLine`s. `BillingSubmissionsViewModel`: billing-permission-gated agency scope;
@@ -1584,11 +1596,14 @@ HL hierarchy (20→22); subscriber and provider N3/N4; 2000B/2010BA/2010BB/2300/
 per-subscriber `LX`; separate monetary charge and units; ST-through-SE segment count; `~`/`*`/`:`
 separators; one group per file. `isTest ? "T":"P"` in ISA15 flows from the UI and defaults to test.
 
-`SyntheticClaimExchangeTests` adds a deterministic in-memory boundary test: a generated test-mode
-837P receives representative accepted 999 and 277CA responses followed by a balanced synthetic 835,
-and the simulator refuses a production-mode interchange. It is deliberately test-only. It does not
-perform transport, validate full X12 conformance, import acknowledgments/remittances into Sati, post
-payments, or provide clearinghouse/payer certification; every pre-live checklist item above remains.
+`MockClearinghouse` is deterministic synthetic scaffolding. Unit tests can exercise it in memory,
+and validated Demo exposes it through the billing Submissions workspace after the user generates
+test 837P files. The API consumes the exact retained test generation, appends a synthetic
+`Transmitted` event, fabricates the selected 999/277CA/835 outcome, and sends those documents through
+the permanent response-ingestion path. It is absent in effect on Production and refuses a
+production-mode interchange. It does not perform external transport, validate full X12 conformance,
+post real payments, replace payer testing, or provide clearinghouse/payer certification; every
+pre-live checklist item above remains.
 
 ---
 

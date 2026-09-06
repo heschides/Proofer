@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Data.Billing;
+using Sati.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
@@ -12,6 +13,7 @@ namespace Sati.ViewModels.Billing
         private readonly IBillingService _billingService;
         private readonly ISessionService _sessionService;
         private readonly SemaphoreSlim _loadGate = new(1, 1);
+        private readonly LatestRequestTracker _accountLoads = new();
 
         public ObservableCollection<BillingQueueItemViewModel> QueueItems { get; } = [];
 
@@ -29,20 +31,26 @@ namespace Sati.ViewModels.Billing
             _sessionService = sessionService;
         }
 
-        public async Task LoadAsync()
+        public async Task LoadAsync(bool waitForExisting = false)
         {
-            if (!await _loadGate.WaitAsync(0))
+            if (waitForExisting)
+                await _loadGate.WaitAsync();
+            else if (!await _loadGate.WaitAsync(0))
                 return;
 
             IsBusy = true;
             StatusMessage = string.Empty;
+            var account = _sessionService.CurrentUser;
+            var request = _accountLoads.Begin();
             try
             {
                 Debug.WriteLine($"[BillingQueue] LoadAsync started — {DateTime.Now:HH:mm:ss.fff}");
-                var actor = _sessionService.CurrentUser?.ToAgencyActor()
+                var actor = account?.ToAgencyActor()
                     ?? throw new UnauthorizedAccessException("A signed-in user is required.");
                 var configuration = await _billingService.GetBillingConfigurationAsync(actor);
                 var notes = await _billingService.GetApprovedUnbilledNotesAsync(actor);
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                    return;
                 Debug.WriteLine($"[BillingQueue] GetApprovedUnbilledNotesAsync returned {notes.Count()} notes — {DateTime.Now:HH:mm:ss.fff}");
                 QueueItems.Clear();
                 var items = notes.Select(note => new BillingQueueItemViewModel(
@@ -58,11 +66,13 @@ namespace Sati.ViewModels.Billing
             catch (Exception ex)
             {
                 Debug.WriteLine($"BillingQueueViewModel.LoadAsync failed: {ex.Message}");
-                StatusMessage = "The billing queue could not be loaded. Please try Refresh.";
+                if (_accountLoads.IsCurrent(request) && ReferenceEquals(_sessionService.CurrentUser, account))
+                    StatusMessage = "The billing queue could not be loaded. Please try Refresh.";
             }
             finally
             {
-                IsBusy = false;
+                if (_accountLoads.IsCurrent(request) && ReferenceEquals(_sessionService.CurrentUser, account))
+                    IsBusy = false;
                 _loadGate.Release();
             }
 
@@ -140,6 +150,16 @@ namespace Sati.ViewModels.Billing
             OnPropertyChanged(nameof(ValidCount));
             OnPropertyChanged(nameof(InvalidCount));
             OnPropertyChanged(nameof(SelectedValidCount));
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            _accountLoads.Invalidate();
+            QueueItems.Clear();
+            StatusMessage = string.Empty;
+            IsBusy = false;
+            HasLoaded = false;
+            RefreshCounts();
         }
 
         private Sati.Contracts.V1.AgencyActor CurrentActor() =>

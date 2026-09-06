@@ -12,6 +12,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -112,8 +113,54 @@
             </StackPanel>
         </StackPanel>
 
+        <!-- Demo-only exchange simulator. It is hidden completely from Local Production. -->
+        <StackPanel Grid.Row="4"
+                    Visibility="{Binding ShowsMockClearinghouse, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Margin="0,0,0,16"
+                    MaxWidth="760"
+                    HorizontalAlignment="Left">
+            <TextBlock Text="MOCK CLEARINGHOUSE — DEMO ONLY" Style="{StaticResource LabelStyle}" />
+            <TextBlock Text="Choose what the test clearinghouse and payer should return. Sati will record the simulated 999, 277CA, and 835 responses through the same ingestion path intended for real responses."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+            <WrapPanel>
+                <ComboBox ItemsSource="{Binding MockClearinghouseScenarios}"
+                          SelectedItem="{Binding SelectedMockClearinghouseScenario}"
+                          AutomationProperties.Name="Mock clearinghouse outcome"
+                          IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
+                          Width="235"
+                          Margin="0,0,12,0">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Label}" ToolTip="{Binding Explanation}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="Submit Generated 837P Files"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="220"
+                        Command="{Binding SubmitToMockClearinghouseCommand}"
+                        IsEnabled="{Binding CanSubmitToMockClearinghouse}"
+                        ToolTip="{Binding MockClearinghouseAvailabilityMessage}"
+                        AutomationProperties.Name="Submit generated 837P files to mock clearinghouse" />
+            </WrapPanel>
+            <TextBlock Text="{Binding SelectedMockClearinghouseScenario.Explanation}"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,6,0,0" />
+            <TextBlock Text="{Binding MockClearinghouseAvailabilityMessage}"
+                       AutomationProperties.LiveSetting="Polite"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,3,0,0" />
+        </StackPanel>
+
         <!-- Status message -->
-        <TextBlock Grid.Row="4"
+        <TextBlock Grid.Row="5"
                    Text="{Binding StatusMessage}"
                    AutomationProperties.LiveSetting="Polite"
                    FontSize="12"
@@ -121,7 +168,7 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,18" />
 
-        <StackPanel Grid.Row="5" Margin="0,0,0,8">
+        <StackPanel Grid.Row="6" Margin="0,0,0,8">
             <TextBlock Text="SUBMISSION HOME" Style="{StaticResource SectionHeader}" />
             <TextBlock Text="Demo rows are explicitly marked synthetic. They exercise generated, transmitted, failed, accepted, rejected, and partial-acceptance states without contacting a clearinghouse."
                        FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
@@ -153,7 +200,7 @@
                        Margin="0,8,0,0" />
         </StackPanel>
 
-        <DataGrid Grid.Row="6"
+        <DataGrid Grid.Row="7"
                   ItemsSource="{Binding SubmissionBatches}"
                   AutomationProperties.Name="Billing submission batches and current status"
                   AutoGenerateColumns="False"

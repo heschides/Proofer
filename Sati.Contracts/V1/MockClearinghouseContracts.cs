@@ -49,7 +49,7 @@ public sealed record MockClearinghouseRequest(MockClearinghouseScenario Scenario
 /// <param name="FunctionalAcknowledgement">The 999, always produced.</param>
 /// <param name="ClaimAcknowledgement">The 277CA, absent when the 999 rejected the file.</param>
 /// <param name="RemittanceAdvice">The 835, absent when nothing was accepted for payment.</param>
-/// <param name="StagesRecorded">The submission stages ingestion wrote, in order.</param>
+/// <param name="StagesRecorded">The transmitted stage and response stages written, in order.</param>
 /// <param name="ClaimOutcomesRecorded">How many claim outcomes were written.</param>
 /// <param name="DepositRecorded">Whether a deposit row was written.</param>
 public sealed record MockClearinghouseResultDto(

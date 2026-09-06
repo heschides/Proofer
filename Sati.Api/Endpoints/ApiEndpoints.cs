@@ -4765,18 +4765,49 @@ internal static partial class ApiEndpoints
                     ["period"] = ["The billing period has no claim lines to submit."]
                 });
             }
+            if (period.Status != 1)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "billing_period_not_submitted",
+                    "Submit and lock the billing period before sending its 837P file.",
+                    string.Empty));
+            }
+
+            // Submit the exact immutable test file the user generated. Regenerating an 837
+            // here would only resemble the file on disk; it would not prove that the thing
+            // being acknowledged is the thing the user chose to send.
+            var generation = await db.EdiGenerations.AsNoTracking()
+                .Where(item => item.AgencyId == actor.AgencyId &&
+                               item.BillingPeriodId == periodId && item.IsTest)
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .ThenByDescending(item => item.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (generation is null)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "test_edi_not_generated",
+                    "Generate this billing period's test 837P file before submitting it to the mock clearinghouse.",
+                    string.Empty));
+            }
+
+            var alreadySubmitted = await db.BillingSubmissionEvents.AsNoTracking().AnyAsync(item =>
+                item.AgencyId == actor.AgencyId && item.BillingPeriodId == periodId &&
+                item.Stage >= BillingSubmissionStage.Transmitted &&
+                item.OccurredAtUtc >= generation.CreatedAtUtc,
+                cancellationToken);
+            if (alreadySubmitted)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "test_edi_already_submitted",
+                    "That generated test 837P has already been submitted. Generate a new test file before simulating another response.",
+                    string.Empty));
+            }
 
             var receivedAt = DateTime.UtcNow;
             MockClearinghouseDocuments documents;
             try
             {
-                // isTest is hard-coded rather than taken from the caller. The mock refuses
-                // production interchanges anyway, but a request field that could ask for
-                // one would be a lever worth removing rather than validating.
-                var controlNumber = receivedAt.Ticks.ToString(CultureInfo.InvariantCulture);
-                var edi837 = ServerEdiGenerator.Generate(
-                    period, isTest: true, receivedAt, controlNumber[^9..]);
-                documents = MockClearinghouse.Respond(edi837, request.Scenario, receivedAt);
+                documents = MockClearinghouse.Respond(generation.Content, request.Scenario, receivedAt);
             }
             catch (InvalidOperationException failure)
             {
@@ -4787,9 +4818,21 @@ internal static partial class ApiEndpoints
             }
 
             var ingestion = new ClaimResponseIngestion(db);
-            var stages = new List<string>();
+            var stages = new List<string> { BillingSubmissionStage.Transmitted.ToString() };
             var claimOutcomes = 0;
             var depositRecorded = false;
+
+            db.BillingSubmissionEvents.Add(new ServerBillingSubmissionEvent
+            {
+                AgencyId = actor.AgencyId,
+                BillingPeriodId = periodId,
+                OccurredAtUtc = receivedAt,
+                Stage = BillingSubmissionStage.Transmitted,
+                Reference = generation.FileName,
+                ResponseType = "837P",
+                Explanation = "Test 837P submitted to the mock clearinghouse.",
+                IsSynthetic = true
+            });
 
             foreach (var document in new[]
                      {
@@ -4809,7 +4852,7 @@ internal static partial class ApiEndpoints
                 depositRecorded |= outcome.DepositRecorded;
             }
 
-            auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
+            auditTrail.Record(actor, AuditActions.BillingEdiTransmitted, "BillingPeriod", periodId);
             await db.SaveChangesAsync(cancellationToken);
 
             return Results.Ok(new MockClearinghouseResultDto(
@@ -5104,7 +5147,7 @@ internal static partial class ApiEndpoints
                 Explanation = request.IsTest
                     ? "Test 837P generated; no external transmission is implied."
                     : "Production 837P generated; transmission status has not been recorded.",
-                IsSynthetic = false
+                IsSynthetic = request.IsTest
             });
             auditTrail.Record(actor, AuditActions.BillingEdiGenerated, "BillingPeriod", periodId);
             try

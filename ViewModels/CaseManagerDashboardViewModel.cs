@@ -1221,6 +1221,10 @@ CalendarViewModel calendarViewModel,
 
         public void Reset()
         {
+            _notesLoadRequests.Invalidate();
+            _upcomingEventLoadRequests.Invalidate();
+            _peopleLoadRequests.Invalidate();
+            _annualReminderRequests.Invalidate();
             LoggedInUser = null;
             People.Clear();
             Notes.Clear();
@@ -1236,6 +1240,8 @@ CalendarViewModel calendarViewModel,
             SelectedPerson = null;
             SelectedNote = null;
             NoteEntry.Reset();
+            NotesLog.ClearForAccountSwitch();
+            Clients.ClearForAccountSwitch();
         }
 
         public IEnumerable<EffectiveDateGroup> EffectiveDateGroups => BuildEffectiveDateGroups();

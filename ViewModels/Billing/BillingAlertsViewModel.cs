@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Sati.Contracts.V1;
 using Sati.Data;
 using Sati.Data.Billing;
+using Sati.Services;
 using System.Collections.ObjectModel;
 
 namespace Sati.ViewModels.Billing;
@@ -11,6 +12,7 @@ public partial class BillingAlertsViewModel(
     ISessionService sessionService) : ObservableObject
 {
     private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private readonly LatestRequestTracker _accountLoads = new();
     private readonly List<BillingWorklistRow> _allItems = [];
     public ObservableCollection<BillingWorklistRow> Items { get; } = [];
     public ObservableCollection<string> StatusFilters { get; } = ["All statuses"];
@@ -26,14 +28,24 @@ public partial class BillingAlertsViewModel(
     partial void OnSelectedStatusChanged(string value) => ApplyFilters();
     partial void OnSelectedAgingChanged(string value) => ApplyFilters();
 
-    public async Task LoadAsync()
+    public async Task LoadAsync(bool waitForExisting = false)
     {
-        if (!await _loadGate.WaitAsync(0)) return;
+        if (waitForExisting)
+            await _loadGate.WaitAsync();
+        else if (!await _loadGate.WaitAsync(0))
+            return;
+        var account = sessionService.CurrentUser;
+        var request = _accountLoads.Begin();
         try
         {
-            _allItems.Clear();
+            var actor = account?.ToAgencyActor()
+                ?? throw new UnauthorizedAccessException("A signed-in user is required.");
             var today = DateTime.Today;
-            foreach (var outcome in await billingService.GetRemittanceOutcomesAsync(CurrentActor()))
+            var outcomes = await billingService.GetRemittanceOutcomesAsync(actor);
+            if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(sessionService.CurrentUser, account))
+                return;
+            _allItems.Clear();
+            foreach (var outcome in outcomes)
             {
                 if (outcome.Status == RemittanceClaimStatus.Paid.ToString()) continue;
                 var age = Math.Max(0, (today - outcome.ReceivedAtUtc.ToLocalTime().Date).Days);
@@ -55,8 +67,26 @@ public partial class BillingAlertsViewModel(
                 ? "There are no denied, unpaid, reversed, or review-needed claims."
                 : $"{_allItems.Count} claim(s) need billing follow-up.";
         }
-        catch (Exception ex) { StatusMessage = $"Unable to load the denial worklist: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            if (_accountLoads.IsCurrent(request) && ReferenceEquals(sessionService.CurrentUser, account))
+                StatusMessage = $"Unable to load the denial worklist: {ex.Message}";
+        }
         finally { _loadGate.Release(); }
+    }
+
+    public void ClearForAccountSwitch()
+    {
+        _accountLoads.Invalidate();
+        _allItems.Clear();
+        Items.Clear();
+        StatusFilters.Clear();
+        StatusFilters.Add("All statuses");
+        SearchText = null;
+        SelectedStatus = "All statuses";
+        SelectedAging = "All ages";
+        StatusMessage = null;
+        HasLoaded = false;
     }
 
     private void ApplyFilters()
@@ -88,8 +118,6 @@ public partial class BillingAlertsViewModel(
         >= 120 => "120+", >= 90 => "90–119", >= 60 => "60–89", >= 30 => "30–59", _ => "0–29"
     };
 
-    private AgencyActor CurrentActor() => sessionService.CurrentUser?.ToAgencyActor()
-        ?? throw new UnauthorizedAccessException("A signed-in user is required.");
 }
 
 public sealed record BillingWorklistRow(

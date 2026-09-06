@@ -3230,3 +3230,34 @@ independent states, so the two occupy separate rows and can never overlap.
 The composer and the transcript now live inside the selected tab's template and are rebuilt when
 the tab changes, so code-behind can no longer hold them as fields. It locates them by the same
 automation names assistive technology uses, which keeps one set of names authoritative for both.
+
+## 2026-09-06 — Account switching is an opaque two-phase privacy boundary
+
+The shell raises one opaque, input-blocking shield before either replacement-credential dialog is
+displayed. The outgoing account remains intact underneath only long enough to save its scratchpads
+and selected-client journal or to cancel safely. Once a replacement account authenticates, every
+shell-lifetime clinical, supervisory, billing, administrator, scratchpad and chat surface is cleared
+synchronously before the session identity changes. The replacement workspace loads behind the
+shield, and the shell reveals it only after role navigation completes.
+
+Clearing visible collections is not sufficient because an earlier asynchronous request can finish
+later. User-scoped singleton view models therefore invalidate outstanding request identities and
+compare the current session-user instance before publishing data, errors, or busy state. Account
+switch tests hold an old request open across the identity change and prove that it cannot publish.
+
+**Rejected:** navigating first and letting each page eventually clear itself; changing the session
+before clearing; a translucent overlay that still exposes names; and relying on API authorization
+alone to correct an on-screen confidentiality leak.
+
+## 2026-09-06 — Demo mock submission consumes the retained generated 837P
+
+The Demo billing workspace may simulate a clearinghouse response only after this desktop session
+has generated a test 837P for the selected range. The API finds that retained immutable generation,
+records a synthetic `Transmitted` event referencing its filename, and feeds the selected synthetic
+999, 277CA and 835 documents through the ordinary ingestion path. One generation may be submitted
+once; another scenario requires another explicit test generation.
+
+The simulator remains absent in effect on Production and cannot accept a production-mode file. It
+is workflow scaffolding, not transport, X12 certification, payer acceptance, or evidence of a real
+payment. Regenerating a merely similar file inside the submission endpoint was rejected because it
+would not prove that the acknowledged content was the content the user generated and chose to send.

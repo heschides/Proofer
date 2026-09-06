@@ -22,6 +22,7 @@ namespace Sati.ViewModels.Supervisor
         private readonly ISettingsService _settingsService;
         private readonly IUpcomingEventService _upcomingEventService;
         private readonly IUserService _userService;
+        private readonly LatestRequestTracker _accountLoads = new();
 
         // -------------------------------------------------------------------------
         // Sub-view ViewModels
@@ -254,14 +255,17 @@ namespace Sati.ViewModels.Supervisor
 
         public async Task InitializeAsync()
         {
+            var request = _accountLoads.Begin();
+            var supervisor = _sessionService.CurrentUser;
             try
             {
                 CaseManagers.Clear();
-                var supervisor = _sessionService.CurrentUser!;
+                if (supervisor is null)
+                    return;
                 var supervisees = await _userService.GetSuperviseesAsync(supervisor.Id);
-
-
                 var settings = await _settingsService.LoadAsync();
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, supervisor))
+                    return;
                 var now = DateTime.Now;
 
                 // Each supervisee's summary is independent, and every service uses
@@ -291,6 +295,8 @@ namespace Sati.ViewModels.Supervisor
 
                 var whenAllSw = System.Diagnostics.Stopwatch.StartNew();
                 var summaries = await Task.WhenAll(summaryTasks);
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, supervisor))
+                    return;
                 whenAllSw.Stop();
                 System.Diagnostics.Debug.WriteLine(
                     $">>> Task.WhenAll (all {supervisees.Count} CMs) took {whenAllSw.ElapsedMilliseconds} ms");
@@ -311,6 +317,8 @@ namespace Sati.ViewModels.Supervisor
             }
             catch (Exception ex)
             {
+                if (!_accountLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, supervisor))
+                    return;
                 var reference = AppErrorLog.Record(ex, "supervisor.dashboard.initialize");
                 System.Windows.MessageBox.Show(
                     $"The supervisor dashboard could not be loaded. Error reference: {reference}",
@@ -319,6 +327,23 @@ namespace Sati.ViewModels.Supervisor
                     System.Windows.MessageBoxImage.Error);
                 Debug.WriteLine($"SupervisorDashboardViewModel.InitializeAsync failed: {ex.Message}");
             }
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            _accountLoads.Invalidate();
+            SelectedCaseManager = null;
+            CaseManagers.Clear();
+            _pendingApprovalsViewModel.ClearForAccountSwitch();
+            CurrentSubView = _teamOverviewViewModel;
+            _teamOverviewViewModel.Refresh(CaseManagers);
+            _overdueItemsViewModel.Refresh(CaseManagers);
+            _monthlyProductivityViewModel.Refresh(CaseManagers);
+            OnPropertyChanged(nameof(TeamSizeLabel));
+            OnPropertyChanged(nameof(TotalClients));
+            OnPropertyChanged(nameof(TotalOverdue));
+            OnPropertyChanged(nameof(TotalNotesThisMonth));
+            OnPropertyChanged(nameof(AvgComplianceLabel));
         }
 
         // -------------------------------------------------------------------------

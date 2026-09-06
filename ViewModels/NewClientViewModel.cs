@@ -73,6 +73,7 @@ namespace Sati.ViewModels
         private int _journalLoadVersion;
         private int? _justSavedPersonId;
         private readonly LatestRequestTracker _workspaceLoads = new();
+        private readonly LatestRequestTracker _profileSettingsLoads = new();
         private readonly JournalSaveCoordinator _journalSaveCoordinator = new();
         private readonly JournalDraftTracker _journalDraftTracker = new();
 
@@ -666,6 +667,7 @@ namespace Sati.ViewModels
 
         private async Task LoadAtRequestsAsync(Person? person)
         {
+            var account = _sessionService.CurrentUser;
             SelectedPersonAtRequests.Clear();
             OnPropertyChanged(nameof(HasSelectedPersonAtRequests));
 
@@ -677,7 +679,7 @@ namespace Sati.ViewModels
 
             // Selection can move while the query is in flight. Never show one
             // client's payment requests under another's name.
-            if (SelectedPerson?.Id != personId)
+            if (SelectedPerson?.Id != personId || !ReferenceEquals(_sessionService.CurrentUser, account))
                 return;
 
             foreach (var row in requests)
@@ -1273,10 +1275,51 @@ namespace Sati.ViewModels
 
         public async Task ReloadAsync()
         {
+            await LoadHealthcareOptionsSafelyAsync();
+            var account = _sessionService.CurrentUser
+                ?? throw new InvalidOperationException("A signed-in user is required to load clients.");
+            var request = _workspaceLoads.Begin();
+            var people = await _personService.GetAllPeopleAsync(account.Id);
+            if (!_workspaceLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                return;
             People.Clear();
-            var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser!.Id);
             foreach (var person in people)
                 People.Add(person);
+        }
+
+        public void ClearForAccountSwitch()
+        {
+            _workspaceLoads.Invalidate();
+            _profileSettingsLoads.Invalidate();
+            Interlocked.Increment(ref _journalLoadVersion);
+            _journalSaveTimer?.Stop();
+            _journalPersonId = null;
+            _journalDraftTracker.Clear();
+            _suppressJournalSave = true;
+            SelectedPerson = null;
+            Journal = string.Empty;
+            _suppressJournalSave = false;
+            IsJournalLoading = false;
+            JournalSaveWarning = null;
+            SelectedPersonNotes.Clear();
+            SelectedPersonUpcomingItems.Clear();
+            SelectedPersonAtRequests.Clear();
+            Contacts.Clear();
+            HealthcareSystems.Clear();
+            _latestDoctor = null;
+            _latestDentist = null;
+            People.Clear();
+            ClearFields();
+            IsEditMode = false;
+            OnPropertyChanged(nameof(CanEditJournal));
+            OnPropertyChanged(nameof(HasSelectedPersonUpcomingItems));
+            OnPropertyChanged(nameof(HasSelectedPersonAtRequests));
+            OnPropertyChanged(nameof(LastDoctorDate));
+            OnPropertyChanged(nameof(DoctorName));
+            OnPropertyChanged(nameof(IsDoctorOverdue));
+            OnPropertyChanged(nameof(LastDentistDate));
+            OnPropertyChanged(nameof(DentistName));
+            OnPropertyChanged(nameof(IsDentistOverdue));
         }
 
         public Task ReloadProfileSettingsAsync() => LoadHealthcareOptionsSafelyAsync();
@@ -1287,10 +1330,14 @@ namespace Sati.ViewModels
 
         private async Task LoadPeopleAsync()
         {
-            if (_sessionService.CurrentUser is null)
+            var account = _sessionService.CurrentUser;
+            if (account is null)
                 return;
 
-            var people = await _personService.GetAllPeopleAsync(_sessionService.CurrentUser.Id);
+            var request = _workspaceLoads.Begin();
+            var people = await _personService.GetAllPeopleAsync(account.Id);
+            if (!_workspaceLoads.IsCurrent(request) || !ReferenceEquals(_sessionService.CurrentUser, account))
+                return;
 
             // Clear immediately before repopulating, not at the top: an awaited
             // query that fails or runs long would otherwise leave the grid empty
@@ -1303,6 +1350,7 @@ namespace Sati.ViewModels
 
         private async Task LoadSelectedPersonNotesAsync(Person? person)
         {
+            var account = _sessionService.CurrentUser;
             SelectedPersonNotes.Clear();
             if (person is null)
             {
@@ -1310,7 +1358,7 @@ namespace Sati.ViewModels
                 return;
             }
             var notes = await _noteService.GetAllByPersonAsync(person.Id);
-            if (SelectedPerson?.Id != person.Id)
+            if (SelectedPerson?.Id != person.Id || !ReferenceEquals(_sessionService.CurrentUser, account))
                 return;
             foreach (var note in notes)
                 SelectedPersonNotes.Add(note);
@@ -1328,6 +1376,7 @@ namespace Sati.ViewModels
         // blob-free and Person gains no appointment columns. Null person clears both.
         private async Task LoadAppointmentsAsync(Person? person)
         {
+            var account = _sessionService.CurrentUser;
             if (person is null)
             {
                 _latestDoctor = null;
@@ -1337,7 +1386,7 @@ namespace Sati.ViewModels
             {
                 var personId = person.Id;
                 var (medical, dental) = await _reviewItemService.GetLatestAppointmentsAsync(person.Id);
-                if (SelectedPerson?.Id != personId)
+                if (SelectedPerson?.Id != personId || !ReferenceEquals(_sessionService.CurrentUser, account))
                     return;
                 _latestDoctor = medical;
                 _latestDentist = dental;
@@ -1412,6 +1461,7 @@ namespace Sati.ViewModels
 
         private async Task LoadContactsAsync(Person? person)
         {
+            var account = _sessionService.CurrentUser;
             Contacts.Clear();
             IsContactEditorOpen = false;
             IsEditingContact = false;
@@ -1425,7 +1475,7 @@ namespace Sati.ViewModels
 
             // The selection can change while the query is in flight. Never show the
             // outgoing consumer's support network under the incoming consumer.
-            if (SelectedPerson?.Id != personId)
+            if (SelectedPerson?.Id != personId || !ReferenceEquals(_sessionService.CurrentUser, account))
                 return;
 
             foreach (var contact in contacts)
@@ -1590,12 +1640,17 @@ namespace Sati.ViewModels
 
         private async Task LoadHealthcareOptionsSafelyAsync()
         {
+            var account = _sessionService.CurrentUser;
+            var request = _profileSettingsLoads.Begin();
             try
             {
-                await LoadHealthcareOptionsAsync();
+                await LoadHealthcareOptionsAsync(account, request);
             }
             catch (Exception exception)
             {
+                if (!_profileSettingsLoads.IsCurrent(request) ||
+                    !ReferenceEquals(_sessionService.CurrentUser, account))
+                    return;
                 // Construction cannot await this optional page initialization. Keep
                 // its failure inside the view model rather than letting a fire-and-
                 // forget task become an application-level crash.
@@ -1644,9 +1699,12 @@ namespace Sati.ViewModels
         // Loads the configurable system names from Settings and projects each into a
         // HealthcareSystemOption for the combobox. Normalize re-applies the "Other"
         // floor and ordering in case the stored list was hand-edited.
-        private async Task LoadHealthcareOptionsAsync()
+        private async Task LoadHealthcareOptionsAsync(User? account, int request)
         {
             var settings = await _settingsService.LoadAsync();
+            if (!_profileSettingsLoads.IsCurrent(request) ||
+                !ReferenceEquals(_sessionService.CurrentUser, account))
+                return;
             AllowCredibleProfileUpdates = settings.AllowCredibleProfileUpdates;
             VrAssistantTitle = VocationalRehabilitationProfile.NormalizeAssistantTitle(
                 settings.VrAssistantTitle);

@@ -565,9 +565,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.49", version);
+        Assert.Equal("1.3.0", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Clear queues and current demos", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Private handoffs and test claims", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "The Overview now fits the space you have" &&
@@ -1505,6 +1505,45 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public async Task GeneratedDemoFilesCanBeSubmittedToTheMockClearinghouseOnce()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var period = new BillingPeriod
+        {
+            Id = 22,
+            UserId = 11,
+            CaseManagerName = "James Logan",
+            Month = 8,
+            Year = 2026,
+            Status = BillingStatus.Submitted,
+            SubmittedAt = DateTime.UtcNow,
+            Lines = [new ClaimLine { Id = 8, Units = 2, ChargeAmount = 50m }]
+        };
+        var billing = new StubBillingService([period], supportsMockClearinghouse: true);
+        var viewModel = new BillingSubmissionsViewModel(
+            billing, new SuccessfulEdiService(), session);
+
+        await viewModel.LoadAsync();
+        Assert.False(viewModel.CanSubmitToMockClearinghouse);
+
+        await viewModel.GenerateEdiCommand.ExecuteAsync(null);
+        Assert.True(viewModel.CanSubmitToMockClearinghouse);
+        viewModel.SelectedMockClearinghouseScenario = viewModel.MockClearinghouseScenarios
+            .Single(option => option.Scenario == MockClearinghouseScenario.Denied);
+
+        await viewModel.SubmitToMockClearinghouseCommand.ExecuteAsync(null);
+
+        Assert.Equal([(period.Id, MockClearinghouseScenario.Denied)], billing.MockSubmissions);
+        Assert.False(viewModel.CanSubmitToMockClearinghouse);
+        Assert.Contains("999", viewModel.StatusMessage);
+        Assert.Contains("277CA", viewModel.StatusMessage);
+        Assert.Contains("835", viewModel.StatusMessage);
+        Assert.Contains("Review Submission Home", viewModel.StatusMessage);
+    }
+
+    [Fact]
     public async Task BillingSubmissionsIncludesClaimBearingDraftPeriodsWithoutEvents()
     {
         var session = new SessionService();
@@ -1634,10 +1673,18 @@ public sealed class StabilizationTests
             (string?)element.Attribute("Text") == "837 GENERATION RANGE");
         var generate = elements.FindIndex(element => element.Name.LocalName == "Button" &&
             (string?)element.Attribute("Content") == "Generate 837P Files for Range");
+        var mockSection = elements.FindIndex(element => element.Name.LocalName == "StackPanel" &&
+            ((string?)element.Attribute("Visibility"))?.Contains("ShowsMockClearinghouse", StringComparison.Ordinal) == true);
+        var mockSubmit = elements.FindIndex(element => element.Name.LocalName == "Button" &&
+            (string?)element.Attribute("Content") == "Submit Generated 837P Files");
 
         Assert.True(selector >= 0 && selector < submit);
         Assert.True(submit < generationHeading);
         Assert.True(generationHeading < generate);
+        Assert.True(generate < mockSection && mockSection < mockSubmit);
+        Assert.Equal(
+            "Submit generated 837P files to mock clearinghouse",
+            (string?)elements[mockSubmit].Attribute("AutomationProperties.Name"));
     }
 
     [Fact]
@@ -1789,13 +1836,22 @@ public sealed class StabilizationTests
         }
     }
 
+    private sealed class SuccessfulEdiService : IEdiService
+    {
+        public Task<string> GenerateAndSaveAsync(int billingPeriodId, bool isTest, string idempotencyKey) =>
+            Task.FromResult($@"C:\Sati\837P.OATEST_{billingPeriodId}_{idempotencyKey}.txt");
+    }
+
     private sealed class StubBillingService(
         IEnumerable<BillingPeriod>? periods = null,
-        IReadOnlyList<RemittanceClaimOutcomeDto>? outcomes = null) : IBillingService
+        IReadOnlyList<RemittanceClaimOutcomeDto>? outcomes = null,
+        bool supportsMockClearinghouse = false) : IBillingService
     {
         private readonly List<BillingPeriod> _periods = periods?.ToList() ?? [];
         private readonly IReadOnlyList<RemittanceClaimOutcomeDto> _outcomes = outcomes ?? [];
+        public bool SupportsMockClearinghouse => supportsMockClearinghouse;
         public List<int> SubmittedPeriodIds { get; } = [];
+        public List<(int PeriodId, MockClearinghouseScenario Scenario)> MockSubmissions { get; } = [];
 
         public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
             throw new NotSupportedException();
@@ -1831,5 +1887,16 @@ public sealed class StabilizationTests
             Task.FromResult(_outcomes);
         public Task<IReadOnlyList<RemittanceDepositDto>> GetRemittanceDepositsAsync(AgencyActor actor) =>
             Task.FromResult<IReadOnlyList<RemittanceDepositDto>>([]);
+        public Task<MockClearinghouseResultDto> SubmitToMockClearinghouseAsync(
+            AgencyActor actor,
+            int billingPeriodId,
+            MockClearinghouseScenario scenario)
+        {
+            MockSubmissions.Add((billingPeriodId, scenario));
+            return Task.FromResult(new MockClearinghouseResultDto(
+                scenario.ToString(), "999", "277CA", "835",
+                [nameof(BillingSubmissionStage.Transmitted), nameof(BillingSubmissionStage.Paid)],
+                1, true));
+        }
     }
 }
