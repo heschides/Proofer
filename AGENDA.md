@@ -31,8 +31,9 @@ refresh worker. The refresh remains synthetic-only and is distinct from a full b
       LocalDB, integrated-security, and cleanup checks; it is 203,330,314 bytes with SHA-256
       `6b98a068bd77bc5401638beebe0d12f4d01a5a464826e15ae328ad7246896268` in
       `Sati Desktop`. Final copies and checksum contents were independently reverified.
-- [ ] Record and push the final evidence commit. No Production API deployment, Production migration,
-      Demo migration, or firewall change belongs to or was performed by this release.
+- [x] Evidence commit `57e2572` is pushed; this checked ledger entry indexes that commit. No
+      Production API deployment, Production migration, Demo migration, or firewall change belongs
+      to or was performed by this release.
 
 **Branches.** Fully merged `signature-portal-design` was safely deleted locally and remotely at
 tips `9c19af4` and `359e8ef`. `team-chat-design`, `second-machine-setup`,
