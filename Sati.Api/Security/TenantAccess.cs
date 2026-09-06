@@ -84,19 +84,22 @@ internal static class TenantAccess
         await OwnsPersonAsync(db, actor, assessment.PersonId, cancellationToken);
 }
 
-internal sealed class ValidatedActorFilter : IEndpointFilter
+internal sealed class ValidatedActorFilter(IDbContextFactory<ApiDbContext> factory) : IEndpointFilter
 {
     public async ValueTask<object?> InvokeAsync(
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next)
     {
-        var db = context.HttpContext.RequestServices.GetRequiredService<ApiDbContext>();
         var claimedActor = Actor.FromUnvalidatedClaims(context.HttpContext.User);
-        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(candidate =>
-            candidate.Id == claimedActor.UserId &&
-            candidate.AgencyId == claimedActor.AgencyId &&
-            candidate.Role == claimedActor.Role,
-            context.HttpContext.RequestAborted);
+        ServerUser? user;
+        // A WebSocket keeps the request alive. Finish and dispose authentication's
+        // database context before entering that long-lived endpoint.
+        await using (var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted))
+            user = await db.Users.AsNoTracking().SingleOrDefaultAsync(candidate =>
+                candidate.Id == claimedActor.UserId &&
+                candidate.AgencyId == claimedActor.AgencyId &&
+                candidate.Role == claimedActor.Role,
+                context.HttpContext.RequestAborted);
         if (user is null || !UserPermissionRules.IsSupported(user.Permissions))
             return Results.Unauthorized();
 

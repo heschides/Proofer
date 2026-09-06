@@ -21,5 +21,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Sati.Api\Sati.Api.csproj" />
     <ProjectReference Include="..\Sati.Contracts\Sati.Contracts.csproj" />
+    <ProjectReference Include="..\Sati.Signatures\Sati.Signatures.csproj" />
   </ItemGroup>
 </Project>

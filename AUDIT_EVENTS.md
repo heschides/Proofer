@@ -275,3 +275,51 @@ Admin-authored operational metadata, not as PHI-safe by construction.
 Authorized consumer deletion includes SafetyPlans and DocumentAcknowledgments, before artifacts
 and the Person are removed. Their counts are included in the retained audit tombstone; no safety
 plan content or receipt explanation is copied into the general ledger.
+
+## Team chat (2026-09-05)
+
+`chat.room-created`, `chat.room-updated`, `chat.room-archived`, `chat.member-added` and
+`chat.member-removed` record room/membership operations. `chat.message-redacted` records the
+message ID and room sequence; the reason remains only on the protected immutable change row.
+No room names/descriptions, message text, consumer names or redaction reasons enter general
+audit metadata. Posted `ChatMessage` and `ChatChange` rows are the immutable attributable write
+record; a second narrative-free event per post would duplicate that evidence.
+
+`chat.messages-released` commits before a nonempty message-page response, identifying the exact
+message IDs, change sequences, redacted state and membership interval supplied. Pages use bounded
+25-item chunks with a shared batch ID; all chunks commit in the same transaction. If saving any
+event fails, content is not released. It describes server release, not proof of human reading or
+a complete legal accounting of disclosures. It does not rely on a client acknowledgment or a
+five-minute deferred flush. `ChatReadMarker` is only unread-display state.
+
+The WebSocket carries no body, room/user/person identifiers or PHI. Its generic notice is not a
+second content-release path. Ordinary message access still needs the current authenticated actor,
+membership, agency and consumer scope. Records-request discovery, hidden-original export and
+broad preservation controls remain open in `TEAM_CHAT_GUIDE.md` and `AGENDA.md`.
+
+## Signature evidence
+
+Staff source freezing and candidate/history/PDF releases use the existing general audit owner:
+`signature.document-frozen`, `signature.staff-signers-released`, `signature.staff-history-released`
+and `signature.staff-document-released`. PDF release captures the exact hash/size and commits its
+audit before returning bytes. No document text, PIN, invitation or session token belongs there.
+
+`SignatureEvent` is a separate immutable request-scoped ledger for issuance, code rejection/lock,
+authentication, source release, electronic-record consent, signing, refusal/change requests,
+withdrawal/replacement, source invalidation, session extension/end, package preparation and
+notification outcomes. Its sequence advances with `SignatureRequest.Revision` in the same
+transaction. `ActorKind` distinguishes Staff (real user reference), Signer (request/session
+reference) and System. A consumer is never fabricated as a staff `AuditActor` or as
+`DocumentAcknowledgment.RecordedByUserId`.
+
+`SignatureConsent` freezes accepted wording/version; `SignatureCompletion` freezes name, intent,
+document/session/consent references and the exact signing time. The retained original, derived
+package and these records are evidence together. Server document release and affirmative access
+acknowledgment do not prove reading or understanding. A successful email operation does not prove
+delivery, reading, consent or signing. Authorization revocation remains separately recorded with
+its reason and time while the original signed decision is immutable.
+
+Stopping external receipt access after a relevant signer change records its own immutable event,
+time and reason and advances the request's authentication version. It does not revoke a medical
+authorization or change the signed outcome. The certificate includes a bounded selection for the
+completed signing session; the full ledger, including later actions, remains in the database.

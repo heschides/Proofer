@@ -1,0 +1,96 @@
+<UserControl x:Class="Sati.Views.ClientDocuments.SignatureRequestsWorkspace"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:converters="clr-namespace:Sati.Converters"
+ DataContextChanged="OnContextChanged" Loaded="OnLoaded" Unloaded="OnUnloaded"
+ Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
+ <UserControl.Resources><converters:SignatureLabelConverter x:Key="SignatureLabel"/></UserControl.Resources>
+ <StackPanel>
+  <TextBlock Text="Electronic signing — fictional-data testing" FontSize="18" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
+  <TextBlock Text="{Binding ConsumerContext}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,8"/>
+  <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" Margin="0,8"/>
+  <TextBlock Text="Paper, in-person and assisted options remain available without disadvantage. Each request is for one named signer." TextWrapping="Wrap"/>
+  <TextBlock Text="{Binding ScopeNotice}" TextWrapping="Wrap" Margin="0,8"/>
+  <Button Content="Reload signing requests" Command="{Binding RefreshCommand}" HorizontalAlignment="Left"/>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8" AutomationProperties.LiveSetting="Polite"/>
+  <Expander Header="Which documents can be signed?">
+   <ItemsControl ItemsSource="{Binding Catalog}">
+    <ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,8">
+     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+     <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap"/>
+    </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+  </Expander>
+  <GroupBox Header="Prepare one signing request" Margin="0,12" IsEnabled="{Binding IsEnabled}">
+   <StackPanel Margin="12">
+    <TextBlock Text="Current document record"/>
+    <ComboBox ItemsSource="{Binding Artifacts}" SelectedItem="{Binding SelectedArtifact}" AutomationProperties.Name="Document to sign">
+     <ComboBox.ItemTemplate><DataTemplate><TextBlock><Run Text="{Binding Kind, Mode=OneWay, Converter={StaticResource SignatureLabel}}"/><Run Text=" — record "/><Run Text="{Binding Id, Mode=OneWay}"/><Run Text=" — "/><Run Text="{Binding Origin, Mode=OneWay, Converter={StaticResource SignatureLabel}}"/></TextBlock></DataTemplate></ComboBox.ItemTemplate>
+    </ComboBox>
+    <TextBlock Text="{Binding DocumentExplanation}" TextWrapping="Wrap" Margin="0,8"/>
+    <TextBlock Text="Signer from this consumer's record"/>
+    <ComboBox ItemsSource="{Binding Signers}" SelectedItem="{Binding SelectedSigner}" AutomationProperties.Name="Intended signer">
+     <ComboBox.ItemTemplate><DataTemplate><TextBlock><Run Text="{Binding Name, Mode=OneWay}"/><Run Text=" — "/><Run Text="{Binding Capacity, Mode=OneWay, Converter={StaticResource SignatureLabel}}"/></TextBlock></DataTemplate></ComboBox.ItemTemplate>
+    </ComboBox>
+    <TextBlock Text="Preferred email in the record" Margin="0,8,0,0"/>
+    <TextBlock Text="{Binding SelectedSigner.Email}" TextWrapping="Wrap"/>
+    <TextBlock Text="Correct the consumer or contact record first if the name, capacity or email is wrong. This screen does not grant signing authority." TextWrapping="Wrap"/>
+    <CheckBox Content="I reviewed the exact document and all required fields are complete" IsChecked="{Binding CompletenessReviewed}" Margin="0,8"/>
+    <Button Content="Choose exact saved PDF and retain it for signing" Command="{Binding FreezeCommand}" IsEnabled="{Binding CanFreeze}" HorizontalAlignment="Left"/>
+    <TextBlock Text="This step uploads the PDF to retain the exact signing copy. It must match this current Sati document record byte for byte. Drafts and externally recorded documents cannot be used." TextWrapping="Wrap" Margin="0,8"/>
+    <CheckBox Content="I independently confirmed the intended signer's identity and capacity" IsChecked="{Binding IdentityConfirmed}"/>
+    <CheckBox Content="I confirmed the preferred email with that signer" IsChecked="{Binding EmailConfirmed}" Margin="0,6"/>
+    <TextBlock Text="Authority evidence for a guardian or representative (reference and scope)"/>
+    <TextBox Text="{Binding AuthorityEvidence, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" TextWrapping="Wrap" MinHeight="44" AutomationProperties.Name="Signer authority evidence"/>
+    <TextBlock Text="New independent access code" Margin="0,8,0,0"/>
+    <PasswordBox x:Name="PinBox" MaxLength="12" AutomationProperties.Name="New signing access code"/>
+    <TextBlock Text="Confirm new code" Margin="0,6,0,0"/>
+    <PasswordBox x:Name="ConfirmPinBox" MaxLength="12" AutomationProperties.Name="Confirm new signing access code"/>
+    <TextBlock Text="{Binding PinExplanation}" TextWrapping="Wrap" Margin="0,8"/>
+    <TextBlock Text="Provide the code by an independently verified channel. It is cleared after every attempt and is never shown in the request history." TextWrapping="Wrap"/>
+    <WrapPanel Margin="0,8"><TextBlock Text="Link expires after hours (24 to 168)" VerticalAlignment="Center"/>
+     <TextBox Text="{Binding ExpiryHours, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="8,0" AutomationProperties.Name="Signature request expiry hours"/>
+     <Button Content="Create signing request" Click="CreateRequest" IsEnabled="{Binding CanCreate}"/>
+    </WrapPanel>
+   </StackPanel>
+  </GroupBox>
+  <TextBlock Text="Signing history" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
+  <TextBlock Text="{Binding ElectronicReceiptStatus}" TextWrapping="Wrap" Margin="0,8"/>
+  <DataGrid ItemsSource="{Binding Requests}" SelectedItem="{Binding SelectedRequest}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="230" SelectionMode="Single" AutomationProperties.Name="Signature request history">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="Request" Binding="{Binding Id}"/>
+    <DataGridTextColumn Header="Document" Binding="{Binding DocumentName}"/>
+    <DataGridTextColumn Header="Signer" Binding="{Binding SignerName}"/>
+    <DataGridTextColumn Header="Capacity" Binding="{Binding SignerCapacity, Converter={StaticResource SignatureLabel}}"/>
+    <DataGridTextColumn Header="Outcome" Binding="{Binding State, Converter={StaticResource SignatureLabel}}"/>
+    <DataGridTextColumn Header="Delivery" Binding="{Binding DeliveryState, Converter={StaticResource SignatureLabel}}"/>
+    <DataGridTextColumn Header="Signed-copy notice" Binding="{Binding ReceiptDeliveryState, Converter={StaticResource SignatureLabel}}"/>
+    <DataGridCheckBoxColumn Header="Code locked" Binding="{Binding IsLocked}"/>
+    <DataGridTextColumn Header="Expires (UTC)" Binding="{Binding ExpiresAtUtc}"/>
+   </DataGrid.Columns>
+  </DataGrid>
+  <TextBlock Text="{Binding SelectedRequest.TerminalReason}" TextWrapping="Wrap" Margin="0,8"/>
+  <TextBlock Text="{Binding SelectedRequest.DeliveryEmail}" TextWrapping="Wrap"/>
+  <TextBlock Text="Delivery service acceptance does not confirm inbox delivery or that the recipient read the message. Needs staff review requires follow-up through an approved channel." TextWrapping="Wrap"/>
+  <TextBlock Text="{Binding SelectedRequest.ExternalAccessRevokedAtUtc, StringFormat=Online copy access stopped: {0:G}}"/>
+  <TextBlock Text="{Binding SelectedRequest.AuthorizationRevokedAtUtc, StringFormat=Authorization withdrawn: {0:G}}"/>
+  <WrapPanel Margin="0,8">
+   <Button Content="Save retained original" Command="{Binding DownloadOriginalCommand}" IsEnabled="{Binding CanManage}"/>
+   <Button Content="Save signed copy and certificate" Command="{Binding DownloadSignedCommand}" IsEnabled="{Binding CanDownloadSigned}" Margin="8,0"/>
+  </WrapPanel>
+  <TextBlock Text="Reason for replacing, revoking, or withdrawing authorization"/>
+  <TextBox Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" MinHeight="44" TextWrapping="Wrap" AutomationProperties.Name="Reason for signature request action"/>
+  <TextBlock Text="Replacing a request invalidates its prior link and code. Choose that request's signer from the current list above, confirm their displayed name and email again, and enter a new code. Completed signatures and their evidence remain retained." TextWrapping="Wrap" Margin="0,8"/>
+  <WrapPanel>
+   <Button Content="Replace request with new link and code" Click="ReplaceRequest" IsEnabled="{Binding CanReplace}"/>
+   <Button Content="Revoke unfinished request" Command="{Binding RevokeCommand}" IsEnabled="{Binding CanRevoke}" Margin="8,0"/>
+   <Button Content="Record authorization withdrawal" Command="{Binding WithdrawAuthorizationCommand}" IsEnabled="{Binding CanWithdrawAuthorization}"/>
+  </WrapPanel>
+  <TextBlock Text="Withdrawing authorization to disclose information is distinct from choosing paper or withdrawing electronic-signing consent. Record it only after confirming the person's actual instruction." TextWrapping="Wrap" Margin="0,8"/>
+  <Expander Header="Selected request evidence">
+   <DataGrid ItemsSource="{Binding SelectedRequest.Events}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="200" AutomationProperties.Name="Signature request evidence">
+    <DataGrid.Columns><DataGridTextColumn Header="Sequence" Binding="{Binding Sequence}"/><DataGridTextColumn Header="Event" Binding="{Binding Kind, Converter={StaticResource SignatureLabel}}"/><DataGridTextColumn Header="Actor" Binding="{Binding ActorKind, Converter={StaticResource SignatureLabel}}"/><DataGridTextColumn Header="Time UTC" Binding="{Binding OccurredAtUtc}"/></DataGrid.Columns>
+   </DataGrid>
+  </Expander>
+ </StackPanel>
+</UserControl>

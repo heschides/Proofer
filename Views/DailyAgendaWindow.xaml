@@ -98,6 +98,18 @@
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        AutomationProperties.HeadingLevel="Level1" />
+            <Border Margin="0,12,0,0"
+                    Padding="10,8"
+                    Background="{DynamicResource WarningFillBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    AutomationProperties.LiveSetting="Assertive"
+                    Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="{Binding SaveErrorMessage}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource WarningBrush}" />
+            </Border>
         </StackPanel>
 
         <ScrollViewer Grid.Row="2"
@@ -171,12 +183,12 @@
                             IsCancel="True"
                             Command="{Binding SkipCommand}"
                             AutomationProperties.Name="Skip today's agenda" />
-                    <Button Content="Add selected to Today's Work"
+                    <Button Content="Add selected as scheduled work"
                             MinWidth="190"
                             Padding="14,7"
                             IsDefault="True"
                             Command="{Binding ConfirmCommand}"
-                            AutomationProperties.Name="Add selected agenda items to Today's Work" />
+                            AutomationProperties.Name="Add selected agenda items as scheduled work in Today's Work" />
                 </StackPanel>
             </DockPanel>
         </Border>

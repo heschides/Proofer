@@ -61,6 +61,36 @@ public sealed class ServiceTimelineTests
         Assert.Empty(ServiceTimeline.FindConflicts(candidate, [recorded]));
     }
 
+    [Fact]
+    public void EarliestAvailableStartUsesTheFirstGapLongEnoughForTheWork()
+    {
+        var occupied = new[]
+        {
+            new ServiceBlock(1, 0, 30),
+            new ServiceBlock(2, 45, 30)
+        };
+
+        Assert.Equal(30, ServiceTimeline.FindEarliestAvailableStart(15, occupied));
+        Assert.Equal(75, ServiceTimeline.FindEarliestAvailableStart(30, occupied));
+    }
+
+    [Fact]
+    public void EarliestAvailableStartCanIgnoreTheScheduledNoteBeingContinued()
+    {
+        var scheduled = new ServiceBlock(7, 0, 45);
+
+        Assert.Equal(0, ServiceTimeline.FindEarliestAvailableStart(45, [scheduled], excludedNoteId: 7));
+    }
+
+    [Fact]
+    public void EarliestAvailableStartReturnsNullWhenNoWindowFits()
+    {
+        var wholeDay = new ServiceBlock(1, 0, ServiceTimeline.WindowLengthMinutes);
+
+        Assert.Null(ServiceTimeline.FindEarliestAvailableStart(15, [wholeDay]));
+        Assert.Null(ServiceTimeline.FindEarliestAvailableStart(0, []));
+    }
+
     [Theory]
     [InlineData("Cancelled")]
     [InlineData("Delayed")]

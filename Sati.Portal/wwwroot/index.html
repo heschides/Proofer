@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Sati · Private document review</title>
+  <link rel="stylesheet" href="/portal.css">
+  <script src="/portal.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to document review</a>
+  <header class="site-header"><div class="brand" aria-label="Sati">sati<span class="brand-dot" aria-hidden="true">.</span></div><span>Private document review</span></header>
+  <main id="main" tabindex="-1">
+    <div class="test-banner"><strong>Fictional-data testing only</strong><span>This signing service is not available for real consumer records.</span></div>
+    <div id="status" class="status" role="status" aria-live="polite" tabindex="-1">Preparing your private session…</div>
+    <noscript><p class="status">JavaScript is needed for this signing session. Contact your case manager for an assisted or paper option.</p></noscript>
+
+    <section id="auth-panel" class="card" aria-labelledby="auth-heading" hidden>
+      <p class="eyebrow">A private link. A separate code.</p>
+      <h1 id="auth-heading" tabindex="-1">Let's open your document.</h1>
+      <p>Enter the code you established separately with your case manager. Your email link alone cannot open the document.</p>
+      <form id="auth-form">
+        <label for="pin">Your access code</label>
+        <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" minlength="8" maxlength="12" pattern="[0-9]{8,12}" required aria-describedby="pin-help">
+        <p id="pin-help" class="field-help">8 to 12 digits. Do not enter a date of birth or other personal identifier.</p>
+        <button id="auth-submit" type="submit">Open private session <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="muted">If this link was unexpected, close it. Contact the person you normally work with using details you already have.</p>
+    </section>
+
+    <section id="review-panel" aria-labelledby="document-heading" hidden>
+      <div id="session-warning" class="session-warning" role="status" hidden>
+        <p id="session-warning-text"></p><button id="extend-session" class="secondary" type="button">Keep this session open</button>
+      </div>
+      <div class="card">
+        <p class="eyebrow">Your document</p>
+        <h1 id="document-heading" tabindex="-1"></h1>
+        <dl class="identity"><div><dt>Intended signer</dt><dd id="signer-name"></dd></div><div><dt>Signing as</dt><dd id="signer-capacity"></dd></div></dl>
+        <p class="identity-help">If the name, role, or document is wrong, stop here and contact your case manager. Do not sign for a different person.</p>
+        <div id="document-actions">
+          <h2 id="review-step">1. Open and keep your document</h2>
+          <p id="document-help">Open the complete PDF. Read it at your own pace, and save or print a copy. Opening a document does not sign it.</p>
+          <a id="document-link" class="button-link" href="/portal/document.pdf" target="_blank" rel="noopener noreferrer">Open or save the PDF <span class="small">(new tab)</span></a>
+          <button id="refresh-state" class="secondary" type="button">I've returned from the PDF — refresh status</button>
+        </div>
+        <p id="package-pending" class="notice" hidden>Your signature is recorded. Your signed copy and evidence certificate are being prepared. Check again shortly, or ask your case manager for a copy.</p>
+        <button id="refresh-package" class="secondary" type="button" hidden>Check for my signed copy</button>
+      </div>
+
+      <section id="consent-panel" class="card" aria-labelledby="consent-heading" hidden>
+        <p class="eyebrow">Your choice</p><h2 id="consent-heading">2. Choose whether to use electronic records</h2>
+        <p id="disclosure" class="disclosure"></p>
+        <p class="field-help">Disclosure version: <span id="disclosure-version"></span></p>
+        <form id="consent-form">
+          <label class="check"><input id="can-access" type="checkbox" required><span>I opened the actual PDF and can access, save, and keep it.</span></label>
+          <label class="check"><input id="accepts-electronic" type="checkbox" required><span>I read the electronic-records disclosure and choose to use electronic records for this request.</span></label>
+          <button id="consent-submit" type="submit">Continue with electronic signing</button>
+        </form>
+        <p class="muted">You can choose a paper or assisted option below. Your services must not depend on choosing electronic signing.</p>
+      </section>
+
+      <section id="sign-panel" class="card" aria-labelledby="sign-heading" hidden>
+        <p class="eyebrow">Your deliberate decision</p><h2 id="sign-heading" tabindex="-1">3. Sign this exact document</h2>
+        <form id="sign-form">
+          <label for="typed-name">Type your full name as shown above</label>
+          <input id="typed-name" name="typedName" type="text" maxlength="120" autocomplete="off" required>
+          <label class="check intent"><input id="agrees-to-intent" type="checkbox" required><span id="intent-text"></span></label>
+          <p class="field-help">Choosing the button below records your signature and its time. Do this only when you intend to sign the document.</p>
+          <button id="sign-submit" type="submit">Sign this document</button>
+        </form>
+      </section>
+
+      <section id="decision-panel" class="card alternatives" aria-labelledby="decision-heading" hidden>
+        <h2 id="decision-heading">Need a change or another way?</h2>
+        <p>You may decline, ask for corrections, or withdraw consent to electronic signing and arrange paper or assistance. None of these choices should disadvantage you.</p>
+        <form id="decision-form">
+          <label for="decision">What would you like to do?</label>
+          <select id="decision" required>
+            <option value="">Choose an option</option>
+            <option value="changes">Ask for changes to the document</option>
+            <option value="decline">Decline to sign this document</option>
+            <option value="withdraw">Withdraw electronic consent / choose paper or assistance</option>
+          </select>
+          <label for="reason">A short explanation for your case manager</label>
+          <textarea id="reason" name="reason" maxlength="500" rows="3" required aria-describedby="reason-help"></textarea>
+          <p id="reason-help" class="field-help">Up to 500 characters. You can simply say that you prefer paper or need help. Avoid unnecessary health details.</p>
+          <button id="decision-submit" class="secondary" type="submit">Record this choice</button>
+        </form>
+        <p class="muted">Withdrawing electronic consent stops this unfinished request. Withdrawing permission to disclose health information is a separate action: contact your case manager about that authorization.</p>
+      </section>
+      <button id="logout" class="text-button" type="button">Close this private session</button>
+    </section>
+
+    <section id="end-panel" class="card" aria-labelledby="end-heading" hidden>
+      <p class="eyebrow">Your choice is respected</p><h1 id="end-heading" tabindex="-1">This session is closed.</h1>
+      <p id="end-message">Use the original private link to open a new session, or contact your case manager for help.</p>
+    </section>
+
+    <aside class="help-card" aria-labelledby="help-heading">
+      <h2 id="help-heading">A paper or assisted option is always available.</h2>
+      <p>Use the contact details you already have for your case manager to request a free paper copy, an accessible format, language support, or help reviewing the document. Do not send your access code with the email link.</p>
+    </aside>
+    <footer>Electronic signing records a person's action and supporting evidence. It does not establish legal sufficiency, agency or state acceptance, service authorization, or billing approval.</footer>
+  </main>
+</body>
+</html>

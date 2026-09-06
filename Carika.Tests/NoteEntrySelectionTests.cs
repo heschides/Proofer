@@ -21,9 +21,10 @@ public sealed class NoteEntrySelectionTests
     public void CarikaOffersEveryApiNoteTypeButNotTheJournalOnlyReminder()
     {
         Assert.Equal(
-            ["Visit", "Contact", "Form", "Other"],
+            ["Visit", "Phone", "Email", "Form", "Other"],
             CaseNoteEntryOptions.NoteTypes.Select(option => option.Value));
         Assert.DoesNotContain(CaseNoteEntryOptions.NoteTypes, option => option.Value == "Reminder");
+        Assert.DoesNotContain(CaseNoteEntryOptions.NoteTypes, option => option.Value == "Contact");
     }
 
     [Fact]

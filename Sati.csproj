@@ -11,9 +11,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.2.47</Version>
-    <AssemblyVersion>1.2.47.0</AssemblyVersion>
-    <FileVersion>1.2.47.0</FileVersion>
+    <Version>1.2.48</Version>
+    <AssemblyVersion>1.2.48.0</AssemblyVersion>
+    <FileVersion>1.2.48.0</FileVersion>
     <Company>SatiLogica</Company>
   </PropertyGroup>
 
@@ -43,6 +43,10 @@
 
   <ItemGroup>
     <Compile Remove="Sati.Api\**\*.cs" />
+    <Compile Remove="Sati.Signatures\**\*.cs" />
+    <Compile Remove="Sati.Portal\**\*.cs" />
+    <Compile Remove="Sati.Signatures.Tests\**\*.cs" />
+    <Compile Remove="Sati.Portal.Tests\**\*.cs" />
     <Compile Remove="Sati.Api.Tests\**\*.cs" />
     <Compile Remove="Sati.Tests\**\*.cs" />
     <Compile Remove="Sati.Contracts\**\*.cs" />
@@ -54,6 +58,10 @@
     <Compile Remove="tools\**\*.cs" />
     <Compile Remove="tmp\**\*.cs" />
     <EmbeddedResource Remove="Sati.Api\**\*" />
+    <EmbeddedResource Remove="Sati.Signatures\**\*" />
+    <EmbeddedResource Remove="Sati.Portal\**\*" />
+    <EmbeddedResource Remove="Sati.Signatures.Tests\**\*" />
+    <EmbeddedResource Remove="Sati.Portal.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Api.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Tests\**\*" />
     <EmbeddedResource Remove="Sati.Contracts\**\*" />
@@ -65,6 +73,10 @@
     <EmbeddedResource Remove="tools\**\*" />
     <EmbeddedResource Remove="tmp\**\*" />
     <None Remove="Sati.Api\**\*" />
+    <None Remove="Sati.Signatures\**\*" />
+    <None Remove="Sati.Portal\**\*" />
+    <None Remove="Sati.Signatures.Tests\**\*" />
+    <None Remove="Sati.Portal.Tests\**\*" />
     <None Remove="Sati.Api.Tests\**\*" />
     <None Remove="Sati.Tests\**\*" />
     <None Remove="Sati.Contracts\**\*" />

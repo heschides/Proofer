@@ -3,6 +3,11 @@
 **Status:** implemented, tested, documented, committed, and pushed 2026-09-01.
 **Investigated against:** `master` @ `51b2341`.
 
+> **Structured successor implemented 2026-09-05.** The original implementation below appended
+> selected items as scratchpad text. Today's Work now displays Scheduled notes by type, and sign-in
+> selections create Scheduled Form notes through `WorkAgendaService`. The once-daily cadence and
+> recommendation rules remain current; descriptions of text-line insertion are historical.
+
 ---
 
 ## What Josh asked for

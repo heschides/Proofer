@@ -208,6 +208,14 @@
                                 Visibility="{Binding IsBillingAvailable,
                                     Converter={StaticResource BoolToVisibilityConverter}}" />
 
+                        <Button Content="{Binding Chat.NavigationLabel}"
+                                Style="{StaticResource ShellNavTabButton}"
+                                AutomationProperties.Name="Team chat"
+                                views:NavTab.IsActive="{Binding IsChatActive}"
+                                Command="{Binding NavigateToChatCommand}"
+                                Visibility="{Binding IsChatAvailable,
+                                    Converter={StaticResource BoolToVisibilityConverter}}" />
+
                     </StackPanel>
                     </ScrollViewer>
 

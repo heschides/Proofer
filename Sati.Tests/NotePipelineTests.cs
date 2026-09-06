@@ -500,7 +500,7 @@ public sealed class NotePipelineTests
     }
 
     [Fact]
-    public async Task LocalPersistenceNormalizesFutureWorkToANonBillableReminder()
+    public async Task LocalPersistenceNormalizesFutureWorkToAScheduledPlanWithoutActualTime()
     {
         await using var fixture = await PipelineFixture.CreateAsync();
         var service = fixture.NotesAs(fixture.CaseManagerOne);
@@ -521,10 +521,10 @@ public sealed class NotePipelineTests
         var stored = await fixture.DetachedNoteAsync(note.Id);
         Assert.Equal(reminderDate.Date, stored.EventDate);
         Assert.Equal(NoteStatus.Scheduled, stored.Status);
-        Assert.Equal(NoteType.Reminder, stored.NoteType);
-        Assert.Null(stored.Minutes);
+        Assert.Equal(NoteType.Form, stored.NoteType);
+        Assert.Equal(60, stored.Minutes);
         Assert.Null(stored.StartTime);
-        Assert.Null(stored.FormType);
+        Assert.Equal(FormType.PCP, stored.FormType);
         Assert.Null(stored.CaseManagerJustification);
         Assert.Null(stored.VisitDocumentationJson);
     }

@@ -535,13 +535,13 @@ namespace Sati.ViewModels
         public string ContactEditorHeader => IsEditingContact ? "EDIT CONTACT" : "ADD CONTACT";
         public string ContactSaveButtonLabel => IsEditingContact ? "Save Contact" : "Add Contact";
 
-        // Derived, read-only: the most recent Contact-type note's date for the selected
+        // Derived, read-only: the most recent contact note's date for the selected
         // client. A window over the already-loaded notes, not a stored field. Selecting
         // into DateTime? before Max means an empty sequence yields null rather than
         // throwing, and the detail panel renders null as a dash.
         public DateTime? LastContact =>
                     SelectedPersonNotes
-                        .Where(n => n.NoteType == NoteType.Contact)
+                        .Where(n => n.NoteType is NoteType.Contact or NoteType.Phone or NoteType.Email)
                         .Select(n => (DateTime?)n.EventDate)
                         .Max();
 
@@ -751,17 +751,23 @@ namespace Sati.ViewModels
                     Title = note.NoteType switch
                     {
                         NoteType.Contact => "Scheduled Contact",
+                        NoteType.Phone => "Scheduled Phone Call",
+                        NoteType.Email => "Scheduled Email",
                         NoteType.Form => "Scheduled Form",
                         NoteType.Reminder => "Reminder",
-                        _ => "Scheduled Visit"
+                        NoteType.Visit => "Scheduled Visit",
+                        _ => "Scheduled Other Work"
                     },
                     Date = note.EventDate!.Value,
                     Kind = note.NoteType switch
                     {
                         NoteType.Contact => UpcomingEventKind.ScheduledContact,
+                        NoteType.Phone => UpcomingEventKind.ScheduledPhone,
+                        NoteType.Email => UpcomingEventKind.ScheduledEmail,
                         NoteType.Form => UpcomingEventKind.ScheduledForm,
                         NoteType.Reminder => UpcomingEventKind.ScheduledReminder,
-                        _ => UpcomingEventKind.ScheduledVisit
+                        NoteType.Visit => UpcomingEventKind.ScheduledVisit,
+                        _ => UpcomingEventKind.ScheduledOther
                     }
                 });
 

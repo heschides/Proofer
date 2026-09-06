@@ -36,7 +36,9 @@ internal static partial class ApiEndpoints
         MapReviews(api);
         MapAssessments(api);
         MapSafetyPlans(api);
+        MapChat(api);
         MapAnnualPackets(api);
+        MapSignatures(api);
         MapProviders(api);
         MapAtRequests(api);
         MapAiContext(api);
@@ -463,6 +465,12 @@ internal static partial class ApiEndpoints
             }
             if (person.Revision != request.ExpectedRevision)
                 return StaleTestConsumerConflict();
+            if (await db.FrozenSignatureDocuments.AsNoTracking().AnyAsync(document => document.PersonId == personId &&
+                document.AgencyId == actor.AgencyId, cancellationToken))
+                return Results.Conflict(new ApiErrorDto("consumer_has_signature_history", SignatureRules.RetainedHistoryMessage, string.Empty));
+            if (await db.ChatRooms.AsNoTracking().AnyAsync(room => room.PersonId == personId &&
+                room.AgencyId == actor.AgencyId, cancellationToken))
+                return ChatRetainedConsumerConflict();
 
             var claimLineCount = await db.ClaimLines.AsNoTracking().CountAsync(claimLine =>
                 db.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId),
@@ -751,6 +759,12 @@ internal static partial class ApiEndpoints
                 return Results.NotFound();
             if (request.ExpectedRevision != person.Revision)
                 return StalePersonConflict();
+            if (await db.FrozenSignatureDocuments.AsNoTracking().AnyAsync(document => document.PersonId == personId &&
+                document.AgencyId == actor.AgencyId, cancellationToken))
+                return Results.Conflict(new ApiErrorDto("consumer_has_signature_history", SignatureRules.RetainedHistoryMessage, string.Empty));
+            if (await db.ChatRooms.AsNoTracking().AnyAsync(room => room.PersonId == personId &&
+                room.AgencyId == actor.AgencyId, cancellationToken))
+                return ChatRetainedConsumerConflict();
             if (!ConsumerDeletionRules.IsWithinDeletionWindow(person.CreatedAtUtc, DateTime.UtcNow))
             {
                 return Results.Conflict(new ApiErrorDto(
@@ -1857,6 +1871,9 @@ internal static partial class ApiEndpoints
                 return Results.ValidationProblem(validation);
 
             var actor = Actor.From(principal);
+            await using var signatureChangeTransaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
             var person = await db.People.SingleOrDefaultAsync(
                 x => x.Id == personId && x.UserId == actor.UserId,
                 cancellationToken);
@@ -1873,6 +1890,7 @@ internal static partial class ApiEndpoints
             }
 
             var before = PersonLifecycle.Capture(person);
+            var signingDetailsBefore = (person.FirstName, person.LastName, person.Email);
             await lifecycle.EnsureBaselineAsync(person, cancellationToken);
             ContractMapper.TryParseGender(request.Gender, out var gender);
             ContractMapper.TryParseWaiver(request.Waiver, out var waiver);
@@ -1903,9 +1921,12 @@ internal static partial class ApiEndpoints
 
             if (lifecycle.RecordChanged(actor, person, before, "Updated", additionalChanges))
                 auditTrail.Record(actor, AuditActions.PersonUpdated, "Person", personId);
+            if (signingDetailsBefore != (person.FirstName, person.LastName, person.Email))
+                await Sati.Data.SignaturePersistenceMutations.RevokeOpenForSignerAsync(db, personId, null, actor.UserId, DateTime.UtcNow, cancellationToken);
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                await signatureChangeTransaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -2612,6 +2633,9 @@ internal static partial class ApiEndpoints
                 return Results.ValidationProblem(validation);
 
             var actor = Actor.From(principal);
+            await using var signatureChangeTransaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, personId, cancellationToken))
+                return Results.NotFound();
             var contact = await (from candidate in db.PersonContacts
                                  join person in db.People on candidate.PersonId equals person.Id
                                  where candidate.Id == contactId && candidate.PersonId == personId &&
@@ -2620,8 +2644,12 @@ internal static partial class ApiEndpoints
             if (contact is null)
                 return Results.NotFound();
 
+            var signingDetailsBefore = (contact.FirstName, contact.LastName, contact.Email, contact.Kind, contact.IsActive);
             ApplyPersonContact(contact, request);
+            if (signingDetailsBefore != (contact.FirstName, contact.LastName, contact.Email, contact.Kind, contact.IsActive))
+                await Sati.Data.SignaturePersistenceMutations.RevokeOpenForSignerAsync(db, personId, contactId, actor.UserId, DateTime.UtcNow, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
+            await signatureChangeTransaction.CommitAsync(cancellationToken);
             return Results.Ok(ContractMapper.ToPersonContact(contact));
         });
 
@@ -2632,6 +2660,7 @@ internal static partial class ApiEndpoints
             CancellationToken cancellationToken) =>
         {
             var actor = Actor.From(principal);
+            await using var signatureChangeTransaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
             var contact = await (from candidate in db.PersonContacts
                                  join person in db.People on candidate.PersonId equals person.Id
                                  where candidate.Id == contactId && person.UserId == actor.UserId
@@ -2639,8 +2668,13 @@ internal static partial class ApiEndpoints
             if (contact is null)
                 return Results.NotFound();
 
+            if (!await TenantAccess.OwnsPersonAsync(db, actor, contact.PersonId, cancellationToken))
+                return Results.NotFound();
+
             contact.IsActive = false;
+            await Sati.Data.SignaturePersistenceMutations.RevokeOpenForSignerAsync(db, contact.PersonId, contactId, actor.UserId, DateTime.UtcNow, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
+            await signatureChangeTransaction.CommitAsync(cancellationToken);
             return Results.NoContent();
         });
 
@@ -4202,6 +4236,56 @@ internal static partial class ApiEndpoints
 
     private static void MapReports(RouteGroupBuilder api)
     {
+        api.MapGet("/reports/productivity-units", async Task<IResult> (
+            DateTime start,
+            DateTime end,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            start = start.Date;
+            end = end.Date;
+            if (end < start || start.Year < 2000 || end.Year > 2200 ||
+                (end - start).TotalDays > 3_660)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["window"] = ["The report window must be valid, within 2000-2200, and no longer than 10 years."]
+                });
+            }
+
+            var actor = Actor.From(principal);
+            var endExclusive = end.AddDays(1);
+            var rows = await (from note in db.Notes.AsNoTracking()
+                              join person in db.People.AsNoTracking()
+                                  on note.PersonId equals person.Id
+                              where person.UserId == actor.UserId &&
+                                    person.AgencyId == actor.AgencyId &&
+                                    note.AgencyId == actor.AgencyId &&
+                                    note.EventDate.HasValue &&
+                                    note.EventDate.Value >= start &&
+                                    note.EventDate.Value < endExclusive &&
+                                    (note.Status == (int)NoteStatus.Logged ||
+                                     note.Status == (int)NoteStatus.Approved)
+                              select new
+                              {
+                                  EventDate = note.EventDate!.Value,
+                                  note.Minutes
+                              })
+                .ToListAsync(cancellationToken);
+
+            var months = rows
+                .GroupBy(row => (row.EventDate.Year, row.EventDate.Month))
+                .OrderBy(group => group.Key.Year)
+                .ThenBy(group => group.Key.Month)
+                .Select(group => new ProductivityMonthUnitsDto(
+                    group.Key.Year,
+                    group.Key.Month,
+                    group.Sum(row => CalculateUnits(row.Minutes))))
+                .ToList();
+            return Results.Ok(months);
+        });
+
         api.MapGet("/reports/consumer-billing-loss", async Task<IResult> (
             DateTime start,
             DateTime end,

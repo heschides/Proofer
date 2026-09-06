@@ -1,12 +1,28 @@
 # API authorization and tenant ownership
 
-*Route inventory mechanically reconciled 2026-09-03: 141 protected routes. The table matches
+*Route inventory mechanically reconciled 2026-09-06: 168 protected routes. The table matches
 `ApiSurface.Routes` after excluding health and anonymous login, and `ApiSurfaceTests` checks that
 manifest against live endpoint registration. Every route added, removed, or rescoped must be
 reflected here in the same change.*
 
 This is the route inventory for the protected `/api/v1` API. The unauthenticated
 `POST /api/v1/auth/login` route and health checks are intentionally outside this table.
+
+The separate `Sati.Portal` host is also outside this staff-route count. Its neutral `/`, `/s/{token}`,
+`/r/{token}` pages and `GET /portal/bootstrap` contain no consumer record. `POST /portal/auth`
+requires the private request token and correct signing code, plus HTTPS, bounded JSON, rate limits
+and CSRF. `GET /portal/state` and `GET /portal/document.pdf` resolve only a durable, request-bound
+session cookie. `POST /portal/consent`, `/portal/sign`, `/portal/decision`, `/portal/extend` and
+`/portal/logout` additionally require CSRF; receipt cookies cannot sign, consent, extend a signing
+session or make unfinished-request decisions. Every protected operation rechecks expiry, request
+status, durable authentication version and relevant source validity. The portal has no routes
+accepting a caller-supplied agency, person or artifact ID and no `/api/v1` routes.
+
+Decisions and PDF downloads additionally require the displayed page's session binding. This
+non-secret correlation value cannot authenticate or select a different request; it must match
+the session already selected by the cookie. State refresh validates it when supplied. Relevant
+signer changes stop external receipt access and invalidate old sessions without erasing a signed
+decision. Expiry is rechecked after awaited work and before the protected decision or release.
 
 `POST /api/v1/auth/login` carries one invariant that is not visible from the route table: it must
 spend the same key-derivation work whether or not the username exists, so that sign-in cannot be
@@ -34,6 +50,31 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 
 | Feature | Protected route | Authoritative tenant owner | Access rule |
 |---|---|---|---|
+| Signatures | `GET /signatures/availability` | Validated actor | Reports environment capability only; disabled by default. |
+| Signatures | `GET /signatures/catalog` | Validated actor | Shared document-purpose catalog; no consumer information or legal clearance. |
+| Signatures | `GET /people/{personId}/signature-signers` | Person agency and owning user agency | Existing live `TenantAccess.CanAccessUserAsync`, marked test consumer, active same-consumer representative contacts; release audited. |
+| Signatures | `GET /people/{personId}/signature-requests` | Person/request agency and owning user agency | Same live consumer-access rule; bounded retained history and audited release. |
+| Signatures | `POST /people/{personId}/documents/{artifactId}/freeze` | Person/artifact agency and owning user agency | Test consumer, live consumer access, current complete generated allowed-kind artifact, explicit review and exact hash/size; audited freeze in the same transaction. |
+| Signatures | `POST /signature-requests` | Person/frozen document/request agency | Test consumer and live access; server-resolved current signer/contact; exact confirmed name/email snapshot, authority explanation, code policy and idempotency checks. |
+| Signatures | `POST /signature-requests/{requestId}/replace` | Request/person agency and owning user agency | Same current signer/access checks, expected revision, reason, fresh different code and new request identity; old request/session revoked. |
+| Signatures | `POST /signature-requests/{requestId}/revoke` | Request/person agency and owning user agency | Live access, test-consumer gate, expected revision and reason; unfinished requests only, evidence retained. |
+| Signatures | `POST /signature-requests/{requestId}/withdraw-authorization` | Request/person agency and owning user agency | Live access, expected revision and reason; signed authorization purpose only. Preserves the signature and records withdrawal separately. |
+| Signatures | `GET /signature-requests/{requestId}/original.pdf` | Request/person/frozen document agency | Live consumer access, exact retained hash/size verification and audit committed before bytes are returned. |
+| Signatures | `GET /signature-requests/{requestId}/signed.pdf` | Request/person/package agency | Same release checks; an immutable prepared package must exist. |
+| Chat | `GET /chat/availability` | Validated deployment identity | Validated agency user; only whether synthetic chat is enabled. PlatformOperator remains excluded by the path allowlist. |
+| Chat | `GET /chat/candidates` | Actor agency and optional consumer | Admin; eligible agency users with existing consumer access when specified. No platform-support identities. |
+| Chat | `GET /chat/rooms` | Room and membership agencies | Eligible active member with matching room/user/agency; consumer rooms also require current caseload access. |
+| Chat | `POST /chat/rooms` | Actor agency | Admin; explicit eligible same-agency members, all authorized for optional consumer scope. No inherited history. |
+| Chat | `PUT /chat/rooms/{roomId}` | Room agency | Admin plus optional consumer access, expected revision. Name/description only. Management does not grant reading. |
+| Chat | `POST /chat/rooms/{roomId}/archive` | Room agency | Same management scope, expected revision. Records retained, posting closed. |
+| Chat | `GET /chat/rooms/{roomId}/members` | Room, member and user agencies | Authorized active member with current consumer access where applicable. |
+| Chat | `POST /chat/rooms/{roomId}/members` | Room and target user agencies | Admin management scope; target eligible and authorized for consumer scope. Expected revision, member limits, new visibility boundary. |
+| Chat | `DELETE /chat/rooms/{roomId}/members/{userId}` | Room and membership agencies | Admin management scope or authorized member leaving themself; expected revision. Closes retained membership interval. |
+| Chat | `GET /chat/rooms/{roomId}/messages` | Room, member, message and change agencies | Authorized active member plus current consumer access; history after join only. Bounded ordered changes, current redacted form, exact release evidence committed before nonempty response. |
+| Chat | `POST /chat/rooms/{roomId}/messages` | Room and actor agency | Authorized member, consumer access and unarchived room. Expected revision, bounded body, user rate limit and scoped exact retry identity. |
+| Chat | `POST /chat/rooms/{roomId}/read` | Room, marker and actor agency | Authorized member; marker bounded to visible room sequence. Presentation acknowledgment, not proof of human reading. |
+| Chat | `POST /chat/messages/{messageId}/redact` | Message and room agency | Authorized member with supervision or administration, current consumer access and message visibility. Reason and expected revision; retained amendment. |
+| Chat | `GET /chat/stream` | Actor agency and eligible live membership | HTTPS WebSocket, authenticated actor and token/session lease. Contentless notices only, periodic revalidation, bounded connections. |
 | Profile | `POST /auth/renew` | User's `AgencyId` | Own validated user only; preserves the original authentication time and refuses renewal after the configured maximum session window. |
 | Profile | `GET /me` | User's `AgencyId` | Own user only. |
 | Profile | `GET /users/switchable` | User's `AgencyId` | Authenticated actor; response is restricted to the actor's agency. |
@@ -56,6 +97,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Users | `PUT /users/me/password` | User's `AgencyId` | Own user plus current-password verification. |
 | Supervisor | `GET /supervisor/supervisees` | Case manager user's `AgencyId` | Supervision permission sees assigned users with case-management permission; the current route returns directly assigned users. |
 | Supervisor | `GET /supervisor/notes` | Note person's own and owning user's `AgencyId` | Supervision permission sees assigned case managers; agency-wide supervision broadens that to every case manager in the agency. Administration implies agency-wide supervision but does not on its own substitute for supervision. |
+| Supervisor | `GET /supervisor/notes/page` | Note person's own and owning user's `AgencyId` | Existing paged review route: same supervision and caseload scope, bounded by the review page size and captured upper note ID. Added to this inventory during chat reconciliation; not a new chat route. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve` | Note person's own and owning user's `AgencyId` | Same supervisory scope; server owns approval transition and requires the caller's expected Note revision. |
 | Supervisor | `POST /supervisor/notes/{noteId}/approve-override` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records approver. |
 | Supervisor | `POST /supervisor/notes/{noteId}/return` | Note person's own and owning user's `AgencyId` | Same supervisory scope; reason and expected revision required; server records returner. |
@@ -64,7 +106,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Caseload | `PUT /people/{personId}/journal` | Person's assigned user and agency | Own caseload only. |
 | Caseload | `POST /people/{personId}/journal/entries` | Person's assigned user and agency | Own caseload only; same gate as the journal `PUT`. Server prepends the stamped entry and stamps from `ApiClock`, so the caller supplies only the text. |
 | People | `POST /people` | Actor's user and agency | Case-management permission; creates only in the actor's own caseload and agency. `IsTestData=true` additionally requires administration permission and is otherwise rejected. |
-| People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only. The creation-time test-data classification is immutable, including for Admins. |
+| People | `PUT /people/{personId}` | Person's assigned user and agency | Own caseload only, with current persisted ownership/permission rechecked in the write transaction. The creation-time test-data classification is immutable. Relevant signer changes atomically cancel unfinished invitations or stop signed-copy portal access. |
 | People | `PUT /people/{personId}/owner` | Person's agency, plus the current owner and the target user, all read from the database | Supervision permission. `CaseloadTransferRules` gates both ends: the actor must reach the current owner (their own caseload or a supervisee's) **and** the target, where reach requires the same agency, case-management permission, and either agency-wide supervision or a direct supervisor link. The request carries only a target id and a revision token — it cannot assert who the current owner is. Authorization is decided before the revision, so a refused caller learns nothing about the record's state. Records `person.reassigned` with the two user ids and nothing else; the move also lands in the consumer's own history as a `Reassigned` version. Stale revision answers `stale_person` 409. |
 | People | `POST /people/credible-matches` | Actor's agency; the owner of each matched consumer | Case-management permission. Answers which Credible client ids the agency already holds, for import dedupe. Agency-scoped rather than caseload-scoped, because the duplicate an importing supervisor most needs to catch sits on a case manager's caseload. Returns no person id and no name — only the ids that matched, plus the owner's display name where `CaseloadTransferRules` says the caller could already see that caseload, so a plain case manager learns an id is taken without learning whose consumer it is. A POST, not a query string: these identify real people and a query string reaches access logs. Capped at 500 ids; response is not cacheable. |
 | SSN | `GET /people/{personId}/ssn` | Person's assigned user and agency | Own caseload only. Returns the mask and an on-file flag; no route anywhere returns a plaintext SSN. Response is not cacheable. |
@@ -75,8 +117,8 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Person audit | `GET /people/{personId}/history.pdf` | Person and assigned user's `AgencyId` | Administration permission in actor agency; generated PDF remains behind the same check and is not cacheable. |
 | Contacts | `GET /people/{personId}/contacts` | Contact's person, assigned user, and agency | Own caseload only. |
 | Contacts | `POST /people/{personId}/contacts` | Contact's person, assigned user, and agency | Own caseload only. |
-| Contacts | `PUT /people/{personId}/contacts/{contactId}` | Contact's person and assigned user | Own caseload only; contact must belong to route person. |
-| Contacts | `DELETE /contacts/{contactId}` | Contact's person and assigned user | Own caseload only; soft delete. |
+| Contacts | `PUT /people/{personId}/contacts/{contactId}` | Contact's person and assigned user | Own caseload and current permission rechecked inside the write transaction; contact must belong to route person. Identity/address/capacity/active changes atomically invalidate outstanding external signing access. |
+| Contacts | `DELETE /contacts/{contactId}` | Contact's person and assigned user | Own caseload and current permission rechecked inside the write transaction; soft archive and signing-access invalidation commit together. |
 | Reviews | `GET /reviews` | Review person's assigned user and agency | Accessible case manager only. |
 | Reviews | `GET /people/{personId}/reviews` | Review person's assigned user and agency | Accessible case manager only. |
 | Reviews | `POST /reviews/ensure-current` | Each review person's assigned user and agency | Processes only people belonging to accessible case managers; inaccessible IDs are skipped. |
@@ -135,6 +177,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Incentives | `POST /incentives/eligible-days` | Settings `AgencyId` | Calculates with actor-agency settings. |
 | Incentives | `POST /incentives/remaining-days` | Settings `AgencyId` | Calculates with actor-agency settings. |
 | Reports | `GET /reports/consumer-billing-loss` | Each person's assigned user and agency | Own caseload only. |
+| Reports | `GET /reports/productivity-units` | Validated actor's user and agency | Own caseload only; both Person and Note agency markers must match, the request accepts no user id, and the response contains narrative-free monthly aggregates. |
 | Billing | `POST /billing/periods/{year}/{month}` | Billing period user's `AgencyId` | Billing permission; target user must be in actor agency. |
 | Billing | `GET /billing/periods` | Billing period user's `AgencyId` | Billing permission; response joined to actor agency. |
 | Billing | `POST /billing/periods/{periodId}/responses` | Billing period user's `AgencyId` | Billing permission; the period is resolved through its owning user's agency, so a response cannot be attached to another tenant's history. No tenant is ever read from the document. `IsSynthetic` comes from the document's ISA15 usage indicator, not from configuration. |

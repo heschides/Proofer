@@ -6,6 +6,10 @@
   <Project Path="Sati.Contracts/Sati.Contracts.csproj" />
   <Project Path="Sati.Forms/Sati.Forms.csproj" />
   <Project Path="Sati.Persistence/Sati.Persistence.csproj" />
+  <Project Path="Sati.Portal/Sati.Portal.csproj" />
+  <Project Path="Sati.Portal.Tests/Sati.Portal.Tests.csproj" />
+  <Project Path="Sati.Signatures/Sati.Signatures.csproj" />
+  <Project Path="Sati.Signatures.Tests/Sati.Signatures.Tests.csproj" />
   <Project Path="Sati.Tests/Sati.Tests.csproj" />
   <Project Path="Sati.csproj" />
 </Solution>

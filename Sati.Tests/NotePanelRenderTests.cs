@@ -164,12 +164,13 @@ public sealed class NotePanelRenderTests
     }
 
     [Fact]
-    public async Task FutureReminderKeepsItsDateEditableAndExplainsTheCalendarOutcome()
+    public async Task FutureServiceWorkKeepsItsTypeAndExplainsTheScheduledOutcome()
     {
         await using var fixture = await NoteEntryFixture.CreateAsync();
         var panel = fixture.NoteEntry();
         panel.SelectedPerson = await fixture.PersonOneAsync();
-        panel.SelectedNoteType = NoteType.Contact;
+        panel.SelectedNoteType = NoteType.Email;
+        panel.Minutes = 30;
         panel.EventDate = DateTime.Today.AddDays(5);
 
         WpfUiHarness.Run(() =>
@@ -177,15 +178,16 @@ public sealed class NotePanelRenderTests
             var view = new NoteEntryView { DataContext = panel };
             WpfUiHarness.Realize(view);
 
-            Assert.Equal(NoteType.Reminder, panel.SelectedNoteType);
+            Assert.Equal(NoteType.Email, panel.SelectedNoteType);
             Assert.Equal(NoteStatus.Scheduled, panel.Status);
             Assert.True(WpfUiHarness.FindByAutomationName<DatePicker>(view, "Event date").IsEnabled);
             Assert.False(WpfUiHarness.FindByAutomationName<ComboBox>(view, "Status").IsEnabled);
-            Assert.Contains("calendar", panel.StatusGuidance, StringComparison.OrdinalIgnoreCase);
+            Assert.False(WpfUiHarness.FindByAutomationName<ComboBox>(view, "Service start time").IsEnabled);
+            Assert.Contains("planned work", panel.StatusGuidance, StringComparison.OrdinalIgnoreCase);
             var save = WpfUiHarness.Descendants(view)
                 .OfType<Button>()
                 .Single(button => button.Command == panel.SubmitNoteCommand);
-            Assert.Equal("Add to Calendar", save.Content);
+            Assert.Equal("Schedule Work", save.Content);
         });
     }
 

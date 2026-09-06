@@ -88,6 +88,8 @@ internal static class DocumentArtifactStore
             // self-reference is replaced with the real successor id before commit.
             prior.MarkSuperseded(prior.Id);
             await context.SaveChangesAsync(cancellationToken);
+            await SignaturePersistenceMutations.RevokeOpenForArtifactAsync(
+                context, prior.Id, replacement.GeneratedByUserId, DateTime.UtcNow, cancellationToken);
         }
 
         context.DocumentArtifacts.Add(replacement);

@@ -1,0 +1,184 @@
+<UserControl x:Class="Sati.Views.ChatPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chat="clr-namespace:Sati.ViewModels.Children"
+             AutomationProperties.Name="Team chat workspace"
+             Background="{DynamicResource SurfaceBrush}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="ChatVisibility" />
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid x:Name="LayoutRoot" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Refresh" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh team chat" />
+                <Button Content="New room" Command="{Binding NewRoomCommand}" AutomationProperties.Name="Create a chat room"
+                        Visibility="{Binding IsAdministrator, Converter={StaticResource ChatVisibility}}" />
+            </StackPanel>
+            <TextBlock Text="Team chat" FontSize="24" FontWeight="SemiBold" />
+        </DockPanel>
+        <StackPanel Grid.Row="1" Margin="0,4,0,12">
+            <TextBlock Text="Synthetic Demo only — use made-up people and information." FontWeight="SemiBold" />
+            <TextBlock Text="{Binding RecordNotice}" FontSize="12" Margin="0,4,0,0" />
+        </StackPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="150" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" MinWidth="250" />
+            </Grid.ColumnDefinitions>
+            <ListBox x:Name="RoomList" ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}"
+                     AutomationProperties.Name="Chat rooms" Background="{DynamicResource SurfaceMutedBrush}"
+                     BorderBrush="{DynamicResource DividerBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="10" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ConsumerIdentity}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Summary}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <GridSplitter x:Name="RoomSplitter" Grid.Column="1" Width="4" HorizontalAlignment="Center" ResizeDirection="Columns"
+                          Background="{DynamicResource DividerBrush}" AutomationProperties.Name="Resize chat room list" />
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <ComboBox x:Name="CompactRoomPicker" ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}"
+                              AutomationProperties.Name="Choose a chat room" Visibility="Collapsed" Margin="0,0,0,4" HorizontalContentAlignment="Stretch">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding PickerLabel}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock x:Name="RoomHeading" Text="{Binding SelectedRoom.Name}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding RoomNotice}" FontSize="12" Margin="0,4,0,8" />
+                    <Expander Header="Room details and members" AutomationProperties.Name="Room details and members" Margin="0,0,0,8">
+                        <ScrollViewer MaxHeight="230" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="{Binding RoomGuidance}" FontSize="12" Margin="0,0,0,8" />
+                                <TextBlock Text="Current members" FontWeight="SemiBold" />
+                                <ListBox ItemsSource="{Binding Members}" SelectedItem="{Binding SelectedMember}" DisplayMemberPath="DisplayName"
+                                         MaxHeight="85" AutomationProperties.Name="Current chat room members" />
+                                <Button Content="Leave room" Command="{Binding LeaveRoomCommand}" AutomationProperties.Name="Leave this chat room; history is retained" HorizontalAlignment="Left" Margin="0,6,0,6" />
+                                <StackPanel Visibility="{Binding CanManageSelectedRoom, Converter={StaticResource ChatVisibility}}" Margin="0,8,0,0">
+                                    <WrapPanel>
+                                        <ComboBox ItemsSource="{Binding MemberCandidates}" SelectedItem="{Binding SelectedCandidate}" DisplayMemberPath="DisplayName"
+                                                  MinWidth="170" AutomationProperties.Name="Eligible staff to invite" Margin="0,0,8,6" />
+                                        <Button Content="Add member" Command="{Binding AddMemberCommand}" AutomationProperties.Name="Add selected staff to chat room" />
+                                        <Button Content="Remove selected member" Command="{Binding RemoveMemberCommand}" AutomationProperties.Name="Remove selected chat room member" />
+                                    </WrapPanel>
+                                    <TextBlock Text="Room name" />
+                                    <TextBox Text="{Binding RoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="Chat room name" />
+                                    <TextBlock Text="Description — avoid client details" />
+                                    <TextBox Text="{Binding RoomDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="240" AutomationProperties.Name="Chat room description" />
+                                    <WrapPanel>
+                                        <Button Content="Save room details" Command="{Binding UpdateRoomCommand}" AutomationProperties.Name="Save chat room details" />
+                                        <Button Content="Reload room details" Command="{Binding ReloadRoomDetailsCommand}" AutomationProperties.Name="Reload room details and discard unsaved edits" />
+                                        <Button Content="Archive room" Command="{Binding ArchiveRoomCommand}" AutomationProperties.Name="Archive chat room as read only" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Expander>
+                    <WrapPanel>
+                        <Button Content="Older messages" Command="{Binding LoadOlderCommand}" AutomationProperties.Name="Read older chat messages" />
+                        <Button Content="Return to latest" Command="{Binding ReturnToLatestCommand}" AutomationProperties.Name="Return to latest chat messages" />
+                    </WrapPanel>
+                </StackPanel>
+                <ListBox x:Name="MessageHistory" Grid.Row="1" ItemsSource="{Binding Messages}" SelectedItem="{Binding SelectedMessage}"
+                         AutomationProperties.Name="Chat message history" Background="{DynamicResource SurfaceBrush}"
+                         BorderBrush="{DynamicResource DividerBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="10" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type chat:ChatMessageItem}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Header}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Body}" Margin="0,5,0,4" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Expander Grid.Row="2" Header="Hide a mistaken message" Margin="0,8,0,0" AutomationProperties.Name="Hide a mistaken chat message"
+                          Visibility="{Binding CanRedact, Converter={StaticResource ChatVisibility}}">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Select the message above and explain why it should be hidden. The original is retained. Report any privacy concern through your agency's process." FontSize="12" />
+                        <TextBox Text="{Binding RedactionReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="240" AutomationProperties.Name="Reason to hide selected chat message" Margin="0,6,0,6" />
+                        <Button Content="Hide selected message" Command="{Binding RedactCommand}" HorizontalAlignment="Left" AutomationProperties.Name="Hide selected message and retain original" />
+                    </StackPanel>
+                </Expander>
+                <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                    <TextBox x:Name="ComposeBox" Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap"
+                             Height="76" MaxLength="4000" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding CanCompose}" IsReadOnly="{Binding HasPendingSend}"
+                             AutomationProperties.Name="Chat message draft" />
+                    <WrapPanel>
+                        <Button Content="{Binding SendLabel}" Command="{Binding SendCommand}" AutomationProperties.Name="Send or safely retry chat message" />
+                        <Button Content="Mark room read" Command="{Binding MarkShownMessagesSeenCommand}" AutomationProperties.Name="Mark this chat room read" />
+                    </WrapPanel>
+                    <TextBlock Text="For emergencies or urgent care decisions, use your agency's established contact process." FontSize="11" />
+                </StackPanel>
+            </Grid>
+            <Border Grid.ColumnSpan="3" Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" Padding="18"
+                    Visibility="{Binding ShowRoomEditor, Converter={StaticResource ChatVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        <TextBlock Text="Create a room" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="Choose the purpose and invite only staff who need this discussion. A consumer room also checks their current consumer access." Margin="0,8,0,12" />
+                        <TextBlock Text="Room name — avoid client details" />
+                        <TextBox Text="{Binding NewRoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="New chat room name" />
+                        <TextBlock Text="Description" />
+                        <TextBox Text="{Binding NewRoomDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="240" AutomationProperties.Name="New chat room description" />
+                        <TextBlock Text="Discussion purpose" />
+                        <ComboBox ItemsSource="{Binding Consumers}" SelectedItem="{Binding NewRoomConsumer}" DisplayMemberPath="Name" AutomationProperties.Name="Consumer or general coordination for new room" />
+                        <TextBlock Text="Invite staff" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding NewRoomCandidates}" Margin="0,8,0,12">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding DisplayName}" Margin="0,4" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <WrapPanel>
+                            <Button Content="Create room" Command="{Binding CreateRoomCommand}" AutomationProperties.Name="Confirm new chat room" />
+                            <Button Content="Cancel" Command="{Binding CloseRoomEditorCommand}" AutomationProperties.Name="Cancel chat room creation" />
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <TextBlock x:Name="ChatStatus" Grid.Row="3" Text="{Binding Status}" Margin="0,10,0,0" FontSize="12"
+                   AutomationProperties.Name="Chat status" AutomationProperties.LiveSetting="Polite" />
+    </Grid>
+    </ScrollViewer>
+</UserControl>

@@ -28,7 +28,6 @@ namespace Sati.ViewModels
         private readonly IApiCompatibilityService _apiCompatibility;
         private readonly EasyEyesPreferenceService _easyEyesPreferences;
         private readonly IdleLockPreferenceService _idlePreferences;
-        private readonly ScratchpadLayoutPreferenceService _scratchpadLayoutPreferences;
 
 
         // -------------------------------------------------------------------------
@@ -48,13 +47,14 @@ namespace Sati.ViewModels
             DatabaseActivityViewModel databaseActivity,
             EasyEyesPreferenceService easyEyesPreferences,
             IdleLockPreferenceService idlePreferences,
-            ScratchpadLayoutPreferenceService scratchpadLayoutPreferences)
+            ChatViewModel chatViewModel)
         {
             _apiCompatibility = apiCompatibility;
             _caseManagementViewModel = caseManagementViewModel;
             _supervisorDashboardViewModel = supervisorViewModel;
             _sessionService = sessionService;
             Scratchpad = scratchpadViewModel;
+            Chat = chatViewModel;
             _billingDashboardViewModel = billingDashboardViewModel;
             _adminDashboardViewModel = adminDashboardViewModel;
             _platformHealthViewModel = platformHealthViewModel;
@@ -62,14 +62,17 @@ namespace Sati.ViewModels
             _easyEyesPreferences = easyEyesPreferences;
             DatabaseActivity = databaseActivity;
             _idlePreferences = idlePreferences;
-            _scratchpadLayoutPreferences = scratchpadLayoutPreferences;
             _easyEyesPreferences.PreferenceChanged += (_, enabled) => ApplyEasyEyesMode(enabled);
             _idlePreferences.PreferenceChanged += (_, minutes) => Idle.ApplyTimeout(minutes);
-            _scratchpadLayoutPreferences.PreferenceChanged += (_, centered) => IsScratchpadCentered = centered;
+            Idle.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(IdleSessionState.IsOverlayVisible)) UpdateChatVisibility();
+            };
 
             // One scratchpad, two possible homes. The Overview renders this same
             // instance when it is centered; it is never given one of its own.
             NotesViewModel.AttachScratchpad(Scratchpad);
+            Scratchpad.ScheduledWorkOpeningAsync = OpenScheduledWorkItemAsync;
 
             // Moving between Overview and the other Case Management sub-tabs moves
             // the one live Work Agenda view between its center and side hosts.
@@ -84,11 +87,6 @@ namespace Sati.ViewModels
         {
             OnPropertyChanged(nameof(IsOverviewActive));
         }
-
-        // Mirrored onto the dashboard the same way ApplyEasyEyesMode mirrors its flag,
-        // so the Overview's middle column and this side panel always agree.
-        partial void OnIsScratchpadCenteredChanged(bool value) =>
-            NotesViewModel.IsScratchpadCentered = value;
 
         // -------------------------------------------------------------------------
         // Events
@@ -109,10 +107,6 @@ namespace Sati.ViewModels
         // view-model concern. Defaults open.
         [ObservableProperty] private bool isScratchpadVisible = true;
 
-        // Chooses which workspace initially occupies the Overview's center. Missing
-        // preferences are migrated to true; the worker can still choose Notes.
-        [ObservableProperty]
-        private bool isScratchpadCentered = true;
         [ObservableProperty] private bool isCompactDisplayMode;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(EasyEyesScale))]
@@ -122,6 +116,13 @@ namespace Sati.ViewModels
         // -------------------------------------------------------------------------
 
         public ScratchpadViewModel Scratchpad { get; }
+        public ChatViewModel Chat { get; }
+        public bool IsChatAvailable => Chat.IsAvailableHere;
+        public bool IsChatActive => ReferenceEquals(CurrentViewModel, Chat);
+        private bool _chatWindowVisible = true;
+        public void SetChatWindowVisible(bool visible) { _chatWindowVisible = visible; UpdateChatVisibility(); }
+        private void UpdateChatVisibility() => Chat.SetSurfaceState(IsChatActive && _chatWindowVisible, Idle.IsOverlayVisible);
+        public void ResumeChatAccount() { Chat.ResumeAccount(); UpdateChatVisibility(); }
         public DatabaseActivityViewModel DatabaseActivity { get; }
 
         // Forwarded so window-close journal flushing still reaches the dashboard now
@@ -196,6 +197,8 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsBillingActive));
             OnPropertyChanged(nameof(IsAdminActive));
             OnPropertyChanged(nameof(IsPlatformHealthActive));
+            OnPropertyChanged(nameof(IsChatActive));
+            UpdateChatVisibility();
             // Navigating away from Case Management returns the side panel to the
             // Scratchpad, since the notes panel it was hosting belongs to the Overview.
             NotifyOverviewActivityChanged();
@@ -239,6 +242,12 @@ namespace Sati.ViewModels
         }
         [RelayCommand] private void ToggleScratchpad() => IsScratchpadVisible = !IsScratchpadVisible;
 
+        [RelayCommand]
+        private void NavigateToChat()
+        {
+            if (IsChatAvailable) CurrentViewModel = Chat;
+        }
+
         public void SetCompactDisplayMode(bool enabled) => IsCompactDisplayMode = enabled;
 
         private void ApplyEasyEyesMode(bool enabled)
@@ -270,13 +279,6 @@ namespace Sati.ViewModels
                 : await _idlePreferences.LoadForUserAsync(userId.Value));
         }
 
-        private async Task LoadScratchpadLayoutPreferenceAsync()
-        {
-            var userId = _sessionService.CurrentUser?.Id;
-            IsScratchpadCentered = userId is not null &&
-                await _scratchpadLayoutPreferences.LoadForUserAsync(userId.Value);
-        }
-
         public async Task OpenAgendaItemAsync(DailyAgendaItem item)
         {
             if (!IsCaseManagementAvailable)
@@ -293,6 +295,16 @@ namespace Sati.ViewModels
             NotesViewModel.NoteEntry.SelectedPerson = person;
             if (item.FormType is FormType formType)
                 await NotesViewModel.OpenFormAsync(formType);
+        }
+
+        private async Task OpenScheduledWorkItemAsync(WorkAgendaItem item)
+        {
+            if (!IsCaseManagementAvailable)
+                return;
+
+            CurrentViewModel = _caseManagementViewModel;
+            _caseManagementViewModel.ResetToDashboard();
+            await NotesViewModel.NoteEntry.PrepareScheduledWorkAsync(item.Note);
         }
         // -------------------------------------------------------------------------
         // Initialization
@@ -316,10 +328,10 @@ namespace Sati.ViewModels
 
         public async Task InitializeAsync()
         {
+            Chat.ResumeAccount();
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
             await LoadIdlePreferenceAsync();
-            await LoadScratchpadLayoutPreferenceAsync();
             await CheckApiCompatibilityAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
@@ -364,6 +376,7 @@ namespace Sati.ViewModels
 
         public async Task ReinitializeAsync()
         {
+            Chat.ResumeAccount();
             // The switch flow saves the outgoing user's scratchpad and journal before
             // authentication replaces the cloud API token. From this point onward every
             // request must belong to the newly selected user.
@@ -372,7 +385,6 @@ namespace Sati.ViewModels
             NotifyRoleDependentProperties();
             await LoadEasyEyesPreferenceAsync();
             await LoadIdlePreferenceAsync();
-            await LoadScratchpadLayoutPreferenceAsync();
             if (_sessionService.CurrentUser?.Role == UserRole.PlatformOperator)
             {
                 await NavigateToPlatformHealth();
@@ -401,6 +413,7 @@ namespace Sati.ViewModels
             OnPropertyChanged(nameof(IsBillingAvailable));
             OnPropertyChanged(nameof(IsAdminAvailable));
             OnPropertyChanged(nameof(IsPlatformHealthAvailable));
+            OnPropertyChanged(nameof(IsChatAvailable));
         }
 
         private async Task NavigateByRoleAsync()

@@ -30,7 +30,7 @@ public sealed class CalendarApiTests
     }
 
     [Fact]
-    public async Task FutureDatedNoteIsAuthoritativelyStoredAsACalendarReminder()
+    public async Task FutureDatedEmailIsAuthoritativelyStoredAsScheduledWork()
     {
         using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
         var reminderDate = new DateTime(2097, 4, 19, 14, 30, 0);
@@ -44,24 +44,59 @@ public sealed class CalendarApiTests
                 120,
                 101,
                 null,
-                "Contact",
+                "Email",
                 "should be discarded",
                 null));
         response.EnsureSuccessStatusCode();
         var created = await response.Content.ReadFromJsonAsync<NoteDto>();
         Assert.NotNull(created);
-        Assert.Equal("Reminder", created.NoteType);
+        Assert.Equal("Email", created.NoteType);
         Assert.Equal("Scheduled", created.Status);
         Assert.Equal(reminderDate.Date, created.EventDate);
-        Assert.Null(created.Minutes);
+        Assert.Equal(60, created.Minutes);
         Assert.Null(created.StartTime);
         Assert.Null(created.CaseManagerJustification);
 
         var year = await client.GetFromJsonAsync<List<NoteDto>>("/api/v1/notes/year/2097");
         Assert.Contains(year!, note =>
             note.Id == created.Id &&
-            note.NoteType == "Reminder" &&
+            note.NoteType == "Email" &&
             note.EventDate == reminderDate.Date);
+
+        var cleanup = await client.DeleteAsync(
+            $"/api/v1/notes/{created.Id}?expectedRevision={created.Revision}");
+        Assert.Equal(HttpStatusCode.NoContent, cleanup.StatusCode);
+    }
+
+    [Fact]
+    public async Task ExplicitFutureReminderStillHasTheNonServiceShape()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        var reminderDate = new DateTime(2097, 5, 20);
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/notes",
+            new SaveNoteRequest(
+                "Call after the planning meeting.",
+                reminderDate,
+                "Pending",
+                30,
+                60,
+                101,
+                "PCP",
+                "Reminder",
+                "discard this",
+                "{}"));
+        response.EnsureSuccessStatusCode();
+        var created = await response.Content.ReadFromJsonAsync<NoteDto>();
+
+        Assert.NotNull(created);
+        Assert.Equal("Reminder", created.NoteType);
+        Assert.Equal("Scheduled", created.Status);
+        Assert.Null(created.Minutes);
+        Assert.Null(created.StartTime);
+        Assert.Null(created.FormType);
+        Assert.Null(created.CaseManagerJustification);
+        Assert.Null(created.VisitDocumentationJson);
 
         var cleanup = await client.DeleteAsync(
             $"/api/v1/notes/{created.Id}?expectedRevision={created.Revision}");

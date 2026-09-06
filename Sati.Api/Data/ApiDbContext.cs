@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
+using Sati.Data;
+using Sati.Models;
 
 namespace Sati.Api.Data;
 
@@ -10,6 +12,16 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerForm> Forms => Set<ServerForm>();
     public DbSet<ServerFormAttestation> FormAttestations => Set<ServerFormAttestation>();
     public DbSet<ServerDocumentArtifact> DocumentArtifacts => Set<ServerDocumentArtifact>();
+    public DbSet<FrozenSignatureDocument> FrozenSignatureDocuments => Set<FrozenSignatureDocument>();
+    public DbSet<SignatureRequest> SignatureRequests => Set<SignatureRequest>();
+    public DbSet<SignatureSession> SignatureSessions => Set<SignatureSession>();
+    public DbSet<SignatureConsent> SignatureConsents => Set<SignatureConsent>();
+    public DbSet<SignatureEvent> SignatureEvents => Set<SignatureEvent>();
+    public DbSet<SignatureCompletion> SignatureCompletions => Set<SignatureCompletion>();
+    public DbSet<SignaturePackage> SignaturePackages => Set<SignaturePackage>();
+    public DbSet<SignatureOutbox> SignatureOutbox => Set<SignatureOutbox>();
+    public DbSet<SignatureSourceDocument> SignatureSourceDocuments => Set<SignatureSourceDocument>();
+    public DbSet<SignatureDatabaseEnvironment> SignatureDatabaseEnvironment => Set<SignatureDatabaseEnvironment>();
     public DbSet<ServerDocumentTemplate> DocumentTemplates => Set<ServerDocumentTemplate>();
     public DbSet<ServerNote> Notes => Set<ServerNote>();
     public DbSet<ServerSettings> Settings => Set<ServerSettings>();
@@ -39,9 +51,18 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
     public DbSet<ServerPersonVersion> PersonVersions => Set<ServerPersonVersion>();
     public DbSet<ServerIncidentGroup> IncidentGroups => Set<ServerIncidentGroup>();
     public DbSet<ServerLegalHold> LegalHolds => Set<ServerLegalHold>();
+    public DbSet<ServerChatRoom> ChatRooms => Set<ServerChatRoom>();
+    public DbSet<ServerChatRoomMember> ChatRoomMembers => Set<ServerChatRoomMember>();
+    public DbSet<ServerChatMessage> ChatMessages => Set<ServerChatMessage>();
+    public DbSet<ServerChatChange> ChatChanges => Set<ServerChatChange>();
+    public DbSet<ServerChatReadMarker> ChatReadMarkers => Set<ServerChatReadMarker>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        SignaturePersistenceModel.Configure(modelBuilder);
+        SignaturePersistenceModel.ConfigureClinicalRelationships<ServerDocumentArtifact, ServerAgency, ServerUser, ServerPerson, ServerPersonContact>(modelBuilder);
+        ChatPersistenceModel.Configure<ServerChatRoom, ServerChatRoomMember, ServerChatMessage, ServerChatChange,
+            ServerChatReadMarker, ServerAgency, ServerUser, ServerPerson>(modelBuilder);
         modelBuilder.Entity<ServerUser>(entity =>
         {
             entity.ToTable("Users");
@@ -568,6 +589,10 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
 
     private void EnsureAuditEventsAreAppendOnly()
     {
+        SignaturePersistenceModel.ProtectWrites(ChangeTracker);
+        SignaturePersistenceModel.ProtectDocumentArtifacts<ServerDocumentArtifact>(ChangeTracker);
+        ChatPersistenceModel.ProtectWrites<ServerChatRoom, ServerChatRoomMember, ServerChatMessage, ServerChatChange,
+            ServerChatReadMarker>(ChangeTracker);
         if (ChangeTracker.Entries<ServerAuditEvent>()
                 .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
             ChangeTracker.Entries<ServerPersonVersion>()
@@ -1248,4 +1273,68 @@ internal sealed class ServerLegalHold
     public int? ReleasedByUserId { get; set; }
     public DateTime? ReleasedAtUtc { get; set; }
     public string? ReleaseNote { get; set; }
+}
+
+internal sealed class ServerChatRoom
+{
+    public int Id { get; set; }
+    public int AgencyId { get; set; }
+    public int? PersonId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public long Revision { get; set; } = 1;
+    public int CreatedByUserId { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? ArchivedAtUtc { get; set; }
+    public int? ArchivedByUserId { get; set; }
+}
+
+internal sealed class ServerChatRoomMember
+{
+    public int Id { get; set; }
+    public int RoomId { get; set; }
+    public int AgencyId { get; set; }
+    public int UserId { get; set; }
+    public long VisibleAfterSequence { get; set; }
+    public int AddedByUserId { get; set; }
+    public DateTime AddedAtUtc { get; set; }
+    public int? RemovedByUserId { get; set; }
+    public DateTime? RemovedAtUtc { get; set; }
+}
+
+internal sealed class ServerChatMessage
+{
+    public long Id { get; set; }
+    public int RoomId { get; set; }
+    public int AgencyId { get; set; }
+    public long Sequence { get; set; }
+    public int AuthorUserId { get; set; }
+    public string AuthorDisplayName { get; set; } = string.Empty;
+    public Guid ClientMessageId { get; set; }
+    public DateTime PostedAtUtc { get; set; }
+    public string Body { get; set; } = string.Empty;
+}
+
+internal sealed class ServerChatChange
+{
+    public long Id { get; set; }
+    public int RoomId { get; set; }
+    public int AgencyId { get; set; }
+    public long Sequence { get; set; }
+    public string Kind { get; set; } = string.Empty;
+    public long? MessageId { get; set; }
+    public int ActorUserId { get; set; }
+    public DateTime ChangedAtUtc { get; set; }
+    public int? TargetUserId { get; set; }
+    public string? RedactionReason { get; set; }
+}
+
+internal sealed class ServerChatReadMarker
+{
+    public int Id { get; set; }
+    public int RoomId { get; set; }
+    public int AgencyId { get; set; }
+    public int UserId { get; set; }
+    public long LastSeenSequence { get; set; }
+    public DateTime LastSeenAtUtc { get; set; }
 }

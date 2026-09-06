@@ -15,6 +15,7 @@ using Sati.Api.Infrastructure;
 using Sati.Api.Security;
 using Sati.Contracts.V1;
 using Sati.Forms;
+using Sati.Signatures;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,36 @@ if (satiOptions.EdiReplayRetentionDays is < 30 or > 365)
 
 builder.Services.Configure<ApiAuthenticationOptions>(builder.Configuration.GetSection(ApiAuthenticationOptions.SectionName));
 builder.Services.Configure<SatiApiOptions>(builder.Configuration.GetSection(SatiApiOptions.SectionName));
+builder.Services.Configure<ChatOptions>(builder.Configuration.GetSection("Chat"));
+builder.Services.AddSingleton<ChatFeature>();
+builder.Services.AddSingleton<ChatNotifications>();
+var signatureOptions = builder.Configuration.GetSection("Signatures").Get<SignatureOptions>() ?? new();
+// Signing cannot invent a second environment identity independent of the API's
+// validated database target. The separate Production gate stays closed.
+signatureOptions.ExpectedEnvironment = satiOptions.ExpectedEnvironment;
+signatureOptions.ExpectedDatabaseName = satiOptions.ExpectedDatabaseName;
+builder.Services.AddSingleton(signatureOptions);
+builder.Services.AddSingleton<SignatureFeature>();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton(new AzureSignatureTransport(new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned)));
+if (string.IsNullOrWhiteSpace(signatureOptions.BlobContainerUri))
+    builder.Services.AddSingleton<ISignatureBlobStore, UnconfiguredSignatureBlobStore>();
+else builder.Services.AddSingleton<ISignatureBlobStore, AzureSignatureBlobStore>();
+if (string.IsNullOrWhiteSpace(signatureOptions.PinKeyUri))
+    builder.Services.AddSingleton<ISigningPinKeyWrapper, UnconfiguredSigningKeyWrapper>();
+else builder.Services.AddSingleton<ISigningPinKeyWrapper, AzureSigningPinKeyWrapper>();
+if (string.IsNullOrWhiteSpace(signatureOptions.OutboxKeyUri))
+    builder.Services.AddSingleton<ISignatureOutboxKeyWrapper, UnconfiguredSigningKeyWrapper>();
+else builder.Services.AddSingleton<ISignatureOutboxKeyWrapper, AzureSignatureOutboxKeyWrapper>();
+if (signatureOptions.EmailEnabled) builder.Services.AddSingleton<ISignatureEmailSender, AzureSignatureEmailSender>();
+else builder.Services.AddSingleton<ISignatureEmailSender, DisabledSignatureEmailSender>();
+builder.Services.AddSingleton<SigningPinProtector>();
+builder.Services.AddSingleton<SignatureOutboxProtector>();
+builder.Services.AddScoped<SignatureStaffRuntime>();
+builder.Services.AddSingleton<SignaturePackageBuilder>();
+builder.Services.AddSingleton<SignatureCompletionWorker>();
+builder.Services.AddSingleton<SignatureMailWorker>();
+builder.Services.AddHostedService<SignatureProcessingService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ApiClock>();
 builder.Services.AddSingleton<PasswordVerifier>();
@@ -128,7 +159,9 @@ builder.Services.AddRateLimiter(options =>
         await context.HttpContext.Response.WriteAsJsonAsync(
             new ApiErrorDto(
                 "rate_limited",
-                $"Too many sign-in attempts. Try again in about {retryAfterSeconds} seconds.",
+                context.HttpContext.Request.Path.StartsWithSegments("/api/v1/chat")
+                    ? $"Too many messages. Try again in about {retryAfterSeconds} seconds."
+                    : $"Too many sign-in attempts. Try again in about {retryAfterSeconds} seconds.",
                 context.HttpContext.TraceIdentifier),
             cancellationToken);
     };
@@ -139,6 +172,10 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueLimit = 0;
         limiter.AutoReplenishment = true;
     });
+    options.AddPolicy("chat-post", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0, AutoReplenishment = true }));
 });
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseIdentityHealthCheck>("database_identity", tags: ["ready"])
@@ -171,9 +208,10 @@ app.Use(async (context, next) =>
 });
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 
 var releaseVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous();

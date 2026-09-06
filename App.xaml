@@ -904,6 +904,10 @@
                 <views:CaseManagementView />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type children:ChatViewModel}">
+                <views:ChatPanelView />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type children:HelperReferenceViewModel}">
                 <views:HelperReferenceView />
             </DataTemplate>

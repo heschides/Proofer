@@ -21,6 +21,15 @@ internal static class LocalTenantAccess
     public static bool IsReviewer(UserPermissions permissions) =>
         UserPermissionRules.HasSupervisorPermissions(permissions);
 
+    public static Task<bool> OwnsPersonAsync(SatiContext context, User actor, int personId) =>
+        (from person in context.People.AsNoTracking()
+         join owner in context.Users.AsNoTracking() on person.UserId equals owner.Id
+         where actor.HasCaseManagerPermissions && person.Id == personId && person.AgencyId == actor.AgencyId &&
+               owner.Id == actor.Id && owner.AgencyId == actor.AgencyId &&
+               owner.Role == actor.Role && owner.Permissions == actor.Permissions &&
+               (owner.Permissions & UserPermissions.CaseManagement) != 0
+         select person.Id).AnyAsync();
+
     public static async Task<bool> CanAccessUserAsync(SatiContext context, User actor, int targetUserId)
     {
         if (targetUserId == actor.Id)

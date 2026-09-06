@@ -13,7 +13,7 @@ public static class NoteReviewRules
     public static bool Eligible(int maximumUnits, int? status, string? noteType,
         string? narrative, DateTime? eventDate, int? minutes, int? startTime, DateTime today) =>
         ValidThreshold(maximumUnits) && status == NoteWorkflow.Logged &&
-        noteType is "Visit" or "Contact" or "Form" or "Other" &&
+        noteType is "Visit" or "Contact" or "Phone" or "Email" or "Form" or "Other" &&
         !string.IsNullOrWhiteSpace(narrative) && narrative.Length <= 1_000_000 &&
         eventDate is DateTime date && date.Date <= today.Date &&
         minutes is > 0 and <= 1440 && (minutes.Value + 14) / 15 <= maximumUnits &&

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
 using Sati.Models;
 using System.Text.Json;
@@ -75,11 +75,17 @@ namespace Sati.Data
             var actor = CurrentActor();
             ValidatePerson(person, requireNewForms: person.Forms.Any(form => form.Id == 0));
             await using var context = _contextFactory.CreateDbContext();
+            await using var signatureChangeTransaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            if (!await LocalTenantAccess.OwnsPersonAsync(context, actor, person.Id))
+                throw new InvalidOperationException("This consumer is not available in your current caseload.");
             var stored = await context.People.AsNoTracking()
                 .SingleOrDefaultAsync(candidate => candidate.Id == person.Id &&
                     candidate.AgencyId == actor.AgencyId);
             if (stored is null)
                 throw new InvalidOperationException("This Person was not found in your agency.");
+            if (person.UserId != stored.UserId)
+                throw new InvalidOperationException("Use the caseload transfer workflow to change the consumer's owner.");
+            person.AgencyId = stored.AgencyId;
             if (person.Revision != stored.Revision)
                 throw new InvalidOperationException(
                     "This Person was changed after you opened it. Reload the Person before saving.");
@@ -107,7 +113,10 @@ namespace Sati.Data
             context.Entry(person).Property(candidate => candidate.CreatedAtUtc).IsModified = false;
             if (PersonLifecycleLedger.RecordChanged(context, actor, person, before, "Updated"))
                 LocalAuditTrail.Record(context, actor, LocalAuditActions.PersonUpdated, "Person", person.Id);
+            if ((stored.FirstName, stored.LastName, stored.Email) != (person.FirstName, person.LastName, person.Email))
+                await SignaturePersistenceMutations.RevokeOpenForSignerAsync(context, person.Id, null, actor.Id, DateTime.UtcNow);
             await context.SaveChangesAsync();
+            await signatureChangeTransaction.CommitAsync();
             return person;
         }
 

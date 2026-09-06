@@ -76,7 +76,10 @@ namespace Sati
         ScheduledReminder,
         // Produced only by NextFormSuggestion for the note panel hint: a real, not-yet-due
         // form. The dashboard never sees it, because GenerateEvents never emits it.
-        UpcomingForm
+        UpcomingForm,
+        ScheduledPhone,
+        ScheduledEmail,
+        ScheduledOther
     }
 
     public enum Gender
@@ -123,15 +126,20 @@ namespace Sati
 
     public enum NoteType
     {
-        Visit,
-        Contact,
-        Form,
-        Other,
+        Visit = 0,
+        // Retained for existing records. New entry surfaces offer Phone and
+        // Email separately because a legacy Contact record cannot be split
+        // reliably after the fact.
+        Contact = 1,
+        Form = 2,
+        Other = 3,
         // Appended last on purpose: the column is a nullable int, so every stored
         // value keeps its meaning and no migration is required. An undated
         // Reminder takes the journal-entry path; NoteSchedulingPolicy persists a
         // future-dated Reminder as Scheduled so the calendar can retrieve it.
-        Reminder
+        Reminder = 4,
+        Phone = 5,
+        Email = 6
     }
 
     public enum FormComplianceStatus

@@ -20,6 +20,84 @@ namespace Sati.Tests;
 public sealed class ConsumerDeletionInWindowTests
 {
     [Fact]
+    public async Task FrozenSignatureSourceRefusesWindowDeletionBeforeChangingChildren()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var personId = await fixture.SeedDeletableConsumerAsync(withDraftClaimLine: true);
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var artifact = DocumentArtifact.Generated(personId, fixture.Admin.AgencyId, AnnualDocumentKind.ReleaseMedical,
+                DateTime.Today, DocumentArtifactOrigin.GeneratedInSati, DateTime.UtcNow, fixture.Admin.Id,
+                [1, 2, 3], "synthetic.pdf");
+            db.DocumentArtifacts.Add(artifact); await db.SaveChangesAsync();
+            db.FrozenSignatureDocuments.Add(new FrozenSignatureDocument
+            {
+                AgencyId = fixture.Admin.AgencyId, PersonId = personId, DocumentArtifactId = artifact.Id,
+                ContentSha256 = artifact.ContentSha256!, ByteCount = 3, BlobPath = "synthetic/retained.pdf",
+                StoredAtUtc = DateTime.UtcNow, StoredByUserId = fixture.Admin.Id
+            });
+            await db.SaveChangesAsync();
+        }
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.AdminService.DeleteConsumerInWindowAsync(
+            personId, 1, ConsumerDeletionRules.ConsumerAttestation, "Synthetic cleanup request."));
+        Assert.Equal(SignatureRules.RetainedHistoryMessage, error.Message);
+        await using var verify = fixture.Factory.CreateDbContext();
+        Assert.Single(await verify.People.ToListAsync());
+        Assert.Single(await verify.Notes.ToListAsync());
+        Assert.Single(await verify.ComprehensiveAssessments.ToListAsync());
+        Assert.Single(await verify.ATRequests.ToListAsync());
+        Assert.Single(await verify.ClaimLines.ToListAsync());
+        Assert.Single(await verify.FrozenSignatureDocuments.ToListAsync());
+        Assert.Single(await verify.DocumentArtifacts.ToListAsync());
+        Assert.Empty(await verify.AuditEvents.Where(audit => audit.Action == "consumer.deleted-in-window").ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetainedChatRefusesWindowDeletionBeforeChangingChildren(bool archived)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var personId = await fixture.SeedDeletableConsumerAsync(withDraftClaimLine: true);
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var room = new ChatRoom
+            {
+                AgencyId = fixture.Admin.AgencyId, PersonId = personId,
+                Name = "Synthetic retained room", Revision = 2,
+                CreatedByUserId = fixture.Admin.Id, CreatedAtUtc = DateTime.UtcNow,
+                ArchivedAtUtc = archived ? DateTime.UtcNow : null,
+                ArchivedByUserId = archived ? fixture.Admin.Id : null
+            };
+            db.ChatRooms.Add(room);
+            await db.SaveChangesAsync();
+            db.ChatMessages.Add(new ChatMessage
+            {
+                RoomId = room.Id, AgencyId = room.AgencyId, Sequence = 2,
+                AuthorUserId = fixture.Admin.Id, AuthorDisplayName = fixture.Admin.DisplayName,
+                ClientMessageId = Guid.NewGuid(), PostedAtUtc = DateTime.UtcNow,
+                Body = "Synthetic retained message"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.AdminService.DeleteConsumerInWindowAsync(personId, 1,
+                ConsumerDeletionRules.ConsumerAttestation, "Synthetic cleanup request."));
+
+        Assert.Equal(ConsumerDeletionRules.HasChatHistoryMessage, error.Message);
+        await using var verify = fixture.Factory.CreateDbContext();
+        Assert.Single(await verify.People.ToListAsync());
+        Assert.Single(await verify.Notes.ToListAsync());
+        Assert.Single(await verify.ComprehensiveAssessments.ToListAsync());
+        Assert.Single(await verify.ATRequests.ToListAsync());
+        Assert.Single(await verify.ClaimLines.ToListAsync());
+        Assert.Empty(await verify.AuditEvents.Where(audit => audit.Action == "consumer.deleted-in-window").ToListAsync());
+        Assert.Single(await verify.ChatRooms.ToListAsync());
+        Assert.Equal("Synthetic retained message", (await verify.ChatMessages.SingleAsync()).Body);
+    }
+
+    [Fact]
     public async Task NewAnnualDocumentChildrenAreIncludedInAuthorizedDeletion()
     {
         await using var fixture = await Fixture.CreateAsync();

@@ -9,8 +9,9 @@ using System.Collections.ObjectModel;
 namespace Sati.ViewModels.ClientDocuments;
 
 public partial class AnnualDocumentsViewModel(IAnnualDocumentService service, IDocumentTemplateService templates,
-    ISettingsService settings, ISessionService session) : ObservableObject
+    ISettingsService settings, ISessionService session, SignatureRequestsViewModel? signatures = null) : ObservableObject
 {
+    public SignatureRequestsViewModel? Signatures { get; } = signatures;
     private readonly LatestRequestTracker requests = new();
     private Person? person;
     private AnnualDocumentsStatusDto? status;
@@ -38,6 +39,7 @@ public partial class AnnualDocumentsViewModel(IAnnualDocumentService service, ID
     {
         if (applyingCycle) return;
         requests.Invalidate(); status = null; Artifacts.Clear(); IsBusy = false;
+        Signatures?.SetContext(person?.Id ?? 0, []);
         ReceivedOn = null; GoodFaithEffortReason = ""; VerificationArtifactId = 0;
         Reminder = ""; WindowDescription = ""; Message = "Load the selected annual cycle."; NotifyState();
     }
@@ -49,6 +51,7 @@ public partial class AnnualDocumentsViewModel(IAnnualDocumentService service, ID
     public void SetPerson(Person? selected)
     {
         requests.Invalidate(); person = selected; status = null; Artifacts.Clear();
+        Signatures?.SetContext(selected?.Id ?? 0, []);
         IsBusy = false; ReceivedOn = null; GoodFaithEffortReason = ""; VerificationArtifactId = 0;
         Message = ""; Reminder = ""; WindowDescription = "";
         CycleStart = selected?.EffectiveDate is DateTime effective ? AnnualPacketWindow.SuggestedCycle(effective, DateTime.Today, 30) : null;
@@ -78,6 +81,7 @@ public partial class AnnualDocumentsViewModel(IAnnualDocumentService service, ID
     private void Apply(AnnualDocumentsStatusDto value)
     {
         status = value; Artifacts.Clear(); foreach (var artifact in value.Artifacts) Artifacts.Add(artifact);
+        Signatures?.SetContext(person?.Id ?? 0, value.Artifacts);
         WindowDescription = value.Window.IsOpen ? $"Packet available through {value.Window.EndsOn:d}." : $"Packet opens {value.Window.OpensOn:d}.";
         Reminder = value.Reminder; NotifyState();
     }

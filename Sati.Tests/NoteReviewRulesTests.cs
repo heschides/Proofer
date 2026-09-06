@@ -6,6 +6,8 @@ public sealed class NoteReviewRulesTests
 {
     [Theory]
     [InlineData("Contact", "Narrative", 60, 0, true)]
+    [InlineData("Phone", "Narrative", 60, 0, true)]
+    [InlineData("Email", "Narrative", 60, 0, true)]
     [InlineData("Contact", "Narrative", 61, 0, false)]
     [InlineData("Contact", " ", 15, 0, false)]
     [InlineData("Reminder", "Narrative", 15, 0, false)]

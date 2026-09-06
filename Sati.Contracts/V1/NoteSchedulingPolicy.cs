@@ -1,9 +1,10 @@
 namespace Sati.Contracts.V1;
 
 /// <summary>
-/// Authoritative normalization for future-dated case-note input. Future work is
-/// a calendar reminder, not service documentation: it is scheduled, carries no
-/// billable time or form/visit facts, and remains tied to the selected date.
+/// Authoritative normalization for planned and reminder input. Future work is
+/// always Scheduled, retains its selected type and estimated minutes, and carries
+/// no actual start time, justification, or completed-visit facts. A Reminder is
+/// still a separate non-service shape with no minutes or form/visit facts.
 /// </summary>
 public static class NoteSchedulingPolicy
 {
@@ -41,16 +42,30 @@ public static class NoteSchedulingPolicy
                 IsCalendarReminder: false);
         }
 
+        if (isReminderType)
+        {
+            return new NoteSchedulingValues(
+                eventDate?.Date,
+                ScheduledStatus,
+                Minutes: null,
+                StartTime: null,
+                FormType: null,
+                ReminderType,
+                CaseManagerJustification: null,
+                VisitDocumentationJson: null,
+                IsCalendarReminder: eventDate.HasValue);
+        }
+
         return new NoteSchedulingValues(
             eventDate?.Date,
             ScheduledStatus,
-            Minutes: null,
+            minutes,
             StartTime: null,
-            FormType: null,
-            ReminderType,
+            formType,
+            noteType,
             CaseManagerJustification: null,
             VisitDocumentationJson: null,
-            IsCalendarReminder: eventDate.HasValue);
+            IsCalendarReminder: false);
     }
 
     public static SaveNoteRequest Normalize(SaveNoteRequest request, DateTime today)

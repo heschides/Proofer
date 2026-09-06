@@ -24,21 +24,22 @@ namespace Sati.ViewModels
     public partial class StatisticsViewModel : ObservableObject
     {
         private readonly ISessionService _sessionService;
-        private readonly INoteService _noteService;
+        private readonly IProductivityReportService _productivityReportService;
         private readonly IIncentiveService _incentiveService;
         private readonly IExemptDateService _exemptDateService;
         private readonly IConsumerBillingLossReportService _billingLossReportService;
+        private readonly LatestRequestTracker _loadRequests = new();
 
         public StatisticsViewModel(
             ISessionService sessionService,
-            INoteService noteService,
+            IProductivityReportService productivityReportService,
             IIncentiveService incentiveService,
             IExemptDateService exemptDateService,
             IConsumerBillingLossReportService billingLossReportService,
             ThemeService themeService)
         {
             _sessionService = sessionService;
-            _noteService = noteService;
+            _productivityReportService = productivityReportService;
             _incentiveService = incentiveService;
             _exemptDateService = exemptDateService;
             _billingLossReportService = billingLossReportService;
@@ -65,6 +66,9 @@ namespace Sati.ViewModels
             new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         [ObservableProperty] private DateTime? selectedEndDate = DateTime.Today;
         [ObservableProperty] private string dateFilterMessage = string.Empty;
+        [ObservableProperty] private bool isLoading;
+        [ObservableProperty] private bool hasLoadError;
+        [ObservableProperty] private string loadErrorMessage = string.Empty;
 
         [RelayCommand]
         private async Task ShowThisMonthAsync()
@@ -77,16 +81,25 @@ namespace Sati.ViewModels
         [RelayCommand]
         private async Task ApplyDateWindowAsync() => await LoadAsync();
 
-        // Rebuilt on every navigate and every filter application.
+        // Rebuilt on every navigation and filter application. Independent reads
+        // are started together, and only the newest request may publish results.
         public async Task LoadAsync()
         {
+            var request = _loadRequests.Begin();
+            HasLoadError = false;
+            LoadErrorMessage = string.Empty;
             var user = _sessionService.CurrentUser;
-            if (user is null) return;
+            if (user is null)
+            {
+                IsLoading = false;
+                return;
+            }
 
             if (SelectedStartDate is not DateTime selectedStart
                 || SelectedEndDate is not DateTime selectedEnd)
             {
                 DateFilterMessage = "Choose both a start date and an end date.";
+                IsLoading = false;
                 return;
             }
 
@@ -95,107 +108,161 @@ namespace Sati.ViewModels
             if (windowEnd < windowStart)
             {
                 DateFilterMessage = "The end date must be on or after the start date.";
+                IsLoading = false;
+                return;
+            }
+            if (windowStart.Year < 2000 || windowEnd.Year > 2200 ||
+                (windowEnd - windowStart).TotalDays > 3_660)
+            {
+                DateFilterMessage =
+                    "Choose a reporting window from 2000 through 2200 that is no longer than 10 years.";
+                IsLoading = false;
                 return;
             }
 
             DateFilterMessage = string.Empty;
-            var window = BuildMonthWindow(windowStart, windowEnd);
-            var billingLossTask = _billingLossReportService.GetAsync(
-                user.Id, windowStart, windowEnd);
+            IsLoading = true;
 
-            var years = window.Select(m => m.Year).Distinct().ToList();
-
-            var notes = new List<Note>();
-            foreach (var year in years)
-                notes.AddRange(await _noteService.GetByYearAsync(user.Id, year));
-
-            var exempt = new List<ExemptDate>();
-            foreach (var year in years)
-                exempt.AddRange(await _exemptDateService.GetByYearAsync(user.Id, year));
-
-            // Productive units retain the page's established Logged + Approved definition,
-            // but are now clipped to the exact selected dates rather than whole months.
-            var unitsByMonth = notes
-                .Where(n => n.Status is NoteStatus.Logged or NoteStatus.Approved
-                         && n.EventDate.HasValue
-                         && n.EventDate.Value.Date >= windowStart
-                         && n.EventDate.Value.Date <= windowEnd)
-                .GroupBy(n => (n.EventDate!.Value.Year, n.EventDate.Value.Month))
-                .ToDictionary(g => g.Key, g => g.Sum(n => n.Units ?? 0));
-
-            // Detached history snapshots can be safely adjusted in memory for a partial
-            // first/last month; no report read creates or persists an Incentive row.
-            var snapshots = (await _incentiveService.GetHistoryAsync(user.Id))
-                .ToDictionary(i => (i.Year, i.Month));
-
-            Months.Clear();
-            foreach (var month in window)
+            try
             {
-                var key = (month.Year, month.Month);
-                var units = unitsByMonth.GetValueOrDefault(key, 0);
-                snapshots.TryGetValue(key, out var snapshot);
+                var window = BuildMonthWindow(windowStart, windowEnd);
+                var years = window.Select(m => m.Year).Distinct().ToList();
+                var productivityTask = _productivityReportService.GetUnitsAsync(
+                    windowStart, windowEnd);
+                var billingLossTask = _billingLossReportService.GetAsync(
+                    user.Id, windowStart, windowEnd);
+                var historyTask = _incentiveService.GetHistoryAsync(user.Id);
+                var exemptTasks = years
+                    .Select(year => _exemptDateService.GetByYearAsync(user.Id, year))
+                    .ToArray();
 
-                var periodStart = month > windowStart ? month : windowStart;
-                var monthEnd = month.AddMonths(1).AddDays(-1);
-                var periodEnd = monthEnd < windowEnd ? monthEnd : windowEnd;
-                var coversFullMonth = periodStart == month && periodEnd == monthEnd;
-
-                if (snapshot is not null)
+                // Partial months need an exact eligible-day count. Start those calls
+                // before awaiting any database or API request so network latency overlaps.
+                var eligibleDayTasks = new Dictionary<(int Year, int Month), Task<int>>();
+                foreach (var month in window)
                 {
-                    var exemptDays = exempt.Count(e => e.Date.Date >= periodStart
-                                                    && e.Date.Date <= periodEnd);
-                    var eligibleDays = coversFullMonth
-                        ? snapshot.DaysScheduled
-                        : await _incentiveService.GetEligibleDaysAsync(periodStart, periodEnd);
-                    snapshot.DaysScheduled = Math.Max(0, eligibleDays - exemptDays);
+                    var periodStart = month > windowStart ? month : windowStart;
+                    var monthEnd = month.AddMonths(1).AddDays(-1);
+                    var periodEnd = monthEnd < windowEnd ? monthEnd : windowEnd;
+                    if (periodStart != month || periodEnd != monthEnd)
+                    {
+                        eligibleDayTasks[(month.Year, month.Month)] =
+                            _incentiveService.GetEligibleDaysAsync(periodStart, periodEnd);
+                    }
                 }
 
-                int? threshold = snapshot?.Threshold;
-                decimal? attainment = threshold is > 0
-                    ? Math.Round(100m * units / threshold.Value, 0)
-                    : null;
-                // Incentives are monthly awards. A partial date window can show
-                // prorated attainment, but must not claim a prorated award.
-                decimal? incentive = snapshot is not null && coversFullMonth
-                    ? snapshot.Calculate(units)
-                    : null;
+                var exemptResultsTask = Task.WhenAll(exemptTasks);
+                var eligibleDaysCompletion = Task.WhenAll(eligibleDayTasks.Values);
+                await Task.WhenAll(
+                    productivityTask,
+                    billingLossTask,
+                    historyTask,
+                    exemptResultsTask,
+                    eligibleDaysCompletion);
 
-                var statusLevel = attainment switch
+                if (!_loadRequests.IsCurrent(request))
+                    return;
+
+                var unitsByMonth = (await productivityTask)
+                    .ToDictionary(item => (item.Year, item.Month), item => item.Units);
+                var exempt = (await exemptResultsTask).SelectMany(items => items).ToList();
+
+                // Detached history snapshots can be safely adjusted in memory for
+                // a partial first/last month; report reads never persist an Incentive.
+                var snapshots = (await historyTask)
+                    .ToDictionary(i => (i.Year, i.Month));
+                var computedMonths = new List<ProductivityMonth>(window.Count);
+                foreach (var month in window)
                 {
-                    null => "Unknown",
-                    >= 100 => "Ok",
-                    >= 50 => "Warning",
-                    _ => "Danger"
-                };
+                    var key = (month.Year, month.Month);
+                    var units = unitsByMonth.GetValueOrDefault(key, 0);
+                    snapshots.TryGetValue(key, out var snapshot);
 
-                Months.Add(new ProductivityMonth(
-                    MonthLabel: FormatPeriodLabel(periodStart, periodEnd, month, monthEnd),
-                    Units: units,
-                    Threshold: threshold,
-                    AttainmentPercent: attainment,
-                    Incentive: incentive,
-                    StatusLevel: statusLevel));
+                    var periodStart = month > windowStart ? month : windowStart;
+                    var monthEnd = month.AddMonths(1).AddDays(-1);
+                    var periodEnd = monthEnd < windowEnd ? monthEnd : windowEnd;
+                    var coversFullMonth = periodStart == month && periodEnd == monthEnd;
+
+                    if (snapshot is not null)
+                    {
+                        var exemptDays = exempt.Count(e => e.Date.Date >= periodStart
+                                                        && e.Date.Date <= periodEnd);
+                        var eligibleDays = coversFullMonth
+                            ? snapshot.DaysScheduled
+                            : await eligibleDayTasks[key];
+                        snapshot.DaysScheduled = Math.Max(0, eligibleDays - exemptDays);
+                    }
+
+                    int? threshold = snapshot?.Threshold;
+                    decimal? attainment = threshold is > 0
+                        ? Math.Round(100m * units / threshold.Value, 0)
+                        : null;
+                    // Incentives are monthly awards. A partial date window can show
+                    // prorated attainment, but must not claim a prorated award.
+                    decimal? incentive = snapshot is not null && coversFullMonth
+                        ? snapshot.Calculate(units)
+                        : null;
+
+                    var statusLevel = attainment switch
+                    {
+                        null => "Unknown",
+                        >= 100 => "Ok",
+                        >= 50 => "Warning",
+                        _ => "Danger"
+                    };
+
+                    computedMonths.Add(new ProductivityMonth(
+                        MonthLabel: FormatPeriodLabel(periodStart, periodEnd, month, monthEnd),
+                        Units: units,
+                        Threshold: threshold,
+                        AttainmentPercent: attainment,
+                        Incentive: incentive,
+                        StatusLevel: statusLevel));
+                }
+
+                if (!_loadRequests.IsCurrent(request))
+                    return;
+
+                Months.Clear();
+                foreach (var month in computedMonths)
+                    Months.Add(month);
+
+                WindowLabel = FormatWindowLabel(windowStart, windowEnd);
+                TotalUnits = computedMonths.Sum(m => m.Units);
+                TotalIncentive = computedMonths.All(m => m.Incentive.HasValue)
+                    ? computedMonths.Sum(m => m.Incentive!.Value)
+                    : null;
+                HasData = computedMonths.Any(m => m.Units > 0);
+                UnitsChartModel = BuildUnitsChart(computedMonths);
+
+                var billingLossReport = await billingLossTask;
+                ConsumerBillingRows.Clear();
+                foreach (var row in billingLossReport.Consumers)
+                    ConsumerBillingRows.Add(row);
+
+                TotalBillableWorkUnits = billingLossReport.TotalBillableUnits;
+                TotalNonBillableWorkUnits = billingLossReport.TotalNonBillableUnits;
+                TotalLostWorkPercentageLabel = billingLossReport.LostWorkPercentage is decimal percentage
+                    ? $"{percentage:0.0}%"
+                    : "—";
+                HasConsumerBillingRows = ConsumerBillingRows.Count > 0;
             }
+            catch (Exception ex)
+            {
+                if (!_loadRequests.IsCurrent(request))
+                    return;
 
-            WindowLabel = FormatWindowLabel(windowStart, windowEnd);
-            TotalUnits = Months.Sum(m => m.Units);
-            TotalIncentive = Months.All(m => m.Incentive.HasValue)
-                ? Months.Sum(m => m.Incentive!.Value)
-                : null;
-            HasData = Months.Any(m => m.Units > 0);
-            UnitsChartModel = BuildUnitsChart(Months);
-
-            var billingLossReport = await billingLossTask;
-            ConsumerBillingRows.Clear();
-            foreach (var row in billingLossReport.Consumers)
-                ConsumerBillingRows.Add(row);
-
-            TotalBillableWorkUnits = billingLossReport.TotalBillableUnits;
-            TotalNonBillableWorkUnits = billingLossReport.TotalNonBillableUnits;
-            TotalLostWorkPercentageLabel = billingLossReport.LostWorkPercentage is decimal percentage
-                ? $"{percentage:0.0}%"
-                : "—";
-            HasConsumerBillingRows = ConsumerBillingRows.Count > 0;
+                var reference = AppErrorLog.Record(ex, "statistics.load");
+                HasLoadError = true;
+                LoadErrorMessage =
+                    "Statistics could not be loaded. Try Apply again. " +
+                    $"Support reference: {reference}.";
+            }
+            finally
+            {
+                if (_loadRequests.IsCurrent(request))
+                    IsLoading = false;
+            }
         }
 
         private static List<DateTime> BuildMonthWindow(DateTime start, DateTime end)

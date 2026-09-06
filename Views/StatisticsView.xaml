@@ -20,12 +20,48 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,12" />
 
+            <Border Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12,10"
+                    Margin="0,0,0,12"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal">
+                    <ProgressBar Width="120"
+                                 Height="8"
+                                 IsIndeterminate="True"
+                                 VerticalAlignment="Center" />
+                    <TextBlock Text="Loading statistics..."
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               AutomationProperties.Name="Loading statistics"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource OverdueFillBrush}"
+                    BorderBrush="{DynamicResource OverdueBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12,10"
+                    Margin="0,0,0,12"
+                    Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="{Binding LoadErrorMessage}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           AutomationProperties.Name="Statistics load error"
+                           AutomationProperties.LiveSetting="Assertive" />
+            </Border>
+
             <Border Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource HoverBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Padding="12"
-                    Margin="0,0,0,20">
+                    Margin="0,0,0,20"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}">
                 <StackPanel>
                     <TextBlock Text="REPORTING WINDOW"
                                FontFamily="Inter"

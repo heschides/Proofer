@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Text.Json;
 using Sati.Contracts.V1;
 
@@ -45,6 +46,8 @@ public sealed class CloudApiClient
     /// </summary>
     public event EventHandler? SessionEnded;
 
+    public event EventHandler? AccessTokenChanged;
+
     /// <summary>True once renewal has been refused; every authenticated call then fails fast.</summary>
     public bool HasSessionEnded => Volatile.Read(ref _sessionEnded) == 1;
 
@@ -80,6 +83,7 @@ public sealed class CloudApiClient
         // A fresh credential revives the client. Without this an ended session would
         // stay latched shut after the user signed back in.
         Volatile.Write(ref _sessionEnded, 0);
+        AccessTokenChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -106,6 +110,15 @@ public sealed class CloudApiClient
 
     public Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default) =>
         SendAsync<TResponse>(HttpMethod.Get, path, null, cancellationToken);
+
+    // Passive chat refresh must not extend a session. The activity-aware keep-alive
+    // owns background renewal; deliberate user writes retain the normal path.
+    internal async Task<TResponse> GetWithoutRenewalAsync<TResponse>(string path, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendHttpAsync(HttpMethod.Get, path, null, authenticated: true,
+            cancellationToken: cancellationToken, renewSession: false);
+        return await ReadAsync<TResponse>(response, cancellationToken);
+    }
 
     /// <summary>
     /// Reads a nullable string body, treating "no content" as null rather than as
@@ -140,6 +153,39 @@ public sealed class CloudApiClient
 
     public async Task DeleteAsync(string path, CancellationToken cancellationToken = default) =>
         await SendWithoutResponseAsync(HttpMethod.Delete, path, null, cancellationToken);
+
+    public Task<TResponse> DeleteAsync<TResponse>(string path, CancellationToken cancellationToken = default) =>
+        SendAsync<TResponse>(HttpMethod.Delete, path, null, cancellationToken);
+
+    internal static Uri ChatSocketAddress(Uri? baseAddress)
+    {
+        if (baseAddress is null || baseAddress.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidOperationException("Team chat requires a secure connection.");
+        return new UriBuilder(new Uri(baseAddress, "/api/v1/chat/stream")) { Scheme = "wss" }.Uri;
+    }
+
+    internal async Task<ClientWebSocket> OpenChatSocketAsync(CancellationToken cancellationToken)
+    {
+        if (HasSessionEnded) throw new CloudSessionEndedException();
+        var address = ChatSocketAddress(_httpClient.BaseAddress);
+        var socket = new ClientWebSocket();
+        try
+        {
+            lock (_tokenLock)
+            {
+                if (string.IsNullOrWhiteSpace(_accessToken))
+                    throw new InvalidOperationException("Sign in to use team chat.");
+                socket.Options.SetRequestHeader("Authorization", $"Bearer {_accessToken}");
+            }
+            await socket.ConnectAsync(address, cancellationToken);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
 
     public async Task<byte[]> GetBytesAsync(string path, CancellationToken cancellationToken = default)
     {

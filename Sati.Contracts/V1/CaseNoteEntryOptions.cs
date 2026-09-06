@@ -2,9 +2,9 @@ namespace Sati.Contracts.V1;
 
 /// <summary>
 /// One API-safe choice shown by a distributed case-note client. Value is the exact contract token;
-/// label and guidance are presentation text. Workflow-owned statuses and the Reminder type are
-/// deliberately absent; future-date normalization creates calendar reminders without trusting a
-/// distributed client to set their non-billable shape.
+/// label and guidance are presentation text. Workflow-owned statuses and the journal-only Reminder
+/// type are deliberately absent. Contact remains an accepted legacy contract token, but new notes
+/// identify Phone and Email separately.
 /// </summary>
 public sealed record CaseNoteEntryOption(string Value, string Label, string Guidance);
 
@@ -22,7 +22,8 @@ public static class CaseNoteEntryOptions
     public static IReadOnlyList<CaseNoteEntryOption> NoteTypes { get; } =
     [
         new("Visit", "Visit", "An in-person or documented visit contact."),
-        new("Contact", "Contact", "A phone, email, coordination, or other contact."),
+        new("Phone", "Phone", "A phone call or voice contact."),
+        new("Email", "Email", "An email or other written electronic contact."),
         new("Form", "Form", "Documentation of a specific compliance form."),
         new("Other", "Other", "Case-management documentation that does not fit another type.")
     ];

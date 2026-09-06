@@ -33,6 +33,10 @@ public sealed class SuggestedFollowUpRealServiceTests
             .Min(form => form.DueDate.Date);
         Assert.Equal(earliestOutstanding, next!.Date);
         Assert.Equal(UpcomingEventKind.UpcomingForm, next.Kind);
+        Assert.NotNull(next.FormType);
+        Assert.NotNull(next.OpenDate);
+        Assert.True(next.OpenDate <= next.Date);
+        Assert.Null(next.OpenedDate);
     }
 
     [Fact]
@@ -50,6 +54,7 @@ public sealed class SuggestedFollowUpRealServiceTests
         Assert.True(panel.IsSuggestedFollowUpVisible);
         Assert.Contains("Review", panel.SuggestedFollowUpText);
         Assert.True(panel.AcceptSuggestedFollowUpCommand.CanExecute(null));
+        Assert.StartsWith("UPCOMING:", panel.ClientWorkStatusText);
 
         panel.AcceptSuggestedFollowUpCommand.Execute(null);
 

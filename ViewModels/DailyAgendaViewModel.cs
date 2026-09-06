@@ -93,26 +93,48 @@ public sealed partial class DailyAgendaViewModel : ObservableObject
     public ObservableCollection<DailyAgendaItemViewModel> UpcomingItems { get; }
     public ObservableCollection<DailyAgendaItemViewModel> AssessmentItems { get; }
     public IReadOnlyList<DailyAgendaItemViewModel> AllItems { get; }
+    [ObservableProperty] private bool isSaving;
+    [ObservableProperty] private bool hasSaveError;
+    [ObservableProperty] private string saveErrorMessage = string.Empty;
 
-    private bool CanConfirm() => !_confirmed && AllItems.Any(item => item.IsSelected);
+    private bool CanConfirm() =>
+        !_confirmed && !IsSaving && AllItems.Any(item => item.IsSelected);
+
+    partial void OnIsSavingChanged(bool value) => ConfirmCommand.NotifyCanExecuteChanged();
 
     [RelayCommand(CanExecute = nameof(CanConfirm))]
-    private void Confirm()
+    private async Task Confirm()
     {
         if (!CanConfirm())
             return;
 
-        var lines = AllItems
+        var selected = AllItems
             .Where(item => item.IsSelected)
-            .Select(item => item.Item.ScratchpadLine)
+            .Select(item => item.Item)
             .ToList();
-        _scratchpad.ScratchpadContent = AppendToTodaysWork(
-            _scratchpad.ScratchpadContent,
-            lines,
-            _agendaDate);
-        _confirmed = true;
-        ConfirmCommand.NotifyCanExecuteChanged();
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+
+        IsSaving = true;
+        HasSaveError = false;
+        SaveErrorMessage = string.Empty;
+        try
+        {
+            await _scratchpad.AddDailyAgendaItemsAsync(selected, _agendaDate);
+            _confirmed = true;
+            ConfirmCommand.NotifyCanExecuteChanged();
+            CloseRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            var reference = AppErrorLog.Record(ex, "daily-agenda.add-scheduled-work");
+            HasSaveError = true;
+            SaveErrorMessage =
+                "Sati could not add all selected work. Any item already added is visible in Today's Work. " +
+                $"You can retry or skip. Support reference: {reference}.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
     [RelayCommand]
@@ -126,23 +148,6 @@ public sealed partial class DailyAgendaViewModel : ObservableObject
             OpenRequested?.Invoke(this, item.Item);
             CloseRequested?.Invoke(this, EventArgs.Empty);
         }
-    }
-
-    internal static string AppendToTodaysWork(
-        string? existing,
-        IReadOnlyList<string> lines,
-        DateOnly agendaDate)
-    {
-        if (lines.Count == 0)
-            return existing ?? string.Empty;
-
-        var additions = string.Join(Environment.NewLine, lines);
-        if (string.IsNullOrWhiteSpace(existing))
-            return additions;
-
-        var header = agendaDate.ToDateTime(TimeOnly.MinValue).ToString("dddd, MMMM d");
-        return $"{existing.TrimEnd()}{Environment.NewLine}{Environment.NewLine}" +
-               $"{header}{Environment.NewLine}{additions}";
     }
 
     private static ObservableCollection<DailyAgendaItemViewModel> CreateItems(

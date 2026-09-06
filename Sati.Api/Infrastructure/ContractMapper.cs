@@ -14,10 +14,10 @@ internal static class ContractMapper
         "Scheduled", "Pending", "Logged", "HeldForCompliance", "Cancelled", "Delayed",
         "Approved", "Returned", "Abandoned", "ComplianceBlocked"
     ];
-    // Ordinals mirror the append-only desktop enum. Reminder is last so existing
-    // persisted values keep their meaning; NoteSchedulingPolicy normalizes its
-    // non-billable shape before this value reaches persistence.
-    internal static readonly string[] NoteTypeNames = ["Visit", "Contact", "Form", "Other", "Reminder"];
+    // Ordinals mirror the append-only desktop enum. Contact remains at ordinal 1
+    // for existing records; new clients author Phone or Email at appended values.
+    internal static readonly string[] NoteTypeNames =
+        ["Visit", "Contact", "Form", "Other", "Reminder", "Phone", "Email"];
     internal static readonly string[] FormTypeNames =
     [
         "Q1R", "Q2R", "Q3R", "Q4R", "PCP", "ComprehensiveAssessment", "Reclassification",

@@ -6,11 +6,23 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Room to Work";
-    public const string ReleaseDate = "September 5, 2026";
+    public const string ReleaseName = "Connected work and safer signing";
+    public const string ReleaseDate = "September 6, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
+        new(
+            "Team chat is ready for controlled Demo testing",
+            [
+                "Authorized staff can use API-mediated team rooms with membership, tenant, case, audit, concurrency, and reconnect protections.",
+                "Chat remains off by default and is restricted to validated Demo and testing identities until agency acceptance is complete."
+            ]),
+        new(
+            "Electronic signing is ready for synthetic testing",
+            [
+                "Staff can freeze an exact document, issue a protected request, and capture consent, signing intent, decisions, and retained evidence.",
+                "The public signing portal, copy preparation, and email notifications remain disabled by default. Real-client use still requires legal, program, accessibility, hosting, and agency approval."
+            ]),
         new(
             "The Overview now fits the space you have",
             [

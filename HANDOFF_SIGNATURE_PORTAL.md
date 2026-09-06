@@ -1,5 +1,11 @@
 # Handoff — Electronic signature portal
 
+> **Implementation update, September 6, 2026 UTC:** The original handoff below is preserved as
+> design history. A disabled-by-default, synthetic-data implementation now exists. Read
+> [the review](SIGNATURE_PORTAL_REVIEW.md), [the plain-language guide](SIGNATURE_PORTAL_GUIDE.md),
+> and [the validation record](SIGNATURE_PORTAL_VALIDATION.md) for the implemented scope, corrected
+> assumptions, and remaining requirements. No deployment or real-use clearance has occurred.
+
 **For:** whoever implements this next (written for a fresh agent with no prior context).
 **Source of truth:** [`SIGNATURE_PORTAL_DESIGN.md`](SIGNATURE_PORTAL_DESIGN.md) on `master`. Read
 it in full before writing code. Read `CLAUDE.md` at the repo root first for the project's

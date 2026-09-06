@@ -128,8 +128,10 @@ public sealed class ReleaseUiStructureTests
         Assert.DoesNotContain("DetectFor(this)", shellCode);
         Assert.Contains("SetCompactDisplayMode", shellViewModel);
         Assert.Contains("ToggleScratchpadCommand", shell);
-        Assert.Contains("Overview workspace", overview);
-        Assert.Contains("Focus note", overview);
+        Assert.DoesNotContain("Overview workspace", overview);
+        Assert.DoesNotContain("Focus note", overview);
+        Assert.Contains("Monthly productivity panel", overview);
+        Assert.Contains("UPCOMING DUE DATES", overview);
         Assert.Contains("OverviewLayoutPolicy.Evaluate", overviewCode);
         Assert.Contains("SizeChanged += OnSizeChanged", clientsCode);
         Assert.Contains("SetCompactDisplayMode", clientViewModel);

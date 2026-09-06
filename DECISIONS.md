@@ -990,13 +990,15 @@ item the calendar must be able to retrieve. That entry is stored once as a
 `Notes` row with `NoteType.Reminder` and `NoteStatus.Scheduled`; it is not copied
 into the journal.
 
-`Sati.Contracts.V1.NoteSchedulingPolicy` owns the conversion. A future date wins
-over caller-selected type and status, preserves only the date and narrative, and
-removes minutes, start time, form type, visit documentation, and case-manager
-justification. The desktop applies the rule immediately for understandable UI;
-the local `NoteService` and API apply it again before persistence. The API uses
-the agency date from `ApiClock`, so a forged or older distributed client cannot
-turn future work into submitted or billable documentation.
+`Sati.Contracts.V1.NoteSchedulingPolicy` owns the normalization. For an explicitly selected
+Reminder, a future date fixes Scheduled status, preserves the date and narrative, and removes
+minutes, start time, form type, visit documentation, and case-manager justification. The
+2026-09-05 Today's Work decision refines the same owner for non-Reminder future work: it preserves
+the selected work/form type and estimated minutes while still fixing Scheduled status and clearing
+actual start time and completed facts. The desktop applies the rule immediately for understandable
+UI; the local `NoteService` and API apply it again before persistence. The API uses the agency date
+from `ApiClock`, so a forged or older distributed client cannot turn future work into submitted or
+billable documentation.
 
 The reminder remains Scheduled after its date arrives; no background job silently
 turns planned text into a clinical note. A case manager may later delete it or
@@ -2507,7 +2509,7 @@ write artifact metadata in the same transaction as their PHI-minimized audit eve
 Release uses Sati-owned wording and the existing release-choice structure; legal/program review is
 still required before representing it as an accepted official form.
 
-## 2026-09-01 — The login agenda is once daily, local, and read-only
+## 2026-09-01 — The initial login agenda is once daily and local
 
 The sign-in agenda appears at most once per local calendar day for each Sati user in each
 environment. This resolves the handoff's open cadence question in favor of the recommended
@@ -2528,9 +2530,11 @@ two apparent tasks from one record. A quiet-period Comprehensive Assessment sugg
 the form's unattested state even when its assessment entity is Approved, preserving the existing
 evidence-versus-attestation boundary.
 
-Selected items append ordinary human-editable lines through the current Today's Work view model.
-No identifiers, hidden markers, or parseable task payloads are embedded in that text. Structured
-tasks remain a separate future product decision with their own entity and lifecycle.
+Selected items originally appended ordinary human-editable lines through the current Today's Work
+view model. No identifiers, hidden markers, or parseable task payloads were embedded in that text.
+The 2026-09-05 structured Today's Work decision below supersedes only this selected-item storage
+choice; the once-daily cadence, local preference, recommendation sources, and no-compliance-write
+boundary remain in force.
 
 Two copy corrections were accepted during implementation. Four Set E variants originally omitted
 the `{1}` forward-window value despite the handoff's own test requiring it in every Set E variant;
@@ -3022,3 +3026,135 @@ does not describe usable WPF space after window resizing, DPI scaling, or Easy E
 mode engines could contradict each other. `DisplayLayoutService` and `DisplayAdjustmentDialog` were
 removed. Navigation strips retain bounded horizontal overflow at extreme widths; replacing that
 fallback with a selector remains a separate presentation refinement.
+
+## 2026-09-05 - Fixed Overview roles and a bounded Statistics report
+
+This decision supersedes the workspace-selector, Focus note, Forms-summary, duplicate Notes-panel,
+and center-preference portions of the adaptive-display decision above. At normal desktop widths,
+Overview has fixed roles: Current note on the left, Work Agenda in the center, Upcoming Due Dates on
+the right, and Productivity below Work Agenda when height permits. Below 1080 effective units the
+three primary panels stack. Easy Eyes remains the one user-facing enlargement switch. The obsolete
+center preference and its local preference service are removed; an old preference file may remain
+on a workstation but is no longer read or changed.
+
+The compact note header no longer repeats the selected client's name. It reports the nearest
+outstanding form as upcoming, ready to open, open, or overdue, including the relevant opening,
+opened, and due dates. The ordinary client picker remains the source of selected-client identity.
+Full note history, form work, reviews, and detailed productivity remain available in their existing
+Case Management destinations.
+
+Statistics no longer retrieves full yearly note entities to calculate a date-bounded monthly sum.
+`IProductivityReportService` projects only EventDate and Minutes for the signed-in worker and returns
+monthly units. Demo uses an authenticated API route whose scope comes only from the validated actor;
+the request cannot name another user. Local Production derives the same scope from the session.
+The route response has no narrative or person fields. Independent report reads begin together, the
+Statistics view opens before they finish, and only the latest date-window request may publish data.
+The established Logged + Approved unit rule and all incentive and billing-loss calculations remain
+unchanged.
+
+## 2026-09-05 - Today's Work uses Scheduled notes as its structured plan
+
+Today's Work keeps its dated free-text Scratchpad and adds a structured view over today's Scheduled
+notes. Note type determines the visible group: Form is Paperwork, Visit is Visits, Phone and legacy
+Contact are Calls, Email is Emails, and remaining types are Freeform. Every structured row therefore
+already has the client, type, status, date, revision, tenant scope, authorization checks, and audit
+behavior the note lifecycle supplies. A second task table would duplicate those facts and create a
+new synchronization problem, so none is introduced.
+
+The sign-in agenda turns each selected form into a Scheduled Form note for today with a 15-minute
+editable estimate and the exact form type. It leaves the scratchpad text untouched and recognizes an
+exact prior insert when a partial save is retried. Scheduled notes are no longer offered by the
+sign-in recommendation list because they appear automatically on their due day.
+
+Starting an item prepares the same note row as an unsaved Pending draft in the adjacent current-note
+panel. It uses today's date, preserves the client and specific type, brackets the planned text as a
+clear replacement prompt, and defaults the start to the first five-minute-grid opening that fits its
+minutes. The row changes in persistence only when Save succeeds. Canceling or navigating away after
+the ordinary discard prompt leaves the stored plan Scheduled, and a successful save cannot create a
+duplicate note.
+
+Future service notes retain their chosen type, optional form type, and estimated minutes. The shared
+`NoteSchedulingPolicy` fixes their status at Scheduled and clears actual start time, justification,
+and completed-visit facts. This resolves the earlier soft-reservation question for future plans:
+estimated duration is useful planning data, while a service start becomes real when work begins.
+Explicit Reminders keep their separate non-service behavior.
+
+`Phone` and `Email` are appended enum values; existing integer values are unchanged and the legacy
+`Contact` value remains readable. New-entry controls no longer offer ambiguous Contact. When an old
+Scheduled Contact is started it defaults to Phone, the more common historical case, and remains
+editable before save because old narratives cannot be classified reliably after the fact.
+
+## Team chat — safer defaults after design review (2026-09-05)
+
+The user authorized implementing Claude's handoff with the safest practical corrections.
+`TEAM_CHAT_REVIEW.md` maps defects to corrections. Membership is explicit; Admin manages it, but
+reading requires membership plus existing consumer access for consumer-scoped rooms. No automatic
+agency room, independent moderator role or historical disclosure on joining is introduced. General
+coordination has a no-client-details policy, not a claim of reliable free-text classification.
+
+The original five-minute client-read audit loses final reads and cannot prove human reading.
+Record exact server body releases durably before returning them; seen markers serve unread UI only.
+Original messages and later redactions are immutable. Client merge uses server message IDs;
+retry identity is scoped to room and author and cannot be reused for a different body.
+
+Timestamp overlaps and identity watermarks cannot prove recovery across late commits and old
+redactions. A concurrency-checked room revision orders all changes. Contentless WebSocket notices
+prompt the audited HTTP read and are not required for correctness, avoiding a second PHI path.
+
+Chat is disabled unless explicitly enabled in the validated Demo/testing environment. There is no
+Local Production chat or real-data activation. Matching existing encryption is not a risk
+assessment; no legal-compliance claim is made. No automatic deletion runs pending the schedule and
+complete preservation, discovery/export, backup, account and operational work in `TEAM_CHAT_GUIDE.md`.
+
+Room and page responses identify each membership episode. A rejoin invalidates earlier local text
+and pending work even if the client missed the intervening removal. The authorized consumer's name
+and record identifier distinguish client discussions from merely user-chosen room names. Background
+chat traffic cannot renew an idle session. Room-detail edits retain the version originally shown;
+periodic refresh cannot silently make old edits current. Consumer deletion refuses retained chat,
+and migration rollback refuses populated rooms instead of erasing evidence.
+
+## 2026-09-06 — Electronic signatures preserve originals and signer-specific evidence
+
+The signature handoff is implemented as an opt-in synthetic feature. The environment gate allows
+only the validated Demo/Testing pair, and staff issuance additionally requires a consumer marked
+as test data at creation. All live legal-clearance claims in the original proposal are superseded
+by `SIGNATURE_PORTAL_REVIEW.md`. Safety-plan and state DHHS signing remain blocked pending their
+program decisions; the medical-records request letter has no consumer signature.
+
+The exact previously generated PDF must match the current complete artifact's hash and byte count.
+No supervisor may bypass missing fields. Its frozen bytes remain separately retained; the derived
+signed copy and paginated evidence certificate have their own immutable package and hash. Signing
+does not fill the existing unique artifact slot, supersede the original, attest ordinary form
+completion, satisfy every team signer, or imply billing approval.
+
+Each request freezes one signer, capacity, reviewed authority basis, delivery address, disclosure
+and intent. Current name/address snapshots are verified when staff confirms issuance or replacement.
+A new request gets its own 8–12 digit code protected by PBKDF2 and a wrapped random per-request HMAC
+key. The portal may unwrap only the PIN key, never the separate invitation outbox key. Consent is
+the signer's explicit per-session act after authentication and actual document access. No raw code,
+working invitation, IP address or user-agent description is retained as signature evidence.
+
+The public portal has a separate deployment/identity, narrow canonical context, explicit SQL role,
+private container read access, secure request-bound session cookies and CSRF protection. SQL locks
+serialize code checks before deriving a candidate; revisions guard workflow changes. Five failed
+codes lock durably. Replacement requires a different code and closes old links and sessions.
+The code must still match an existing request on idempotent replay; a new code cannot silently
+change what a previous uncertain submission established. Logout invalidates server sessions.
+
+A committed signing decision precedes recoverable package preparation and notification processing.
+Workers are separately opt-in. Durable leases and provider operation IDs prevent automatic repeat
+email submission after an uncertain response. Provider success is not claimed as inbox delivery.
+After signing, the invitation's `/s/` access is consumed; `/r/` plus the same code can create a
+receipt-only session within the original expiry. Later free/accessible copies use the agency's
+reviewed staff process. Authorization withdrawal is separate from withdrawal of electronic consent
+and never rewrites signed history. No automatic purge is introduced.
+
+Relevant signer identity/contact changes stop unfinished requests and old external receipt access
+within the same authorized edit transaction. The signed outcome, staff copies and already-submitted
+mail facts remain intact; access revocation is distinct from withdrawing a medical authorization.
+Every portal action and download binds to its displayed session as well as its secure cookie,
+preventing one browser tab from silently acting on another tab's document. Deadline checks repeat
+after awaited work before evidence or disclosure is committed.
+
+`SIGNATURE_PORTAL_GUIDE.md`, `Sati.Portal/README.md`, and `SIGNATURE_PORTAL_VALIDATION.md` distinguish
+completed local work from deployment, legal, program, accessibility and operations prerequisites.

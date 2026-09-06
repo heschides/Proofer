@@ -2,6 +2,70 @@
 
 *Living document. Updated during structured review sessions. Last updated: 2026-09-05.*
 
+## Electronic signatures (synthetic-data build)
+
+`Sati.Contracts.V1.SignatureRules`, `SigningPinRules`, and `SignatureMeaningCatalog` own shared
+policy. `Sati.Signatures` owns exact-document freezing, protected request codes, durable sessions,
+consent, terminal decisions, retained evidence, package generation and encrypted delivery recovery.
+Staff routes use the existing `ApiDbContext`, authoritative actor/person/contact checks and one
+serializable, single-attempt transaction. WPF uses `ISignatureService`/`CloudSignatureService` in
+the existing Annual Documents workspace. Local Production receives `SignatureUnavailableService`.
+
+`Sati.Portal` is a separate public host with no staff API dependency. It uses the canonical signing
+entities through `SignatureDbContext`, narrow source/environment views, a distinct SQL role and
+managed identity, read-only private blob access and only the PIN key. It has no clinical entities,
+mail sender, outbox decryption key or migration authority. The public model maps the same tables
+as the full contexts, with restrictions enforced by the deployed SQL identity; the model itself
+is not a security boundary. Portal startup validates the real SQL environment when enabled.
+
+Eight retained tables separate frozen originals, requests, sessions, consent, events, completions,
+derived PDF packages and encrypted outbox work. Clinical-source replacement revokes open requests
+inside its existing transaction. Source metadata is immutable; signing never replaces the source
+artifact, writes a fake staff acknowledgment or sets ordinary form/billing completion. All signing
+timestamps hydrate as UTC. Terminal history and originals cannot be silently rewritten or deleted.
+
+Relevant signer/contact changes revoke unfinished requests and stop external access to existing
+receipts in the same authorized profile transaction. Signed decisions and staff copies remain
+retained. The portal also binds every decision and PDF download to the session displayed by that
+page, so a shared cookie changed by another tab cannot redirect an old page's action.
+
+The API alone runs `SignatureCompletionWorker` and `SignatureMailWorker`, through the opt-in
+`SignatureProcessingService`. Workers use fresh contexts and durable revision/lease/operation
+identities, verify originals and evidence, and recover without replaying a mail submission.
+Signed copies and receipt notifications are prepared after the immutable signing decision. `/s/`
+cannot authenticate a signed request; `/r/` requires the code and permits only retained-copy access
+within the original link expiry. Logs contain no codes, invitation tokens or document narratives.
+
+`SIGNATURE_PORTAL_REVIEW.md` supersedes unsafe proposal assumptions. `SIGNATURE_PORTAL_GUIDE.md`
+and `Sati.Portal/README.md` identify the real-use and hosting gates; `SIGNATURE_PORTAL_VALIDATION.md`
+records tested boundaries and limits. No deployment or compliance clearance is implied.
+
+## Team chat (synthetic-data build)
+
+Chat is API-only, disabled by default, and gated to the validated Demo/testing identity.
+`ChatAccess` in `Sati.Contracts.V1` owns eligible permissions and exact room/user/agency membership
+bindings. Consumer-scoped rooms also use the existing live `TenantAccess` caseload rule. No
+automatic agency membership or historical-access grant is introduced. Room administration does
+not itself authorize reading. Local Production receives `ChatUnavailableService`.
+
+`ChatPersistenceModel` maps both persistence and API twins and enforces append-only messages/change
+history, single membership closure, and monotonic room/read revisions. Five chat tables have
+restrictive relationships. Room revision and message/redaction changes commit together; clients
+recover ordered pages, including old-post corrections, without identity/time watermarks.
+
+Message reads commit exact minimized server-release evidence before returning a nonempty batch.
+Seen markers are presentation state, never proof of human reading. The WebSocket carries only a
+generic change notice; content uses authenticated, authorized, audited HTTP. Connections hold no
+long-lived database context. Polling remains the recovery path.
+
+Room and page contracts carry a membership episode so rapid removal/rejoining invalidates earlier
+client content. Passive chat reads/socket opening do not renew sessions. The shell supplies actual
+visibility and account boundaries; room editing retains its original concurrency revision.
+
+See `TEAM_CHAT_DESIGN.md`, `TEAM_CHAT_REVIEW.md`, `TEAM_CHAT_GUIDE.md` and
+`TEAM_CHAT_VALIDATION.md`. Account suspension/session revocation, retained-message discovery/export,
+broad legal holds including backups, retention and agency acceptance remain real-data prerequisites.
+
 ## Inactivity privacy screen
 
 `IdleSessionState` owns the rule: it holds the timeout, the last-activity stamp, and whether
@@ -62,18 +126,19 @@ underlying responsive/manual layout choice.
 ## Adaptive Overview presentation
 
 `OverviewLayoutPolicy` maps the finite WPF space actually allocated to Overview into four internal
-tiers: Wide at 2100 units, Balanced at 1440, two-pane Compact at 1080, and one-pane Compact below
-that. A 48-unit expansion margin prevents repeated switching while a window rests near a boundary.
-The lower Forms/Productivity band appears at 840 units of height in Wide and Balanced. These are
+tiers: Wide at 2100 units, Balanced at 1440, Compact at 1080, and Narrow Stack below that. A 48-unit
+expansion margin prevents repeated switching while a window rests near a boundary. At 1080 units or
+more, Overview keeps three fixed roles: Current note on the left, Work Agenda in the center, and
+Upcoming Due Dates on the right. Below 1080, those same live panels stack vertically. The monthly
+productivity summary appears below Work Agenda once 700 units of height are available. These are
 presentation decisions only: the policy has no monitor API, persistence, service, or clinical-rule
 dependency.
 
-`CaseManagerDashboardContentView` owns one stable host for Current note, Work Agenda, Notes,
-Deadlines, and Forms/Productivity. It changes Grid placement and visibility as the viewport changes;
-the workspace selector exposes panels that do not fit simultaneously. Work Agenda is the initial
-center workspace for a missing local preference. An explicit saved false still starts with Notes in
-the center. Focus note expands the existing note host and can temporarily show the same Work Agenda
-view before returning to the note or Overview.
+`CaseManagerDashboardContentView` owns stable hosts for Current note, Work Agenda, Upcoming Due
+Dates, and Productivity. It changes only Grid placement and visibility as the viewport changes.
+There is no Overview workspace selector, Focus note mode, Forms summary tab, duplicate Notes panel,
+or center-layout preference. The full Notes, Clients/forms, Reviews, and Statistics workspaces remain
+available through Case Management's feature navigation.
 
 `ShellWindow` creates one `ScratchpadView` for the shell's `ScratchpadViewModel` and moves that same
 control between the Overview center host and the collapsible shell-side host on other pages. This
@@ -84,9 +149,41 @@ a startup monitor decision.
 
 `NoteEntryView` retains the same controls and bindings in every size. Below 840 units it exposes
 Details and Write sections under a pinned context header; changing sections collapses Grid rows
-rather than reconstructing text boxes. The narrative therefore retains its text, caret, selection,
+rather than reconstructing text boxes. The compact header uses its second line for the selected
+client's nearest form state (open, ready to open, upcoming, or overdue) instead of repeating the
+client name already shown by the picker. The narrative therefore retains its text, caret, selection,
 and undo state through resizing. The save action remains docked below the scrolling content, and the
 module-scoped compliance overlay remains above both presentations.
+
+Statistics uses `IProductivityReportService` for its unit history. Local Production projects only
+note date and minutes for the signed-in worker; Demo calls `GET /reports/productivity-units`, where
+the validated API actor supplies the scope and the response contains monthly totals only. Note
+narratives and person object graphs never enter this report path. Productivity, billing-loss,
+incentive-history, exempt-date, and partial-month reads start together, while `LatestRequestTracker`
+allows only the newest filter request to update the screen. The view appears immediately with a
+loading or load-failure message while those reads complete.
+
+## Structured Today's Work
+
+Today's Work has two deliberately separate forms of content. `ScratchpadService` still owns the
+dated, freely editable scratchpad text. `WorkAgendaService` projects today's existing Scheduled
+notes into Paperwork, Visits, Calls, Emails, and Freeform groups. The note is the durable plan; no
+second task row, hidden scratchpad marker, or text parser can drift away from the clinical-note
+lifecycle. The query stays behind `INoteService`, which means Local Production keeps its short-lived
+context implementation and Demo keeps its authenticated API boundary.
+
+The daily sign-in agenda creates Scheduled Form notes for selected forms with a 15-minute editable
+estimate. Exact retries are idempotent from the user's point of view. Scheduled notes already due
+today appear automatically and are omitted from the sign-in recommendation list, avoiding a second
+apparent task for the same note.
+
+Starting an agenda item opens that same row in the current-note panel as an unsaved Pending draft.
+It fills the client and type, uses today's date, brackets the planned narrative as replaceable
+prompt text, and asks `ServiceTimeline` for the earliest five-minute-grid opening large enough for
+the estimated duration. Saving updates the Scheduled row in place; leaving without saving leaves it
+Scheduled. Legacy Contact rows enter as Phone because old data cannot reliably distinguish phone
+from email, and the case manager can select Email before saving. New entry surfaces offer Phone and
+Email separately while the stored Contact enum value remains readable.
 
 ## Vocational Rehabilitation profile assignments
 
@@ -1083,6 +1180,10 @@ old rows as a side effect.
   timer, account-switch, or shutdown request for an unchanged draft. A `401` save rejection stops
   the agenda timer, preserves both visible drafts, and produces one accessible session-expiry
   warning instead of retrying each tab and opening recurring error dialogs.
+- Structured items displayed above the text are not Scratchpad content. `WorkAgendaService` reads
+  today's Scheduled notes and groups them by note type; `ScratchpadViewModel` uses a
+  `LatestRequestTracker` before publishing that async result. A failed structured load leaves the
+  freeform draft available and offers an inline retry.
 
 ### `AuthService`
 - **DI inconsistency:** `new PasswordHasher()` directly instead of `IPasswordHasher` via DI
@@ -1157,8 +1258,8 @@ rather than in either client.
 | `AnnualDocumentCatalog` | Annual-document identity, display names, form-prerequisite mapping, and later packet eligibility. |
 | `BillingRules` | Payer-neutral unit arithmetic, charge rounding, NPI and procedure-code format. |
 | `NoteWorkflow` | Which note status may become which, for the case manager, the supervisor, and the overdue sweep — and therefore which notes can reach approval and billing at all. |
-| `NoteSchedulingPolicy` | Future dates become non-billable Scheduled Reminders, with service, form, visit, and justification fields removed before persistence. |
-| `ServiceTimeline` | The 7:00 AM – 7:00 PM service day and the no-double-claimed-minute rule. |
+| `NoteSchedulingPolicy` | Future work becomes non-billable Scheduled work, retaining its type, estimated minutes, and optional form type while clearing actual start time, visit facts, and justification. Reminder remains a separate non-service shape. |
+| `ServiceTimeline` | The 7:00 AM – 7:00 PM service day, the no-double-claimed-minute rule, and earliest available start calculation. |
 | `AuditCsv` | The audit export's header, column order, escaping, and spreadsheet neutralization. |
 | `AtRequestPublication` | Whether an AT request is complete enough to publish, what the case manager attests to, and whether a published request may still be edited. |
 | `AtRequestScreenshot` | The accepted format, downscale target, and size ceiling for a pasted item evidence clip. |
@@ -1419,7 +1520,9 @@ workday drafts, rolls them forward after midnight on window activation or the 10
 explicitly saves both on shutdown/user-switch; diagnostics omit scratchpad content. A conflict is
 tracked and reloadable per tab, stops
 the timer, preserves both visible drafts, and blocks shutdown/user switching until resolved;
-identical autosaves are server-side no-ops.
+identical autosaves are server-side no-ops. It separately loads and groups today's Scheduled notes;
+those rows never enter either free-text draft, and the shell supplies the callback that opens a row
+in the existing note-entry module.
 `GuidanceViewModel`/`HelpersViewModel`: static content.
 
 ### Billing ViewModels
@@ -1622,17 +1725,20 @@ place a note is read or written, in three modes carried by one pair of flags on
 | New Note | false | false | `New Note` |
 | View Note | true | true | `View Note` |
 | Edit Note | true | false | `Edit Note` |
+| Start scheduled work | true | false | `Start Note` |
 
 - `EnterViewMode` / `EnterEditMode` are thin wrappers over one private `LoadNote(note, locked)`.
   `ToggleLockCommand` moves between the last two; locking re-runs `LoadNote` so the panel shows the
   saved record rather than an abandoned draft.
-- `AreNoteFieldsEnabled` is the single owner of "these fields may not be changed". It folds both
-  reasons together — Reminder type, and lock — so a control never has to know which is in force.
+- `AreNoteFieldsEnabled` folds Reminder type and the edit lock together. `IsStatusEnabled` and
+  `IsServiceTimeEnabled` additionally hold the policy-owned status and actual start time while a
+  service note is dated in the future.
 - `IsDateEnabled` is deliberately separate: an unlocked Reminder keeps its date picker available.
-  Choosing a future date invokes the shared `NoteSchedulingPolicy`, changes the type/status to
-  Reminder/Scheduled, retains the date, and removes service, form, visit, and justification fields.
-  An undated Reminder continues to use the journal-entry route; the two modes never write the same
-  text to both the journal and `Notes`.
+  Choosing a future date invokes the shared `NoteSchedulingPolicy`, retains the selected note and
+  form types and estimated minutes, fixes the status at Scheduled, and clears actual start time,
+  completed-visit facts, and justification. An explicit Reminder remains a non-service record with
+  no minutes or form facts. An undated Reminder continues to use the journal-entry route; the two
+  modes never write the same text to both the journal and `Notes`.
 - Read-only presentation uses `IsReadOnly` for text and `IsEnabled=False` for pickers, scoped by
   implicit styles in the form `Border`'s resources. A locked narrative stays legible, selectable,
   scrollable, and copyable; a disabled `TextBox` is none of those. The lock is a mistake-guard, not
@@ -1717,17 +1823,18 @@ grid lists every client's notes. Covered by
 `NotePanelModeTests.LoadingANoteForADifferentClientStillUpdatesThatNote`, confirmed failing against
 the old ordering.
 
-## Daily sign-in agenda (2026-09-01)
+## Daily sign-in agenda (2026-09-01; structured successor 2026-09-05)
 
 The daily agenda is a desktop presentation feature over existing authoritative data. It does not
-introduce a task record and never changes a form, assessment, due date, compliance state, or billing
-decision. `DailyAgendaBuilder` reads the case manager's already-loaded caseload and agency settings,
-then combines three sources:
+introduce a separate task record and never changes a form, assessment, due date, compliance state,
+or billing decision. `DailyAgendaBuilder` reads the case manager's already-loaded caseload and
+agency settings, then combines three sources:
 
 - every incomplete overdue `Form`, using the shared
   `BillingComplianceGate.IsIncompleteAndOverdue` predicate without an upper age limit;
-- forward events from `IUpcomingEventService`, excluding `LateReview` because those rows describe
-  the same overdue forms owned by the first source; and
+- actionable open-form events from `IUpcomingEventService`, excluding `LateReview` because those
+  rows describe the same overdue forms owned by the first source and excluding Scheduled notes
+  because their due-day rows appear directly in Today's Work; and
 - when both lists are empty, the soonest-due unattested Comprehensive Assessment form.
 
 Each displayed list is capped at five rows. The overdue section retains the true total and orders
@@ -1740,9 +1847,10 @@ same section definitions and answer-status rule as `ComprehensiveAssessmentViewM
 Startup ordering is deliberate. `App` awaits `ShellViewModel.InitializeAsync`, including
 `Scratchpad.InitializeAsync` and the caseload load, before showing `ShellWindow`. The window's
 `Loaded` handler then invokes `DailyAgendaLauncher`. Account switches invoke it only after
-`ReinitializeAsync`. Confirm writes through `ScratchpadViewModel.ScratchpadContent`, so existing
-dirty tracking, autosave, and conflict handling remain in force; Skip writes nothing. Open commands
-navigate to the existing case-management/form surface and do not perform a record transition.
+`ReinitializeAsync`. Confirm sends selected forms through `ScratchpadViewModel` to
+`WorkAgendaService`, which creates Scheduled Form notes for today without altering the freeform
+scratchpad. Exact retries recognize rows already added. Skip writes nothing. Open commands navigate
+to the existing case-management/form surface and do not perform a record transition.
 
 `DailyAgendaPreferenceService` stores `ShowAtSignIn` and `LastShownDate` under
 `%LOCALAPPDATA%\Sati\daily-agenda-preferences.json`, keyed by environment and Sati user id. This is

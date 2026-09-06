@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Sati.Data;
 using Sati.Models;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
@@ -18,11 +19,13 @@ namespace Sati.ViewModels.Children
 
         private readonly IScratchpadService _scratchpadService;
         private readonly ISessionService _sessionService;
+        private readonly IWorkAgendaService? _workAgendaService;
 
         private Scratchpad? _scratchpad;
         private Scratchpad? _tomorrowAgenda;
         private DispatcherTimer? _scratchpadTimer;
         private readonly SemaphoreSlim _saveGate = new(1, 1);
+        private readonly LatestRequestTracker _scheduledWorkLoads = new();
         private string _lastSavedScratchpadContent = string.Empty;
         private string _lastSavedTomorrowAgendaContent = string.Empty;
         private bool _sessionExpiredDuringSave;
@@ -32,10 +35,14 @@ namespace Sati.ViewModels.Children
         // Constructor
         // -------------------------------------------------------------------------
 
-        public ScratchpadViewModel(IScratchpadService scratchpadService, ISessionService sessionService)
+        public ScratchpadViewModel(
+            IScratchpadService scratchpadService,
+            ISessionService sessionService,
+            IWorkAgendaService? workAgendaService = null)
         {
             _scratchpadService = scratchpadService;
             _sessionService = sessionService;
+            _workAgendaService = workAgendaService;
         }
 
         // -------------------------------------------------------------------------
@@ -43,6 +50,11 @@ namespace Sati.ViewModels.Children
         // -------------------------------------------------------------------------
 
         public event EventHandler? OpenScratchpadHistoryRequested;
+
+        // The shell supplies the host action so this child never reaches into a
+        // parent ViewModel or creates a View. Awaiting it through an async command
+        // also keeps navigation failures out of an async-void event handler.
+        public Func<WorkAgendaItem, Task>? ScheduledWorkOpeningAsync { get; set; }
 
         // -------------------------------------------------------------------------
         // Observable properties
@@ -62,6 +74,30 @@ namespace Sati.ViewModels.Children
         [ObservableProperty] private string tomorrowAgendaLoadErrorMessage = string.Empty;
         [ObservableProperty] private bool hasScratchpadSessionExpired;
         [ObservableProperty] private string scratchpadSessionExpiredMessage = string.Empty;
+        [ObservableProperty] private bool hasScheduledWorkLoadError;
+        [ObservableProperty] private string scheduledWorkLoadErrorMessage = string.Empty;
+        [ObservableProperty] private bool isScheduledWorkBusy;
+
+        public ObservableCollection<WorkAgendaItem> PaperworkItems { get; } = [];
+        public ObservableCollection<WorkAgendaItem> VisitItems { get; } = [];
+        public ObservableCollection<WorkAgendaItem> CallItems { get; } = [];
+        public ObservableCollection<WorkAgendaItem> EmailItems { get; } = [];
+        public ObservableCollection<WorkAgendaItem> FreeformItems { get; } = [];
+
+        public bool HasPaperworkItems => PaperworkItems.Count > 0;
+        public bool HasVisitItems => VisitItems.Count > 0;
+        public bool HasCallItems => CallItems.Count > 0;
+        public bool HasEmailItems => EmailItems.Count > 0;
+        public bool HasFreeformItems => FreeformItems.Count > 0;
+        public int ScheduledWorkCount => PaperworkItems.Count + VisitItems.Count +
+            CallItems.Count + EmailItems.Count + FreeformItems.Count;
+        public bool HasScheduledWorkItems => ScheduledWorkCount > 0;
+        public string ScheduledWorkSummary => ScheduledWorkCount switch
+        {
+            0 => "No scheduled work for today.",
+            1 => "1 scheduled item · double-click or choose Start.",
+            _ => $"{ScheduledWorkCount} scheduled items · double-click or choose Start."
+        };
 
         // -------------------------------------------------------------------------
         // Commands
@@ -74,7 +110,9 @@ namespace Sati.ViewModels.Children
             if (_sessionService.CurrentUser is not { } user)
                 return;
 
-            if (await TryLoadTodayAsync(user.Id))
+            var scratchpadLoaded = await TryLoadTodayAsync(user.Id);
+            var workLoaded = await RefreshScheduledWorkAsync(user.Id);
+            if (scratchpadLoaded || workLoaded)
                 StartScratchpadTimer();
         }
 
@@ -90,6 +128,13 @@ namespace Sati.ViewModels.Children
 
         [RelayCommand] private void DecreaseScratchpadFont() => ScratchpadFontSize = Math.Max(ScratchpadFontSize - 2, 10);
         [RelayCommand] private void OpenScratchpadHistory() => OpenScratchpadHistoryRequested?.Invoke(this, EventArgs.Empty);
+
+        [RelayCommand]
+        private async Task OpenScheduledWork(WorkAgendaItem? item)
+        {
+            if (item is not null && ScheduledWorkOpeningAsync is not null)
+                await ScheduledWorkOpeningAsync(item);
+        }
 
         // -------------------------------------------------------------------------
         // Initialization
@@ -113,8 +158,9 @@ namespace Sati.ViewModels.Children
             // two LocalDB readers during the cold-start path.
             var todayLoaded = await TryLoadTodayAsync(user.Id);
             var tomorrowLoaded = await TryLoadTomorrowAsync(user.Id);
+            var workLoaded = await RefreshScheduledWorkAsync(user.Id);
             ClearExpiredSessionWarning();
-            if (todayLoaded || tomorrowLoaded)
+            if (todayLoaded || tomorrowLoaded || workLoaded)
                 StartScratchpadTimer();
         }
 
@@ -195,6 +241,7 @@ namespace Sati.ViewModels.Children
                 ScratchpadConflictMessage = string.Empty;
                 HasTomorrowAgendaConflict = false;
                 TomorrowAgendaConflictMessage = string.Empty;
+                await RefreshScheduledWorkAsync(userId);
                 return true;
             }
             catch (Exception ex)
@@ -214,6 +261,117 @@ namespace Sati.ViewModels.Children
         // -------------------------------------------------------------------------
         // Private methods
         // -------------------------------------------------------------------------
+
+        public async Task<WorkAgendaAddResult> AddDailyAgendaItemsAsync(
+            IReadOnlyList<DailyAgendaItem> selectedItems,
+            DateOnly agendaDate)
+        {
+            if (_workAgendaService is null || _sessionService.CurrentUser is not { } user)
+                throw new InvalidOperationException("The structured Work Agenda is unavailable.");
+
+            try
+            {
+                return await _workAgendaService.AddFromDailyAgendaAsync(
+                    user.Id,
+                    agendaDate.ToDateTime(TimeOnly.MinValue),
+                    selectedItems);
+            }
+            finally
+            {
+                // A multi-item save can fail after an earlier item committed. A
+                // refresh in finally presents the server's actual result and keeps
+                // a retry from looking as though nothing happened.
+                await RefreshScheduledWorkAsync(user.Id);
+            }
+        }
+
+        public Task<bool> RefreshScheduledWorkAsync()
+        {
+            var userId = _sessionService.CurrentUser?.Id;
+            return userId is int value
+                ? RefreshScheduledWorkAsync(value)
+                : Task.FromResult(false);
+        }
+
+        private async Task<bool> RefreshScheduledWorkAsync(int userId)
+        {
+            var request = _scheduledWorkLoads.Begin();
+            if (_workAgendaService is null)
+            {
+                ReplaceScheduledWork([]);
+                return true;
+            }
+
+            IsScheduledWorkBusy = true;
+            try
+            {
+                var items = await _workAgendaService.LoadAsync(userId, DateTime.Today);
+                if (!_scheduledWorkLoads.IsCurrent(request) ||
+                    _sessionService.CurrentUser?.Id != userId)
+                {
+                    return false;
+                }
+
+                ReplaceScheduledWork(items);
+                HasScheduledWorkLoadError = false;
+                ScheduledWorkLoadErrorMessage = string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Scheduled Work load failed: {ex.Message}");
+                if (!_scheduledWorkLoads.IsCurrent(request) ||
+                    _sessionService.CurrentUser?.Id != userId)
+                {
+                    return false;
+                }
+
+                var reference = AppErrorLog.Record(ex, "work-agenda.load.scheduled");
+                HasScheduledWorkLoadError = true;
+                ScheduledWorkLoadErrorMessage =
+                    "Scheduled work could not be loaded. Your freeform text is still available. " +
+                    $"Choose Retry. Support reference: {reference}.";
+                return false;
+            }
+            finally
+            {
+                if (_scheduledWorkLoads.IsCurrent(request))
+                    IsScheduledWorkBusy = false;
+            }
+        }
+
+        private void ReplaceScheduledWork(IEnumerable<WorkAgendaItem> items)
+        {
+            PaperworkItems.Clear();
+            VisitItems.Clear();
+            CallItems.Clear();
+            EmailItems.Clear();
+            FreeformItems.Clear();
+
+            foreach (var item in items)
+            {
+                CollectionFor(item.Section).Add(item);
+            }
+
+            OnPropertyChanged(nameof(HasPaperworkItems));
+            OnPropertyChanged(nameof(HasVisitItems));
+            OnPropertyChanged(nameof(HasCallItems));
+            OnPropertyChanged(nameof(HasEmailItems));
+            OnPropertyChanged(nameof(HasFreeformItems));
+            OnPropertyChanged(nameof(ScheduledWorkCount));
+            OnPropertyChanged(nameof(HasScheduledWorkItems));
+            OnPropertyChanged(nameof(ScheduledWorkSummary));
+        }
+
+        private ObservableCollection<WorkAgendaItem> CollectionFor(WorkAgendaSection section) =>
+            section switch
+            {
+                WorkAgendaSection.Paperwork => PaperworkItems,
+                WorkAgendaSection.Visits => VisitItems,
+                WorkAgendaSection.Calls => CallItems,
+                WorkAgendaSection.Emails => EmailItems,
+                _ => FreeformItems
+            };
 
         private void StartScratchpadTimer()
         {
@@ -300,6 +458,11 @@ namespace Sati.ViewModels.Children
             ScratchpadLoadErrorMessage = string.Empty;
             HasTomorrowAgendaLoadError = false;
             TomorrowAgendaLoadErrorMessage = string.Empty;
+            _scheduledWorkLoads.Invalidate();
+            ReplaceScheduledWork([]);
+            HasScheduledWorkLoadError = false;
+            ScheduledWorkLoadErrorMessage = string.Empty;
+            IsScheduledWorkBusy = false;
         }
 
         private async Task<bool> SaveTodayCoreAsync()

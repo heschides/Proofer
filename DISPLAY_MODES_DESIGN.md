@@ -1,4 +1,21 @@
-# Adaptive display modes — design and implementation reference
+# Adaptive display modes — design history and current amendment
+
+## Current amendment — September 5, 2026
+
+The original design below drove release 1.2.47. A same-day usability follow-up now gives Overview
+fixed roles at desktop widths: Current note on the left, Work Agenda in the center, Upcoming Due
+Dates on the right, and Productivity below the Agenda when height permits. Below 1080 effective
+units, the three primary panels stack vertically. The Workspace selector, Focus note, duplicate
+Notes panel, Forms summary tab, and center-layout preference have been removed. Do not reintroduce
+those superseded controls from the historical sections below. Easy Eyes remains the single larger-
+text-and-controls switch, and resizing still preserves each live editor instance.
+
+The compact note header uses the reclaimed client-name line for the nearest open, ready-to-open,
+upcoming, or overdue form. Detailed Notes, forms, reviews, and productivity continue through the
+main Case Management tabs. `ARCHITECTURE.md` and the later 2026-09-05 decision in `DECISIONS.md`
+record the current implementation contract.
+
+## Historical 1.2.47 design
 
 Designed and implemented September 5, 2026. The core responsive tiers, central Work Agenda,
 single live agenda host, short note sections, Focus note, center-default migration, and scoped
@@ -477,12 +494,8 @@ rendered app, including overlays/popups and settings, with more than empty panel
 size, Windows scale, Easy Eyes and measured W/H beside each screenshot. Thresholds may move after
 this QA, but the feature inventory, central-agenda default and state-preservation contract may not.
 
-## 11. Ready-to-use implementation prompt
+## 11. Historical implementation status
 
-> Implement DISPLAY_MODES_DESIGN.md in the current Sati worktree. It is a design handoff, not a
-> record of completed code. Preserve unrelated changes, especially the newer navigation and note
-> review work. Work Agenda is the default center workspace; Easy Eyes stays one simple larger-text
-> setting. Build the adaptive layouts and Focus note using existing feature commands and live
-> editor instances, with the specified state-preservation and accessibility checks. Complete the
-> build and relevant tests, visually verify populated layouts, and update the design/architecture/
-> agenda with actual results. Do not deploy, migrate a database, bump versions or run DATT.
+The original implementation prompt is complete and its selector/focus details are superseded by the
+current amendment at the top of this document. Future display work should begin with that amendment,
+`ARCHITECTURE.md`, and the latest 2026-09-05 display decision in `DECISIONS.md`.

@@ -123,6 +123,34 @@ public static class ServiceTimeline
         return conflicts;
     }
 
+    /// <summary>
+    /// Returns the first five-minute-grid start at which the requested duration
+    /// fits without overlapping an existing time-bearing note. The optional id
+    /// exclusion lets a Scheduled note be converted in place without treating its
+    /// own former reservation as a conflict.
+    /// </summary>
+    public static int? FindEarliestAvailableStart(
+        int minutes,
+        IEnumerable<ServiceBlock> sameDayBlocks,
+        int excludedNoteId = 0)
+    {
+        ArgumentNullException.ThrowIfNull(sameDayBlocks);
+        if (minutes <= 0 || minutes > WindowLengthMinutes)
+            return null;
+
+        var occupied = sameDayBlocks
+            .Where(block => excludedNoteId == 0 || block.NoteId != excludedNoteId)
+            .ToList();
+        for (var start = 0; start + minutes <= WindowLengthMinutes; start += SlotMinutes)
+        {
+            var candidate = new ServiceBlock(excludedNoteId, start, minutes);
+            if (!occupied.Any(existing => Overlaps(candidate, existing)))
+                return start;
+        }
+
+        return null;
+    }
+
     /// <summary>Formats an offset from the window start as a clock time, e.g. "9:15 AM".</summary>
     public static string Describe(int minutesFromWindowStart) =>
         DateTime.Today

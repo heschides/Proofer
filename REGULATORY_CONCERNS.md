@@ -374,3 +374,61 @@ dumps, or runtime telemetry, all of which remain open items in the paragraph abo
 # Safety-plan authoring and approval
 
 Safety-plan narratives may contain highly sensitive clinical information. The new shared structure and supervisor approval are product workflow controls, not a determination of clinical adequacy, consent, signature validity, emergency-response sufficiency, or regulatory compliance. Agency clinical leadership and counsel must review the structure, approval practice, retention, and emergency procedures before any real-world reliance.
+
+## Team chat: engineering and source review (2026-09-05)
+
+This addendum is not a counsel or agency review and does not advance the substantive approval
+status above. `TEAM_CHAT_GUIDE.md` supplies a detailed plain-language outline with current primary
+sources. `TEAM_CHAT_REVIEW.md` records the original handoff's flaws and safer defaults.
+
+Same-agency employment is not a sufficient audience rule. Internal access must follow duties and
+the applicable lawful purpose; the treatment exception is not blanket employee access.
+[HHS minimum necessary](https://www.hhs.gov/hipaa/for-professionals/privacy/guidance/minimum-necessary-requirement/index.html).
+The implemented default therefore uses explicit membership, existing consumer access for linked
+rooms, and no automatic all-agency room. General-room free text is governed by policy, not a
+guarantee of automatic PHI exclusion.
+
+Chat does not replace service notes, but a message used to make decisions about a consumer may
+belong to records the person can obtain. A UI label does not settle the designated-record-set
+question. [HHS access explanation](https://www.hhs.gov/hipaa/for-professionals/faq/2042/what-personal-health-information-do-individuals/index.html).
+Server-release events identify information supplied, not proof of human reading or a complete
+legal accounting of disclosures. Hiding a mistaken message retains its original and is not a
+substitute for privacy-incident assessment or any required notification.
+
+Before real use, review HIPAA applicability and business associate responsibilities; Maine
+22 M.R.S. §1711-C and any applicable 34-B confidentiality/recipient-rights requirements; minors,
+guardians and specially protected records; and 42 CFR Part 2, whose revised general compliance
+deadline was February 16, 2026. The guide links the current official texts and distinguishes
+applicability from engineering defaults. Ordinary room permissions do not implement special
+consent, revocation or restricted-record rules.
+
+HIPAA does not set a universal medical-record retention interval. Approve chat's record classes,
+schedule, preservation/hold process, controlled discovery/export of hidden and misfiled messages,
+and backup treatment. No automatic purge is introduced, and the existing person-only hold registry
+is not described as complete chat coverage. Complete account disablement/session revocation,
+approved API-backed Production, security risk analysis, restoration/monitoring, training and
+assistive-technology acceptance also remain prerequisites. The initial build is explicitly
+synthetic-only and disabled by default; it does not establish legal compliance.
+
+## Electronic signature handoff implementation — September 2026
+
+The original portal proposal has been reviewed and implemented with safer synthetic-only gates.
+`SIGNATURE_PORTAL_REVIEW.md` explains the corrected design assumptions and subsequent review
+findings. `SIGNATURE_PORTAL_GUIDE.md` provides the plain-language legal/operating outline with
+current primary sources, including MaineCare's conditional member-signature policy, Maine UETA
+and health-information confidentiality, HIPAA authorization/notice distinctions, Part 2, signer
+authority/minors, electronic-record consent, accessibility and retention.
+
+Electronic signing is a technical means of recording an act. It does not approve document wording,
+establish authority, satisfy every team signature, complete a form, permit a disclosure, or make
+a claim payable. All live use remains blocked. Agency/medical release and privacy-notice testing
+does not mean those forms are legally cleared; safety-plan and state-DHHS signing remain blocked,
+and the medical-records request letter is not a consumer authorization.
+
+The reviewed build preserves the exact original and separately hashed evidence package, captures
+signer-specific consent/intent, keeps completed history immutable, and separates authorization
+withdrawal from stopping electronic access. It retains no raw IP/device evidence by default and
+claims no certificate-based digital seal, independent identity proof or NIST assurance level.
+Actual deployed permissions, vendor/agency agreements, risk/incident/restore evidence, retention
+and holds, later copies, accessible documents and program approval remain necessary operating
+work. The generated evidence PDF is untagged; automated page checks do not establish accessibility.

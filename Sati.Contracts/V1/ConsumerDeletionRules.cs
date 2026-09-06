@@ -41,6 +41,11 @@ public sealed record BillingIntegrityFacts(
 /// </para>
 ///
 /// <para>
+/// A linked chat room is a separate retained record and blocks either deletion command,
+/// including when the room has been archived. The consumer must be archived instead.
+/// </para>
+///
+/// <para>
 /// Distinct from <see cref="TestDataDeletionRules"/>: that command requires a creation-time
 /// <c>IsTestData</c> marker and works on any consumer, however old, but only ones an Admin
 /// explicitly attested were synthetic at birth. This command needs no marker but is bounded by
@@ -53,6 +58,9 @@ public static class ConsumerDeletionRules
     public const int DeletionWindowDays = 20;
 
     public const string ConsumerAttestation = "consumer-deleted-in-window-v1";
+
+    public const string HasChatHistoryMessage =
+        "This consumer has retained chat history. Archive the consumer instead of deleting the record.";
 
     public const string OutsideWindowMessage =
         "This consumer was created more than 20 days ago and can no longer be permanently " +

@@ -100,6 +100,8 @@ public sealed class NotePipelineApiTests
     [Theory]
     [InlineData("Visit")]
     [InlineData("Contact")]
+    [InlineData("Phone")]
+    [InlineData("Email")]
     [InlineData("Form")]
     [InlineData("Other")]
     public async Task EveryCarikaNoteTypeRoundTripsThroughTheApi(string noteType)

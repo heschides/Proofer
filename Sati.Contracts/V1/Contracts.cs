@@ -599,6 +599,11 @@ public sealed record ConsumerBillingLossReportDto(
     int TotalNonBillableUnits,
     decimal? LostWorkPercentage);
 
+public sealed record ProductivityMonthUnitsDto(
+    int Year,
+    int Month,
+    int Units);
+
 public sealed record BillingPeriodDto(
     int Id,
     int UserId,

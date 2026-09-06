@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sati.Contracts.V1;
+using Sati.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -100,6 +101,8 @@ internal static class DocumentArtifactPersistence
         {
             prior.SupersededByArtifactId = prior.Id;
             await db.SaveChangesAsync(cancellationToken);
+            await SignaturePersistenceMutations.RevokeOpenForArtifactAsync(
+                db, prior.Id, replacement.GeneratedByUserId, DateTime.UtcNow, cancellationToken);
         }
 
         db.DocumentArtifacts.Add(replacement);

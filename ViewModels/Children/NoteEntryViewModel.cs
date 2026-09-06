@@ -57,6 +57,7 @@ namespace Sati.ViewModels.Children
         private bool _suppressDirtyTracking;
         private bool _suppressPersonSelectionEffects;
         private bool _applyingSchedulingPolicy;
+        private bool _isStartingScheduledWork;
         private readonly LatestRequestTracker _aiDraftRequests = new();
         private CancellationTokenSource? _aiDraftCancellation;
 
@@ -70,6 +71,7 @@ namespace Sati.ViewModels.Children
         private readonly LatestRequestTracker _freshnessChecks = new();
         private readonly LatestRequestTracker _suggestedFollowUpRequests = new();
         private UpcomingEvent? _suggestedFollowUp;
+        private UpcomingEvent? _nextFormWork;
         private bool _suggestedFollowUpAccepted;
         private IReadOnlyList<ServiceBlock> _recordedDayBlocks = [];
 
@@ -211,6 +213,45 @@ namespace Sati.ViewModels.Children
             ? string.Empty
             : $"{_suggestedFollowUp.Title}, due {_suggestedFollowUp.Date:M/d/yy}";
 
+        // Compact note panels already contain the client picker, so repeating the
+        // person's name in the pinned header spends scarce space without adding
+        // context. This line instead answers the next practical paperwork question.
+        public string ClientWorkStatusText
+        {
+            get
+            {
+                if (SelectedPerson is null)
+                    return "Select a client to see open, upcoming, and overdue work.";
+                if (_settings is null)
+                    return "Checking open, upcoming, and overdue work...";
+                if (_nextFormWork is null)
+                    return "No open, upcoming, or overdue forms for this client.";
+
+                var label = _nextFormWork.FormType is FormType type
+                    ? Person.FormDisplayName(type)
+                    : "Form";
+                var dueDate = _nextFormWork.Date.Date;
+
+                if (_nextFormWork.Kind == UpcomingEventKind.LateReview)
+                {
+                    return _nextFormWork.OpenedDate.HasValue
+                        ? $"OVERDUE: {label} is open and was due {dueDate:M/d/yy}."
+                        : $"OVERDUE: {label} needs to be opened; it was due {dueDate:M/d/yy}.";
+                }
+
+                if (_nextFormWork.OpenedDate is DateTime openedDate)
+                    return $"OPEN: {label} was opened {openedDate:M/d/yy} and is due {dueDate:M/d/yy}.";
+
+                if (_nextFormWork.OpenDate is DateTime openDate && openDate.Date > DateTime.Today)
+                    return $"UPCOMING: {label} opens {openDate:M/d/yy} and is due {dueDate:M/d/yy}.";
+
+                return $"READY TO OPEN: {label} is due {dueDate:M/d/yy}.";
+            }
+        }
+
+        public string ClientWorkStatusAutomationName =>
+            $"Client work status: {ClientWorkStatusText}";
+
         public bool IsSuggestedFollowUpVisible =>
             _suggestedFollowUp is not null && !IsReminderNote;
 
@@ -269,6 +310,7 @@ namespace Sati.ViewModels.Children
             ? "Add Reminder"
             : Status switch
             {
+                NoteStatus.Scheduled => IsEditing ? "Update Scheduled Work" : "Schedule Work",
                 NoteStatus.Pending => IsEditing ? "Update Draft" : "Save as Draft",
                 NoteStatus.Logged => "Submit for Supervisor Review",
                 _ => IsEditing ? "Update Note" : "Save Note"
@@ -280,7 +322,9 @@ namespace Sati.ViewModels.Children
         // one, never the only one.
         public string EditorHeading => !IsEditing
             ? "New Note"
-            : IsLocked ? "View Note" : "Edit Note";
+            : _isStartingScheduledWork
+                ? "Start Note"
+                : IsLocked ? "View Note" : "Edit Note";
 
         public bool IsUnlocked => !IsLocked;
 
@@ -319,7 +363,7 @@ namespace Sati.ViewModels.Children
             "does not go to your supervisor or into billing.";
 
         internal const string CalendarReminderGuidance =
-            "Calendar reminder — the future date changed this entry to a scheduled Reminder. " +
+            "Calendar reminder — saves this dated entry as a scheduled Reminder. " +
             "It will appear on that calendar day. It carries no service time and cannot enter " +
             "supervisor review, productivity totals, or billing.";
 
@@ -344,10 +388,17 @@ namespace Sati.ViewModels.Children
         public bool IsReminderNote => SelectedNoteType == NoteType.Reminder;
         public bool IsCalendarReminder => IsReminderNote && EventDate.HasValue;
         public bool IsJournalReminder => IsReminderNote && EventDate is null;
+        public bool IsFutureScheduledWork =>
+            !IsReminderNote && NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today);
         // Reminder disables the service-note fields; a lock disables everything
         // that would change the record. Both funnel through this one property so
         // a control never has to know which of the two is currently in force.
         public bool AreNoteFieldsEnabled => !IsReminderNote && !IsLocked;
+        // Future work keeps its estimated minutes, but it has not occurred yet.
+        // The shared scheduling policy owns its Scheduled status and deliberately
+        // leaves its actual start time empty until the case manager starts it.
+        public bool IsStatusEnabled => AreNoteFieldsEnabled && !IsFutureScheduledWork;
+        public bool IsServiceTimeEnabled => AreNoteFieldsEnabled && !IsFutureScheduledWork;
         public bool IsDateEnabled => !IsLocked;
         public string NarrativeLabel => IsReminderNote ? "REMINDER" : "NARRATIVE";
 
@@ -384,6 +435,8 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(LockToggleLabel));
             OnPropertyChanged(nameof(LockToggleTooltip));
             OnPropertyChanged(nameof(IsDateEnabled));
+            OnPropertyChanged(nameof(IsStatusEnabled));
+            OnPropertyChanged(nameof(IsServiceTimeEnabled));
             SubmitNoteCommand.NotifyCanExecuteChanged();
             FormatNarrativeWithAiCommand.NotifyCanExecuteChanged();
             BuildCaseNoteTemplateCommand.NotifyCanExecuteChanged();
@@ -402,10 +455,13 @@ namespace Sati.ViewModels.Children
             if (!_applyingSchedulingPolicy &&
                 NoteSchedulingPolicy.IsFutureDate(value, DateTime.Today))
             {
-                ApplyFutureReminderPolicy();
+                ApplyFutureSchedulingPolicy();
             }
 
             OnPropertyChanged(nameof(ServiceDayHeading));
+            OnPropertyChanged(nameof(IsFutureScheduledWork));
+            OnPropertyChanged(nameof(IsStatusEnabled));
+            OnPropertyChanged(nameof(IsServiceTimeEnabled));
             NotifyReminderModeChanged();
             MarkDirty();
             _ = RefreshServiceDayAsync();
@@ -556,6 +612,9 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsCalendarReminder));
             OnPropertyChanged(nameof(IsJournalReminder));
             OnPropertyChanged(nameof(AreNoteFieldsEnabled));
+            OnPropertyChanged(nameof(IsFutureScheduledWork));
+            OnPropertyChanged(nameof(IsStatusEnabled));
+            OnPropertyChanged(nameof(IsServiceTimeEnabled));
             OnPropertyChanged(nameof(NarrativeLabel));
             OnPropertyChanged(nameof(IsSuggestedFollowUpVisible));
             OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
@@ -566,14 +625,13 @@ namespace Sati.ViewModels.Children
             AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
 
             // A caller can change fields programmatically and a user can click a
-            // type after choosing the date. Either way, a future date remains a
-            // Reminder; the API and local service repeat the same policy on save.
+            // type after choosing the date. Either way, future work remains
+            // Scheduled; the API and local service repeat the same policy on save.
             if (!_applyingSchedulingPolicy &&
                 value != NoteType.Reminder &&
                 NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today))
             {
-                ApplyFutureReminderPolicy();
-                return;
+                ApplyFutureSchedulingPolicy();
             }
 
             if (value == NoteType.Reminder)
@@ -609,12 +667,13 @@ namespace Sati.ViewModels.Children
             Narrative = value.Value switch
             {
                 NoteType.Visit => _settings?.VisitTemplate ?? string.Empty,
-                NoteType.Contact => _settings?.ContactTemplate ?? string.Empty,
+                NoteType.Contact or NoteType.Phone or NoteType.Email =>
+                    _settings?.ContactTemplate ?? string.Empty,
                 _ => string.Empty
             };
         }
 
-        private void ApplyFutureReminderPolicy()
+        private void ApplyFutureSchedulingPolicy()
         {
             if (!NoteSchedulingPolicy.IsFutureDate(EventDate, DateTime.Today))
                 return;
@@ -622,11 +681,8 @@ namespace Sati.ViewModels.Children
             _applyingSchedulingPolicy = true;
             try
             {
-                SelectedNoteType = NoteType.Reminder;
                 Status = NoteStatus.Scheduled;
-                Minutes = null;
                 SelectedStartTime = null;
-                SelectedFormType = null;
                 _pendingVisitDocumentation = null;
                 ResetVisitDocumentation(clearAttendees: false);
             }
@@ -770,19 +826,27 @@ namespace Sati.ViewModels.Children
         {
             var request = _suggestedFollowUpRequests.Begin();
             UpcomingEvent? suggestion = null;
+            UpcomingEvent? nextFormWork = null;
 
             if (person is not null && _settings is not null)
             {
                 try
                 {
-                    suggestion = _upcomingEventService
-                        .GenerateEvents([person], _settings)
+                    var generated = _upcomingEventService.GenerateEvents([person], _settings);
+                    var nextDueForm = _upcomingEventService.NextFormSuggestion(person, _settings);
+                    nextFormWork = generated
+                        .Where(item => item.FormType.HasValue)
+                        .Concat(nextDueForm is null ? [] : [nextDueForm])
+                        .OrderBy(FormWorkPriority)
+                        .ThenBy(item => item.Date)
+                        .FirstOrDefault();
+                    suggestion = generated
                         .OrderBy(item => item.Date)
                         .FirstOrDefault()
                         // Without this fallback the row is blank for most of every
                         // cycle: GenerateEvents only reports a form inside its open
                         // window, and the default review window is zero days wide.
-                        ?? _upcomingEventService.NextFormSuggestion(person, _settings);
+                        ?? nextDueForm;
                 }
                 catch (Exception ex)
                 {
@@ -796,10 +860,19 @@ namespace Sati.ViewModels.Children
                 return;
 
             _suggestedFollowUp = suggestion;
+            _nextFormWork = nextFormWork;
             if (resetAcceptance)
                 _suggestedFollowUpAccepted = false;
             NotifySuggestedFollowUpChanged();
         }
+
+        private static int FormWorkPriority(UpcomingEvent item) => item switch
+        {
+            { Kind: UpcomingEventKind.LateReview } => 0,
+            { Kind: UpcomingEventKind.OpenReview, OpenedDate: null } => 1,
+            { OpenedDate: not null } => 2,
+            _ => 3
+        };
 
         private void NotifySuggestedFollowUpChanged()
         {
@@ -807,6 +880,8 @@ namespace Sati.ViewModels.Children
             OnPropertyChanged(nameof(IsSuggestedFollowUpVisible));
             OnPropertyChanged(nameof(SuggestedFollowUpAutomationName));
             OnPropertyChanged(nameof(SuggestedFollowUpToolTip));
+            OnPropertyChanged(nameof(ClientWorkStatusText));
+            OnPropertyChanged(nameof(ClientWorkStatusAutomationName));
             AcceptSuggestedFollowUpCommand.NotifyCanExecuteChanged();
         }
 
@@ -1199,7 +1274,7 @@ namespace Sati.ViewModels.Children
         // query is scoped to the signed-in user across their whole caseload:
         // billing the same minute twice is a conflict no matter which two clients
         // the notes belong to.
-        private async Task RefreshServiceDayAsync()
+        private async Task<bool> RefreshServiceDayAsync()
         {
             var request = _dayScheduleLoad.Begin();
             var date = EventDate;
@@ -1209,7 +1284,7 @@ namespace Sati.ViewModels.Children
             {
                 _recordedDayBlocks = [];
                 RedrawServiceDay();
-                return;
+                return true;
             }
 
             IReadOnlyList<ServiceBlock> blocks;
@@ -1221,21 +1296,22 @@ namespace Sati.ViewModels.Children
             {
                 Debug.WriteLine($"Loading the service day failed: {ex.Message}");
                 if (!_dayScheduleLoad.IsCurrent(request))
-                    return;
+                    return false;
 
                 _recordedDayBlocks = [];
                 RedrawServiceDay();
                 ServiceTimeMessage =
                     "Sati could not load the rest of your day, so overlapping time cannot be shown here. " +
                     "The overlap check still runs when you save.";
-                return;
+                return false;
             }
 
             if (!_dayScheduleLoad.IsCurrent(request))
-                return;
+                return false;
 
             _recordedDayBlocks = blocks;
             RedrawServiceDay();
+            return true;
         }
 
         private static IReadOnlyList<ServiceBlock> ToBlocks(IEnumerable<Note> notes) => notes
@@ -1353,6 +1429,59 @@ namespace Sati.ViewModels.Children
         public void EnterEditMode(Note note) => LoadNote(note, locked: false);
 
         /// <summary>
+        /// Continues a Scheduled agenda record as today's Pending draft. The
+        /// persisted row is not changed until Save, so backing out leaves the
+        /// scheduled work intact and saving cannot create a duplicate note.
+        /// </summary>
+        public async Task<bool> PrepareScheduledWorkAsync(Note? note)
+        {
+            if (note is null || note.Status != NoteStatus.Scheduled)
+                return false;
+            if (!TryReleaseDraft())
+                return false;
+            if (People.All(person => person.Id != note.PersonId))
+                return false;
+
+            LoadNote(note, locked: false, startingScheduledWork: true);
+            Status = NoteStatus.Pending;
+            EventDate = DateTime.Today;
+            Minutes = note.Minutes is > 0 ? note.Minutes : WorkAgendaService.DefaultMinutes;
+            SelectedStartTime = null;
+            SelectedNoteType = note.NoteType switch
+            {
+                // Historical Contact did not distinguish phone from email. Calls
+                // were the common case; the user can switch this to Email before saving.
+                NoteType.Contact => NoteType.Phone,
+                NoteType.Reminder or null => NoteType.Other,
+                _ => note.NoteType
+            };
+            SelectedFormType = SelectedNoteType == NoteType.Form ? note.FormType : null;
+            Narrative = BracketAgendaPrompt(note.Narrative);
+
+            var scheduleLoaded = await RefreshServiceDayAsync();
+            if (_editingNote?.Id != note.Id || !_isStartingScheduledWork)
+                return false;
+
+            if (scheduleLoaded && Minutes is > 0)
+            {
+                var earliest = ServiceTimeline.FindEarliestAvailableStart(
+                    Minutes.Value,
+                    _recordedDayBlocks,
+                    note.Id);
+                SelectedStartTime = FindStartOption(earliest);
+                if (earliest is null)
+                {
+                    HasServiceTimeConflict = false;
+                    ServiceTimeMessage =
+                        "No open window is long enough for these minutes today. Adjust the minutes or choose a start time.";
+                }
+            }
+
+            HasUnsavedChanges = true;
+            return true;
+        }
+
+        /// <summary>
         /// Lifts the lock on the note already loaded. Used by the double-click
         /// gesture, where the preceding selection has already loaded the note.
         /// </summary>
@@ -1405,7 +1534,10 @@ namespace Sati.ViewModels.Children
                 "The note in the panel has changes that are not saved. " +
                 "Opening another note will discard them.");
 
-        private void LoadNote(Note note, bool locked)
+        private void LoadNote(
+            Note note,
+            bool locked,
+            bool startingScheduledWork = false)
         {
             // Whatever the panel was showing is being replaced, so a freshness read
             // still in flight for it has nothing left to say.
@@ -1417,6 +1549,7 @@ namespace Sati.ViewModels.Children
             // the selection points at the record's stored client.
             SetSelectedPersonWithoutEffects(People.FirstOrDefault(p => p.Id == note.PersonId));
             _editingNote = note;
+            _isStartingScheduledWork = startingScheduledWork;
 
             // Filling the fields from the record is a read, not the case manager's
             // work, so it must not register as unsaved changes.
@@ -1441,6 +1574,7 @@ namespace Sati.ViewModels.Children
             }
 
             HasUnsavedChanges = false;
+            OnPropertyChanged(nameof(EditorHeading));
             _ = LoadVisitAttendeesAsync(SelectedPerson);
             RefreshSuggestedFollowUp(SelectedPerson, resetAcceptance: true);
             _ = RefreshServiceDayAsync();
@@ -1454,6 +1588,14 @@ namespace Sati.ViewModels.Children
             startMinutes is int minutes
                 ? StartTimeOptions.FirstOrDefault(option => option.Minutes == minutes)
                 : null;
+
+        internal static string BracketAgendaPrompt(string? content)
+        {
+            var prompt = content?.Trim();
+            return string.IsNullOrWhiteSpace(prompt)
+                ? "[Replace this with the completed note narrative.]"
+                : $"[{prompt}]";
+        }
 
         // -------------------------------------------------------------------------
         // Commands
@@ -1651,6 +1793,7 @@ namespace Sati.ViewModels.Children
         public void ReturnToNewNote()
         {
             _editingNote = null;
+            _isStartingScheduledWork = false;
             IsEditing = false;
             IsLocked = false;
             ReturnReason = null;
@@ -2170,6 +2313,7 @@ namespace Sati.ViewModels.Children
         public void Reset()
         {
             _editingNote = null;
+            _isStartingScheduledWork = false;
             _pendingVisitDocumentation = null;
             IsEditing = false;
             IsLocked = false;

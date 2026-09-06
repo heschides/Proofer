@@ -2,12 +2,12 @@ namespace Sati.Services;
 
 /// <summary>
 /// The presentation layouts available to the case-manager Overview. The names are
-/// internal; users choose only Easy Eyes and, when useful, Focus note.
+/// internal; users choose only the optional Easy Eyes enlargement.
 /// </summary>
 public enum OverviewLayoutTier
 {
-    CompactOnePane,
-    CompactTwoPane,
+    NarrowStack,
+    Compact,
     Balanced,
     Wide
 }
@@ -26,9 +26,13 @@ public readonly record struct OverviewLayoutState(
 /// </summary>
 public static class OverviewLayoutPolicy
 {
-    public const double TwoPaneWidth = 1080;
+    public const double CompactWidth = 1080;
     public const double BalancedWidth = 1440;
     public const double WideWidth = 2100;
+    // The former Forms/Productivity tab set needed a tall 280-unit band. The
+    // productivity-only summary fits comfortably once 700 effective units are
+    // available, including on a 1080p display with Easy Eyes enabled.
+    public const double SummaryBandHeight = 700;
     public const double TallHeight = 840;
     public const double ExpansionMargin = 48;
 
@@ -47,7 +51,7 @@ public static class OverviewLayoutPolicy
         {
             var expansionThreshold = candidate switch
             {
-                OverviewLayoutTier.CompactTwoPane => TwoPaneWidth + ExpansionMargin,
+                OverviewLayoutTier.Compact => CompactWidth + ExpansionMargin,
                 OverviewLayoutTier.Balanced => BalancedWidth + ExpansionMargin,
                 OverviewLayoutTier.Wide => WideWidth + ExpansionMargin,
                 _ => 0
@@ -60,7 +64,8 @@ public static class OverviewLayoutPolicy
         var tall = effectiveHeight >= TallHeight;
         return new OverviewLayoutState(
             candidate,
-            ShowsLowerSummaryBand: tall && candidate is OverviewLayoutTier.Balanced or OverviewLayoutTier.Wide,
+            ShowsLowerSummaryBand: effectiveHeight >= SummaryBandHeight &&
+                                   candidate is not OverviewLayoutTier.NarrowStack,
             UsesShortNoteLayout: !tall,
             effectiveWidth,
             effectiveHeight);
@@ -70,7 +75,7 @@ public static class OverviewLayoutPolicy
     {
         >= WideWidth => OverviewLayoutTier.Wide,
         >= BalancedWidth => OverviewLayoutTier.Balanced,
-        >= TwoPaneWidth => OverviewLayoutTier.CompactTwoPane,
-        _ => OverviewLayoutTier.CompactOnePane
+        >= CompactWidth => OverviewLayoutTier.Compact,
+        _ => OverviewLayoutTier.NarrowStack
     };
 }

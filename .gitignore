@@ -364,6 +364,7 @@ FodyWeavers.xsd
 
 # Local configuration with connection strings
 appsettings.json
+!Sati.Portal/appsettings.json
 
 # Local Azure CLI/login state and deployment scratch directories
 .azure-cli-login-work/

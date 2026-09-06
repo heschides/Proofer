@@ -303,10 +303,9 @@
                                    Margin="0,0,0,7"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
-                                   AutomationProperties.Name="Selected client for compact note editor">
-                            <Run Text="CLIENT: " FontWeight="SemiBold" />
-                            <Run Text="{Binding SelectedPerson.FullName, Mode=OneWay, TargetNullValue=Not selected}" />
-                        </TextBlock>
+                                   Text="{Binding ClientWorkStatusText, Mode=OneWay}"
+                                   AutomationProperties.Name="{Binding ClientWorkStatusAutomationName}"
+                                   AutomationProperties.LiveSetting="Polite" />
 
                         <StackPanel Grid.Row="2"
                                     Grid.ColumnSpan="3"
@@ -511,7 +510,7 @@
                 <ComboBox AutomationProperties.Name="Status" Grid.Row="4"
                           ItemsSource="{Binding NoteStatusOptions}"
                           SelectedItem="{Binding Status, Mode=TwoWay}"
-                          IsEnabled="{Binding AreNoteFieldsEnabled}"
+                          IsEnabled="{Binding IsStatusEnabled}"
                           AutomationProperties.HelpText="{Binding StatusGuidance}" />
                 <TextBlock Grid.Row="5"
                            Margin="0,5,0,10"
@@ -529,9 +528,9 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <!-- Reminder sits on its own row because it is not service
-                             documentation. With no date it is a journal entry;
-                             with a future date it is a calendar reminder. -->
+                        <!-- Reminder remains a distinct non-service choice. With
+                             no date it is a journal entry; with a future date it
+                             is a calendar reminder. -->
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -558,22 +557,22 @@
                                      ConverterParameter=Visit}" />
                     <RadioButton Grid.Row="1"
                                  Grid.Column="3"
-                                 Content="Contact"
+                                 Content="Phone"
                                  Margin="0,0,12,4"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
-                                     ConverterParameter=Contact}" />
+                                     ConverterParameter=Phone}" />
                     <RadioButton Grid.Row="2"
                                  Grid.Column="1"
-                                 Content="Other"
+                                 Content="Email"
                                  Margin="0,0,12,4"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  GroupName="NoteEntryNoteType"
                                  IsChecked="{Binding SelectedNoteType,
                                      Converter={StaticResource EnumToBoolConverter},
-                                     ConverterParameter=Other}" />
+                                     ConverterParameter=Email}" />
                     <RadioButton Grid.Row="2"
                                  Grid.Column="3"
                                  Content="Form"
@@ -585,7 +584,15 @@
                                      ConverterParameter=Form}" />
                     <RadioButton Grid.Row="3"
                                  Grid.Column="1"
-                                 Grid.ColumnSpan="3"
+                                 Content="Other"
+                                 Margin="0,0,12,4"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 GroupName="NoteEntryNoteType"
+                                 IsChecked="{Binding SelectedNoteType,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Other}" />
+                    <RadioButton Grid.Row="3"
+                                 Grid.Column="3"
                                  Content="Reminder"
                                  Margin="0,0,12,4"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
@@ -656,7 +663,7 @@
                             Margin="0,2,0,10"
                             Padding="11"
                             CornerRadius="6"
-                            IsEnabled="{Binding AreNoteFieldsEnabled}"
+                            IsEnabled="{Binding IsServiceTimeEnabled}"
                             Background="{DynamicResource PersonGroupBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1">

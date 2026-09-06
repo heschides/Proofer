@@ -4,9 +4,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>1.2.47</Version>
-    <AssemblyVersion>1.2.47.0</AssemblyVersion>
-    <FileVersion>1.2.47.0</FileVersion>
+    <Version>1.2.48</Version>
+    <AssemblyVersion>1.2.48.0</AssemblyVersion>
+    <FileVersion>1.2.48.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +21,7 @@
     <ProjectReference Include="..\Sati.Contracts\Sati.Contracts.csproj" />
     <ProjectReference Include="..\Sati.Forms\Sati.Forms.csproj" />
     <ProjectReference Include="..\Sati.Persistence\Sati.Persistence.csproj" />
+    <ProjectReference Include="..\Sati.Signatures\Sati.Signatures.csproj" />
   </ItemGroup>
 
   <ItemGroup>

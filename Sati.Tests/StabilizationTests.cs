@@ -565,9 +565,9 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.2.47", version);
+        Assert.Equal("1.2.48", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Room to Work", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Connected work and safer signing", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "The Overview now fits the space you have" &&

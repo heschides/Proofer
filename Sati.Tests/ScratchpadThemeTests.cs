@@ -44,7 +44,7 @@ public sealed class ScratchpadThemeTests
                     Assert.Equal(expected.Color, Assert.IsType<SolidColorBrush>(editor.CaretBrush).Color);
                 }
 
-                AssertEditor("Today's Work");
+                AssertEditor("Today's Work freeform scratchpad");
                 var tabs = Assert.Single(
                     WpfUiHarness.Descendants(view).OfType<TabControl>());
                 tabs.SelectedIndex = 1;

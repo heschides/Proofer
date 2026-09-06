@@ -1,6 +1,7 @@
 <UserControl x:Class="Sati.Views.ClientDocuments.AnnualDocumentsWorkspace"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" DataContextChanged="OnContextChanged"
+ xmlns:local="clr-namespace:Sati.Views.ClientDocuments"
  Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
  <ScrollViewer VerticalScrollBarVisibility="Auto">
   <StackPanel Margin="18">
@@ -41,6 +42,7 @@
     <Button Content="Choose file and verify" Command="{Binding VerifyCommand}" Margin="8,0"/>
    </WrapPanel>
    <TextBlock Text="Verification compares the file's fingerprint with the original record. The file contents are not uploaded." TextWrapping="Wrap"/>
+   <local:SignatureRequestsWorkspace DataContext="{Binding Signatures}" Margin="0,24"/>
    <Expander Header="Agency privacy template (administrators)" IsEnabled="{Binding CanManageTemplates}" Margin="0,18">
     <StackPanel>
      <TextBlock Text="Publish a new version after agency review. Existing versions remain unchanged. Supported tokens are listed in DOCUMENT_TEMPLATES.md." TextWrapping="Wrap"/>

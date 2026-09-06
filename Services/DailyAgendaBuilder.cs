@@ -92,7 +92,11 @@ public sealed class DailyAgendaBuilder(IUpcomingEventService upcomingEvents)
         // The lookback owns them so one form cannot appear in two sections.
         var upcoming = upcomingEvents
             .GenerateEvents(caseload, settings, today)
-            .Where(item => item.Kind != UpcomingEventKind.LateReview)
+            // Scheduled notes now surface automatically in Today's Work on their
+            // date. Re-offering future scheduled notes here would create a second
+            // apparent task when a user selected one. This prompt recommends only
+            // actionable form work.
+            .Where(item => item.Kind == UpcomingEventKind.OpenReview)
             .OrderBy(item => item.Date)
             .ThenBy(item => item.Title, StringComparer.CurrentCultureIgnoreCase)
             .Take(SectionLimit)
@@ -103,7 +107,8 @@ public sealed class DailyAgendaBuilder(IUpcomingEventService upcomingEvents)
                 item.Title,
                 item.Date.Date,
                 DailyAgendaItemKind.UpcomingWork,
-                false))
+                false,
+                item.FormType))
             .ToList();
 
         var assessmentSuggestion = allOverdue.Count == 0 && upcoming.Count == 0

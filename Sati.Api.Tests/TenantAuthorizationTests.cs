@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Sati;
+using Sati.Api.Data;
 using Sati.Contracts.V1;
 using Xunit;
 
@@ -237,7 +241,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.2.47", release["releaseVersion"]);
+        Assert.Equal("1.2.48", release["releaseVersion"]);
     }
 
     [Fact]
@@ -515,6 +519,85 @@ public sealed class TenantAuthorizationTests
         using var unchangedAccount = await _factory.CreateAuthenticatedClientAsync("admin-two");
         Assert.NotNull(unchangedAccount.DefaultRequestHeaders.Authorization);
     }
+
+    [Fact]
+    public async Task ProductivityReportReturnsOnlyTheCaseManagersOwnMonthlyUnits()
+    {
+        using var client = await _factory.CreateAuthenticatedClientAsync("case-manager-one");
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+        var ownPersonId = await db.People.AsNoTracking()
+            .Where(person => person.UserId == 12)
+            .Select(person => person.Id)
+            .FirstAsync();
+        var otherPersonIds = await db.People.AsNoTracking()
+            .Where(person => person.UserId != 12)
+            .Select(person => new { person.Id, person.AgencyId })
+            .Take(2)
+            .ToListAsync();
+        Assert.Equal(2, otherPersonIds.Count);
+
+        var mismatchedPerson = new ServerPerson
+        {
+            UserId = 12,
+            AgencyId = 2,
+            FirstName = "Mismatched",
+            LastName = "Tenant marker",
+            BirthDate = new DateTime(1990, 1, 1),
+            EffectiveDate = new DateTime(2025, 1, 1),
+            IsTestData = true,
+            Revision = 1
+        };
+        db.People.Add(mismatchedPerson);
+        await db.SaveChangesAsync();
+
+        var reportDate = new DateTime(2198, 11, 10);
+        var notes = new List<ServerNote>
+        {
+            ReportNote(ownPersonId, 1, reportDate, 60, NoteStatus.Logged),
+            ReportNote(ownPersonId, 1, reportDate.AddDays(1), 16, NoteStatus.Approved),
+            ReportNote(ownPersonId, 1, reportDate.AddDays(2), 60, NoteStatus.Pending),
+            ReportNote(otherPersonIds[0].Id, otherPersonIds[0].AgencyId, reportDate, 60, NoteStatus.Logged),
+            ReportNote(otherPersonIds[1].Id, otherPersonIds[1].AgencyId, reportDate, 60, NoteStatus.Approved),
+            // Each inconsistent tenant marker is independently excluded.
+            ReportNote(ownPersonId, 2, reportDate, 60, NoteStatus.Logged),
+            ReportNote(mismatchedPerson.Id, 1, reportDate, 60, NoteStatus.Logged)
+        };
+        db.Notes.AddRange(notes);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var months = await client.GetFromJsonAsync<List<ProductivityMonthUnitsDto>>(
+                "/api/v1/reports/productivity-units?start=2198-11-01&end=2198-11-30");
+
+            var november = Assert.Single(months!);
+            Assert.Equal(2198, november.Year);
+            Assert.Equal(11, november.Month);
+            Assert.Equal(6, november.Units);
+        }
+        finally
+        {
+            db.Notes.RemoveRange(notes);
+            db.People.Remove(mismatchedPerson);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private static ServerNote ReportNote(
+        int personId,
+        int? agencyId,
+        DateTime eventDate,
+        int minutes,
+        NoteStatus status) => new()
+    {
+        PersonId = personId,
+        AgencyId = agencyId,
+        Narrative = "Isolated productivity report fixture.",
+        EventDate = eventDate,
+        Minutes = minutes,
+        Status = (int)status
+    };
 
     [Fact]
     public async Task BillingLossReportContainsOnlyTheCaseManagersOwnConsumers()

@@ -96,6 +96,8 @@ namespace Sati.Views
 
             _databaseActivity.PropertyChanged += OnDatabaseActivityPropertyChanged;
             _sessionLifetime.SessionEnded += OnSessionEnded;
+            Activated += (_, _) => _shellViewModel.SetChatWindowVisible(true);
+            Deactivated += (_, _) => _shellViewModel.SetChatWindowVisible(false);
 
             // Raw input is what proves someone is still at the machine, so the
             // keep-alive is told from here rather than inferring presence from
@@ -118,7 +120,7 @@ namespace Sati.Views
             _shellViewModel.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName is nameof(ShellViewModel.IsScratchpadVisible)
-                    or nameof(ShellViewModel.IsOverviewActive))
+                    or nameof(ShellViewModel.IsOverviewActive) or nameof(ShellViewModel.IsChatActive))
                 {
                     MoveWorkAgendaToPreferredHost();
                     ApplyScratchpadVisibility();
@@ -255,8 +257,10 @@ namespace Sati.Views
             _idleTimer.Tick += (_, _) => _shellViewModel.Idle.Evaluate();
             _idleTimer.Start();
 
-            Closed += (s, e) =>
+            Closed += async (s, e) =>
             {
+                await _shellViewModel.Chat.StopAsync();
+                _sessionLifetime.SessionEnded -= OnSessionEnded;
                 _databaseActivity.PropertyChanged -= OnDatabaseActivityPropertyChanged;
                 _idleTimer.Stop();
                 InputManager.Current.PreProcessInput -= OnPreProcessInput;
@@ -360,7 +364,11 @@ namespace Sati.Views
         // credentials are entered again. Raised from a background thread, hence the
         // dispatcher hop before any window is touched.
         private void OnSessionEnded(object? sender, EventArgs e) =>
-            Dispatcher.BeginInvoke(new Action(async () => await PromptForReauthenticationAsync()));
+            Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                _shellViewModel.Chat.SuspendAndClear();
+                await PromptForReauthenticationAsync();
+            }));
 
         /// <summary>
         /// Asks for credentials in place rather than making the user restart Sati.
@@ -395,6 +403,7 @@ namespace Sati.Views
                 if (user.Id == expected.Id)
                 {
                     _shellViewModel.Scratchpad.ResumeAfterReauthentication();
+                    _shellViewModel.ResumeChatAccount();
                     return;
                 }
 
@@ -419,6 +428,7 @@ namespace Sati.Views
 
             try
             {
+                _shellViewModel.Chat.SuspendAndClear();
                 var currentUser = _sessionService.CurrentUser;
                 if (currentUser is null)
                     return;
@@ -469,6 +479,7 @@ namespace Sati.Views
             finally
             {
                 _accountSwitchGate.Release();
+                _shellViewModel.ResumeChatAccount();
             }
         }
 
@@ -483,11 +494,11 @@ namespace Sati.Views
         {
             var splitterColumn = RootGrid.ColumnDefinitions[1];
             var scratchpadColumn = RootGrid.ColumnDefinitions[2];
-            ScratchpadRail.Visibility = _shellViewModel.IsOverviewActive
+            ScratchpadRail.Visibility = _shellViewModel.IsOverviewActive || _shellViewModel.IsChatActive
                 ? Visibility.Collapsed
                 : Visibility.Visible;
 
-            if (!_shellViewModel.IsOverviewActive && _shellViewModel.IsScratchpadVisible)
+            if (!_shellViewModel.IsOverviewActive && !_shellViewModel.IsChatActive && _shellViewModel.IsScratchpadVisible)
             {
                 splitterColumn.Width = new GridLength(5);
                 scratchpadColumn.MinWidth = 250;
@@ -495,7 +506,7 @@ namespace Sati.Views
             }
             else
             {
-                _savedScratchpadWidth = scratchpadColumn.Width;
+                if (scratchpadColumn.Width.Value > 0) _savedScratchpadWidth = scratchpadColumn.Width;
                 scratchpadColumn.MinWidth = 0;
                 scratchpadColumn.Width = new GridLength(0);
                 splitterColumn.Width = new GridLength(0);

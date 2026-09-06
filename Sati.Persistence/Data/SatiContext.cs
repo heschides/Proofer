@@ -18,6 +18,16 @@ namespace Sati.Data
         public DbSet<Form> Forms { get; set; }
         public DbSet<FormAttestation> FormAttestations { get; set; }
         public DbSet<DocumentArtifact> DocumentArtifacts { get; set; }
+        public DbSet<FrozenSignatureDocument> FrozenSignatureDocuments => Set<FrozenSignatureDocument>();
+        public DbSet<SignatureRequest> SignatureRequests => Set<SignatureRequest>();
+        public DbSet<SignatureSession> SignatureSessions => Set<SignatureSession>();
+        public DbSet<SignatureConsent> SignatureConsents => Set<SignatureConsent>();
+        public DbSet<SignatureEvent> SignatureEvents => Set<SignatureEvent>();
+        public DbSet<SignatureCompletion> SignatureCompletions => Set<SignatureCompletion>();
+        public DbSet<SignaturePackage> SignaturePackages => Set<SignaturePackage>();
+        public DbSet<SignatureOutbox> SignatureOutbox => Set<SignatureOutbox>();
+        public DbSet<SignatureSourceDocument> SignatureSourceDocuments => Set<SignatureSourceDocument>();
+        public DbSet<SignatureDatabaseEnvironment> SignatureDatabaseEnvironment => Set<SignatureDatabaseEnvironment>();
         public DbSet<DocumentTemplate> DocumentTemplates { get; set; }
         public DbSet<Note> Notes { get; set; }
         public DbSet<Settings> Settings { get; set; }
@@ -46,6 +56,11 @@ namespace Sati.Data
         public DbSet<PersonVersion> PersonVersions { get; set; }
         public DbSet<IncidentGroup> IncidentGroups { get; set; }
         public DbSet<LegalHold> LegalHolds { get; set; }
+        public DbSet<ChatRoom> ChatRooms { get; set; }
+        public DbSet<ChatRoomMember> ChatRoomMembers { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<ChatChange> ChatChanges { get; set; }
+        public DbSet<ChatReadMarker> ChatReadMarkers { get; set; }
 
 
         public SatiContext(DbContextOptions<SatiContext> options) : base(options)
@@ -68,6 +83,9 @@ namespace Sati.Data
 
         private void EnsureAuditEventsAreAppendOnly()
         {
+            SignaturePersistenceModel.ProtectWrites(ChangeTracker);
+            SignaturePersistenceModel.ProtectDocumentArtifacts<DocumentArtifact>(ChangeTracker);
+            ChatPersistenceModel.ProtectWrites<ChatRoom, ChatRoomMember, ChatMessage, ChatChange, ChatReadMarker>(ChangeTracker);
             if (ChangeTracker.Entries<AuditEvent>()
                     .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted) ||
                 ChangeTracker.Entries<PersonVersion>()
@@ -92,6 +110,10 @@ namespace Sati.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            SignaturePersistenceModel.Configure(modelBuilder);
+            SignaturePersistenceModel.ConfigureClinicalRelationships<DocumentArtifact, Agency, User, Person, PersonContact>(modelBuilder);
+            ChatPersistenceModel.Configure<ChatRoom, ChatRoomMember, ChatMessage, ChatChange, ChatReadMarker,
+                Agency, User, Person>(modelBuilder);
 
             modelBuilder.Entity<Agency>(entity =>
             {

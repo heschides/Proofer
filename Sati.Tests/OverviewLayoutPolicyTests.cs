@@ -6,9 +6,9 @@ namespace Sati.Tests;
 public sealed class OverviewLayoutPolicyTests
 {
     [Theory]
-    [InlineData(1079, OverviewLayoutTier.CompactOnePane)]
-    [InlineData(1080, OverviewLayoutTier.CompactTwoPane)]
-    [InlineData(1439, OverviewLayoutTier.CompactTwoPane)]
+    [InlineData(1079, OverviewLayoutTier.NarrowStack)]
+    [InlineData(1080, OverviewLayoutTier.Compact)]
+    [InlineData(1439, OverviewLayoutTier.Compact)]
     [InlineData(1440, OverviewLayoutTier.Balanced)]
     [InlineData(2099, OverviewLayoutTier.Balanced)]
     [InlineData(2100, OverviewLayoutTier.Wide)]
@@ -18,10 +18,10 @@ public sealed class OverviewLayoutPolicyTests
     }
 
     [Theory]
-    [InlineData(1127, OverviewLayoutTier.CompactOnePane, OverviewLayoutTier.CompactOnePane)]
-    [InlineData(1128, OverviewLayoutTier.CompactOnePane, OverviewLayoutTier.CompactTwoPane)]
-    [InlineData(1487, OverviewLayoutTier.CompactTwoPane, OverviewLayoutTier.CompactTwoPane)]
-    [InlineData(1488, OverviewLayoutTier.CompactTwoPane, OverviewLayoutTier.Balanced)]
+    [InlineData(1127, OverviewLayoutTier.NarrowStack, OverviewLayoutTier.NarrowStack)]
+    [InlineData(1128, OverviewLayoutTier.NarrowStack, OverviewLayoutTier.Compact)]
+    [InlineData(1487, OverviewLayoutTier.Compact, OverviewLayoutTier.Compact)]
+    [InlineData(1488, OverviewLayoutTier.Compact, OverviewLayoutTier.Balanced)]
     [InlineData(2147, OverviewLayoutTier.Balanced, OverviewLayoutTier.Balanced)]
     [InlineData(2148, OverviewLayoutTier.Balanced, OverviewLayoutTier.Wide)]
     public void GrowingRequiresExpansionMargin(
@@ -33,7 +33,9 @@ public sealed class OverviewLayoutPolicyTests
     }
 
     [Theory]
-    [InlineData(839, false, true)]
+    [InlineData(699, false, true)]
+    [InlineData(700, true, true)]
+    [InlineData(839, true, true)]
     [InlineData(840, true, false)]
     public void HeightControlsSummaryBandAndShortNoteLayout(
         double height,

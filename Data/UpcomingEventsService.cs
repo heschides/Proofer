@@ -54,7 +54,10 @@ namespace Sati.Data
                     ClientName = person.FullName,
                     Title = $"{label} — {person.FullName}",
                     Date = dueDate,
-                    Kind = kind
+                    Kind = kind,
+                    FormType = type,
+                    OpenDate = openDate,
+                    OpenedDate = form.OpenedDate
                 });
             }
         }
@@ -76,17 +79,23 @@ namespace Sati.Data
                 var kind = note.NoteType switch
                 {
                     NoteType.Contact => UpcomingEventKind.ScheduledContact,
+                    NoteType.Phone => UpcomingEventKind.ScheduledPhone,
+                    NoteType.Email => UpcomingEventKind.ScheduledEmail,
                     NoteType.Form => UpcomingEventKind.ScheduledForm,
                     NoteType.Reminder => UpcomingEventKind.ScheduledReminder,
-                    _ => UpcomingEventKind.ScheduledVisit
+                    NoteType.Visit => UpcomingEventKind.ScheduledVisit,
+                    _ => UpcomingEventKind.ScheduledOther
                 };
 
                 var label = note.NoteType switch
                 {
                     NoteType.Contact => $"Contact — {person.FullName}",
+                    NoteType.Phone => $"Phone — {person.FullName}",
+                    NoteType.Email => $"Email — {person.FullName}",
                     NoteType.Form => $"Form — {person.FullName}",
                     NoteType.Reminder => $"Reminder — {person.FullName}",
-                    _ => $"Visit — {person.FullName}"
+                    NoteType.Visit => $"Visit — {person.FullName}",
+                    _ => $"Other — {person.FullName}"
                 };
 
                 events.Add(new UpcomingEvent
@@ -139,7 +148,7 @@ namespace Sati.Data
                 return null;
 
             UpcomingEvent? next = null;
-            foreach (var (type, _, _, label) in FormMeta(settings))
+            foreach (var (type, openBefore, _, label) in FormMeta(settings))
             {
                 var form = person.GetCurrentCycleForm(type, today);
                 if (form is null || form.IsSatisfiedAsOf(today))
@@ -155,7 +164,14 @@ namespace Sati.Data
                     ClientName = person.FullName,
                     Title = $"{label} — {person.FullName}",
                     Date = dueDate,
-                    Kind = today > dueDate ? UpcomingEventKind.LateReview : UpcomingEventKind.UpcomingForm
+                    Kind = today > dueDate
+                        ? UpcomingEventKind.LateReview
+                        : today >= dueDate.AddDays(-openBefore)
+                            ? UpcomingEventKind.OpenReview
+                            : UpcomingEventKind.UpcomingForm,
+                    FormType = type,
+                    OpenDate = dueDate.AddDays(-openBefore),
+                    OpenedDate = form.OpenedDate
                 };
             }
 

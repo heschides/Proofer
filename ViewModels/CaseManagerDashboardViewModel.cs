@@ -141,6 +141,8 @@ CalendarViewModel calendarViewModel,
             {
                 await LoadMonthlyNotesAsync();
                 await Calendar.RefreshCommand.ExecuteAsync(null);
+                if (Scratchpad is not null)
+                    await Scratchpad.RefreshScheduledWorkAsync();
             };
 
             calendarViewModel.ExemptDateChanged += async () =>
@@ -206,11 +208,6 @@ CalendarViewModel calendarViewModel,
             Scratchpad = scratchpad;
             OnPropertyChanged(nameof(Scratchpad));
         }
-
-        // Mirrored down from the shell so Overview can choose its initial central
-        // workspace without reaching back up the visual tree.
-        [ObservableProperty]
-        private bool isScratchpadCentered = true;
 
         public bool IsDashboardSubActive => CurrentSubViewModel is null;
         public bool IsClientsSubActive => CurrentSubViewModel is NewClientViewModel;
@@ -527,8 +524,11 @@ CalendarViewModel calendarViewModel,
             UpcomingEvents
                 .Where(e => e.Kind is UpcomingEventKind.ScheduledVisit
                                   or UpcomingEventKind.ScheduledContact
+                                  or UpcomingEventKind.ScheduledPhone
+                                  or UpcomingEventKind.ScheduledEmail
                                   or UpcomingEventKind.ScheduledForm
-                                  or UpcomingEventKind.ScheduledReminder)
+                                  or UpcomingEventKind.ScheduledReminder
+                                  or UpcomingEventKind.ScheduledOther)
                 .OrderBy(e => e.Date);
 
         private IEnumerable<object> AllBoardItems()
@@ -607,8 +607,8 @@ CalendarViewModel calendarViewModel,
         [RelayCommand]
         private async Task NavigateToStatistics()
         {
-            await Statistics.LoadAsync();
             CurrentSubViewModel = Statistics;
+            await Statistics.LoadAsync();
         }
 
         // Loads on every visit rather than once. Review items depend on the
@@ -838,6 +838,8 @@ CalendarViewModel calendarViewModel,
             await NotesLog.ReloadAsync();
             await Clients.ReloadAsync();
             await Calendar.RefreshCommand.ExecuteAsync(null);
+            if (Scratchpad is not null)
+                await Scratchpad.RefreshScheduledWorkAsync();
         }
 
         private async Task LoadNotesForPersonAsync(Person? person)

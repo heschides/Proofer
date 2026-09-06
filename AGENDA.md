@@ -1,5 +1,56 @@
 # Sati — Refactor Agenda
 
+## Release 1.2.48 — 2026-09-06 (DATT audit in progress)
+
+This release carries the reviewed in-app team chat and synthetic electronic-signature portal work.
+Both features remain disabled by default; the signature portal is restricted to synthetic testing.
+
+- [x] Demo migration 96 applied to the identity-validated `SatiDemo` database after explicit
+      authorization, using a guarded exact-history check. The two new migrations added the chat and
+      signature schema; the temporary workstation firewall rule was removed and verified absent.
+- [x] Release build and automated verification passed: 2,036 passed, 0 failed, 1 optional AI case
+      skipped; nine simulated portal-page checks passed. Demo desktop build succeeded with two
+      existing EF1002 warnings. Detailed evidence is in `SIGNATURE_PORTAL_VALIDATION.md`.
+- [x] API route inventory and documentation reconcile to 168 protected routes; dependency advisory
+      lookup covered 13 restored projects and found no known vulnerable packages.
+- [ ] Source commit, Demo API publication, health verification, installers, distribution copies,
+      and final evidence commit remain pending until branch reconciliation and release staging are
+      complete. No Production deployment or Production migration is authorized by this entry.
+
+
+## Unreleased follow-up — fixed Overview roles, faster Statistics, and structured Today's Work
+
+- [x] Remove the Overview Workspace selector, Focus note mode, duplicate Notes workspace, and the
+      obsolete center-layout setting and local preference service.
+- [x] Keep Current note left, Work Agenda center, and Upcoming Due Dates right at desktop widths;
+      stack those same live panels below 1080 effective units. Keep only Productivity in the lower
+      center band, shown when at least 700 effective height units are available.
+- [x] Replace the compact note header's repeated client name with the nearest open, ready-to-open,
+      upcoming, or overdue form state and its relevant dates.
+- [x] Replace Statistics' full yearly-note reads with a narrative-free date/minutes projection and
+      actor-scoped monthly API totals. Start independent report reads together, show progress and
+      load failures, and prevent an older request from overwriting a newer date filter.
+- [x] Add local range/scope tests, API tenant isolation and route-manifest coverage, form-status
+      tests, and responsive WPF render checks. No database schema change or migration is required.
+- [x] Keep the freeform Today's Work scratchpad while grouping today's Scheduled notes into
+      Paperwork, Visits, Calls, Emails, and Freeform. Keep Work Agenda in the center at desktop
+      widths and bound the structured list so the scratchpad remains usable under Easy Eyes.
+- [x] Split new Contact entry into Phone and Email without renumbering legacy enum values. Preserve
+      a future plan's specific type, optional form type, and estimated minutes while its actual start
+      time remains unset.
+- [x] Turn selected sign-in paperwork into retry-safe Scheduled Form notes and omit Scheduled-note
+      duplicates from the prompt. Start a row in the existing note panel as an unsaved Pending draft,
+      updating that same row only on Save.
+- [x] Default started work to the earliest five-minute-grid opening that fits its estimated minutes;
+      retain client, type, date, and bracketed replacement text. Support Start, double-click, Enter,
+      keyboard focus, screen-reader names, inline load failure, and narrow rendered layouts.
+
+Validation: the complete solution builds with zero errors; 1,340 desktop/domain tests pass with the
+one documented optional local-AI competence test skipped, all 386 API tests pass, and all 4 Carika
+tests pass. The real Work Agenda view was also rendered at a 360-by-700 effective Easy Eyes width;
+all five groups scroll vertically, Start remains visible, and the scratchpad retains usable height.
+EF reports no pending model changes.
+
 ## Release 1.2.47 — 2026-09-05
 
 "Room to Work." The Overview now responds to the WPF space it actually receives, including window
@@ -2445,12 +2496,14 @@ work tracked as "Unreleased" below, which shipped in this release.
 - [x] Keep shortcut preferences client-local and separate by Windows profile, Sati user, and
       Demo/Production environment; preserve normal Windows behavior outside the marked text boxes.
 
-## Future-dated calendar reminders — 2026-08-26
+## Future-dated calendar reminders — 2026-08-26, refined 2026-09-05
 
-- [x] Convert any future note date to a Scheduled Reminder in one shared contracts rule, repeated
-      by the desktop-local and API persistence boundaries.
-- [x] Preserve the selected date and narrative while removing service time, minutes, form/visit
-      facts, and justification so a reminder cannot drift into review, productivity, or billing.
+- [x] Store an explicitly selected future Reminder as a Scheduled Reminder through one shared
+      contracts rule, repeated by the desktop-local and API persistence boundaries.
+- [x] Preserve an explicit Reminder's date and narrative while removing service time, minutes,
+      form/visit facts, and justification so it cannot drift into review, productivity, or billing.
+- [x] Refine non-Reminder future work on 2026-09-05: preserve its selected service/form type and
+      estimated minutes as a Scheduled plan, while withholding actual start time and completed facts.
 - [x] Refresh the calendar after note saves and show the reminder on its dated calendar entry with
       explicit non-billable wording; keep undated Reminders on the existing journal-only path.
 - [x] Cover UI conversion, rendered date access, local persistence, calendar retrieval, API
@@ -3388,6 +3441,11 @@ Before any shared or production release:
 
 ### Electronic signature portal — vetted direction
 
+The checklist below describes the broader regulated feature. The synthetic implementation and
+remaining activation work are recorded under **Electronic signature handoff — implemented synthetic
+scope and activation work (2026-09-06)** near the end of this document. Its completed pieces do not
+clear real-use, multi-signer, program-acceptance, or operating requirements in this broader list.
+
 The signature feature should be a secure Sati web portal reached from an email
 notification—not a Sati-operated mail server and not an email reply treated as the
 authoritative signature. Email is the delivery channel; Sati owns the identity check,
@@ -3816,11 +3874,10 @@ for a rewrite.
       other flow that calls `INoteService.AddNoteAsync` directly writes a note with no start time.
       Those notes claim no time and conflict with nothing, which is correct but means the day bar
       does not show them. Decide whether those flows should collect a start time.
-- [ ] **Decide whether Scheduled notes should reserve time softly.** A scheduled note currently
-      holds its minutes like any other commitment, so converting a plan into a separate logged
-      note reports a conflict. Editing the scheduled note in place avoids it. If case managers
-      routinely write a fresh note instead, a "planned" band that warns rather than blocks may fit
-      the real workflow better.
+- [x] **Decide whether Scheduled notes should reserve time softly.** Resolved 2026-09-05 for future
+      plans: estimated minutes remain, actual start time stays empty, and starting work edits the
+      Scheduled row in place and selects the earliest open window. Historical or same-day Scheduled
+      rows that already carry a start still represent a claimed window.
 
 ### Deferred from the API security audit (2026-08-14)
 
@@ -4508,11 +4565,11 @@ work; deployment and migration remain release-playbook actions.
       permanent Demo indicator.
 - [x] Store the enabled toggle and once-per-day marker locally per environment and Sati user; an
       opted-out or already-shown user reaches no agenda data source.
-- [x] Keep the feature read-only except for explicit selected-line appends to Today's Work, with
-      ordinary navigation to the existing form surface and no compliance transition.
-- [ ] Design a structured daily-task feature only if users need durable completion, assignment,
-      linking, or reporting. It must start with its own entity, authorization, audit, concurrency,
-      retention, and API contract; do not infer structure by parsing scratchpad text.
+- [x] Initially keep the feature read-only except for explicit selected-line appends to Today's
+      Work, with ordinary navigation to the existing form surface and no compliance transition.
+- [x] Replace selected-line appends on 2026-09-05 with structured Scheduled Form notes. The existing
+      note lifecycle already owns client linking, type, status, authorization, audit, concurrency,
+      and retention, so no second task entity or scratchpad-text parser is needed.
 # Safety-plan authoring (2026-09-03)
 
 The shared, versioned Safety Plan structure is implemented in source with a Draft → Ready for review → Approved/Returned workflow and WPF authoring/review controls. Approval requires a non-author supervisor whose actual caseload scope includes the consumer; agency equality alone is not sufficient. Unapproved PDF output is marked draft and cannot satisfy the annual Safety Plan prerequisite. The scaffolded migrations have not been deployed to Demo or Production.
@@ -4602,3 +4659,72 @@ workspace. Easy Eyes remains a single personal switch; fitting the layout is aut
       Easy Eyes experience if undertaken.
 
 No database change, version bump, deployment, or DATT release action was performed.
+
+## Team chat — reviewed synthetic-data implementation (2026-09-05)
+
+See `TEAM_CHAT_DESIGN.md`, `TEAM_CHAT_REVIEW.md`, `TEAM_CHAT_GUIDE.md` and
+`TEAM_CHAT_VALIDATION.md`. The preceding no-database-change statement belongs to adaptive layout.
+
+- [x] Implement the reviewed API-only synthetic chat, explicit consumer-scoped membership,
+      durable history, release evidence, retained redaction, session/privacy protections and WPF
+      workspace. Full solution: 1,808 passed, zero failed, one optional local-AI test skipped.
+- [ ] Repeat dependency advisory lookup before release; the full build could not reach NuGet's
+      vulnerability feed, so a fresh package vulnerability assessment was not completed.
+
+- [ ] Resolve existing empty-database migration failures found during the isolated chat rehearsal:
+      generated SQL batches fail in `20260419144051_AddNoteApprovalFields` when a just-added Npi
+      column is referenced in the same batch; direct EF migration stops in
+      `20260828195515_AddTestConsumerMarker` when a conditional statement references absent
+      `dbo.SatiDatabaseIdentity`. Prior migrations were not edited in the chat implementation.
+      Record full-chain replay evidence before deployment; isolated chat-table success is narrower.
+
+- [ ] Rehearse controlled Demo deployment, compatibility and two-workstation reconnect/access
+      removal before enabling hosted synthetic chat. Complete real assistive-technology acceptance.
+- [ ] Approve agency HIPAA/Maine applicability, permitted audiences, restricted-record handling,
+      business associate responsibilities, training and privacy-incident procedures.
+- [ ] Establish chat retention, broader preservation/hold scope and controlled discovery/export
+      including hidden originals, misfiled/general-room content and backups. No automated deletion
+      until those controls exist and are reviewed.
+- [ ] Complete account disablement and immediate session invalidation across the platform.
+      Password reset does not revoke every current session; room removal is chat-specific only.
+- [ ] Complete approved API-backed Production, runtime append-only SQL permissions, restore
+      evidence and routed monitoring before real-client chat is considered.
+- [ ] If cross-caseload consumer coordination is needed, design an approved access process;
+      do not weaken the existing consumer-access gate to deliver it.
+- [ ] Consider private messages, delegated room management, historical-access grants, attachments,
+      note promotion, presence and multi-instance latency as separately reviewed additions.
+
+### Electronic signature handoff — implemented synthetic scope and activation work (2026-09-06)
+
+- [x] Shared document-purpose/code/workflow rules; exact complete original freezing; immutable
+      signer-specific requests, consent, events, completions and separate derived PDF packages.
+- [x] Authenticated staff routes and Annual Documents workspace; public portal with isolated
+      identity design, narrow SQL model/grant script, request/session checks, CSRF, secure cookies,
+      short leases, code lockout, explicit consent/intent and paper/assistance choices.
+- [x] Private Azure storage/key/email adapters, encrypted durable outbox, guarded package/mail
+      workers, exact retry identities, and honest suppressed/submitted/provider-result reporting.
+- [x] Synthetic SQL migration, role-denial, lock/concurrency and rollback rehearsal; automated
+      regression and deliberately removed-guard evidence in `SIGNATURE_PORTAL_VALIDATION.md`.
+- [x] Plain-language findings and legal/operating outline in `SIGNATURE_PORTAL_REVIEW.md` and
+      `SIGNATURE_PORTAL_GUIDE.md`; original proposal labeled as superseded where it conflicts.
+- [ ] Apply a separately authorized controlled migration/deployment. Provision and verify the
+      environment marker first. Direct EF migration of a disposable marked database passed all
+      96 migrations; this does not repair the older generated-SQL-script Npi batch defect recorded
+      during chat work. Do not describe the old script or an unmarked database as validated.
+- [ ] Provision separate portal hosting/managed identity/private storage/key rights and exact
+      runtime SQL grants. Verify actual deployed identities, network limits and token-free edge
+      logs; code and a disposable-role rehearsal do not prove the deployed permissions.
+- [ ] Complete approved synthetic mail testing, current DNS/sender verification, bounce/delivery
+      event integration and external alert routing. No email was sent during this implementation.
+- [ ] Complete hands-on browser/mobile/keyboard/screen-reader acceptance and an accessible PDF
+      strategy. Generated evidence is not a tagged PDF; assisted/paper alternatives remain necessary.
+      The browser screenshot launch was blocked by automatic approval review; automated DOM and
+      HTTP checks are not a substitute for that acceptance work.
+- [ ] Obtain reviewed agency release/notice/disclosure wording, authority/identity procedures,
+      MaineCare/OADS/state-form decisions where applicable, and special-record/minor/multiple-signer
+      handling. Part 2 and Maine confidentiality rules are not satisfied by a generic signature.
+- [ ] Complete contracts/BAAs, risk assessment, incident response, tested restore, retention/holds,
+      evidence discovery/export, later-copy delivery and training before considering real PHI.
+      Signature history is retained and test-consumer deletion is blocked when it exists.
+- [ ] Establish an approved API-mediated Production implementation separately. Current Production
+      remains hard-disabled; no real-use switch or legal-clearance setting is provided by this build.

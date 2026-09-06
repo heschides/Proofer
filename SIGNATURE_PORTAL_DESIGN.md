@@ -1,6 +1,15 @@
 # Electronic signature portal — design
 
-*Designed 2026-09-05 against release 1.2.47. Status: design only. No code has been written.*
+*Original proposal designed 2026-09-05 against release 1.2.47; retained below as design history.*
+
+> **Implementation revision, September 2026:** The safer decisions in
+> `SIGNATURE_PORTAL_REVIEW.md`, the plain-language `SIGNATURE_PORTAL_GUIDE.md`, and the setup
+> boundary in `Sati.Portal/README.md` take precedence over conflicting proposal details below.
+> The implementation has no missing-field override, live document clearance, reused consumer-wide
+> PIN, staff-assumed signer consent, in-place unlock, or overwrite of the original PDF.
+> Verification is recorded in `SIGNATURE_PORTAL_VALIDATION.md`. The feature is disabled by default,
+> restricted to explicitly marked synthetic consumers in validated Demo/Testing environments,
+> and has not been deployed.
 
 Read `CLAUDE.md`, `REGULATORY_CONCERNS.md`, and the "Electronic signature portal — vetted
 direction" section of `AGENDA.md` before implementing this. That AGENDA section was reviewed

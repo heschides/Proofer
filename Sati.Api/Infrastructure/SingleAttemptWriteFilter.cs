@@ -9,13 +9,14 @@ namespace Sati.Api.Infrastructure;
 /// A failed/ambiguous commit must be checked by the caller, not automatically replayed
 /// with a second artifact, receipt, attestation, or audit event. Reads retain retries.
 /// </summary>
-internal sealed class SingleAttemptWriteFilter(ApiDbContext db) : IEndpointFilter
+internal sealed class SingleAttemptWriteFilter(IDbContextFactory<ApiDbContext> factory) : IEndpointFilter
 {
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var method = context.HttpContext.Request.Method;
         if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
             return await next(context);
+        await using var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted);
         return await new SingleAttempt(db).ExecuteAsync(async () => await next(context));
     }
 

@@ -124,6 +124,19 @@ public sealed class DailyAgendaBuilderTests
         Assert.Null(result.AssessmentSuggestion);
     }
 
+    [Fact]
+    public void ScheduledNotesAreLeftForTodaysWorkInsteadOfBeingOfferedTwiceAtSignIn()
+    {
+        var result = new DailyAgendaBuilder(new StubUpcomingEventService(
+                Event("Scheduled email — Alex", Today.AddDays(2), UpcomingEventKind.ScheduledEmail),
+                Event("Q2 Review — Alex", Today.AddDays(3), UpcomingEventKind.OpenReview, FormType.Q2R)))
+            .Build([PersonWithForms("Alex")], new Settings(), Today);
+
+        var item = Assert.Single(result.UpcomingItems);
+        Assert.Equal("Q2 Review — Alex", item.Title);
+        Assert.Equal(FormType.Q2R, item.FormType);
+    }
+
     private static Person PersonWithForms(string fullName, params Form[] forms)
     {
         var parts = fullName.Split(' ', 2);
@@ -143,12 +156,14 @@ public sealed class DailyAgendaBuilderTests
     private static UpcomingEvent Event(
         string title,
         DateTime date,
-        UpcomingEventKind kind) => new()
+        UpcomingEventKind kind,
+        FormType? formType = null) => new()
     {
         ClientName = "Alex",
         Title = title,
         Date = date,
-        Kind = kind
+        Kind = kind,
+        FormType = formType
     };
 
     private sealed class StubUpcomingEventService(params UpcomingEvent[] events)

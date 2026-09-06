@@ -27,37 +27,38 @@ public sealed class DailyAgendaViewModelTests
     }
 
     [Fact]
-    public void ConfirmAppendsOneLinePerSelectionUnderDatedHeaderAndCannotRepeat()
+    public async Task ConfirmCreatesOneStructuredItemPerSelectionAndCannotRepeat()
     {
-        var scratchpad = Scratchpad("Call provider");
+        var workAgenda = new RecordingWorkAgendaService();
+        var scratchpad = Scratchpad("Call provider", workAgenda);
         var viewModel = ViewModel(
             scratchpad,
             Result(upcoming: [Item("First"), Item("Second")]));
         viewModel.UpcomingItems[0].IsSelected = true;
         viewModel.UpcomingItems[1].IsSelected = true;
 
-        viewModel.ConfirmCommand.Execute(null);
-        viewModel.ConfirmCommand.Execute(null);
+        await viewModel.ConfirmCommand.ExecuteAsync(null);
+        await viewModel.ConfirmCommand.ExecuteAsync(null);
 
-        Assert.Equal(
-            $"Call provider{Environment.NewLine}{Environment.NewLine}" +
-            $"Tuesday, September 1{Environment.NewLine}" +
-            $"First — due September 12, 2026{Environment.NewLine}" +
-            "Second — due September 12, 2026",
-            scratchpad.ScratchpadContent);
+        Assert.Equal("Call provider", scratchpad.ScratchpadContent);
+        Assert.Equal(["First", "Second"], workAgenda.Added.Select(item => item.Title));
+        Assert.Equal(new DateTime(2026, 9, 1), workAgenda.Date);
+        Assert.Equal(1, workAgenda.AddCalls);
         Assert.False(viewModel.ConfirmCommand.CanExecute(null));
     }
 
     [Fact]
-    public void EmptyScratchpadReceivesLinesWithoutAnUnnecessaryHeader()
+    public async Task AddingStructuredWorkLeavesAnEmptyFreeformDraftEmpty()
     {
-        var scratchpad = Scratchpad(string.Empty);
+        var workAgenda = new RecordingWorkAgendaService();
+        var scratchpad = Scratchpad(string.Empty, workAgenda);
         var viewModel = ViewModel(scratchpad, Result(upcoming: [Item("First")]));
         viewModel.UpcomingItems[0].IsSelected = true;
 
-        viewModel.ConfirmCommand.Execute(null);
+        await viewModel.ConfirmCommand.ExecuteAsync(null);
 
-        Assert.Equal("First — due September 12, 2026", scratchpad.ScratchpadContent);
+        Assert.Equal(string.Empty, scratchpad.ScratchpadContent);
+        Assert.Equal("First", Assert.Single(workAgenda.Added).Title);
     }
 
     [Fact]
@@ -123,11 +124,40 @@ public sealed class DailyAgendaViewModelTests
         DailyAgendaItemKind.UpcomingWork,
         false);
 
-    private static ScratchpadViewModel Scratchpad(string content) =>
-        new(new StubScratchpadService(), new SessionService())
+    private static ScratchpadViewModel Scratchpad(
+        string content,
+        IWorkAgendaService? workAgenda = null)
+    {
+        var session = new SessionService();
+        session.SetUser(Sati.Models.User.Create(
+            41, "case.manager", "Case Manager", "hash", "salt",
+            UserRole.CaseManager, null, 3));
+        return new(new StubScratchpadService(), session, workAgenda)
         {
             ScratchpadContent = content
         };
+    }
+
+    private sealed class RecordingWorkAgendaService : IWorkAgendaService
+    {
+        public List<DailyAgendaItem> Added { get; } = [];
+        public DateTime? Date { get; private set; }
+        public int AddCalls { get; private set; }
+
+        public Task<IReadOnlyList<WorkAgendaItem>> LoadAsync(int userId, DateTime date) =>
+            Task.FromResult<IReadOnlyList<WorkAgendaItem>>([]);
+
+        public Task<WorkAgendaAddResult> AddFromDailyAgendaAsync(
+            int userId,
+            DateTime date,
+            IReadOnlyList<DailyAgendaItem> selectedItems)
+        {
+            AddCalls++;
+            Date = date;
+            Added.AddRange(selectedItems);
+            return Task.FromResult(new WorkAgendaAddResult(selectedItems.Count, 0));
+        }
+    }
 
     private sealed class StubScratchpadService : IScratchpadService
     {

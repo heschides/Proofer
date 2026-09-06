@@ -144,6 +144,7 @@ namespace Sati
                         services.AddSingleton<DatabaseActivityCommandInterceptor>();
                         services.AddTransient<DatabaseActivityHandler>();
                         services.AddTransient<IUpcomingEventService, UpcomingEventService>();
+                        services.AddTransient<IWorkAgendaService, WorkAgendaService>();
                         services.AddTransient<DailyAgendaBuilder>();
                         services.AddSingleton<DailyAgendaCoordinator>();
                         services.AddSingleton<DailyAgendaLauncher>();
@@ -153,7 +154,6 @@ namespace Sati
                         services.AddSingleton<EasyEyesPreferenceService>();
                         services.AddSingleton<IdleLockPreferenceService>();
                         services.AddSingleton<ConsumerPickerSortPreferenceService>();
-                        services.AddSingleton<ScratchpadLayoutPreferenceService>();
                         services.AddSingleton<TextShortcutHook>();
                         services.AddSingleton<ICaseNoteFormatter, FoundryLocalCaseNoteFormatter>();
 
@@ -171,6 +171,7 @@ namespace Sati
                             AddLocalDataServices(services, dataEnvironment);
                         // Shell
                         services.AddSingleton<ShellViewModel>();
+                        services.AddSingleton<ChatViewModel>();
                         services.AddSingleton<ShellWindow>();
 
                         // Child ViewModels
@@ -226,6 +227,7 @@ namespace Sati
                         services.AddSingleton<Sati.Forms.AnnualPacketComposer>();
                         services.AddTransient<ViewModels.ClientDocuments.SafetyPlanViewModel>();
                         services.AddTransient<ViewModels.ClientDocuments.AnnualDocumentsViewModel>();
+                        services.AddTransient<ViewModels.ClientDocuments.SignatureRequestsViewModel>();
 
                         // Transient by intent: injected into two singleton hosts
                         // (CaseManagerDashboardViewModel, NotesWindowViewModel),
@@ -409,6 +411,7 @@ namespace Sati
             services.AddTransient<IUserService, UserService>();
             services.AddSingleton<ISessionLifetime, NeverEndingSessionLifetime>();
             services.AddTransient<IScratchpadService, ScratchpadService>();
+            services.AddSingleton<IChatService, ChatUnavailableService>();
             services.AddTransient<IIncentiveService, IncentiveService>();
             services.AddTransient<ISettingsService, SettingsService>();
             services.AddTransient<FormDueDateBackfill>();
@@ -419,6 +422,7 @@ namespace Sati
             services.AddTransient<IEdiService, EdiService>();
             services.AddTransient<IExemptDateService, ExemptDateService>();
             services.AddTransient<IConsumerBillingLossReportService, ConsumerBillingLossReportService>();
+            services.AddTransient<IProductivityReportService, ProductivityReportService>();
             services.AddTransient<IReviewItemService, ReviewItemService>();
             services.AddSingleton<IClientAiContextService, ClientAiContextService>();
             services.AddTransient<IATRequestService, ATRequestService>();
@@ -435,6 +439,7 @@ namespace Sati
             services.AddTransient<IDocumentTemplateService, DocumentTemplateService>();
             services.AddTransient<ISafetyPlanService, SafetyPlanService>();
             services.AddTransient<IAnnualDocumentService, AnnualDocumentService>();
+            services.AddTransient<ISignatureService, SignatureUnavailableService>();
             services.AddTransient<IComprehensiveAssessmentService, ComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, PersonCenteredPlanSourceService>();
             services.AddDbContextFactory<SatiContext>((serviceProvider, options) =>
@@ -468,6 +473,7 @@ namespace Sati
             services.AddTransient<INoteService, CloudNoteService>();
             services.AddTransient<ISettingsService, CloudSettingsService>();
             services.AddTransient<IScratchpadService, CloudScratchpadService>();
+            services.AddSingleton<IChatService, CloudChatService>();
             services.AddTransient<IExemptDateService, CloudExemptDateService>();
             services.AddTransient<IIncentiveService, CloudIncentiveService>();
             services.AddTransient<IFormService, CloudFormService>();
@@ -484,9 +490,11 @@ namespace Sati
             services.AddTransient<IDocumentTemplateService, CloudDocumentTemplateService>();
             services.AddTransient<ISafetyPlanService, CloudSafetyPlanService>();
             services.AddTransient<IAnnualDocumentService, CloudAnnualDocumentService>();
+            services.AddTransient<ISignatureService, CloudSignatureService>();
             services.AddTransient<IComprehensiveAssessmentService, CloudComprehensiveAssessmentService>();
             services.AddTransient<IPersonCenteredPlanSourceService, CloudPersonCenteredPlanSourceService>();
             services.AddTransient<IConsumerBillingLossReportService, CloudConsumerBillingLossReportService>();
+            services.AddTransient<IProductivityReportService, CloudProductivityReportService>();
             services.AddTransient<IBillingService, CloudBillingService>();
             services.AddTransient<IEdiService, CloudEdiService>();
             services.AddSingleton<IClientAiContextService, CloudClientAiContextService>();

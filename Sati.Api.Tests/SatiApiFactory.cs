@@ -17,6 +17,7 @@ using Sati.Api.Infrastructure;
 using Sati.Api.Security;
 using Sati.Contracts.V1;
 using Sati.Models;
+using Sati.Signatures;
 
 namespace Sati.Api.Tests;
 
@@ -104,6 +105,12 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             // depend on Azure to run.
             services.RemoveAll<IKeyWrapper>();
             services.AddSingleton<IKeyWrapper>(TestVault);
+            services.RemoveAll<ISignatureBlobStore>();
+            services.RemoveAll<ISigningPinKeyWrapper>();
+            services.RemoveAll<ISignatureOutboxKeyWrapper>();
+            services.AddSingleton<ISignatureBlobStore, SignatureTestBlobStore>();
+            services.AddSingleton<ISigningPinKeyWrapper, SignatureTestKeyWrapper>();
+            services.AddSingleton<ISignatureOutboxKeyWrapper, SignatureTestKeyWrapper>();
 
             // Added rather than replacing the console provider, so the redaction test
             // reads the same stream the hosted API writes to App Service.
@@ -314,6 +321,14 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
             await using var scope = Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
             await db.Database.EnsureCreatedAsync();
+            // EnsureCreated omits read-only views. Mirror the migration's narrow
+            // signing projection without exposing the full clinical entity.
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE VIEW IF NOT EXISTS SignatureSourceDocuments AS
+                SELECT Id, AgencyId, PersonId, Kind, CycleStart, Origin, ContentSha256,
+                       ByteCount, BlankFieldsJson, SupersededByArtifactId
+                FROM DocumentArtifacts
+                """);
             var verifier = scope.ServiceProvider.GetRequiredService<PasswordVerifier>();
 
             db.Agencies.AddRange(

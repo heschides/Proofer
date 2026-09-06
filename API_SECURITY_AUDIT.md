@@ -1,4 +1,4 @@
-# API security audit — 2026-08-14, 2026-08-15, 2026-08-30, 2026-08-31
+# API security audit — 2026-08-14, 2026-08-15, 2026-08-30, 2026-08-31, 2026-09-05
 
 Scope: the authorization surface of `Sati.Api`, the sensitive-data boundary between the server and
 distributed clients, and the artifacts the platform hands to a reviewer. Driven by the two risks
@@ -421,3 +421,74 @@ case-management gates are still largely untested, as are `GET /admin/incidents`,
   goes through `PUT /api/v1/users/{id}`, which requires supervision or administration, so against a
   hosted database an ordinary case manager cannot change their own email or phone. Unchanged
   behaviour, surfaced by giving the operation its own name. Tracked in `AGENDA.md`.
+
+---
+
+## Limited route review — 2026-09-05: productivity report
+
+`GET /reports/productivity-units` has no caller-controlled user or agency parameter. The validated
+actor's user id and agency scope both sides of the People-to-Notes join, the query selects only
+EventDate and Minutes, and the response contains year, month, and aggregate units. An integration
+test seeds eligible and ineligible statuses, notes owned by two other users, and deliberately
+inconsistent Person/Note agency markers. It confirms that only the signed-in case manager's Logged
+and Approved units are returned. `ApiSurfaceTests` also requires the route to stay in the advertised
+authenticated API surface. This was a review of the new route, not a new audit of the rest of the
+API.
+
+## Limited route and client review — 2026-09-05: team chat
+
+The new chat routes require current database-validated agency identity and the disabled-by-default
+synthetic environment gate. Shared `ChatAccess` binds actor, agency, room and active membership;
+consumer-scoped rooms additionally retain current `TenantAccess` checks. Administration does not
+grant an automatic content-read bypass, and the platform-support identity remains excluded.
+
+Message pages commit exact, bounded access-evidence chunks before releasing their response.
+An injected audit failure prevents release. Original posts and redaction changes are append-only;
+the client receives current tombstones. Room revisions serialize durable changes, and send keys
+are scoped to room and author. Retries cannot silently change an earlier send's text.
+
+The WebSocket carries only a generic notice. It rejects client application frames, bounds queued
+work and connections, and ends at token/original-session limits. Authentication and revalidation
+use short-lived database contexts. Passive chat polling/reconnection does not renew an idle
+session. Missing notices recover through ordinary authorized message-page requests.
+
+Room and page responses include membership-episode identity. Removal/rejoining invalidates old
+client messages, drafts, pending sends and late results even when the removal itself was missed
+between refreshes. Selection, hidden workspace and account changes also invalidate late loads.
+Consumer identity is visible separately from a user-chosen room name. Room metadata editing keeps
+its originally reviewed revision, preventing background refresh from masking an edit conflict.
+
+Both API and transitional local consumer deletion refuse retained linked chat before changing
+children. Restrictive database relationships and a populated-chat rollback refusal provide
+additional preservation barriers. Application save guards are not a substitute for restricted
+runtime SQL permissions or an approved records-recovery process.
+
+See `TEAM_CHAT_VALIDATION.md` for final test counts, deliberately weakened-guard proof, local SQL
+evidence and limits. This review covers the new feature and changed shared request filters; it
+does not recertify the entire application. Full-chain migration replay has two older blockers.
+Hosted multi-workstation acceptance, broad legal holds/discovery, complete session revocation,
+runtime database permissions, monitoring/restore evidence and real assistive-technology acceptance
+remain real-data prerequisites. No deployment or compliance certification occurred.
+
+## Electronic signature handoff review — September 2026
+
+The new staff signing routes use authoritative actor/consumer/contact scope inside the same
+serializable, non-replayed transaction as the shared workflow. The public portal is a separate
+host; SQL views/role and distinct managed-identity/key/storage permissions narrow its boundary.
+Its page/session binding prevents cookie replacement in another tab from selecting an unintended
+document. Protected actions require current session/request status, deadlines and versions; code
+attempts use durable lockout with SQL update locks before verification. Exact source/hash checks,
+signer consent/intent, immutable evidence, and separate receipt access are independently covered.
+
+Review expanded to the relevant consumer/contact edit/archive seams: current ownership and
+permissions are rechecked, signer changes invalidate unfinished requests, and signed records
+retain evidence while external copy access ends. Source replacement and identity changes cannot
+commit without their revocation evidence. Ordinary profile updates cannot perform an owner transfer.
+
+The final validation record includes deliberate guard-removal failures, isolated SQL permission,
+concurrency/migration/rollback proofs, and PDF inspection. Direct EF execution with a provisioned
+synthetic environment marker passed all 96 migrations. That successful rehearsal does not repair
+the earlier generated-SQL-script Npi batching problem or authorize an unmarked/hosted migration.
+External hosting permissions, mail delivery events/alerts, hands-on browser/accessibility acceptance,
+legal/program decisions and real-data operations remain activation requirements. This is a targeted
+review of changed surfaces, not a new certification of the full application.

@@ -4,31 +4,29 @@
              xmlns:sati="clr-namespace:Sati;assembly=Sati.Persistence"
              xmlns:vm="clr-namespace:Sati.ViewModels"
              xmlns:models="clr-namespace:Sati.Models;assembly=Sati.Persistence"
-             xmlns:views="clr-namespace:Sati.Views"
              Background="{DynamicResource WindowBackgroundBrush}"
              TextElement.FontFamily="{StaticResource AppFont}">
 
     <!-- Escape returns the note panel to a blank New Note and drops the notes
          grid's highlight with it. The selected CLIENT survives — it scopes this
          whole page. Declared here as well as on the module so the key works from
-         the grid and the toolbar, not only from inside the form. -->
+         every Overview pane, not only from inside the form. -->
     <UserControl.InputBindings>
         <KeyBinding Key="Escape"
                     Command="{Binding NoteEntry.StartNewNoteCommand}" />
     </UserControl.InputBindings>
 
-    <!-- The named hosts below retain one live instance of each workspace. Code-behind
-         places those hosts into Wide, Balanced, two-pane, or one-pane arrangements
-         from the measured WPF viewport. Work Agenda starts in the center; the
-         selector keeps every supporting workspace available when fewer panes fit. -->
+    <!-- The three primary Overview panes keep fixed jobs: current note, Work Agenda,
+         and Upcoming Due Dates. Code-behind changes only their size and, in the
+         narrowest tier, stacks them vertically. The dedicated Notes, Reviews, Clients,
+         and Statistics workspaces retain the deeper versions of those features. -->
     <Grid x:Name="AdaptiveGrid"
           Margin="12"
           SizeChanged="AdaptiveGrid_SizeChanged">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="520" />
@@ -40,292 +38,39 @@
             <ColumnDefinition Width="380" />
         </Grid.ColumnDefinitions>
 
-        <Grid x:Name="OverviewToolbar"
-              Grid.Row="0"
-              Grid.Column="0"
-              Grid.ColumnSpan="7"
-              Margin="0,0,0,10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel x:Name="WorkspaceSelectorPanel"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Visibility="Collapsed">
-                <TextBlock Text="WORKSPACE"
-                           Style="{StaticResource LabelStyle}"
-                           VerticalAlignment="Center"
-                           Margin="0,0,8,0" />
-                <ComboBox x:Name="WorkspaceSelector"
-                          Width="190"
-                          AutomationProperties.Name="Overview workspace"
-                          SelectionChanged="WorkspaceSelector_SelectionChanged">
-                    <ComboBoxItem Content="Work Agenda" Tag="Agenda" />
-                    <ComboBoxItem Content="Current note" Tag="Note" />
-                    <ComboBoxItem Content="Notes list" Tag="Notes" />
-                    <ComboBoxItem Content="Deadlines" Tag="Deadlines" />
-                    <ComboBoxItem Content="Forms" Tag="Forms" />
-                    <ComboBoxItem Content="Productivity" Tag="Productivity" />
-                </ComboBox>
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button x:Name="ShowAgendaFromFocusButton"
-                        Content="Work Agenda"
-                        AutomationProperties.Name="Show Work Agenda while focusing on note"
-                        Style="{StaticResource SmallButton}"
-                        Margin="0,0,8,0"
-                        Visibility="Collapsed"
-                        Click="ShowAgendaFromFocus_Click" />
-                <Button x:Name="FocusNoteButton"
-                        Content="Focus note"
-                        AutomationProperties.Name="Focus note"
-                        Style="{StaticResource SmallButton}"
-                        Click="FocusNote_Click" />
-                <Button x:Name="ReturnToOverviewButton"
-                        Content="Return to overview"
-                        AutomationProperties.Name="Return to overview"
-                        Style="{StaticResource SmallButton}"
-                        Visibility="Collapsed"
-                        Click="ReturnToOverview_Click" />
-            </StackPanel>
-        </Grid>
-
-        <!-- ═══ COL 0 ROWS 1-2: NOTE ENTRY MODULE ═══
+        <!-- ═══ LEFT: NOTE ENTRY MODULE ═══
              Shared UserControl, rendered via the NoteEntryViewModel DataTemplate.
              The module carries its own border, padding, and compliance overlay. -->
         <ContentControl x:Name="NoteHost"
                         Grid.Column="0"
-                        Grid.Row="1"
+                        Grid.Row="0"
                         Grid.RowSpan="3"
                         AutomationProperties.Name="Current note panel"
                         Content="{Binding NoteEntry}" />
 
-        <!-- Notes remains a stable view while its host changes position or hides. -->
-        <ContentControl x:Name="NotesHost"
-                        Grid.Column="6"
-                        Grid.Row="1"
-                        Grid.RowSpan="3"
-                        AutomationProperties.Name="Notes list panel">
-            <views:NotesPanelView />
-        </ContentControl>
-
         <!-- ShellWindow moves its one live Work Agenda view into this host while
-             Overview is active, preserving both dated drafts and editor state. -->
+              Overview is active, preserving both dated drafts and editor state. -->
         <ContentControl x:Name="AgendaHost"
                         Grid.Column="2"
-                        Grid.Row="1"
+                        Grid.Row="0"
                         Grid.RowSpan="2"
                         AutomationProperties.Name="Work Agenda panel" />
 
-        <!-- ═══ COL 2 ROW 2: FORMS CHECKLIST + MONTHLY PRODUCTIVITY ═══ -->
+        <!-- ═══ BELOW WORK AGENDA: MONTHLY PRODUCTIVITY ═══ -->
         <Border x:Name="SummaryHost"
                 Grid.Column="2"
-                Grid.Row="3"
+                Grid.Row="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="14"
-                Margin="0,0,0,12">
-            <TabControl x:Name="SummaryTabs"
-                        AutomationProperties.Name="Overview summary">
-                <TabItem Header="Forms"
-                          AutomationProperties.Name="Forms summary">
-                    <Grid>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Visibility="{Binding SelectedPerson, Converter={StaticResource NullToVisibilityConverter}}">
-                        <StackPanel Margin="2">
-
-                <!-- Forms checklist -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Text="90-Day Reviews"
-                               Style="{StaticResource SectionHeader}" />
-                    <CheckBox Grid.Row="1"
-                              Grid.Column="0"
-                              Content="Quarter 1"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding Q1RCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Q1R}" />
-                    <CheckBox Grid.Row="2"
-                              Grid.Column="0"
-                              Content="Quarter 2"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding Q2RCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Q2R}" />
-                    <CheckBox Grid.Row="3"
-                              Grid.Column="0"
-                              Content="Quarter 3"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding Q3RCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Q3R}" />
-                    <CheckBox Grid.Row="4"
-                              Grid.Column="0"
-                              Content="Quarter 4"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding Q4RCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Q4R}" />
-
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="2"
-                               Text="Annual Forms"
-                               Style="{StaticResource SectionHeader}" />
-                    <CheckBox Grid.Row="1"
-                              Grid.Column="2"
-                              Content="PCP"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding PcpCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.PCP}" />
-                    <CheckBox Grid.Row="2"
-                              Grid.Column="2"
-                              Content="Comp Assessment"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding CompAssessmentCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.ComprehensiveAssessment}" />
-                    <CheckBox Grid.Row="3"
-                              Grid.Column="2"
-                              Content="Reclassification"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding ReclassificationCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Reclassification}" />
-                    <CheckBox Grid.Row="4"
-                              Grid.Column="2"
-                              Content="Safety Plan"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding SafetyPlanCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.SafetyPlan}" />
-                    <CheckBox Grid.Row="5"
-                              Grid.Column="2"
-                              Content="Privacy Practices"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding PrivacyPracticesCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.PrivacyPractices}" />
-
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="4"
-                               Text="Releases"
-                               Style="{StaticResource SectionHeader}" />
-                    <CheckBox Grid.Row="1"
-                              Grid.Column="4"
-                              Content="DHHS"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding ReleaseDhhsCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Release_DHHS}" />
-                    <CheckBox Grid.Row="2"
-                              Grid.Column="4"
-                              Content="Agency"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding ReleaseAgencyCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Release_Agency}" />
-                    <CheckBox Grid.Row="3"
-                              Grid.Column="4"
-                              Content="Medical"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              Margin="0,0,0,6"
-                              IsChecked="{Binding ReleaseMedicalCompliant, Mode=OneWay}"
-                              Command="{Binding ToggleFormCommand}"
-                              CommandParameter="{x:Static sati:FormType.Release_Medical}" />
-                </Grid>
-
-                <TextBlock Text="{Binding AnnualDocumentReminderText}" TextWrapping="Wrap" Margin="0,6,0,0"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           AutomationProperties.Name="Annual document preparation beside pending attestations" />
-                <Border Margin="0,8,0,0"
-                        Padding="8"
-                        Background="{DynamicResource SurfaceRaisedBrush}"
-                        CornerRadius="4"
-                        Visibility="{Binding HasPendingAttestations, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <StackPanel>
-                        <TextBlock Text="DOCUMENTED, WAITING FOR ATTESTATION"
-                                   Style="{StaticResource LabelStyle}" />
-                        <ItemsControl ItemsSource="{Binding PendingAttestations}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Command="{Binding DataContext.SelectPendingAttestationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            HorizontalContentAlignment="Left"
-                                            Margin="0,2,0,0"
-                                            Padding="8,5"
-                                            AutomationProperties.Name="Open pending form attestation">
-                                        <TextBlock>
-                                            <Run Text="{Binding FormType, Mode=OneWay}" />
-                                            <Run Text=" documented " />
-                                            <Run Text="{Binding EvidenceDate, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
-                                            <Run Text=" — cycle began " />
-                                            <Run Text="{Binding CycleStart, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
-                                            <Run Text="; due " />
-                                            <Run Text="{Binding DueDate, StringFormat={}{0:MMM d, yyyy}, Mode=OneWay}" />
-                                        </TextBlock>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <views:FormAttestationControl DataContext="{Binding Attestation}" />
-
-                        </StackPanel>
-                    </ScrollViewer>
-                        <TextBlock Text="Select a client to view forms."
-                                   MaxWidth="300"
-                                   Margin="20"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Visibility="{Binding SelectedPerson, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=inverse}"
-                                   AutomationProperties.Name="Select a client to view forms" />
-                    </Grid>
-                </TabItem>
-
-                <TabItem Header="Productivity"
-                         AutomationProperties.Name="Monthly productivity summary">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="2">
+                Margin="0,10,0,0"
+                AutomationProperties.Name="Monthly productivity panel">
+            <ScrollViewer AutomationProperties.Name="Monthly productivity summary"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="2">
 
                 <!-- Monthly productivity -->
                 <TextBlock Text="YOUR MONTHLY PRODUCTIVITY"
@@ -449,24 +194,21 @@
                 <TextBlock Text="{Binding EstimatedIncentive, StringFormat=C}"
                            FontSize="20"
                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <!-- ═══ COL 4 ROWS 0-2: TASK BOARD ═══ -->
+        <!-- ═══ RIGHT: UPCOMING DUE DATES ═══ -->
         <Border x:Name="DeadlinesHost"
                 Grid.Column="4"
-                Grid.Row="1"
+                Grid.Row="0"
                 Grid.RowSpan="3"
-                AutomationProperties.Name="Deadlines panel"
+                AutomationProperties.Name="Upcoming due dates panel"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
-                Padding="14"
-                Margin="0,0,0,12">
+                Padding="14">
 
             <Border.Resources>
 
@@ -637,10 +379,17 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0"
+                <TextBlock Grid.Row="0"
+                           Text="UPCOMING DUE DATES"
+                           Style="{StaticResource SectionHeader}"
+                           Margin="0,0,0,6"
+                           AutomationProperties.HeadingLevel="Level2" />
+
+                <Grid Grid.Row="1"
                       Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -730,9 +479,9 @@
                     </Button>
                 </Grid>
 
-                <Separator Grid.Row="1" />
+                <Separator Grid.Row="2" />
 
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="3">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding IsTaskListTab, Converter={StaticResource BoolToVisibilityConverter}}">
                         <ItemsControl ItemsSource="{Binding BoardGroups}">

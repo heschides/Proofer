@@ -9,12 +9,15 @@ explicit about what is policy and what is automated.
 
 ## Retention classes
 
+Team chat's synthetic-only activation and outstanding operational controls are described below.
+
 | Record class | Current policy | Enforcement | Reason |
 |---|---:|---|---|
 | `AuditEvent` | 2,555 days (7 years) | Policy only | Security and compliance activity index; intentionally excludes narrative PHI. |
 | `EdiGeneration` replay content | 90 days | Policy only | Short retry/reconciliation window for protected 837P content. |
 | `PersonVersion` | Retain with the Person record | No automated deletion | Required to reconstruct the Person lifecycle; contains PHI. |
 | Clinical and billing source records | Agency/legal policy required | No automated deletion | Must not be destroyed by a generic cleanup job. |
+| Team chat messages, changes and memberships | Agency/legal schedule required | No automated deletion | Originals and redactions retained; linked consumer deletion restricted. General/misfiled content and backups still require complete discovery/hold procedures. |
 | `Person` (ordinary consumer), created within 20 days | Deletable by Admin action only | Manually triggered, gated, not automated | See "Consumer deletion within the creation window" below — a per-record command, not a background job. |
 | `Person` (ordinary consumer), beyond 20 days or already archived | No deletion; archive-only | No automated deletion | `Person.Status` (`NoLongerServed`/`Deceased`/`Ghost`) removes a consumer from active caseload and compliance surfaces without destroying data. |
 
@@ -23,6 +26,27 @@ between 30 and 365 days. The Admin dashboard reports the configured values and
 `RetentionEnforcementMode = PolicyOnly`. No background process currently deletes these records.
 
 ## Legal hold gate
+
+### Team chat: synthetic testing only (2026-09-05)
+
+`Chat:Enabled` defaults false. `ChatFeature` additionally requires the startup-validated pair
+`Demo`/`SatiDemo` or `Testing`/`SatiApiTests`; a switch cannot authorize Production. Do not change
+a database identity to bypass this. Local Production has no chat service.
+
+`AddTeamChat` adds five tables. Cloud schema changes require separately authorized controlled
+deployment. No cloud migration, deployment, security/firewall setting or real PHI is part of this
+implementation. Hosting needs WebSocket support for prompt notices; HTTP polling works without it.
+Only contentless notices are held in process, so missing a notice cannot bypass authorization or
+lose persisted changes. Rehearse multi-instance operation before depending on its latency.
+
+Monitor request failures, rejected writes, reconnect counts, database/audit growth and restore
+health without message text, tokens, names or redaction reasons. Route alerts to a named owner.
+Automatic purge, broad chat legal holds, controlled original-body export and complete account
+disablement/session revocation remain unfinished. Direct SQL bypasses application guards;
+least-privilege grants/denies and controlled recovery remain real-data prerequisites.
+See `TEAM_CHAT_GUIDE.md`.
+
+### General retention prerequisites
 
 Automated retention must not be enabled until a legal-hold registry and the following workflow
 exist:
@@ -326,3 +350,33 @@ class of mistake above rather than relying on remembering the rule each time.
 - Apply the production SQL grants/denies and verify them in deployment tests.
 - Connect logs/health/database signals to an external metrics and paging platform.
 - Add backup restore drills, incident response exercises, and evidence retention.
+
+## Electronic signature operations
+
+The feature and its server workers remain off by default. Follow `Sati.Portal/README.md` for
+separate identities, exact environment configuration, private storage, distinct versioned keys,
+manual role grants, trusted proxies, token-free hosting logs and controlled synthetic recipients.
+Follow `SIGNATURE_PORTAL_GUIDE.md` for legal, program and staff procedures. No real signature,
+deployment, cloud migration, email or DNS change was performed while implementing this feature.
+
+Retain frozen originals, request identity/disclosure/intent, consent, events, completion, signed
+package, authorization/external-access withdrawal and delivery history as one evidence set.
+Preserve wrapped-key versions and prove recovery of the database and blob files together. The
+application refuses history deletion and populated schema rollback; this is not a complete
+retention/hold lifecycle. Orphaned immutable blobs after an interrupted commit need reviewed
+reconciliation, not an automatic purge. Existing person-only preservation tools are not claimed
+to cover every signature/blob/backup scope.
+
+Staff see invitation and receipt notification states separately. A provider-accepted message
+is not established inbox delivery, and a previously submitted email cannot be recalled by
+revoking a link. Delayed/uncertain submissions use the saved operation identifier for polling.
+After the retry limit, assign an operator to investigate the visible review state. Configure
+external alert routing for both unprepared signed copies and failed notifications; content-free
+warnings alone do not notify an on-call person.
+
+Consumers can obtain copies through bounded authenticated receipt access or an authorized staff
+process afterward. Maintain a free accessible/paper-copy procedure. Identity/address/authority
+changes stop old external access without altering the signature or pretending to revoke medical
+authorization. Incident review must cover misdirected mail and copied files already released.
+Browser/screen-reader/document acceptance, deployed sender authentication and delivery-event
+monitoring remain uncompleted launch evidence, as listed in `SIGNATURE_PORTAL_VALIDATION.md`.

@@ -273,23 +273,6 @@
                            TextWrapping="Wrap"
                            Margin="24,0,0,20" />
 
-                <CheckBox Content="Keep Work Agenda in the center"
-                          AutomationProperties.Name="Keep Work Agenda in the center"
-                          AutomationProperties.HelpText="Makes Work Agenda the initial central workspace on Overview. Notes remains available beside it or from the workspace selector."
-                          IsChecked="{Binding IsScratchpadCentered, Mode=TwoWay}"
-                          Margin="0,0,0,6" />
-                <TextBlock Text="Makes Work Agenda the initial central workspace on Overview. Turn this off if you prefer the notes list there."
-                           FontSize="11"
-                           Foreground="{DynamicResource TextMutedBrush}"
-                           TextWrapping="Wrap"
-                           Margin="24,0,0,4" />
-                <TextBlock Text="{Binding ScratchpadLayoutPreferenceStatus}"
-                           AutomationProperties.LiveSetting="Polite"
-                           FontSize="11"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           TextWrapping="Wrap"
-                           Margin="24,0,0,20" />
-
                 <TextBlock Text="INACTIVITY SCREEN"
                            Style="{StaticResource LabelStyle}" />
                 <ComboBox ItemsSource="{Binding IdleTimeoutChoices}"

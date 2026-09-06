@@ -301,6 +301,10 @@ public sealed class AdminService(
         if (person.Revision != expectedRevision)
             throw new InvalidOperationException(
                 "This consumer changed after you selected them. Refresh and review the current record before trying again.");
+        if (await context.ChatRooms.AsNoTracking().AnyAsync(room => room.PersonId == personId, cancellationToken))
+            throw new InvalidOperationException(ConsumerDeletionRules.HasChatHistoryMessage);
+        if (await context.FrozenSignatureDocuments.AsNoTracking().AnyAsync(document => document.PersonId == personId, cancellationToken))
+            throw new InvalidOperationException(SignatureRules.RetainedHistoryMessage);
         if (!ConsumerDeletionRules.IsWithinDeletionWindow(person.CreatedAtUtc, DateTime.UtcNow))
             throw new InvalidOperationException(ConsumerDeletionRules.OutsideWindowMessage);
 
@@ -632,6 +636,11 @@ public sealed class AdminService(
         if (person.Revision != expectedRevision)
             throw new InvalidOperationException(
                 "This consumer changed after you selected them. Refresh the Admin dashboard and review the current record before trying again.");
+
+        if (await context.ChatRooms.AsNoTracking().AnyAsync(room => room.PersonId == personId, cancellationToken))
+            throw new InvalidOperationException(ConsumerDeletionRules.HasChatHistoryMessage);
+        if (await context.FrozenSignatureDocuments.AsNoTracking().AnyAsync(document => document.PersonId == personId, cancellationToken))
+            throw new InvalidOperationException(SignatureRules.RetainedHistoryMessage);
 
         var claimLineCount = await context.ClaimLines.AsNoTracking().CountAsync(claimLine =>
             context.Notes.Any(note => note.Id == claimLine.NoteId && note.PersonId == personId),
