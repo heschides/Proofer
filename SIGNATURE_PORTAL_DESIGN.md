@@ -284,9 +284,12 @@ DKIM    selector1._domainkey  -> does not exist
 
 Four consequences for this feature.
 
-**SPF has headroom, so the ten-lookup limit is not a risk here.** One `include` costs roughly three
-of the ten DNS lookups an SPF evaluation is permitted. Adding an Azure Communication Services
-include is safe on this record. Re-measure if other senders are added first.
+**SPF has headroom, so the ten-lookup limit is not a risk here.** An SPF evaluation is permitted
+ten DNS-querying mechanisms, counted across the whole recursion tree. This record uses **one**:
+`spf.protection.outlook.com` resolves to literal `ip4` and `ip6` ranges with no nested includes,
+and literals cost nothing. Adding an Azure Communication Services include is safe. Re-measure if
+other senders are added first, because the budget is consumed by whatever the included records
+themselves include.
 
 **`-all` plus `p=quarantine` fails closed, and that is the dangerous part.** Only Microsoft 365 may
 currently send as the domain; everything else hard-fails and is quarantined. Standing up Azure
