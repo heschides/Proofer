@@ -19,13 +19,14 @@ working content.
 - [x] Add API authorization/session invalidation tests, WPF structure/contrast tests, and reset
       asset safety checks. Debug build completed with zero errors and nine known warnings; 2,098
       tests passed across all five projects, with the one explicitly optional local-AI evaluation
-      skipped, and all four changed PowerShell entry points passed parser validation.
-- [ ] During a separately authorized release, capture the reviewed cloud baseline, publish the
+      skipped, and all nine release/reset PowerShell entry points passed parser validation.
+- [x] During the separately authorized release, capture the reviewed cloud baseline, publish the
       Function and API, store its endpoint and Function key only in API settings, and run a live
       destructive acceptance test. A workstation capture requires the user-managed exact-IP SQL
-      firewall rule; DATT itself never authorizes that security change.
+      firewall rule; the user removed it immediately afterward and the release verified it absent.
 - [ ] Configure an approved external destination for reset-failure alerts and prove one test alert.
-      Application Insights logging alone does not close this operational requirement.
+      The existing Smart Detection action group has no receiver and there are no metric alerts, so
+      this remains an explicit operational follow-up rather than a claimed release capability.
 
 **No EF migration.** The baseline schema and reset procedure are controlled Demo-only operational
 objects, deliberately outside the application migration chain. Nothing in this work applies to or
@@ -42,11 +43,29 @@ reads Local Production.
 - [x] Release validation: full Release build succeeded with zero errors and nine known warnings;
       all five test projects passed (2,098 passed, one documented optional local-AI test skipped);
       all nine release/reset PowerShell entry points parsed cleanly; and the dependency audit found
-      no vulnerable direct or transitive NuGet packages. Source commit and push remain pending.
-- [ ] Publish the locking API with the reset route unconfigured; capture the protected baseline;
-      publish the Function; store its endpoint and key only in protected API settings; verify the
-      restarted API and run one live full-reset acceptance test.
-- [ ] Build, accept, and publish the Demo and Local installers without overwriting prior artifacts.
+      no vulnerable direct or transitive NuGet packages. Final 1.3.4 source commit
+      `d0c8e07ded2b621e966d4a82e92e9a381dc7ed28` is pushed to `master` and `origin/master`.
+- [x] The identity-checked baseline initializer completed after the locking API was live. Final
+      Function deployment `dd1d2081845448189b2232d0da20b785` used a 9-entry, 45,462-byte package
+      with SHA-256 `9EDD059C3315893B936745627A4DD5E00A1226E4E6227E57BD692844E0403DFB`.
+      Its default host key and HTTPS endpoint are stored only in protected API settings and match
+      the Function without being printed or committed. Final API deployment
+      `e1084094d4d1490b94ce70d28d84cb04` used
+      `artifacts/SatiApi-1.3.4-fx-x86.zip` (8,797,215 bytes, SHA-256
+      `A761646F26228208AD0F2995CA35896F50BDC25706C5AF72459DC8F776591FB4`). Live and
+      ready are healthy, `/health/version` reports 1.3.4 and contract revision `CC236B20EF18`,
+      equal to the desktop contract. Authenticated readiness passed. The live Admin reset returned
+      completion, rejected the pre-reset token, restored the canonical Admin login, and restored
+      the Admin overview. Temporary diagnostic logging is Off.
+- [x] Both installers passed acceptance and were published without overwriting prior artifacts.
+      Demo passed five responsive launches, graceful closes, exact version, and cleanup;
+      `SatiDemoSetup-1.3.4.exe` is 101,335,040 bytes with SHA-256
+      `286324C3DD61CE7921749D9C9B95496C31466A20D8A518190E9C62EA07A67262` in
+      `SatiLogica Demo Files`. Local passed exact version, Windows integrated security,
+      Microsoft-signed embedded LocalDB, and cleanup; `SatiLocalSetup-1.3.4.exe` is 203,360,520
+      bytes with SHA-256 `85F0249C92BBC69AB1602F84281905F82FE61B98144AD7BA2EB808E2E914724A`
+      in `Sati Desktop`. Both published executables and checksum files exactly match their accepted
+      artifacts, and no temporary distribution file remains.
 - [ ] Record and push final evidence; verify a clean tree equal to `origin/master`.
 
 **Branches.** No branch is eligible for merge or deletion. `video-conferencing-design` contains
