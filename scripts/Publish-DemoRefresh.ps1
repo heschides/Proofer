@@ -27,6 +27,16 @@ try {
     Copy-Item -LiteralPath $seed -Destination (Join-Path $staging 'RefreshCaseload\Seed-DemoShowcaseData.ps1')
     Copy-Item -LiteralPath $seed -Destination (Join-Path $staging 'ResetDemo\Seed-DemoShowcaseData.ps1')
     Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zip -CompressionLevel Optimal
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+    try {
+        $packageEntries = $archive.Entries.Count
+    }
+    finally {
+        $archive.Dispose()
+    }
+    $packageBytes = (Get-Item -LiteralPath $zip).Length
+    $packageSha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
 
     $storageExists = [int](Invoke-AzureCli @('storage','account','list','-g',$ResourceGroup,'--query',"[?name=='$StorageAccount'] | length(@)",'-o','tsv'))
     if ($storageExists -eq 0) {
@@ -43,13 +53,18 @@ try {
         'FUNCTIONS_WORKER_RUNTIME=powershell','FUNCTIONS_EXTENSION_VERSION=~4',
         'WEBSITE_TIME_ZONE=Eastern Standard Time','DemoRefreshSchedule=0 15 3 * * *',
         'SATI_DEMO_SQL_SERVER=sati-demo-satilogica-central.database.windows.net') | Out-Null
-    Invoke-AzureCli @('functionapp','deployment','source','config-zip','-g',$ResourceGroup,'-n',$FunctionApp,'--src',$zip) | Out-Null
+    $deploymentJson = Invoke-AzureCli @('functionapp','deployment','source','config-zip','-g',$ResourceGroup,'-n',$FunctionApp,'--src',$zip,'-o','json') | Out-String
+    $deployment = if ([string]::IsNullOrWhiteSpace($deploymentJson)) { $null } else { $deploymentJson | ConvertFrom-Json }
 
     [pscustomobject]@{
         FunctionApp = $FunctionApp
         PrincipalId = $identity.principalId
         Schedule = '3:15 AM America/New_York daily'
         SqlGrantRequired = $true
+        PackageBytes = $packageBytes
+        PackageSHA256 = $packageSha256
+        PackageEntries = $packageEntries
+        DeploymentId = $deployment.id
     } | Format-List
 }
 finally {
