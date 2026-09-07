@@ -61,8 +61,13 @@ public sealed class DemoFullResetStructureTests
 
         Assert.Contains("x-functions-key", coordinator);
         Assert.Contains("FunctionKey", coordinator);
+        Assert.Contains("LoadIntoBufferAsync", coordinator);
         Assert.DoesNotContain("?code=", coordinator);
         Assert.DoesNotContain(publicSettings, contents => contents.Contains(
             "DemoReset__FunctionKey", StringComparison.Ordinal));
+
+        var function = File.ReadAllText(Path.Combine(
+            Root, "Sati.DemoRefresh", "ResetDemo", "run.ps1"));
+        Assert.Contains("$Request.RawBody", function);
     }
 }

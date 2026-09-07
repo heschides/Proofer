@@ -32,6 +32,7 @@ internal sealed class DemoResetCoordinator(
         {
             Content = JsonContent.Create(new { requestId, actorUserId })
         };
+        await request.Content.LoadIntoBufferAsync(cancellationToken);
         request.Headers.Add("x-functions-key", functionKey);
         using var response = await client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();

@@ -1,6 +1,6 @@
 # Sati — Refactor Agenda
 
-## Release 1.3.3 — 2026-09-06
+## Release 1.3.4 — 2026-09-07
 
 "A clean slate, clearly seen." This release makes the complete synthetic Demo recoverable on
 demand, closes the remaining dark-theme contrast gaps, and softens decorative patterns behind
@@ -31,10 +31,14 @@ working content.
 objects, deliberately outside the application migration chain. Nothing in this work applies to or
 reads Local Production.
 
-- [x] Preflight: `master` equals `origin/master`; version 1.3.3 and its API/installer artifact names
+- [x] Preflight: `master` equals `origin/master`; version 1.3.4 and its API/installer artifact names
       are unused. The current synthetic Demo was separately approved as the canonical baseline.
       The user-created exact-IP SQL rule matches this workstation at `72.95.106.10`; the release
       workflow will not alter it and the user must remove it immediately after baseline capture.
+- [x] The first 1.3.3 API package was a failed partial deployment only: live acceptance proved that
+      Azure's PowerShell Function drops an unbuffered .NET JSON body before invocation. No 1.3.3
+      installer was built or distributed. The completed release advances to 1.3.4 and buffers the
+      two-field API request before sending it; an exact buffered probe completed the reset.
 - [x] Release validation: full Release build succeeded with zero errors and nine known warnings;
       all five test projects passed (2,098 passed, one documented optional local-AI test skipped);
       all nine release/reset PowerShell entry points parsed cleanly; and the dependency audit found

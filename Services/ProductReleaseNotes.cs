@@ -7,7 +7,7 @@ public sealed record ReleaseNoteSection(
 public static class ProductReleaseNotes
 {
     public const string ReleaseName = "A clean slate, clearly seen";
-    public const string ReleaseDate = "September 6, 2026";
+    public const string ReleaseDate = "September 7, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [

@@ -639,7 +639,7 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.3.3", version);
+        Assert.Equal("1.3.4", version);
         Assert.Equal(version, apiVersion);
         Assert.Equal("A clean slate, clearly seen", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
