@@ -1,6 +1,6 @@
 # Sati — Refactor Agenda
 
-## Unreleased follow-up — billing-safe Demo diagnoses
+## Completed 2026-09-06 — billing-safe Demo diagnoses
 
 - [x] Give every synthetic Demo client a deterministic, valid fictional diagnosis from a varied
       ICD-10 teaching set. Diagnosis is a hard billing gate and is no longer permitted as an
@@ -10,6 +10,18 @@
       unexpected diagnosis makes the refresh fail visibly.
 
 **No schema change.** This updates synthetic Demo seed values and validation only.
+
+- [x] Source commit `ffd09c87107e5d0769eca6592468c7781a4c1bf2` is pushed to `master` and
+      `origin/master`. The complete desktop/domain suite passed 1,461 tests with the one optional
+      local-AI evaluation skipped because its explicit on-device authorization flag is absent.
+- [x] Existing Demo Refresh Function deployment `51f4da260ef6466ba9b4195f438d87a0` succeeded
+      from a six-entry, 22,168-byte package with SHA-256
+      `9D5F0F52CCF40CEE396FC35C92BD73CE83E7302C1703D0F40D2A14B7D1B5A55C` and no
+      private settings or key files. No API, installer, infrastructure, identity, settings,
+      firewall, schema, or Production change was made.
+- [x] The authorized one-time invocation `4b4da0f5-d23e-4986-ab15-fe3065f08329` completed
+      successfully in 30.6 seconds. The canonical refresh's post-write validation passed, proving
+      that no Demo client remained without an approved fictional diagnosis.
 
 ## Release 1.3.2 — 2026-09-06
 
