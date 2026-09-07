@@ -8,6 +8,15 @@ $requestId = [Guid]::Empty
 $actorUserId = 0
 $stage = 'ValidateRequest'
 $body = $Request.Body
+if ($body -is [System.IO.Stream]) {
+    $reader = [System.IO.StreamReader]::new($body, [Text.Encoding]::UTF8, $true, 1024, $true)
+    try {
+        $body = $reader.ReadToEnd()
+    }
+    finally {
+        $reader.Dispose()
+    }
+}
 if ($body -is [byte[]]) {
     $body = [Text.Encoding]::UTF8.GetString($body)
 }
