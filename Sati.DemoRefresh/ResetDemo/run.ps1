@@ -7,9 +7,22 @@ $server = $env:SATI_DEMO_SQL_SERVER
 $requestId = [Guid]::Empty
 $actorUserId = 0
 $stage = 'ValidateRequest'
+$body = $Request.Body
+if ($body -is [byte[]]) {
+    $body = [Text.Encoding]::UTF8.GetString($body)
+}
+if ($body -is [string]) {
+    try {
+        $body = $body | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        $body = $null
+    }
+}
 if ([string]::IsNullOrWhiteSpace($server) -or
-    -not [Guid]::TryParse([string]$Request.Body.requestId, [ref]$requestId) -or
-    -not [int]::TryParse([string]$Request.Body.actorUserId, [ref]$actorUserId) -or
+    $null -eq $body -or
+    -not [Guid]::TryParse([string]$body.requestId, [ref]$requestId) -or
+    -not [int]::TryParse([string]$body.actorUserId, [ref]$actorUserId) -or
     $actorUserId -lt 1) {
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
         StatusCode = [HttpStatusCode]::BadRequest
