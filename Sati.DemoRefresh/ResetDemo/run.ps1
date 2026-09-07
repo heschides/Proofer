@@ -34,14 +34,25 @@ if ($body -is [string]) {
         $body = $null
     }
 }
-if ([string]::IsNullOrWhiteSpace($server) -or
-    $null -eq $body -or
-    -not [Guid]::TryParse([string]$body.requestId, [ref]$requestId) -or
-    -not [int]::TryParse([string]$body.actorUserId, [ref]$actorUserId) -or
-    $actorUserId -lt 1) {
+$requestIdText = if ($null -eq $body) { '' } else { [string]$body.requestId }
+$actorUserIdText = if ($null -eq $body) { '' } else { [string]$body.actorUserId }
+$requestIdValid = [Guid]::TryParse($requestIdText, [ref]$requestId)
+$actorUserIdValid = [int]::TryParse($actorUserIdText, [ref]$actorUserId)
+$serverConfigured = -not [string]::IsNullOrWhiteSpace($server)
+if (-not $serverConfigured -or -not $requestIdValid -or -not $actorUserIdValid -or $actorUserId -lt 1) {
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
         StatusCode = [HttpStatusCode]::BadRequest
-        Body = @{ error = 'A valid reset request is required.' }
+        Body = @{
+            error = 'A valid reset request is required.'
+            bodyType = if ($null -eq $body) { 'null' } else { $body.GetType().FullName }
+            propertyNames = if ($null -eq $body) { @() } else { @($body.PSObject.Properties.Name) }
+            serverConfigured = $serverConfigured
+            requestIdPresent = -not [string]::IsNullOrWhiteSpace($requestIdText)
+            actorUserIdPresent = -not [string]::IsNullOrWhiteSpace($actorUserIdText)
+            requestIdValid = $requestIdValid
+            actorUserIdValid = $actorUserIdValid
+            actorUserIdPositive = $actorUserId -gt 0
+        }
     })
     return
 }
