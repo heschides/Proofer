@@ -1,5 +1,49 @@
 # Sati — Refactor Agenda
 
+## Release 1.3.2 — 2026-09-06
+
+"Claims in the right lane." This release makes Submit & Lock visibly move work from the draft
+queue into 837 staging, quarantines invalid historical claims before generation, and repairs the
+daily synthetic Demo claim snapshots that exposed the missing-diagnosis problem.
+
+- [x] Replace the implicit submitted-date-range behavior with a visible 837 staging grid. Submit
+      and Lock removes a period from the Draft selector and places it in staging; generation uses
+      the checked staging rows, removes successful rows immediately, and announces that they were
+      captured in the generated files.
+- [x] Derive staging from exact frozen-claim readiness and absence of exchange history. Historical
+      Submitted rows that fail today's gate are shown separately as Blocked before 837 and can
+      never be offered to the generator as ready.
+- [x] Add an audited Return to Draft transition for pre-exchange periods only. The API and Local
+      paths share `BillingPeriodWorkflow`, preserve agency boundaries, and serialize the return
+      against 837 generation. Periods with any 837 or clearinghouse history cannot be rewound.
+- [x] Repair every synthetic Demo claim's direct identifiers and frozen snapshot during the
+      canonical daily refresh, including a fictional F89 diagnosis fallback for the deliberately
+      incomplete diagnosis teaching profile. Expand the post-refresh assertion beyond units,
+      charge, and snapshot presence so this seed defect cannot recur silently.
+
+**No schema change.** Staging is derived from BillingPeriod, exact readiness, and existing exchange
+events. The new API route requires a matching Demo API and desktop build before distribution.
+
+- [x] Preflight: `master` equals `origin/master`; the release scope is the reviewed billing
+      staging, guarded return-to-draft workflow, and synthetic Demo claim repair. Version 1.3.2 and
+      all intended artifact names are unused. No persistence schema changed, so no migration or
+      workstation firewall rule is required. The user separately authorized publishing the
+      existing Demo Refresh Function code without changing its identity, settings, network rules,
+      or database schema.
+- [x] Release build succeeded with zero errors. All five automated test projects passed: 1,461
+      desktop/domain, 494 API integration/authorization, 118 signature, 8 portal, and 4 Carika
+      tests (2,085 total). The optional local-AI competence test was skipped because its explicit
+      on-device authorization flag is absent. The Demo seed script also passed PowerShell parsing.
+- [ ] Verified source commit is pushed to `master` and `origin/master` before artifacts are built.
+- [ ] Demo API 1.3.2 is deployed from that source commit and reports live, ready, release 1.3.2,
+      and the expected client/API contract revision.
+- [ ] The existing Demo Refresh Function is updated from that source commit and its deployment is
+      verified without infrastructure, identity, settings, firewall, or schema changes.
+- [ ] Demo and Local installers are built, accepted, published without overwriting prior files,
+      and re-verified against their checksums in the two exact distribution folders.
+- [ ] Final release evidence is committed and pushed; the working tree is clean and local
+      `master` equals `origin/master`.
+
 ## Release 1.3.1 — 2026-09-06
 
 "Visible claims and quiet installs." This release makes the exact frozen billing rows visible before

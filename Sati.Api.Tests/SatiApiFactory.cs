@@ -315,6 +315,65 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         }
     }
 
+    public async Task<int> CreateReturnableSubmittedBillingPeriodAsync()
+    {
+        await EnsureSeededAsync();
+        await _testDataLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var periodId = await db.BillingPeriods.MaxAsync(period => period.Id) + 1;
+            var lineId = await db.ClaimLines.MaxAsync(line => line.Id) + 1;
+            var noteId = await db.Notes.MaxAsync(note => note.Id) + 1;
+            db.Notes.Add(new ServerNote
+            {
+                Id = noteId,
+                PersonId = 101,
+                AgencyId = 1,
+                Narrative = "Returnable submitted billing test",
+                EventDate = new DateTime(2096, 9, 2),
+                Minutes = 15,
+                Status = 6
+            });
+            db.BillingPeriods.Add(new ServerBillingPeriod
+            {
+                Id = periodId,
+                UserId = 12,
+                Month = 9,
+                Year = 2096,
+                Status = 1,
+                SubmittedAt = DateTime.UtcNow,
+                Lines =
+                {
+                    new ServerClaimLine
+                    {
+                        Id = lineId,
+                        NoteId = noteId,
+                        DateOfService = new DateTime(2096, 9, 2),
+                        ProcedureCode = "G9012",
+                        ProcedureModifier = "HI",
+                        Units = 1,
+                        ChargeAmount = 25m,
+                        ClientMaineCareId = "111111",
+                        RenderingProviderNpi = "1999999984",
+                        DiagnosisCode = "F89",
+                        PlaceOfService = 11,
+                        ClaimSnapshotJson = ClaimSnapshot(1, 101, "Person", "One", "111111",
+                            "10 Test Street", "Portland", "04101", "SATITEST1", "Agency One",
+                            "111111111", "1 First Street", "Portland", "04101", "2075550101")
+                    }
+                }
+            });
+            await db.SaveChangesAsync();
+            return periodId;
+        }
+        finally
+        {
+            _testDataLock.Release();
+        }
+    }
+
     public async Task ChangeUserRoleAsync(int userId, string role)
     {
         await EnsureSeededAsync();

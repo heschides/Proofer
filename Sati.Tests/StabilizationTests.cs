@@ -639,10 +639,17 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.3.1", version);
+        Assert.Equal("1.3.2", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Visible claims and quiet installs", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Claims in the right lane", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Submitted claims now have a visible staging lane" &&
+            section.Items.Any(item => item.Contains("837 staging", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("return", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "The daily Demo refresh repairs synthetic claim snapshots" &&
+            section.Items.Any(item => item.Contains("diagnosis", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "Billing shows what will be submitted" &&
             section.Items.Any(item => item.Contains("claim line", StringComparison.OrdinalIgnoreCase)) &&
@@ -1504,6 +1511,10 @@ public sealed class StabilizationTests
         Assert.Contains("IncompleteOrdinaryClients", seed);
         Assert.Contains("UnreadyClaims", seed);
         Assert.Contains("ClaimSnapshotJson", seed);
+        Assert.Contains("DiagnosisCode = COALESCE", seed);
+        Assert.Contains("'F89'", seed);
+        Assert.Contains("SubscriberMemberId", seed);
+        Assert.Contains("claim.ClientMaineCareId<>JSON_VALUE", seed);
         Assert.Contains("IDENTITY_ENDPOINT", function);
         Assert.Contains("X-IDENTITY-HEADER", function);
         Assert.DoesNotContain("Get-AzAccessToken", function);
@@ -1537,7 +1548,7 @@ public sealed class StabilizationTests
     }
 
     [Fact]
-    public async Task DesktopKeepsTheSameEdiRetryKeyUntilGenerationSucceeds()
+    public async Task DesktopKeepsTheSameEdiRetryKeyUntilGenerationSucceedsThenRemovesItFromStaging()
     {
         var edi = new RetryRecordingEdiService();
         var session = new SessionService();
@@ -1551,7 +1562,7 @@ public sealed class StabilizationTests
             Year = 2026,
             Status = BillingStatus.Submitted,
             SubmittedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc),
-            Lines = [new ClaimLine { Id = 1 }]
+            Lines = [new ClaimLine { Id = 1, Units = 1, ChargeAmount = 25 }]
         };
         var viewModel = new BillingSubmissionsViewModel(
             new StubBillingService([period]),
@@ -1564,10 +1575,10 @@ public sealed class StabilizationTests
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
 
-        Assert.Equal(3, edi.Keys.Count);
+        Assert.Equal(2, edi.Keys.Count);
         Assert.Equal(edi.Keys[0], edi.Keys[1]);
-        Assert.NotEqual(edi.Keys[1], edi.Keys[2]);
         Assert.All(edi.Keys, key => Assert.True(Guid.TryParse(key, out _)));
+        Assert.Empty(viewModel.StagedPeriods);
     }
 
     [Fact]
@@ -1583,27 +1594,27 @@ public sealed class StabilizationTests
                 Id = 1, UserId = 10, Month = 6, Year = 2026,
                 Status = BillingStatus.Submitted,
                 SubmittedAt = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc),
-                Lines = [new ClaimLine { Id = 1 }]
+                Lines = [new ClaimLine { Id = 1, Units = 1, ChargeAmount = 25 }]
             },
             new BillingPeriod
             {
                 Id = 2, UserId = 11, Month = 7, Year = 2026,
                 Status = BillingStatus.Submitted,
                 SubmittedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc),
-                Lines = [new ClaimLine { Id = 2 }]
+                Lines = [new ClaimLine { Id = 2, Units = 1, ChargeAmount = 25 }]
             },
             new BillingPeriod
             {
                 Id = 3, UserId = 11, Month = 7, Year = 2026,
                 Status = BillingStatus.Draft,
-                Lines = [new ClaimLine { Id = 3 }]
+                Lines = [new ClaimLine { Id = 3, Units = 1, ChargeAmount = 25 }]
             },
             new BillingPeriod
             {
                 Id = 4, UserId = 12, Month = 5, Year = 2026,
                 Status = BillingStatus.Rejected,
                 SubmittedAt = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc),
-                Lines = [new ClaimLine { Id = 4 }]
+                Lines = [new ClaimLine { Id = 4, Units = 1, ChargeAmount = 25 }]
             }
         };
         var viewModel = new BillingSubmissionsViewModel(
@@ -1645,6 +1656,9 @@ public sealed class StabilizationTests
 
         await viewModel.GenerateEdiCommand.ExecuteAsync(null);
         Assert.True(viewModel.CanSubmitToMockClearinghouse);
+        Assert.Empty(viewModel.StagedPeriods);
+        Assert.Empty(viewModel.GenerationPeriods);
+        Assert.Contains("removed from staging", viewModel.StatusMessage);
         viewModel.SelectedMockClearinghouseScenario = viewModel.MockClearinghouseScenarios
             .Single(option => option.Scenario == MockClearinghouseScenario.Denied);
 
@@ -1751,7 +1765,7 @@ public sealed class StabilizationTests
         Assert.Empty(viewModel.SelectedPeriodLines);
         Assert.False(viewModel.CanSubmitPeriod);
         Assert.Contains("Choose a draft", viewModel.SubmitAvailabilityMessage);
-        Assert.Contains("left the draft list", viewModel.StatusMessage);
+        Assert.Contains("moved into 837 staging", viewModel.StatusMessage);
         Assert.Contains(viewModel.GenerationPeriods, period => period.Id == draft.Id);
     }
 
@@ -1832,6 +1846,47 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public async Task InvalidHistoricalSubmittedPeriodIsBlockedAndCanReturnToDraft()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var period = new BillingPeriod
+        {
+            Id = 54, UserId = 11, CaseManagerName = "Dick Grayson", Month = 4, Year = 2026,
+            Status = BillingStatus.Submitted,
+            SubmittedAt = DateTime.UtcNow,
+            Lines =
+            [
+                new ClaimLine
+                {
+                    Id = 55,
+                    Units = 1,
+                    ChargeAmount = 25,
+                    ReadinessErrors = ["Diagnosis code is missing or invalid."]
+                }
+            ]
+        };
+        var billing = new StubBillingService([period]);
+        var viewModel = new BillingSubmissionsViewModel(
+            billing, new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+
+        Assert.Empty(viewModel.StagedPeriods);
+        Assert.Empty(viewModel.GenerationPeriods);
+        var blocked = Assert.Single(viewModel.BlockedSubmittedPeriods);
+        Assert.Contains("Diagnosis code", blocked.ReadinessSummary);
+        Assert.False(viewModel.CanGenerateEdi);
+
+        await viewModel.ReturnToDraftCommand.ExecuteAsync(blocked);
+
+        Assert.Equal([period.Id], billing.ReturnedPeriodIds);
+        Assert.Contains(period, viewModel.DraftBillingPeriods);
+        Assert.Empty(viewModel.BlockedSubmittedPeriods);
+    }
+
+    [Fact]
     public void BillingPeriodSubmitActionPrecedesTheSeparate837GenerationArea()
     {
         var document = System.Xml.Linq.XDocument.Load(Path.Combine(
@@ -1842,9 +1897,9 @@ public sealed class StabilizationTests
         var submit = elements.FindIndex(element => element.Name.LocalName == "Button" &&
             (string?)element.Attribute("Content") == "Submit & Lock Selected Period");
         var generationHeading = elements.FindIndex(element => element.Name.LocalName == "TextBlock" &&
-            (string?)element.Attribute("Text") == "837 GENERATION RANGE");
+            (string?)element.Attribute("Text") == "837 STAGING");
         var generate = elements.FindIndex(element => element.Name.LocalName == "Button" &&
-            (string?)element.Attribute("Content") == "Generate 837P Files for Range");
+            (string?)element.Attribute("Content") == "Generate 837P for Selected");
         var mockSection = elements.FindIndex(element => element.Name.LocalName == "StackPanel" &&
             ((string?)element.Attribute("Visibility"))?.Contains("ShowsMockClearinghouse", StringComparison.Ordinal) == true);
         var mockSubmit = elements.FindIndex(element => element.Name.LocalName == "Button" &&
@@ -2029,6 +2084,7 @@ public sealed class StabilizationTests
         private readonly IReadOnlyList<RemittanceClaimOutcomeDto> _outcomes = outcomes ?? [];
         public bool SupportsMockClearinghouse => supportsMockClearinghouse;
         public List<int> SubmittedPeriodIds { get; } = [];
+        public List<int> ReturnedPeriodIds { get; } = [];
         public List<(int PeriodId, MockClearinghouseScenario Scenario)> MockSubmissions { get; } = [];
 
         public Task<BillingPeriod> GetOrCreateBillingPeriodAsync(AgencyActor actor, int userId, int month, int year) =>
@@ -2047,6 +2103,14 @@ public sealed class StabilizationTests
             period.Status = BillingStatus.Submitted;
             period.SubmittedAt = DateTime.UtcNow;
             SubmittedPeriodIds.Add(billingPeriodId);
+            return Task.CompletedTask;
+        }
+        public Task ReturnBillingPeriodToDraftAsync(AgencyActor actor, int billingPeriodId)
+        {
+            var period = _periods.Single(item => item.Id == billingPeriodId);
+            period.Status = BillingStatus.Draft;
+            period.SubmittedAt = null;
+            ReturnedPeriodIds.Add(billingPeriodId);
             return Task.CompletedTask;
         }
         public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor) => throw new NotSupportedException();

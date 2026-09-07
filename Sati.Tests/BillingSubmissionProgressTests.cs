@@ -13,6 +13,23 @@ namespace Sati.Tests;
 /// </summary>
 public sealed class BillingSubmissionProgressTests
 {
+    [Fact]
+    public void SubmittedPeriodWithoutExchangeHistoryCanReturnToDraft() =>
+        Assert.Empty(BillingPeriodWorkflow.ValidateReturnToDraft(
+            isSubmitted: true,
+            hasExchangeHistory: false));
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void ReturnToDraftRejectsWrongStatusOrExistingExchangeHistory(
+        bool isSubmitted,
+        bool hasExchangeHistory) =>
+        Assert.NotEmpty(BillingPeriodWorkflow.ValidateReturnToDraft(
+            isSubmitted,
+            hasExchangeHistory));
+
     /// <summary>
     /// A period holding claim lines but no submission events is not a failed submission.
     /// It needs its own state, created by the submissions view model from the absence of

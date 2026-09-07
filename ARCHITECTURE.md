@@ -2,6 +2,23 @@
 
 *Living document. Updated during structured review sessions. Last updated: 2026-09-06.*
 
+## Billing submission staging
+
+The Billing Submissions screen presents three explicit lifecycle locations. Claim-bearing Draft
+periods remain in the draft queue. `Submit & Lock` moves an exact-ready period into 837 staging.
+Generating its 837 records the first `BillingSubmissionEvent`, removes it from staging, and leaves
+its continuing exchange state in Submission Home. The staging list is a projection, not a new
+table: it contains submitted periods with claims, no exchange history, and no failures from
+`ProfessionalClaimReadiness`.
+
+Legacy or synthetic periods whose stored Submitted status predates the current gate are never
+shown as ready. They appear in a separate blocked list with their exact row errors. A biller may
+return one to Draft only before any `EdiGeneration` or `BillingSubmissionEvent` exists. The shared
+`BillingPeriodWorkflow` owns that status rule; Local and API mutations audit it, and both return and
+generation use serializable transactions so they cannot cross in flight. Once exchange history
+exists, correction requires the immutable financial-record amendment path rather than status
+rewind.
+
 ## Daily Demo caseload refresh
 
 `Sati.DemoRefresh` is a timer-triggered Azure Function that runs at 3:15 AM Eastern. It obtains an

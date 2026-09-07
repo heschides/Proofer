@@ -20,6 +20,7 @@ namespace Sati.ViewModels.Billing
         private readonly LatestRequestTracker _accountLoads = new();
         private readonly Dictionary<int, string> _pendingEdiKeys = [];
         private readonly HashSet<int> _generatedTestPeriodIds = [];
+        private readonly HashSet<int> _generatedPeriodIds = [];
         private string? _pendingBatchFingerprint;
         private bool _settingInitialRange;
 
@@ -37,6 +38,8 @@ namespace Sati.ViewModels.Billing
         public ObservableCollection<BillingPeriod> DraftBillingPeriods { get; } = [];
         public ObservableCollection<ClaimLine> SelectedPeriodLines { get; } = [];
         public ObservableCollection<BillingPeriod> GenerationPeriods { get; } = [];
+        public ObservableCollection<BillingGenerationStageRow> StagedPeriods { get; } = [];
+        public ObservableCollection<BillingGenerationStageRow> BlockedSubmittedPeriods { get; } = [];
         public ObservableCollection<BillingSubmissionHistoryDto> SubmissionHistory { get; } = [];
         public ObservableCollection<BillingSubmissionBatchRow> SubmissionBatches { get; } = [];
         public IReadOnlyList<MockClearinghouseScenarioOption> MockClearinghouseScenarios { get; } =
@@ -83,6 +86,8 @@ namespace Sati.ViewModels.Billing
         public bool HasSelectedPeriod => SelectedPeriod is not null;
         public bool HasDraftPeriods => DraftBillingPeriods.Count > 0;
         public bool HasSelectedPeriodLines => SelectedPeriodLines.Count > 0;
+        public bool HasStagedPeriods => StagedPeriods.Count > 0;
+        public bool HasBlockedSubmittedPeriods => BlockedSubmittedPeriods.Count > 0;
         public int SelectedPeriodIssueCount => SelectedPeriodLines.Count(line => !line.IsReadyForSubmission);
         public int SelectedPeriodReadyCount => SelectedPeriodLines.Count - SelectedPeriodIssueCount;
         public string SelectedPeriodLineSummary => SelectedPeriod is null
@@ -137,10 +142,8 @@ namespace Sati.ViewModels.Billing
             MonthStart(RangeStart.Value) <= MonthStart(RangeEnd.Value);
         public string RangeSummary => !IsRangeValid
             ? "Choose a valid beginning and ending billing month."
-            : GenerationPeriods.Count == 0
-                ? "No submitted billing periods with claims are in this range."
-                : $"{GenerationPeriods.Count} submitted billing period(s) will produce " +
-                  $"{GenerationPeriods.Count} separate 837P file(s).";
+            : $"{StagedPeriods.Count} ready in staging · {GenerationPeriods.Count} selected · " +
+              $"{BlockedSubmittedPeriods.Count} blocked before 837.";
 
         partial void OnSelectedPeriodChanged(BillingPeriod? value)
         {
@@ -205,8 +208,12 @@ namespace Sati.ViewModels.Billing
                 BillingPeriods.Clear();
                 DraftBillingPeriods.Clear();
                 GenerationPeriods.Clear();
+                StagedPeriods.Clear();
+                BlockedSubmittedPeriods.Clear();
                 SubmissionHistory.Clear();
                 _generatedTestPeriodIds.Clear();
+                _generatedPeriodIds.Clear();
+                ResetPendingBatch();
 
                 foreach (var period in periods)
                 {
@@ -224,8 +231,13 @@ namespace Sati.ViewModels.Billing
                     SubmissionHistory.Add(item);
                 RebuildSubmissionBatches();
 
+                var progressedPeriodIds = SubmissionHistory
+                    .Where(item => HasExchangeStage(item.Stage))
+                    .Select(item => item.BillingPeriodId)
+                    .ToHashSet();
                 var submittedWithClaims = BillingPeriods
                     .Where(period => period.Status == BillingStatus.Submitted && period.Lines.Count > 0)
+                    .Where(period => !progressedPeriodIds.Contains(period.Id))
                     .ToList();
                 _settingInitialRange = true;
                 RangeStart = submittedWithClaims.Count == 0
@@ -265,7 +277,7 @@ namespace Sati.ViewModels.Billing
                 await _billingService.SubmitBillingPeriodAsync(CurrentActor(), selectedId);
                 HasLoaded = false;
                 await LoadAsync();
-                StatusMessage = "Billing period submitted and locked. It left the draft list and is ready in the 837P generation range.";
+                StatusMessage = "Billing period submitted and locked. It left the draft queue and moved into 837 staging.";
             }
             catch (Exception ex)
             {
@@ -286,8 +298,7 @@ namespace Sati.ViewModels.Billing
 
             var periods = GenerationPeriods.ToList();
             var isTest = IsTestMode;
-            var fingerprint = $"{MonthStart(RangeStart!.Value):yyyyMM}:{MonthStart(RangeEnd!.Value):yyyyMM}:" +
-                $"{isTest}:{string.Join(',', periods.Select(period => period.Id))}";
+            var fingerprint = BatchFingerprint(periods, isTest);
             if (!string.Equals(_pendingBatchFingerprint, fingerprint, StringComparison.Ordinal))
                 ResetPendingBatch(fingerprint);
 
@@ -312,13 +323,15 @@ namespace Sati.ViewModels.Billing
                         key);
                     if (isTest)
                         _generatedTestPeriodIds.Add(period.Id);
+                    _generatedPeriodIds.Add(period.Id);
                     completed++;
                 }
 
                 await RefreshSubmissionHistoryAsync();
+                RebuildGenerationPeriods();
                 StatusMessage = periods.Count == 1
-                    ? $"1 file saved: {LastGeneratedPath}"
-                    : $"{periods.Count} files saved. The last file is: {LastGeneratedPath}";
+                    ? $"1 staged period was captured in an 837P file and removed from staging. File saved: {LastGeneratedPath}"
+                    : $"{periods.Count} staged periods were captured in {periods.Count} 837P files and removed from staging. The last file is: {LastGeneratedPath}";
                 if (isTest && _billingService.SupportsMockClearinghouse)
                     StatusMessage += " They are ready for the mock clearinghouse below.";
                 ResetPendingBatch();
@@ -332,6 +345,17 @@ namespace Sati.ViewModels.Billing
                 var supportReference = ex is Sati.Data.Cloud.CloudApiException { CorrelationId.Length: > 0 } cloud
                     ? $" Support reference: {cloud.CorrelationId}."
                     : string.Empty;
+                try
+                {
+                    await RefreshSubmissionHistoryAsync();
+                    RebuildGenerationPeriods();
+                    if (IsRangeValid)
+                        _pendingBatchFingerprint = BatchFingerprint(GenerationPeriods, isTest);
+                }
+                catch (Exception refreshFailure)
+                {
+                    Debug.WriteLine($"Submission staging refresh after generation failure also failed: {refreshFailure.Message}");
+                }
                 StatusMessage = $"Could not generate {periodName}: {ex.Message}{supportReference}";
             }
             finally
@@ -406,13 +430,25 @@ namespace Sati.ViewModels.Billing
             if (_settingInitialRange)
                 return;
 
+            var previouslySelected = StagedPeriods
+                .Where(row => row.IsSelected)
+                .Select(row => row.Period.Id)
+                .ToHashSet();
             GenerationPeriods.Clear();
+            StagedPeriods.Clear();
+            BlockedSubmittedPeriods.Clear();
             if (IsRangeValid)
             {
                 var start = MonthStart(RangeStart!.Value);
                 var end = MonthStart(RangeEnd!.Value);
+                var progressedPeriodIds = SubmissionHistory
+                    .Where(item => HasExchangeStage(item.Stage))
+                    .Select(item => item.BillingPeriodId)
+                    .ToHashSet();
                 foreach (var period in BillingPeriods
                     .Where(period => period.Status == BillingStatus.Submitted && period.Lines.Count > 0)
+                    .Where(period => !progressedPeriodIds.Contains(period.Id) &&
+                        !_generatedPeriodIds.Contains(period.Id))
                     .Where(period =>
                     {
                         var month = new DateTime(period.Year, period.Month, 1);
@@ -422,21 +458,64 @@ namespace Sati.ViewModels.Billing
                     .ThenBy(period => period.Month)
                     .ThenBy(period => period.UserId))
                 {
-                    GenerationPeriods.Add(period);
+                    var row = new BillingGenerationStageRow(
+                        period,
+                        previouslySelected.Count == 0 || previouslySelected.Contains(period.Id),
+                        RebuildSelectedGenerationPeriods);
+                    if (period.Lines.All(line => line.IsReadyForSubmission) && !HasInvalidClaimAmounts(period))
+                        StagedPeriods.Add(row);
+                    else
+                        BlockedSubmittedPeriods.Add(row);
                 }
             }
 
-            ResetPendingBatch();
-            _generatedTestPeriodIds.Clear();
+            RebuildSelectedGenerationPeriods();
             OnPropertyChanged(nameof(IsRangeValid));
             OnPropertyChanged(nameof(CanGenerateEdi));
             OnPropertyChanged(nameof(RangeSummary));
+            OnPropertyChanged(nameof(HasStagedPeriods));
+            OnPropertyChanged(nameof(HasBlockedSubmittedPeriods));
             NotifyMockClearinghouseStateChanged();
         }
 
-        private List<BillingPeriod> MockSubmissionPeriods() => GenerationPeriods
+        private void RebuildSelectedGenerationPeriods()
+        {
+            GenerationPeriods.Clear();
+            foreach (var row in StagedPeriods.Where(row => row.IsSelected))
+                GenerationPeriods.Add(row.Period);
+            OnPropertyChanged(nameof(CanGenerateEdi));
+            OnPropertyChanged(nameof(RangeSummary));
+        }
+
+        private List<BillingPeriod> MockSubmissionPeriods() => BillingPeriods
             .Where(period => _generatedTestPeriodIds.Contains(period.Id))
             .ToList();
+
+        [RelayCommand]
+        private async Task ReturnToDraft(BillingGenerationStageRow? row)
+        {
+            if (row is null || IsGenerating || !BlockedSubmittedPeriods.Contains(row))
+                return;
+
+            try
+            {
+                IsGenerating = true;
+                StatusMessage = $"Returning {PeriodName(row.Period)} to the draft queue...";
+                await _billingService.ReturnBillingPeriodToDraftAsync(CurrentActor(), row.Period.Id);
+                HasLoaded = false;
+                await LoadAsync();
+                StatusMessage = $"{PeriodName(row.Period)} was returned to the draft queue. Its claim issues must be corrected before it can be submitted again.";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Return billing period to draft failed: {ex.Message}");
+                StatusMessage = $"Could not return the billing period to draft: {ex.Message}";
+            }
+            finally
+            {
+                IsGenerating = false;
+            }
+        }
 
         private async Task RefreshSubmissionHistoryAsync()
         {
@@ -466,10 +545,13 @@ namespace Sati.ViewModels.Billing
             DraftBillingPeriods.Clear();
             SelectedPeriodLines.Clear();
             GenerationPeriods.Clear();
+            StagedPeriods.Clear();
+            BlockedSubmittedPeriods.Clear();
             SubmissionHistory.Clear();
             SubmissionBatches.Clear();
             _allSubmissionBatches.Clear();
             _generatedTestPeriodIds.Clear();
+            _generatedPeriodIds.Clear();
             ResetPendingBatch();
             LastGeneratedPath = null;
             StatusMessage = null;
@@ -488,6 +570,9 @@ namespace Sati.ViewModels.Billing
             OnPropertyChanged(nameof(SelectedPeriodReadyCount));
             OnPropertyChanged(nameof(SelectedPeriodLineSummary));
             OnPropertyChanged(nameof(DraftPeriodSummary));
+            OnPropertyChanged(nameof(HasStagedPeriods));
+            OnPropertyChanged(nameof(HasBlockedSubmittedPeriods));
+            OnPropertyChanged(nameof(RangeSummary));
             NotifyMockClearinghouseStateChanged();
         }
 
@@ -496,6 +581,13 @@ namespace Sati.ViewModels.Billing
             _pendingEdiKeys.Clear();
             _pendingBatchFingerprint = fingerprint;
         }
+
+        private string BatchFingerprint(IEnumerable<BillingPeriod> periods, bool isTest) =>
+            $"{MonthStart(RangeStart!.Value):yyyyMM}:{MonthStart(RangeEnd!.Value):yyyyMM}:" +
+            $"{isTest}:{string.Join(',', periods.Select(period => period.Id))}";
+
+        private static bool HasExchangeStage(string stage) =>
+            Enum.TryParse<BillingSubmissionStage>(stage, out _);
 
         private void RebuildSubmissionBatches()
         {

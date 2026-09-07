@@ -650,6 +650,46 @@ public sealed class NotePipelineTests
     }
 
     [Fact]
+    public async Task ASubmittedPeriodReturnsToDraftOnlyBeforeExchangeHistoryExists()
+    {
+        await using var fixture = await PipelineFixture.CreateAsync();
+        var billing = fixture.BillingAs(fixture.AdminOne);
+        var noteId = await fixture.SeedNoteAsync(
+            fixture.PersonOneId, NoteStatus.Approved, fixture.BillableDate);
+        var line = await billing.CreateClaimLineAsync(noteId);
+        await billing.SubmitBillingPeriodAsync(line.BillingPeriodId);
+
+        await billing.ReturnBillingPeriodToDraftAsync(line.BillingPeriodId);
+
+        await using (var verification = fixture.Factory.CreateDbContext())
+        {
+            var returned = await verification.BillingPeriods.SingleAsync(
+                period => period.Id == line.BillingPeriodId);
+            Assert.Equal(BillingStatus.Draft, returned.Status);
+            Assert.Null(returned.SubmittedAt);
+            Assert.True(await verification.AuditEvents.AnyAsync(item =>
+                item.Action == "billing-period.returned-to-draft" &&
+                item.ResourceId == line.BillingPeriodId.ToString()));
+        }
+
+        await billing.SubmitBillingPeriodAsync(line.BillingPeriodId);
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            db.BillingSubmissionEvents.Add(new BillingSubmissionEvent
+            {
+                AgencyId = fixture.AdminOne.AgencyId,
+                BillingPeriodId = line.BillingPeriodId,
+                OccurredAtUtc = DateTime.UtcNow,
+                Stage = BillingSubmissionStage.Generated
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            billing.ReturnBillingPeriodToDraftAsync(line.BillingPeriodId));
+    }
+
+    [Fact]
     public async Task AnEmptyPeriodCannotBeSubmitted()
     {
         await using var fixture = await PipelineFixture.CreateAsync();
@@ -977,6 +1017,9 @@ public sealed class NotePipelineTests
 
             public Task SubmitBillingPeriodAsync(int billingPeriodId) =>
                 service.SubmitBillingPeriodAsync(actor, billingPeriodId);
+
+            public Task ReturnBillingPeriodToDraftAsync(int billingPeriodId) =>
+                service.ReturnBillingPeriodToDraftAsync(actor, billingPeriodId);
 
             public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync() =>
                 service.GetApprovedUnbilledNotesAsync(actor);

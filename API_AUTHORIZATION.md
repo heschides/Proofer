@@ -1,6 +1,6 @@
 # API authorization and tenant ownership
 
-*Route inventory mechanically reconciled 2026-09-06: 169 protected routes. The table matches
+*Route inventory mechanically reconciled 2026-09-06: 170 protected routes. The table matches
 `ApiSurface.Routes` after excluding health and anonymous login, and `ApiSurfaceTests` checks that
 manifest against live endpoint registration. Every route added, removed, or rescoped must be
 reflected here in the same change.*
@@ -192,6 +192,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Billing | `POST /billing/claim-lines` | Source note person's owning user's `AgencyId` | Billing permission; source note must be approved and in actor agency. The API validates the exact constructed frozen row with the shared 837P-readiness rule before saving it. |
 | Billing | `GET /billing/claim-lines/draft` | Billing period user's `AgencyId` | Billing permission; period owner joined to actor agency. |
 | Billing | `POST /billing/periods/{periodId}/submit` | Billing period user's `AgencyId` | Billing permission in same agency. |
+| Billing | `POST /billing/periods/{periodId}/return-to-draft` | Billing period user's `AgencyId` | Billing permission in same agency; only Submitted periods with no 837 generation or submission-event history may return. |
 | Billing | `POST /billing/periods/{periodId}/edi` | Billing period user's `AgencyId` | Billing permission; period, every source note/person, and generated file must remain in actor agency. |
 | Forms | `POST /forms/delete` | Form person's assigned user and agency | Own caseload only; all requested IDs must be owned. Refuses any form carrying append-only attestation history. |
 | Forms | `PUT /forms/{id}` | Form person's assigned user and agency | Own caseload only. Changes `OpenedDate`; any attempt to change `CompletedDate` is rejected because completion belongs to attestation/revocation. |

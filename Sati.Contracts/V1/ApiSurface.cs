@@ -171,6 +171,7 @@ public static class ApiSurface
         "POST /api/v1/billing/claim-lines",
         "POST /api/v1/billing/periods/{periodId:int}/edi",
         "POST /api/v1/billing/periods/{periodId:int}/mock-clearinghouse",
+        "POST /api/v1/billing/periods/{periodId:int}/return-to-draft",
         "POST /api/v1/billing/periods/{periodId:int}/responses",
         "POST /api/v1/billing/periods/{periodId:int}/submit",
         "POST /api/v1/billing/periods/{year:int}/{month:int}",

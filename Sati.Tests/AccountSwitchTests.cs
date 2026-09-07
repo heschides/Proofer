@@ -177,6 +177,7 @@ public sealed class AccountSwitchTests
         public Task<ClaimLine> CreateClaimLineAsync(AgencyActor actor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null) => throw new NotSupportedException();
         public Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId) => throw new NotSupportedException();
         public Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) => throw new NotSupportedException();
+        public Task ReturnBillingPeriodToDraftAsync(AgencyActor actor, int billingPeriodId) => throw new NotSupportedException();
         public Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor) => throw new NotSupportedException();
         public BillingValidationResult ValidateNoteForBilling(Note note) => throw new NotSupportedException();
         public Task SaveBillingConfigurationAsync(AgencyActor actor, BillingConfiguration configuration) => throw new NotSupportedException();

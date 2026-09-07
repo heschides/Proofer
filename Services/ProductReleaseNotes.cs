@@ -6,11 +6,26 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Visible claims and quiet installs";
+    public const string ReleaseName = "Claims in the right lane";
     public const string ReleaseDate = "September 6, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
+        new(
+            "Submitted claims now have a visible staging lane",
+            [
+                "Submit & Lock moves a billing period out of the draft queue and into a visible 837 staging grid.",
+                "Billing staff can choose staged periods for generation, and successfully generated periods leave staging immediately with a clear confirmation.",
+                "A submitted historical period that fails today's exact claim gate is quarantined before 837 generation and explains what must be corrected.",
+                "Before any exchange history exists, an authorized billing user can return a blocked period to Draft for correction; generated or transmitted work cannot be rewound."
+            ]),
+        new(
+            "The daily Demo refresh repairs synthetic claim snapshots",
+            [
+                "Synthetic Demo claims now receive complete billing identifiers, procedure details, units, charges, place of service, diagnosis values, and matching frozen snapshots.",
+                "The deliberately incomplete diagnosis teaching profile receives a fictional F89 billing fallback so the lesson remains visible without breaking the claims pipeline.",
+                "The refresh verifies every repaired claim after writing it and fails visibly if an invalid synthetic claim remains."
+            ]),
         new(
             "Billing shows what will be submitted",
             [

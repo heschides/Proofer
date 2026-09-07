@@ -532,6 +532,9 @@ public sealed class CloudBillingService(CloudApiClient api) : IBillingService
     public async Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId) =>
         _ = await api.PostAsync<object, BillingPeriodDto>($"/api/v1/billing/periods/{billingPeriodId}/submit", new { });
 
+    public async Task ReturnBillingPeriodToDraftAsync(AgencyActor actor, int billingPeriodId) =>
+        _ = await api.PostAsync<object, BillingPeriodDto>($"/api/v1/billing/periods/{billingPeriodId}/return-to-draft", new { });
+
     public async Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor)
     {
         var candidates = await api.GetAsync<List<BillingCandidateDto>>("/api/v1/billing/candidates");

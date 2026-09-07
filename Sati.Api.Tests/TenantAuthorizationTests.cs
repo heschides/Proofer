@@ -107,11 +107,12 @@ public sealed class TenantAuthorizationTests
                 new CreateClaimLineRequest(501, false, null)),
             () => new(HttpMethod.Get, "/api/v1/billing/claim-lines/draft?userId=12"),
             () => new(HttpMethod.Post, "/api/v1/billing/periods/1101/submit"),
+            () => new(HttpMethod.Post, "/api/v1/billing/periods/1101/return-to-draft"),
             () => JsonRequest(HttpMethod.Post, "/api/v1/billing/periods/1101/edi",
                 new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")))
         ];
 
-        Assert.Equal(14, requests.Length);
+        Assert.Equal(15, requests.Length);
         foreach (var createRequest in requests)
         {
             using var request = createRequest();
@@ -241,7 +242,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.3.1", release["releaseVersion"]);
+        Assert.Equal("1.3.2", release["releaseVersion"]);
     }
 
     [Fact]
@@ -776,6 +777,50 @@ public sealed class TenantAuthorizationTests
             new GenerateEdiRequest(true, Guid.NewGuid().ToString("N")));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task BillingPeriodCanReturnToDraftOnlyBeforeExchangeHistoryExists()
+    {
+        var periodId = await _factory.CreateReturnableSubmittedBillingPeriodAsync();
+        using var client = await _factory.CreateAuthenticatedClientAsync("admin-one");
+        var auditBefore = await _factory.GetAuditEventsAsync("billing-period.returned-to-draft");
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{periodId}/return-to-draft",
+            new { });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var period = await response.Content.ReadFromJsonAsync<BillingPeriodDto>();
+        Assert.Equal("Draft", period!.Status);
+        Assert.Null(period.SubmittedAt);
+        var auditAfter = await _factory.GetAuditEventsAsync("billing-period.returned-to-draft");
+        Assert.Equal(auditBefore.Count + 1, auditAfter.Count);
+        Assert.Single(auditAfter, item => item.ResourceId == periodId.ToString());
+
+        var retry = await client.PostAsJsonAsync(
+            $"/api/v1/billing/periods/{periodId}/return-to-draft",
+            new { });
+        Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+    }
+
+    [Fact]
+    public async Task BillingPeriodWithExchangeHistoryCannotReturnToDraft()
+    {
+        using var ownAgency = await _factory.CreateAuthenticatedClientAsync("admin-two");
+        using var otherAgency = await _factory.CreateAuthenticatedClientAsync("admin-one");
+
+        var blocked = await ownAgency.PostAsJsonAsync(
+            "/api/v1/billing/periods/1202/return-to-draft",
+            new { });
+        var hidden = await otherAgency.PostAsJsonAsync(
+            "/api/v1/billing/periods/1202/return-to-draft",
+            new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+        Assert.Equal("billing_period_cannot_return_to_draft",
+            (await blocked.Content.ReadFromJsonAsync<ApiErrorDto>())!.Code);
+        Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
     }
 
     [Fact]

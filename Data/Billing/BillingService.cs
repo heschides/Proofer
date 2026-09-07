@@ -5,6 +5,7 @@ using Sati.Models;
 using Sati.Models.Billing;
 using Sati.Contracts.V1;
 using Sati.Helpers;
+using System.Data;
 
 namespace Sati.Services.Billing
 {
@@ -392,6 +393,42 @@ namespace Sati.Services.Billing
                               period.Lines.Count, item.OccurredAtUtc, item.Stage.ToString(),
                               item.Reference, item.ResponseType, item.ResponseCode,
                               item.Explanation, item.IsSynthetic)).ToListAsync();
+        }
+
+        public async Task ReturnBillingPeriodToDraftAsync(AgencyActor suppliedActor, int billingPeriodId)
+        {
+            await using var context = _contextFactory.CreateDbContext();
+            var actor = await ValidateBillingActorAsync(context, suppliedActor);
+            await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            var period = await context.BillingPeriods
+                .SingleOrDefaultAsync(candidate => candidate.Id == billingPeriodId &&
+                    context.Users.Any(user => user.Id == candidate.UserId && user.AgencyId == actor.AgencyId))
+                ?? throw new InvalidOperationException($"Billing period {billingPeriodId} was not found in your agency.");
+
+            var hasExchangeHistory = await context.EdiGenerations.AsNoTracking()
+                .AnyAsync(item => item.AgencyId == actor.AgencyId && item.BillingPeriodId == billingPeriodId) ||
+                await context.BillingSubmissionEvents.AsNoTracking()
+                    .AnyAsync(item => item.AgencyId == actor.AgencyId && item.BillingPeriodId == billingPeriodId);
+            var errors = BillingPeriodWorkflow.ValidateReturnToDraft(
+                period.Status == BillingStatus.Submitted,
+                hasExchangeHistory);
+            if (errors.Count > 0)
+                throw new InvalidOperationException(string.Join(" ", errors));
+
+            period.Status = BillingStatus.Draft;
+            period.SubmittedAt = null;
+            LocalAuditTrail.Record(context, actor, LocalAuditActions.BillingPeriodReturnedToDraft,
+                "BillingPeriod", billingPeriodId);
+            try
+            {
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new InvalidOperationException(
+                    "The billing period changed while it was being returned to draft.");
+            }
         }
 
         public Task<MockClearinghouseResultDto> SubmitToMockClearinghouseAsync(

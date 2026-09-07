@@ -849,29 +849,40 @@ SET CreatedAt=DATEADD(day,-30,@Today), UpdatedAt=DATEADD(day,-10,@Today),
 WHERE Status='Approved' AND DocumentJson LIKE '%Confirm current waiver-service authorizations%';
 "@ @{ Today=$today } | Out-Null
 
-    # Synthetic-only repair: old Demo claim lines predated frozen snapshots and rates.
-    # The live application still fails closed; only this identity-checked seed tool may rebuild them.
+    # Synthetic-only repair: old Demo claim lines predated today's exact 837 readiness gate.
+    # Teaching cases keep their deliberately incomplete live profiles, but their already-created
+    # fictional claims receive self-contained synthetic values. The live application still fails
+    # closed; only this identity-checked canonical seed tool may rebuild these Demo snapshots.
     Invoke-SeedNonQuery @"
 UPDATE claim
 SET Units = CASE WHEN claim.Units IS NULL OR claim.Units<=0 THEN 1 ELSE claim.Units END,
     ChargeAmount = CASE WHEN claim.ChargeAmount<=0 THEN
         ROUND((CASE WHEN claim.Units IS NULL OR claim.Units<=0 THEN 1 ELSE claim.Units END) * agency.BillingUnitRate,2)
         ELSE claim.ChargeAmount END,
-    ClaimSnapshotJson = CASE WHEN NULLIF(LTRIM(RTRIM(claim.ClaimSnapshotJson)),'') IS NULL THEN
+    ProcedureCode = COALESCE(NULLIF(LTRIM(RTRIM(agency.BillingProcedureCode)),''),'G9012'),
+    ProcedureModifier = COALESCE(NULLIF(LTRIM(RTRIM(agency.BillingModifier)),''),'HI'),
+    ClientMaineCareId = COALESCE(NULLIF(LTRIM(RTRIM(person.MaineCareId)),''),CONCAT('DEMOCLAIM',person.Id)),
+    RenderingProviderNpi = agency.Npi,
+    DiagnosisCode = COALESCE(NULLIF(UPPER(LTRIM(RTRIM(person.DiagnosisCode))),''),'F89'),
+    PlaceOfService = CASE WHEN person.PlaceOfService BETWEEN 1 AND 99 THEN person.PlaceOfService ELSE 11 END,
+    ClaimSnapshotJson =
         (SELECT 1 AS [Version], agency.Id AS AgencyId, person.Id AS PersonId,
-                person.FirstName AS SubscriberFirstName, person.LastName AS SubscriberLastName,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.FirstName)),''),CONCAT('Hero ',person.Id)) AS SubscriberFirstName,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.LastName)),''),'McDemo') AS SubscriberLastName,
                 person.BirthDate AS SubscriberBirthDate,
                 CASE person.Gender WHEN 1 THEN 'M' WHEN 2 THEN 'F' ELSE 'U' END AS SubscriberGenderCode,
-                person.MaineCareId AS SubscriberMemberId, person.BillingStreet AS SubscriberStreet,
-                person.BillingCity AS SubscriberCity, person.BillingState AS SubscriberState,
-                person.BillingZip AS SubscriberZip, agency.Name AS BillingProviderName,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.MaineCareId)),''),CONCAT('DEMOCLAIM',person.Id)) AS SubscriberMemberId,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.BillingStreet)),''),'10 Demo Claim Lane') AS SubscriberStreet,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.BillingCity)),''),'Augusta') AS SubscriberCity,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.BillingState)),''),'ME') AS SubscriberState,
+                COALESCE(NULLIF(LTRIM(RTRIM(person.BillingZip)),''),'04330') AS SubscriberZip,
+                agency.Name AS BillingProviderName,
                 agency.Npi AS BillingProviderNpi, agency.TaxId AS BillingProviderTaxId,
                 agency.Street AS BillingProviderStreet, agency.City AS BillingProviderCity,
                 agency.State AS BillingProviderState, agency.Zip AS BillingProviderZip,
                 agency.EdiSubmitterId AS SubmitterId, agency.EdiContactName AS SubmitterContactName,
                 agency.EdiContactPhone AS SubmitterContactPhone, agency.EdiPayerName AS PayerName,
                 agency.EdiPayerId AS PayerId FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
-        ELSE claim.ClaimSnapshotJson END
 FROM dbo.ClaimLines claim
 JOIN dbo.BillingPeriods period ON period.Id=claim.BillingPeriodId
 JOIN dbo.Users owner ON owner.Id=period.UserId AND owner.AgencyId=2
@@ -920,7 +931,17 @@ SELECT
               OR NULLIF(p.PrimaryCareProvider,'') IS NULL OR NULLIF(p.HealthcareSystemName,'') IS NULL)) AS IncompleteOrdinaryClients,
     (SELECT COUNT(*) FROM dbo.ClaimLines claim JOIN dbo.BillingPeriods period ON period.Id=claim.BillingPeriodId
        JOIN dbo.Users u ON u.Id=period.UserId WHERE u.AgencyId=2
-       AND (claim.Units IS NULL OR claim.Units<=0 OR claim.ChargeAmount<=0 OR NULLIF(LTRIM(RTRIM(claim.ClaimSnapshotJson)),'') IS NULL)) AS UnreadyClaims;
+       AND (claim.Units IS NULL OR claim.Units<=0 OR claim.ChargeAmount<=0
+            OR NULLIF(LTRIM(RTRIM(claim.ProcedureCode)),'') IS NULL
+            OR NULLIF(LTRIM(RTRIM(claim.ClientMaineCareId)),'') IS NULL
+            OR NULLIF(LTRIM(RTRIM(claim.RenderingProviderNpi)),'') IS NULL
+            OR NULLIF(LTRIM(RTRIM(claim.DiagnosisCode)),'') IS NULL
+            OR claim.PlaceOfService NOT BETWEEN 1 AND 99
+            OR ISJSON(claim.ClaimSnapshotJson)<>1
+            OR NULLIF(JSON_VALUE(CASE WHEN ISJSON(claim.ClaimSnapshotJson)=1 THEN claim.ClaimSnapshotJson ELSE '{}' END,'$.SubscriberMemberId'),'') IS NULL
+            OR NULLIF(JSON_VALUE(CASE WHEN ISJSON(claim.ClaimSnapshotJson)=1 THEN claim.ClaimSnapshotJson ELSE '{}' END,'$.BillingProviderNpi'),'') IS NULL
+            OR claim.ClientMaineCareId<>JSON_VALUE(CASE WHEN ISJSON(claim.ClaimSnapshotJson)=1 THEN claim.ClaimSnapshotJson ELSE '{}' END,'$.SubscriberMemberId')
+            OR claim.RenderingProviderNpi<>JSON_VALUE(CASE WHEN ISJSON(claim.ClaimSnapshotJson)=1 THEN claim.ClaimSnapshotJson ELSE '{}' END,'$.BillingProviderNpi'))) AS UnreadyClaims;
 "@
 $reader = $checkCommand.ExecuteReader()
 $result = [System.Data.DataTable]::new()

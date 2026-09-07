@@ -3316,3 +3316,16 @@ all four themes, and primary-button foreground/background pairs must meet at lea
 **Rejected:** wallpaper behind form content; raster textures that blur under scaling and enlarge
 the installer; making the motif carry status meaning; and adding a decorative dictionary that
 inherits missing colors from whichever theme happened to be loaded before it.
+
+## 2026-09-06 — 837 staging is derived from readiness and history, not status alone
+
+`Submitted` means a period was locked; it does not by itself prove that a historical row satisfies
+today's 837 rules or that no file has already been generated. The generation staging area is
+therefore derived from all three facts: Submitted status, exact frozen-row readiness, and absence
+of exchange history. This avoids adding a second persisted “staged” flag that could disagree with
+the authoritative claim and event records.
+
+A pre-exchange period may be returned to Draft, with an audit event, when it was locked by mistake
+or exposes a legacy defect. The transition is rejected after any generation/submission event and
+is serialized against 837 generation. Rewinding a period after external-history evidence exists
+was rejected because it would make an immutable financial lifecycle appear not to have happened.

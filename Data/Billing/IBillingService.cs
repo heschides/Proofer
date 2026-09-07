@@ -13,6 +13,7 @@ namespace Sati.Data.Billing
         Task<ClaimLine> CreateClaimLineAsync(AgencyActor actor, int noteId, bool isComplianceException = false, string? complianceExceptionReason = null);
         Task<IEnumerable<ClaimLine>> GetUnbilledClaimLinesAsync(AgencyActor actor, int userId);
         Task SubmitBillingPeriodAsync(AgencyActor actor, int billingPeriodId);
+        Task ReturnBillingPeriodToDraftAsync(AgencyActor actor, int billingPeriodId);
         Task<IEnumerable<Note>> GetApprovedUnbilledNotesAsync(AgencyActor actor);
         BillingValidationResult ValidateNoteForBilling(Note note);
         Task<BillingConfiguration> GetBillingConfigurationAsync(AgencyActor actor);

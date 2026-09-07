@@ -3,6 +3,7 @@ using Sati.Data;
 using Sati.Helpers;
 using Sati.Models.Billing;
 using System.IO;
+using System.Data;
 
 namespace Sati.Edi
 {
@@ -30,6 +31,7 @@ namespace Sati.Edi
             var actor = _sessionService.CurrentUser
                 ?? throw new InvalidOperationException("An authenticated user is required to generate EDI.");
             await using var context = _contextFactory.CreateDbContext();
+            await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
             var previous = await context.EdiGenerations.AsNoTracking().SingleOrDefaultAsync(generation =>
                 generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.Id &&
@@ -99,9 +101,11 @@ namespace Sati.Edi
             try
             {
                 await context.SaveChangesAsync();
+                await transaction.CommitAsync();
             }
             catch (DbUpdateException)
             {
+                await transaction.RollbackAsync();
                 context.ChangeTracker.Clear();
                 var completed = await context.EdiGenerations.AsNoTracking().SingleOrDefaultAsync(generation =>
                     generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.Id &&

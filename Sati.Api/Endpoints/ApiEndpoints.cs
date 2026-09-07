@@ -5074,6 +5074,62 @@ internal static partial class ApiEndpoints
             return Results.Ok(ContractMapper.ToBillingPeriod(period, selected.DisplayName));
         });
 
+        api.MapPost("/billing/periods/{periodId:int}/return-to-draft", async Task<IResult> (
+            int periodId,
+            ClaimsPrincipal principal,
+            ApiDbContext db,
+            AuditTrail auditTrail,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasBillingPermissions)
+                return Results.Forbid();
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
+            var selected = await (from candidate in db.BillingPeriods
+                                  join owner in db.Users on candidate.UserId equals owner.Id
+                                  where candidate.Id == periodId && owner.AgencyId == actor.AgencyId
+                                  select new { Period = candidate, owner.DisplayName })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (selected is null)
+                return Results.NotFound();
+
+            var hasExchangeHistory = await db.EdiGenerations.AsNoTracking().AnyAsync(item =>
+                    item.AgencyId == actor.AgencyId && item.BillingPeriodId == periodId,
+                    cancellationToken) ||
+                await db.BillingSubmissionEvents.AsNoTracking().AnyAsync(item =>
+                    item.AgencyId == actor.AgencyId && item.BillingPeriodId == periodId,
+                    cancellationToken);
+            var errors = BillingPeriodWorkflow.ValidateReturnToDraft(
+                selected.Period.Status == 1,
+                hasExchangeHistory);
+            if (errors.Count > 0)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "billing_period_cannot_return_to_draft",
+                    string.Join(" ", errors),
+                    string.Empty));
+            }
+
+            selected.Period.Status = 0;
+            selected.Period.SubmittedAt = null;
+            auditTrail.Record(actor, AuditActions.BillingPeriodReturnedToDraft,
+                "BillingPeriod", periodId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new ApiErrorDto(
+                    "billing_period_changed",
+                    "The billing period changed while it was being returned to draft.",
+                    string.Empty));
+            }
+            return Results.Ok(ContractMapper.ToBillingPeriod(selected.Period, selected.DisplayName));
+        });
+
         api.MapPost("/billing/periods/{periodId:int}/edi", async Task<IResult> (
             int periodId,
             GenerateEdiRequest request,
@@ -5093,6 +5149,8 @@ internal static partial class ApiEndpoints
                 });
             }
             var normalizedKey = parsedKey.ToString("N");
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
             var previous = await db.EdiGenerations.AsNoTracking().SingleOrDefaultAsync(generation =>
                 generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.UserId &&
                 generation.IdempotencyKey == normalizedKey, cancellationToken);
@@ -5166,9 +5224,11 @@ internal static partial class ApiEndpoints
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateException exception) when (IsDuplicateEdiGeneration(exception))
             {
+                await transaction.RollbackAsync(cancellationToken);
                 db.ChangeTracker.Clear();
                 var completed = await db.EdiGenerations.AsNoTracking().SingleAsync(generation =>
                     generation.AgencyId == actor.AgencyId && generation.ActorUserId == actor.UserId &&
