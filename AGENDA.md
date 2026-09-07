@@ -65,8 +65,10 @@ events. The new API route requires a matching Demo API and desktop build before 
       `Sati Desktop`. Each final executable matches its published checksum file, and no temporary
       distribution file remains. The generated Sati installers themselves are not assumed to be
       code-signed.
-- [ ] Final release evidence is committed and pushed; the working tree is clean and local
-      `master` equals `origin/master`.
+- [x] Evidence commit `e3591dbcbd1c0cb193f5c4588e79d17c735b7055` is pushed; this checked
+      ledger entry indexes that commit. Final verification confirms a clean working tree and local
+      `master` equal to `origin/master`. No Production deployment, database migration, firewall
+      change, or branch deletion belongs to or was performed by this release.
 
 **Branches.** No branch was merged or deleted. `video-conferencing-design` is retained because it
 contains Claude Code's unique ACS design work; `team-chat-design` and `second-machine-setup` remain
