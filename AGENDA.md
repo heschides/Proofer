@@ -36,8 +36,29 @@ console flashes with a branded progress surface, and adds four decorative but wo
       audit covered all 13 projects and found no known vulnerable packages. The changed-source
       secret scan found no credential or key patterns, and the model-consistency test reports no
       pending EF model change.
-- [ ] Source commit/push, Demo API publication and health/contract checks, exact-version installer
-      acceptance, distribution publication, and the final evidence commit are pending.
+- [x] Verified source commit `d5dd80a` is on `master` and `origin/master`. Demo API deployment
+      `bb0082d0db7d4adabb27badf9ca57cfa` succeeded from the 8,788,056-byte 32-bit
+      framework-dependent package with SHA-256
+      `c958b605f6622d27ab6d52dfc668fe80b4c1f01f06708e45055f9c370a39abc9`.
+      The package reports product version `1.3.1+d5dd80a6787b0d489a68251f53888f02e47ef36a`,
+      contains no private settings or key files, and retains both reconciliation WebJob files.
+      Live and ready are healthy; `/health/version` reports Sati.Api 1.3.1 and contract revision
+      `2AA88BC58832`, equal to the desktop contract. Authenticated readiness checks were not run
+      because designated synthetic Admin credentials were not supplied to this release process.
+- [x] Both new installers passed exact-version acceptance and were published with matching checksum
+      files without overwriting prior releases. The Demo installer passed five responsive launches,
+      normal closes, version, hidden-script handoff, payload, and cleanup checks; it is 101,314,560
+      bytes with SHA-256
+      `497c5f813270f6b6081136728dee40e884ce35572d6583ccddbb2aba34b73ed6` in
+      `SatiLogica Demo Files`. The Local installer passed version, Microsoft-signed embedded LocalDB,
+      integrated-security, hidden-script payload, and cleanup checks; it is 203,626,248 bytes with
+      SHA-256 `e2c751770965f7cf11889ed423ce4182c207804626a79f136238c37928d19b68`
+      in `Sati Desktop`. The shared branded Demo and Local progress surfaces each passed a visible
+      open/update/close lifecycle check. Final copies and checksum contents were independently
+      reverified; no temporary distribution file remains. The generated Sati installers themselves
+      are not assumed to be code-signed.
+- [ ] The final evidence commit is pending. No Production API deployment, Production migration,
+      Demo migration, or firewall change belongs to or was performed by this release.
 
 **Branches.** `team-chat-design`, `second-machine-setup`, and
 `origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
