@@ -57,8 +57,9 @@ console flashes with a branded progress surface, and adds four decorative but wo
       open/update/close lifecycle check. Final copies and checksum contents were independently
       reverified; no temporary distribution file remains. The generated Sati installers themselves
       are not assumed to be code-signed.
-- [ ] The final evidence commit is pending. No Production API deployment, Production migration,
-      Demo migration, or firewall change belongs to or was performed by this release.
+- [x] Evidence commit `a59990b` is pushed; this checked ledger entry indexes that commit. No
+      Production API deployment, Production migration, Demo migration, or firewall change belongs
+      to or was performed by this release.
 
 **Branches.** `team-chat-design`, `second-machine-setup`, and
 `origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
