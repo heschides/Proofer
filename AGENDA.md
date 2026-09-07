@@ -34,15 +34,44 @@ events. The new API route requires a matching Demo API and desktop build before 
       desktop/domain, 494 API integration/authorization, 118 signature, 8 portal, and 4 Carika
       tests (2,085 total). The optional local-AI competence test was skipped because its explicit
       on-device authorization flag is absent. The Demo seed script also passed PowerShell parsing.
-- [ ] Verified source commit is pushed to `master` and `origin/master` before artifacts are built.
-- [ ] Demo API 1.3.2 is deployed from that source commit and reports live, ready, release 1.3.2,
-      and the expected client/API contract revision.
-- [ ] The existing Demo Refresh Function is updated from that source commit and its deployment is
-      verified without infrastructure, identity, settings, firewall, or schema changes.
-- [ ] Demo and Local installers are built, accepted, published without overwriting prior files,
-      and re-verified against their checksums in the two exact distribution folders.
+      The 13-project dependency audit found no known vulnerable packages, and the changed-source
+      credential scan found no credential or private-key pattern.
+- [x] Source commit `224d6a17e4dc5aa222faeb5ba27ffe8fb3cead60` is pushed to `master` and
+      `origin/master`. A concurrent design task switched the shared checkout immediately before
+      the first commit, so the release patch was safely cherry-picked onto `master` without its
+      unrelated ACS design document; no force operation or history rewrite was used.
+- [x] Demo API deployment `a5a903c9faf842a68954b205a5c8b830` succeeded from the pushed source
+      commit. `artifacts/SatiApi-1.3.2-fx-x86.zip` is 8,790,055 bytes with SHA-256
+      `5603D8D4811B15954203DE0CCDD63594013E2F95E6934208710218B5009AF318`, contains
+      68 forward-slash entries, no private settings or key files, and both reconciliation WebJob
+      files. Packaged `Sati.Api.dll` reports file version 1.3.2.0 and product version
+      `1.3.2+224d6a17e4dc5aa222faeb5ba27ffe8fb3cead60`. Live and ready are healthy;
+      `/health/version` reports Sati.Api 1.3.2 and contract revision `6426D2D85A15`, equal to the
+      desktop contract. Authenticated readiness was skipped because designated synthetic Admin
+      credentials were not supplied to the release process.
+- [x] Existing Demo Refresh Function deployment `7fdbcdb7b9b947bb94f8fa69b6ca55e3` succeeded
+      from the same source commit. Its six-entry package is 21,864 bytes with SHA-256
+      `687C850923016B64AEC782D6C0B792F375E88F68C86DD4E90C1F13FC7E0E4850`; it contains
+      the repaired seed script and no private settings or key files. The Function App remains
+      running, its managed-identity ID is unchanged, and `RefreshCaseload` is present and enabled.
+      No infrastructure, identity, settings, firewall, database, or schema change was performed.
+- [x] Both new installers passed acceptance and were published without overwriting prior files.
+      Demo passed five responsive launches, normal closes, exact version, payload, and cleanup; it
+      is 101,330,944 bytes with SHA-256
+      `47F4CFBEC638B497F1BD4197CCE87C2158EC2683E8FC6FD33126853C34D647E5` in
+      `SatiLogica Demo Files`. Local passed exact version, Microsoft-signed embedded LocalDB,
+      integrated security, payload, and cleanup; it is 203,636,488 bytes with SHA-256
+      `65CDE53216D5ED06C59F3FAAA5593F5B8B061723EEB048142CBAE54F24522BC5` in
+      `Sati Desktop`. Each final executable matches its published checksum file, and no temporary
+      distribution file remains. The generated Sati installers themselves are not assumed to be
+      code-signed.
 - [ ] Final release evidence is committed and pushed; the working tree is clean and local
       `master` equals `origin/master`.
+
+**Branches.** No branch was merged or deleted. `video-conferencing-design` is retained because it
+contains Claude Code's unique ACS design work; `team-chat-design` and `second-machine-setup` remain
+because they also contain unique work. The fully merged `claude/cool-jang-f6b3c4` branch remains
+because its linked worktree is still checked out.
 
 ## Release 1.3.1 — 2026-09-06
 
