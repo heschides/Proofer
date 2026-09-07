@@ -66,7 +66,9 @@ reads Local Production.
       bytes with SHA-256 `85F0249C92BBC69AB1602F84281905F82FE61B98144AD7BA2EB808E2E914724A`
       in `Sati Desktop`. Both published executables and checksum files exactly match their accepted
       artifacts, and no temporary distribution file remains.
-- [ ] Record and push final evidence; verify a clean tree equal to `origin/master`.
+- [x] Evidence commit `9e48cafd1acbcf1185271fe35cb6e391b6ae7bf6` is pushed; this checked
+      ledger entry indexes that commit. Final verification confirms a clean working tree and local
+      `master` equal to `origin/master`.
 
 **Branches.** No branch is eligible for merge or deletion. `video-conferencing-design` contains
 the unrelated ACS design work identified by the user; `team-chat-design`, `second-machine-setup`,
