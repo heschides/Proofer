@@ -6,11 +6,30 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Private handoffs and test claims";
+    public const string ReleaseName = "Visible claims and quiet installs";
     public const string ReleaseDate = "September 6, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
+        new(
+            "Billing shows what will be submitted",
+            [
+                "The Billing Period selector is now a focused draft queue. After Submit & Lock succeeds, that period leaves the selector and moves forward to 837P generation and Submission Home.",
+                "A claim line grid beside the selector shows the client, service date, units, charge, procedure, diagnosis, readiness, and the exact correction needed before submission.",
+                "The preview, Submit & Lock action, and 837P generator now use the same exact frozen-claim readiness rule, so a line that cannot generate is stopped and explained earlier."
+            ]),
+        new(
+            "Setup stays out of the command window",
+            [
+                "Demo and Local installers now keep their internal PowerShell work hidden and show one Sati-branded progress window instead.",
+                "If Microsoft LocalDB is missing, Windows may still show its normal permission prompt; that security prompt is intentional."
+            ]),
+        new(
+            "Four new themes",
+            [
+                "Settings now includes Ironworks Matte, Paisley, Art Nouveau, and Mid-Century Modern.",
+                "Their geometric and decorative patterns stay on the outer shell and navigation, while forms, notes, and tables keep calm readable surfaces."
+            ]),
         new(
             "Account changes now protect the whole workspace",
             [

@@ -23,6 +23,30 @@
         public bool IsComplianceException { get; set; }
         public string? ComplianceExceptionReason { get; set; }
 
+        // Server/local readiness projection for the billing submission preview. These values are
+        // derived from the immutable snapshot and never become persistence columns.
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string ClientName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public IReadOnlyList<string> ReadinessErrors { get; set; } = [];
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public bool IsReadyForSubmission => ReadinessErrors.Count == 0;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string ReadinessStatus => IsReadyForSubmission ? "Ready" : "Needs correction";
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string ReadinessSummary => IsReadyForSubmission
+            ? "Ready"
+            : string.Join("; ", ReadinessErrors);
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string ProcedureDisplay => string.IsNullOrWhiteSpace(ProcedureModifier)
+            ? ProcedureCode
+            : $"{ProcedureCode}-{ProcedureModifier}";
+
         public BillingPeriod BillingPeriod { get; set; } = null!;
         public Note Note { get; set; } = null!;
     }

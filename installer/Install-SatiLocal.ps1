@@ -1,6 +1,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+$installerProgress = $null
 
 function Show-InstallerMessage {
     param(
@@ -19,6 +20,12 @@ function Show-InstallerMessage {
 
 try {
     $sourceRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
+    $progressScript = Join-Path $sourceRoot 'InstallerProgress.ps1'
+    if (-not (Test-Path -LiteralPath $progressScript -PathType Leaf)) {
+        throw 'The installer is missing its progress-window support.'
+    }
+    . $progressScript
+
     $manifestPath = Join-Path $sourceRoot 'payload-manifest.txt'
     $versionPath = Join-Path $sourceRoot 'installer-version.txt'
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
@@ -27,6 +34,12 @@ try {
     }
 
     $isTest = $env:SATI_LOCAL_INSTALLER_TEST -eq '1'
+    if (-not $isTest) {
+        $installerProgress = Start-SatiInstallerProgress `
+            -Title 'Sati Setup' `
+            -Heading 'Installing Sati' `
+            -Detail 'Checking your Windows and LocalDB setup...'
+    }
 
     $localDbMsi = Join-Path $sourceRoot 'SqlLocalDB.msi'
     if (-not (Test-Path -LiteralPath $localDbMsi -PathType Leaf)) {
@@ -35,6 +48,9 @@ try {
 
     $localDbCommand = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
     if (-not $isTest -and $null -eq $localDbCommand) {
+        Update-SatiInstallerProgress $installerProgress `
+            -Heading 'Preparing LocalDB' `
+            -Detail 'Windows may ask permission to install the Microsoft database prerequisite.'
         $msi = Start-Process `
             -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') `
             -ArgumentList @('/i', ('"' + $localDbMsi + '"'), '/qn', '/norestart') `
@@ -59,6 +75,9 @@ try {
     }
 
     if (-not $isTest) {
+        Update-SatiInstallerProgress $installerProgress `
+            -Heading 'Preparing your workspace' `
+            -Detail 'Starting the local database for Sati...'
         & $localDbCommand.Source info MSSQLLocalDB *> $null
         if ($LASTEXITCODE -ne 0) {
             & $localDbCommand.Source create MSSQLLocalDB *> $null
@@ -100,6 +119,9 @@ try {
         exit 2
     }
 
+    Update-SatiInstallerProgress $installerProgress `
+        -Heading 'Installing Sati' `
+        -Detail 'Copying the application to your Windows account...'
     New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
     $payloadFiles = @(Get-Content -LiteralPath $manifestPath | Where-Object {
         -not [string]::IsNullOrWhiteSpace($_)
@@ -131,6 +153,9 @@ try {
     }
 
     if (-not $isTest) {
+        Update-SatiInstallerProgress $installerProgress `
+            -Heading 'Almost ready' `
+            -Detail 'Creating shortcuts and finishing the installation...'
         $shell = New-Object -ComObject WScript.Shell
         $startMenuFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'SatiLogica'
         New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
@@ -151,8 +176,9 @@ try {
         $desktopShortcut.Save()
 
         $uninstaller = Join-Path $installRoot 'Uninstall-SatiLocal.ps1'
-        $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $uninstallCommand = "`"$windowsPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`""
+        $hiddenLauncher = Join-Path $installRoot 'Run-PowerShellHidden.vbs'
+        $windowsScriptHost = Join-Path $env:SystemRoot 'System32\wscript.exe'
+        $uninstallCommand = "`"$windowsScriptHost`" //B `"$hiddenLauncher`" Uninstall-SatiLocal.ps1"
         $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SatiLocal'
         New-Item -Path $uninstallKey -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'Sati (LocalDB)' -PropertyType String -Force | Out-Null
@@ -169,10 +195,16 @@ try {
             Start-Process -FilePath $iconRefresh -ArgumentList '-show' -WindowStyle Hidden -Wait
         }
 
+        Stop-SatiInstallerProgress $installerProgress
+        $installerProgress = $null
         Start-Process -FilePath $appExe -WorkingDirectory $installRoot
     }
 }
 catch {
+    if ($null -ne $installerProgress) {
+        Stop-SatiInstallerProgress $installerProgress
+        $installerProgress = $null
+    }
     if ($env:SATI_LOCAL_INSTALLER_TEST -eq '1' -and
         -not [string]::IsNullOrWhiteSpace($env:SATI_LOCAL_INSTALL_ROOT)) {
         New-Item -ItemType Directory -Path $env:SATI_LOCAL_INSTALL_ROOT -Force | Out-Null
@@ -185,4 +217,9 @@ catch {
         -Title 'Sati LocalDB installation failed' `
         -Icon 16
     exit 1
+}
+finally {
+    if ($null -ne $installerProgress) {
+        Stop-SatiInstallerProgress $installerProgress
+    }
 }

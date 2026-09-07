@@ -1,5 +1,49 @@
 # Sati — Refactor Agenda
 
+## Release 1.3.1 — 2026-09-06
+
+"Visible claims and quiet installs." This release makes the exact frozen billing rows visible before
+submission, keeps submitted periods moving forward through the 837P workflow, replaces installer
+console flashes with a branded progress surface, and adds four decorative but work-safe themes.
+
+- [x] Make the Billing Period selector an actionable draft queue: show only claim-bearing draft
+      periods there, and remove a period immediately after it is submitted and locked while keeping
+      it available in the 837 generation range and Submission Home.
+- [x] Show every frozen claim line for the selected draft period beside the selector, including the
+      client, service date, units, charge, procedure, diagnosis, readiness state, and specific
+      correction needed.
+- [x] Give the desktop-local and API paths one shared `ProfessionalClaimReadiness` rule for the
+      exact frozen 837P row. Run it immediately after claim construction and again when periods are
+      loaded, submitted, and generated so the preview and authoritative gate cannot disagree.
+- [x] Preflight: `master` equals `origin/master`; the release scope is limited to the reviewed
+      billing-readiness, installer-presentation, and theme work plus coordinated release records.
+      Version 1.3.1 and all four intended distribution filenames are unused. No migration or mapped
+      persistence schema changed, so no Demo migration, workstation firewall rule, Production
+      deployment, or Production database action is required or authorized.
+- [x] Version 1.3.1 is coordinated across the desktop, API, installer builders, readiness checks,
+      explicit version assertions, installer examples, and Settings release notes.
+- [x] Remove visible PowerShell/command windows from both installer handoffs. Demo uses a validated
+      Windows Script Host bridge and Local uses a console-free process; both installation scripts
+      show the same accessible Sati-branded indeterminate progress window. The real Windows
+      elevation prompt remains when Microsoft LocalDB must be installed.
+- [x] Add four complete decorative palettes to Settings: Ironworks Matte, Paisley, Art Nouveau,
+      and Mid-Century Modern. Each uses a lightweight tiled vector motif on shell/navigation chrome
+      while keeping content surfaces quiet, supplies the full theme contract, renders at runtime,
+      and meets 4.5:1 primary-button text contrast.
+- [x] Release validation passed. The complete solution builds with zero errors and nine known
+      warnings; 2,077 automated tests passed, zero failed, and one optional local-AI evaluation was
+      skipped because its explicit on-device authorization flag is absent. The dependency advisory
+      audit covered all 13 projects and found no known vulnerable packages. The changed-source
+      secret scan found no credential or key patterns, and the model-consistency test reports no
+      pending EF model change.
+- [ ] Source commit/push, Demo API publication and health/contract checks, exact-version installer
+      acceptance, distribution publication, and the final evidence commit are pending.
+
+**Branches.** `team-chat-design`, `second-machine-setup`, and
+`origin/claude/local-vs-github-workflow-dlcqpb` are retained because they contain unique work. The
+fully merged `claude/cool-jang-f6b3c4` branch is retained because its linked worktree is still
+checked out.
+
 ## Release 1.3.0 — 2026-09-06
 
 "Private handoffs and test claims." This release prevents outgoing-account content from being

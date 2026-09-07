@@ -79,7 +79,11 @@ try {
         throw 'The Demo installer did not finish settling its isolated payload before acceptance.'
     }
 
-    $requiredFiles = @('Sati.Demo.exe', 'appsettings.Public.json', 'Uninstall-SatiDemo.ps1')
+    $requiredFiles = @(
+        'Sati.Demo.exe',
+        'appsettings.Public.json',
+        'Uninstall-SatiDemo.ps1',
+        'Run-PowerShellHidden.vbs')
     foreach ($requiredFile in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $runRoot $requiredFile) -PathType Leaf)) {
             throw "Installed payload is missing '$requiredFile'."

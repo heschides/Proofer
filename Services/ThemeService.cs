@@ -33,7 +33,11 @@ namespace Sati.Services
             new("Moonlit Pearl", "MoonlitPearl"),
             new("Iridescent Jewel", "IridescentJewel"),
             new("Midnight Opal", "MidnightOpal"),
-            new("Harbor Night", "HarborNight")
+            new("Harbor Night", "HarborNight"),
+            new("Ironworks Matte", "IndustrialMatte"),
+            new("Paisley", "Paisley"),
+            new("Art Nouveau", "ArtNouveau"),
+            new("Mid-Century Modern", "MidCenturyModern")
         ];
 
         public ThemeOption CurrentTheme { get; private set; }

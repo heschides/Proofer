@@ -1,0 +1,75 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- MID-CENTURY MODERN: warm paper, atomic geometry, teal, ochre, and coral. -->
+    <DrawingBrush x:Key="WindowBackgroundBrush" TileMode="Tile"
+                  Viewport="0,0,132,96" ViewportUnits="Absolute"
+                  Viewbox="0,0,132,96" ViewboxUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#F3E8D3" Geometry="M 0,0 L 132,0 132,96 0,96 Z" />
+                <GeometryDrawing Brush="#22608B87">
+                    <GeometryDrawing.Geometry><EllipseGeometry Center="25,24" RadiusX="18" RadiusY="18" /></GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#24D29B3D" Geometry="M 67,2 L 91,2 79,31 Z" />
+                <GeometryDrawing Brush="#22B85E4D" Geometry="M 102,50 C 122,50 132,65 132,82 L 102,82 Z" />
+                <GeometryDrawing Geometry="M 5,78 C 22,58 42,58 59,78 M 50,18 L 60,18 M 55,13 L 55,23">
+                    <GeometryDrawing.Pen><Pen Brush="#3283564A" Thickness="2" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#3083564A">
+                    <GeometryDrawing.Geometry><EllipseGeometry Center="79,65" RadiusX="3" RadiusY="3" /></GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+    <DrawingBrush x:Key="NavBackgroundBrush" TileMode="Tile"
+                  Viewport="0,0,88,64" ViewportUnits="Absolute"
+                  Viewbox="0,0,88,64" ViewboxUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#E9DCC5" Geometry="M 0,0 L 88,0 88,64 0,64 Z" />
+                <GeometryDrawing Brush="#28608B87">
+                    <GeometryDrawing.Geometry><EllipseGeometry Center="18,18" RadiusX="12" RadiusY="12" /></GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#28D29B3D" Geometry="M 52,7 L 76,7 64,34 Z" />
+                <GeometryDrawing Geometry="M 6,51 L 82,51"><GeometryDrawing.Pen><Pen Brush="#3083564A" Thickness="2" /></GeometryDrawing.Pen></GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFF9EE" />
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#EDE0CA" />
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#DFD0B8" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FFFFF8" />
+    <SolidColorBrush x:Key="SurfaceAlpha70Brush" Color="#B3FFF9EE" />
+    <SolidColorBrush x:Key="SurfaceAlpha25Brush" Color="#40FFF9EE" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#D1BFA7" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#AA9180" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#DDCDB7" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#246B68" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#195552" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#10413F" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="AccentButtonBrush" Color="#246B68" />
+    <SolidColorBrush x:Key="AccentButtonHoverBrush" Color="#195552" />
+    <SolidColorBrush x:Key="AccentButtonPressedBrush" Color="#10413F" />
+    <SolidColorBrush x:Key="OnAccentButtonBrush" Color="#FFFFFF" />
+    <Color x:Key="AiGlowColor">#FFD59D3D</Color>
+    <SolidColorBrush x:Key="AiAccentBrush" Color="#9B6817" />
+    <SolidColorBrush x:Key="AiAccentHoverBrush" Color="#82530F" />
+    <SolidColorBrush x:Key="AiAccentPressedBrush" Color="#673F09" />
+    <SolidColorBrush x:Key="AiAccentSoftBrush" Color="#F6E3B7" />
+    <SolidColorBrush x:Key="AiAccentBorderBrush" Color="#D2A75A" />
+    <SolidColorBrush x:Key="OnAiAccentBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="AiPanelTextBrush" Color="#674713" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#E8D8BE" />
+    <SolidColorBrush x:Key="HoverStrongBrush" Color="#D7BFA4" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#3E332C" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#61534B" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#706158" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#75665C" />
+    <SolidColorBrush x:Key="NarrativeTextBrush" Color="#67554B" />
+    <SolidColorBrush x:Key="PersonGroupBrush" Color="#FBF1E1" />
+    <SolidColorBrush x:Key="PersonGroupAltBrush" Color="#EFE1CE" />
+    <Color x:Key="SurfaceAltColor">#FFEDE0CA</Color>
+    <Color x:Key="SurfaceRaisedColor">#FFFFFFF8</Color>
+    <Color x:Key="TextSubtleColor">#FF75665C</Color>
+</ResourceDictionary>

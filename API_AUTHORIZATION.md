@@ -180,7 +180,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Reports | `GET /reports/consumer-billing-loss` | Each person's assigned user and agency | Own caseload only. |
 | Reports | `GET /reports/productivity-units` | Validated actor's user and agency | Own caseload only; both Person and Note agency markers must match, the request accepts no user id, and the response contains narrative-free monthly aggregates. |
 | Billing | `POST /billing/periods/{year}/{month}` | Billing period user's `AgencyId` | Billing permission; target user must be in actor agency. |
-| Billing | `GET /billing/periods` | Billing period user's `AgencyId` | Billing permission; response joined to actor agency. |
+| Billing | `GET /billing/periods` | Billing period user's `AgencyId` | Billing permission; response joined to actor agency. Each returned line includes only its frozen client display name and shared 837P-readiness errors; raw note narrative is not returned. |
 | Billing | `POST /billing/periods/{periodId}/responses` | Billing period user's `AgencyId` | Billing permission; the period is resolved through its owning user's agency, so a response cannot be attached to another tenant's history. No tenant is ever read from the document. `IsSynthetic` comes from the document's ISA15 usage indicator, not from configuration. |
 | Billing | `POST /billing/periods/{periodId}/mock-clearinghouse` | Billing period user's `AgencyId` | Billing permission, and additionally restricted to a validated `SatiDemo`/`Demo` deployment or the isolated test host. Returns 404 elsewhere so the route is absent in effect on Production. Requires a retained test 837P, consumes its exact immutable content once, records a synthetic `Transmitted` event, and ingests fabricated responses through the same path as a real response. |
 | Billing | `GET /billing/submissions` | Event `AgencyId` plus billing period user's `AgencyId` | Billing permission; both ownership markers must equal actor agency. Synthetic provenance is explicit. |
@@ -189,7 +189,7 @@ test-data deletion, and provider merge. See `DECISIONS.md`, 2026-08-31.
 | Billing | `GET /billing/configuration` | Authenticated actor's `AgencyId` | Billing permission; returns only the actor agency's payer/provider defaults. |
 | Billing | `PUT /billing/configuration` | Authenticated actor's `AgencyId` | Billing permission; writes and audits only the actor agency's configuration. |
 | Billing | `GET /billing/candidates` | Note person's owning user's `AgencyId` | Billing permission; candidates joined to actor agency. |
-| Billing | `POST /billing/claim-lines` | Source note person's owning user's `AgencyId` | Billing permission; source note must be approved and in actor agency. |
+| Billing | `POST /billing/claim-lines` | Source note person's owning user's `AgencyId` | Billing permission; source note must be approved and in actor agency. The API validates the exact constructed frozen row with the shared 837P-readiness rule before saving it. |
 | Billing | `GET /billing/claim-lines/draft` | Billing period user's `AgencyId` | Billing permission; period owner joined to actor agency. |
 | Billing | `POST /billing/periods/{periodId}/submit` | Billing period user's `AgencyId` | Billing permission in same agency. |
 | Billing | `POST /billing/periods/{periodId}/edi` | Billing period user's `AgencyId` | Billing permission; period, every source note/person, and generated file must remain in actor agency. |

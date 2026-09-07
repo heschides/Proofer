@@ -484,6 +484,80 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public void ClaimPreviewAndEdiGenerationUseTheSameFrozenRowReadinessRule()
+    {
+        var snapshot = new ProfessionalClaimSnapshot(
+            ProfessionalClaimSnapshotCodec.CurrentVersion,
+            1, 101, "Clark", "Kent", new DateTime(1985, 6, 18), "M", "987654321",
+            "10 Daily Planet", "Metropolis", "ME", "04101",
+            "Example Agency", "1999999984", "111111111", "1 Provider Way",
+            "Portland", "ME", "04101", "SATITEST1", "Lois Lane", "2075550101",
+            "MEDICAID MAINE", "MCDME");
+        var line = new ClaimLine
+        {
+            Id = 81,
+            NoteId = 91,
+            DateOfService = new DateTime(2026, 8, 12),
+            ProcedureCode = "G9012",
+            ProcedureModifier = "HI",
+            Units = 1,
+            ChargeAmount = 25,
+            ClientMaineCareId = "987654321",
+            RenderingProviderNpi = "1999999984",
+            DiagnosisCode = string.Empty,
+            PlaceOfService = 11,
+            ClaimSnapshotJson = ProfessionalClaimSnapshotCodec.Serialize(snapshot)
+        };
+        var period = new BillingPeriod
+        {
+            Id = 71, UserId = 12, Month = 8, Year = 2026,
+            Status = BillingStatus.Draft,
+            Lines = [line]
+        };
+        var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+            period.Year,
+            period.Month,
+            [new ProfessionalClaimLineFacts(
+                line.Id, line.DateOfService, line.ProcedureCode, line.ProcedureModifier,
+                line.Units, line.ChargeAmount, line.ClientMaineCareId,
+                line.RenderingProviderNpi, line.DiagnosisCode, line.PlaceOfService,
+                line.ClaimSnapshotJson)]);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            EdiGenerator.ValidatePeriod(period));
+
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Clark Kent", readiness.Lines[0].ClientName);
+        Assert.Contains("Diagnosis code is missing or invalid.", readiness.Lines[0].Errors);
+        Assert.Equal(readiness.ExplainFailure(), error.Message);
+    }
+
+    [Fact]
+    public void MalformedFrozenContactPhoneIsReportedAsNotReadyInsteadOfThrowing()
+    {
+        var snapshot = new ProfessionalClaimSnapshot(
+            ProfessionalClaimSnapshotCodec.CurrentVersion,
+            1, 101, "Clark", "Kent", new DateTime(1985, 6, 18), "M", "987654321",
+            "10 Daily Planet", "Metropolis", "ME", "04101",
+            "Example Agency", "1999999984", "111111111", "1 Provider Way",
+            "Portland", "ME", "04101", "SATITEST1", "Lois Lane", null!,
+            "MEDICAID MAINE", "MCDME");
+
+        var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+            2026,
+            8,
+            [new ProfessionalClaimLineFacts(
+                81, new DateTime(2026, 8, 12), "G9012", "HI", 1, 25,
+                "987654321", "1999999984", "F89", 11,
+                ProfessionalClaimSnapshotCodec.Serialize(snapshot))]);
+
+        Assert.False(readiness.IsReady);
+        Assert.Contains(
+            "Frozen provider, submitter, or payer details are incomplete or invalid.",
+            readiness.Lines[0].Errors);
+    }
+
+    [Fact]
     public void Professional837UsesFrozenSubscriberProviderAndFinancialValues()
     {
         var snapshot = new ProfessionalClaimSnapshot(
@@ -565,10 +639,20 @@ public sealed class StabilizationTests
         var apiVersion = typeof(Sati.Api.Infrastructure.SatiApiOptions).Assembly
             .GetName().Version?.ToString(3);
 
-        Assert.Equal("1.3.0", version);
+        Assert.Equal("1.3.1", version);
         Assert.Equal(version, apiVersion);
-        Assert.Equal("Private handoffs and test claims", ProductReleaseNotes.ReleaseName);
+        Assert.Equal("Visible claims and quiet installs", ProductReleaseNotes.ReleaseName);
         Assert.NotEmpty(ProductReleaseNotes.Sections);
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Billing shows what will be submitted" &&
+            section.Items.Any(item => item.Contains("claim line", StringComparison.OrdinalIgnoreCase)) &&
+            section.Items.Any(item => item.Contains("Submit & Lock", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Setup stays out of the command window" &&
+            section.Items.Any(item => item.Contains("progress", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(ProductReleaseNotes.Sections, section =>
+            section.Title == "Four new themes" &&
+            section.Items.Any(item => item.Contains("Art Nouveau", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(ProductReleaseNotes.Sections, section =>
             section.Title == "The Overview now fits the space you have" &&
             section.Items.Any(item => item.Contains("Work Agenda", StringComparison.OrdinalIgnoreCase)) &&
@@ -812,6 +896,37 @@ public sealed class StabilizationTests
         Assert.Contains("User Pinned\\TaskBar", installer);
         Assert.Contains("$pinnedShortcut.IconLocation = \"$versionedIcon,0\"", installer);
         Assert.Contains("ie4uinit.exe", installer);
+    }
+
+    [Fact]
+    public void InstallersHidePowerShellBehindAnAccessibleBrandedProgressWindow()
+    {
+        var root = FindRepositoryRootFromSource();
+        var installer = Path.Combine(root, "installer");
+        var demoBuilder = File.ReadAllText(Path.Combine(installer, "Build-DemoInstaller.ps1"));
+        var localBuilder = File.ReadAllText(Path.Combine(installer, "Build-LocalInstaller.ps1"));
+        var demoInstall = File.ReadAllText(Path.Combine(installer, "Install-SatiDemo.ps1"));
+        var localInstall = File.ReadAllText(Path.Combine(installer, "Install-SatiLocal.ps1"));
+        var hiddenLauncher = File.ReadAllText(Path.Combine(installer, "Run-PowerShellHidden.vbs"));
+        var progress = File.ReadAllText(Path.Combine(installer, "InstallerProgress.ps1"));
+        var bootstrap = File.ReadAllText(Path.Combine(
+            installer, "Sati.LocalBootstrap", "Program.cs"));
+
+        Assert.Contains(
+            "AppLaunched=wscript.exe //B Run-PowerShellHidden.vbs Install-SatiDemo.ps1",
+            demoBuilder);
+        Assert.DoesNotContain("Install-SatiDemo.cmd", demoBuilder);
+        Assert.Contains("Run-PowerShellHidden.vbs", demoBuilder);
+        Assert.Contains("Run-PowerShellHidden.vbs", localBuilder);
+        Assert.Contains("shell.Run(command, 0, True)", hiddenLauncher);
+        Assert.Contains("-WindowStyle Hidden", hiddenLauncher);
+        Assert.Contains("CreateNoWindow = true", bootstrap);
+        Assert.Contains("WindowStyle = ProcessWindowStyle.Hidden", bootstrap);
+        Assert.Contains("Start-SatiInstallerProgress", demoInstall);
+        Assert.Contains("Start-SatiInstallerProgress", localInstall);
+        Assert.Contains("IsIndeterminate = $true", progress);
+        Assert.Contains("Sati installation in progress", progress);
+        Assert.Contains("AutomationProperties]::SetName", progress);
     }
 
     [Fact]
@@ -1619,6 +1734,9 @@ public sealed class StabilizationTests
         await viewModel.LoadAsync();
 
         Assert.Same(draft, viewModel.SelectedPeriod);
+        Assert.Equal([draft.Id], viewModel.DraftBillingPeriods.Select(period => period.Id));
+        Assert.DoesNotContain(alreadyLocked, viewModel.DraftBillingPeriods);
+        Assert.Equal(2, viewModel.SelectedPeriodLines.Count);
         Assert.True(viewModel.CanSubmitPeriod);
         Assert.Contains("James Logan's April 2026 period", viewModel.SubmitAvailabilityMessage);
         var label = new BillingPeriodLabelConverter().Convert(
@@ -1628,10 +1746,13 @@ public sealed class StabilizationTests
         await viewModel.SubmitPeriodCommand.ExecuteAsync(null);
 
         Assert.Equal([draft.Id], billing.SubmittedPeriodIds);
-        Assert.Equal(BillingStatus.Submitted, viewModel.SelectedPeriod!.Status);
+        Assert.Empty(viewModel.DraftBillingPeriods);
+        Assert.Null(viewModel.SelectedPeriod);
+        Assert.Empty(viewModel.SelectedPeriodLines);
         Assert.False(viewModel.CanSubmitPeriod);
-        Assert.Contains("already submitted and locked", viewModel.SubmitAvailabilityMessage);
-        Assert.Contains("ready for 837P generation", viewModel.StatusMessage);
+        Assert.Contains("Choose a draft", viewModel.SubmitAvailabilityMessage);
+        Assert.Contains("left the draft list", viewModel.StatusMessage);
+        Assert.Contains(viewModel.GenerationPeriods, period => period.Id == draft.Id);
     }
 
     [Fact]
@@ -1660,6 +1781,57 @@ public sealed class StabilizationTests
     }
 
     [Fact]
+    public async Task SelectedDraftShowsEveryClaimLineAndItsReadinessProblems()
+    {
+        var session = new SessionService();
+        session.SetUser(User.Create(
+            7, "billing-admin", "Billing Admin", "hash", "salt", UserRole.Admin, null, 1));
+        var ready = new ClaimLine
+        {
+            Id = 51,
+            ClientName = "Diana Prince",
+            DateOfService = new DateTime(2026, 4, 3),
+            Units = 2,
+            ChargeAmount = 50,
+            ProcedureCode = "G9012",
+            DiagnosisCode = "F89"
+        };
+        var needsCorrection = new ClaimLine
+        {
+            Id = 52,
+            ClientName = "Barry Allen",
+            DateOfService = new DateTime(2026, 4, 4),
+            Units = 1,
+            ChargeAmount = 25,
+            ProcedureCode = "G9012",
+            DiagnosisCode = string.Empty,
+            ReadinessErrors = ["Diagnosis code is missing or invalid."]
+        };
+        var draft = new BillingPeriod
+        {
+            Id = 50, UserId = 11, CaseManagerName = "Dick Grayson", Month = 4, Year = 2026,
+            Status = BillingStatus.Draft,
+            Lines = [needsCorrection, ready]
+        };
+        var viewModel = new BillingSubmissionsViewModel(
+            new StubBillingService([draft]), new RetryRecordingEdiService(), session);
+
+        await viewModel.LoadAsync();
+
+        Assert.Equal([ready.Id, needsCorrection.Id],
+            viewModel.SelectedPeriodLines.Select(line => line.Id));
+        Assert.Equal(1, viewModel.SelectedPeriodReadyCount);
+        Assert.Equal(1, viewModel.SelectedPeriodIssueCount);
+        Assert.False(viewModel.CanSubmitPeriod);
+        Assert.Contains("1 claim line needs correction", viewModel.SubmitAvailabilityMessage);
+        Assert.Equal("Needs correction", needsCorrection.ReadinessStatus);
+        Assert.Contains("Diagnosis code", needsCorrection.ReadinessSummary);
+        var label = new BillingPeriodLabelConverter().Convert(
+            draft, typeof(string), null!, CultureInfo.GetCultureInfo("en-US"));
+        Assert.Contains("needs claim correction", (string)label);
+    }
+
+    [Fact]
     public void BillingPeriodSubmitActionPrecedesTheSeparate837GenerationArea()
     {
         var document = System.Xml.Linq.XDocument.Load(Path.Combine(
@@ -1677,8 +1849,14 @@ public sealed class StabilizationTests
             ((string?)element.Attribute("Visibility"))?.Contains("ShowsMockClearinghouse", StringComparison.Ordinal) == true);
         var mockSubmit = elements.FindIndex(element => element.Name.LocalName == "Button" &&
             (string?)element.Attribute("Content") == "Submit Generated 837P Files");
+        var preview = elements.FindIndex(element => element.Name.LocalName == "DataGrid" &&
+            ((string?)element.Attribute("AutomationProperties.Name"))?.Contains(
+                "Claim lines in selected draft", StringComparison.Ordinal) == true);
 
         Assert.True(selector >= 0 && selector < submit);
+        Assert.True(preview > submit && preview < generationHeading);
+        Assert.Contains("DraftBillingPeriods",
+            (string?)elements[selector].Attribute("ItemsSource"));
         Assert.True(submit < generationHeading);
         Assert.True(generationHeading < generate);
         Assert.True(generate < mockSection && mockSection < mockSubmit);

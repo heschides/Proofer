@@ -24,41 +24,100 @@
                    Foreground="{DynamicResource TextSecondaryBrush}"
                    Margin="0,0,0,16" />
 
-        <!-- Billing period selector -->
-        <StackPanel Grid.Row="1"
-                    Margin="0,0,0,16">
-            <TextBlock Text="BILLING PERIOD"
-                       Style="{StaticResource LabelStyle}" />
-            <ComboBox AutomationProperties.Name="Billing period" ItemsSource="{Binding BillingPeriods}"
-                      SelectedItem="{Binding SelectedPeriod, Mode=TwoWay}"
-                      IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
-                      Width="540"
-                      MaxDropDownHeight="360"
-                      HorizontalAlignment="Left">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Converter={StaticResource BillingPeriodLabelConverter}}"
-                                   TextTrimming="CharacterEllipsis" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Text="{Binding SubmitAvailabilityMessage}"
-                       AutomationProperties.LiveSetting="Polite"
-                       FontSize="11"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       MaxWidth="540"
-                       HorizontalAlignment="Left"
-                       Margin="0,6,0,0" />
-            <Button Content="Submit &amp; Lock Selected Period"
-                    Style="{StaticResource PrimaryButton}"
-                    Width="220"
-                    HorizontalAlignment="Left"
-                    Command="{Binding SubmitPeriodCommand}"
-                    IsEnabled="{Binding CanSubmitPeriod}"
-                    ToolTip="{Binding SubmitAvailabilityMessage}"
-                    Margin="0,10,0,0" />
-        </StackPanel>
+        <!-- Draft submission and its exact frozen claim lines. Submitted periods leave this
+             selector and remain available through the range and Submission Home below. -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="430" />
+                <ColumnDefinition Width="24" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="DRAFT BILLING PERIOD"
+                           Style="{StaticResource LabelStyle}" />
+                <ComboBox AutomationProperties.Name="Billing period"
+                          ItemsSource="{Binding DraftBillingPeriods}"
+                          SelectedItem="{Binding SelectedPeriod, Mode=TwoWay}"
+                          IsEnabled="{Binding IsGenerating, Converter={StaticResource InverseBoolConverter}}"
+                          MaxDropDownHeight="360"
+                          HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource BillingPeriodLabelConverter}}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding DraftPeriodSummary}"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0" />
+                <TextBlock Text="{Binding SubmitAvailabilityMessage}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Stretch"
+                           Margin="0,6,0,0" />
+                <Button Content="Submit &amp; Lock Selected Period"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="220"
+                        HorizontalAlignment="Left"
+                        Command="{Binding SubmitPeriodCommand}"
+                        IsEnabled="{Binding CanSubmitPeriod}"
+                        ToolTip="{Binding SubmitAvailabilityMessage}"
+                        Margin="0,10,0,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="SELECTED PERIOD CLAIM LINES"
+                           Style="{StaticResource LabelStyle}" />
+                <TextBlock Text="{Binding SelectedPeriodLineSummary}"
+                           AutomationProperties.LiveSetting="Polite"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,6" />
+                <Grid MinHeight="145">
+                    <DataGrid ItemsSource="{Binding SelectedPeriodLines}"
+                              AutomationProperties.Name="Claim lines in selected draft billing period"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              SelectionMode="Single"
+                              HeadersVisibility="Column"
+                              MaxHeight="210"
+                              Visibility="{Binding HasSelectedPeriodLines, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="CLIENT" Binding="{Binding ClientName}" Width="125" />
+                            <DataGridTextColumn Header="SERVICE DATE"
+                                                Binding="{Binding DateOfService, StringFormat={}{0:yyyy-MM-dd}}"
+                                                Width="90" />
+                            <DataGridTextColumn Header="UNITS" Binding="{Binding Units}" Width="52" />
+                            <DataGridTextColumn Header="CHARGE"
+                                                Binding="{Binding ChargeAmount, StringFormat={}{0:C}}"
+                                                Width="72" />
+                            <DataGridTextColumn Header="CODE" Binding="{Binding ProcedureDisplay}" Width="70" />
+                            <DataGridTextColumn Header="DIAGNOSIS" Binding="{Binding DiagnosisCode}" Width="75" />
+                            <DataGridTextColumn Header="READINESS" Binding="{Binding ReadinessStatus}" Width="105" />
+                            <DataGridTextColumn Header="ISSUES" Binding="{Binding ReadinessSummary}" Width="2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="No draft claim lines are waiting. Submitted periods are listed in the 837 workflow and Submission Home below."
+                               AutomationProperties.Name="No draft billing periods waiting"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               MaxWidth="440"
+                               Visibility="{Binding HasSelectedPeriodLines, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                </Grid>
+            </StackPanel>
+        </Grid>
 
         <!-- Inclusive billing-month range. A locked monthly period is never split. -->
         <StackPanel Grid.Row="2" Margin="0,0,0,16">

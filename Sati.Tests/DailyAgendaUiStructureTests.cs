@@ -63,7 +63,11 @@ public sealed class DailyAgendaUiStructureTests
 
             try
             {
-                foreach (var theme in new[] { "PearlescentCream", "MidnightOpal" })
+                foreach (var theme in new[]
+                         {
+                             "PearlescentCream", "MidnightOpal", "IndustrialMatte",
+                             "Paisley", "ArtNouveau", "MidCenturyModern"
+                         })
                 {
                     dictionaries[themeIndex] = new ResourceDictionary
                     {

@@ -75,7 +75,10 @@ namespace Sati.Services.Billing
                 .ThenByDescending(b => b.Month)
                 .ToListAsync();
             foreach (var period in periods)
+            {
                 period.CaseManagerName = period.User.DisplayName;
+                ApplyClaimReadiness(period);
+            }
             return periods;
         }
 
@@ -92,7 +95,10 @@ namespace Sati.Services.Billing
                 .ThenByDescending(b => b.Month)
                 .ToListAsync();
             foreach (var period in periods)
+            {
                 period.CaseManagerName = period.User.DisplayName;
+                ApplyClaimReadiness(period);
+            }
             return periods;
         }
 
@@ -126,9 +132,11 @@ namespace Sati.Services.Billing
                 throw new InvalidOperationException("This service note already has a billing claim line.");
 
             var serviceDate = note.EventDate!.Value.Date;
-            var period = await context.BillingPeriods.SingleOrDefaultAsync(candidate =>
-                candidate.UserId == note.Person.UserId && candidate.Month == serviceDate.Month &&
-                candidate.Year == serviceDate.Year);
+            var period = await context.BillingPeriods
+                .Include(candidate => candidate.Lines)
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.UserId == note.Person.UserId && candidate.Month == serviceDate.Month &&
+                    candidate.Year == serviceDate.Year);
             if (period is null)
             {
                 period = new BillingPeriod
@@ -173,6 +181,12 @@ namespace Sati.Services.Billing
             // itself, whose identity is still 0 until SaveChanges runs; assigning
             // BillingPeriodId here would persist a line pointing at no period.
             period.Lines.Add(claimLine);
+            var readiness = ApplyClaimReadiness(period);
+            if (!readiness.IsReady)
+            {
+                throw new InvalidOperationException(
+                    $"The exact claim line is not 837P-ready: {readiness.ExplainFailure()}");
+            }
             LocalAuditTrail.Record(context, actor, LocalAuditActions.BillingClaimLineCreated, "Note", noteId);
             try
             {
@@ -518,6 +532,31 @@ namespace Sati.Services.Billing
             agency.EdiContactPhone!,
             agency.EdiPayerName!,
             agency.EdiPayerId!);
+
+        private static ProfessionalClaimPeriodReadiness ApplyClaimReadiness(BillingPeriod period)
+        {
+            var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+                period.Year, period.Month, period.Lines.Select(ToReadinessFacts));
+            foreach (var pair in period.Lines.Zip(readiness.Lines))
+            {
+                pair.First.ClientName = pair.Second.ClientName;
+                pair.First.ReadinessErrors = pair.Second.Errors;
+            }
+            return readiness;
+        }
+
+        private static ProfessionalClaimLineFacts ToReadinessFacts(ClaimLine line) => new(
+            line.Id,
+            line.DateOfService,
+            line.ProcedureCode,
+            line.ProcedureModifier,
+            line.Units,
+            line.ChargeAmount,
+            line.ClientMaineCareId,
+            line.RenderingProviderNpi,
+            line.DiagnosisCode,
+            line.PlaceOfService,
+            line.ClaimSnapshotJson);
 
         private static async Task<User> ValidateBillingActorAsync(
             SatiContext context,

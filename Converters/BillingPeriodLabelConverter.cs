@@ -17,13 +17,13 @@ public sealed class BillingPeriodLabelConverter : IValueConverter
             ? $"Case manager #{period.UserId}"
             : period.CaseManagerName;
         var claims = $"{period.Lines.Count} {(period.Lines.Count == 1 ? "claim" : "claims")}";
-        var hasInvalidClaimAmount = period.Lines.Any(line =>
-            line.Units is null or <= 0 || line.ChargeAmount <= 0);
+        var hasInvalidClaim = period.Lines.Any(line =>
+            !line.IsReadyForSubmission || line.Units is null or <= 0 || line.ChargeAmount <= 0);
         var status = period.Status switch
         {
-            BillingStatus.Draft when hasInvalidClaimAmount => "Draft — needs claim correction",
+            BillingStatus.Draft when hasInvalidClaim => "Draft — needs claim correction",
             BillingStatus.Draft => "Draft — ready to submit",
-            BillingStatus.Submitted when hasInvalidClaimAmount => "Submitted and locked — $0 claim cannot generate",
+            BillingStatus.Submitted when hasInvalidClaim => "Submitted and locked — claim cannot generate",
             BillingStatus.Submitted => "Submitted and locked",
             BillingStatus.Accepted => "Accepted",
             BillingStatus.Rejected => "Rejected",

@@ -59,7 +59,11 @@ try {
         Start-Sleep -Milliseconds 500
     }
 
-    $requiredFiles = @('Sati.exe', 'appsettings.json', 'Uninstall-SatiLocal.ps1')
+    $requiredFiles = @(
+        'Sati.exe',
+        'appsettings.json',
+        'Uninstall-SatiLocal.ps1',
+        'Run-PowerShellHidden.vbs')
     foreach ($requiredFile in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $runRoot $requiredFile) -PathType Leaf)) {
             throw "Installed payload is missing '$requiredFile'."

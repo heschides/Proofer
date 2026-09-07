@@ -273,7 +273,8 @@ public sealed class ReleaseUiStructureTests
 
         foreach (var name in new[]
                  {
-                     "PineCoast", "BlueberryMist", "BlueGrayPearl", "CedarGrove", "HarborNight"
+                     "PineCoast", "BlueberryMist", "BlueGrayPearl", "CedarGrove", "HarborNight",
+                     "IndustrialMatte", "Paisley", "ArtNouveau", "MidCenturyModern"
                  })
         {
             var supplied = ResourceKeys(Path.Combine(Root, "Themes", $"{name}.xaml"));
@@ -286,6 +287,35 @@ public sealed class ReleaseUiStructureTests
         Assert.Contains("Blue-Gray Pearl", service);
         Assert.Contains("Cedar Grove", service);
         Assert.Contains("Harbor Night", service);
+        Assert.Contains("Ironworks Matte", service);
+        Assert.Contains("Paisley", service);
+        Assert.Contains("Art Nouveau", service);
+        Assert.Contains("Mid-Century Modern", service);
+    }
+
+    [Fact]
+    public void DecorativeThemesKeepPatternsOnTheShellAndCalmSurfacesUnderContent()
+    {
+        foreach (var name in new[]
+                 {
+                     "IndustrialMatte", "Paisley", "ArtNouveau", "MidCenturyModern"
+                 })
+        {
+            var document = XDocument.Load(Path.Combine(Root, "Themes", $"{name}.xaml"));
+            XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+            var windowBrush = Assert.Single(document.Descendants(), element =>
+                element.Name.LocalName == "DrawingBrush" &&
+                element.Attribute(x + "Key")?.Value == "WindowBackgroundBrush");
+            var navBrush = Assert.Single(document.Descendants(), element =>
+                element.Name.LocalName == "DrawingBrush" &&
+                element.Attribute(x + "Key")?.Value == "NavBackgroundBrush");
+            var surface = Assert.Single(document.Descendants(), element =>
+                element.Attribute(x + "Key")?.Value == "SurfaceBrush");
+
+            Assert.Equal("Tile", windowBrush.Attribute("TileMode")?.Value);
+            Assert.Equal("Tile", navBrush.Attribute("TileMode")?.Value);
+            Assert.NotEqual("DrawingBrush", surface.Name.LocalName);
+        }
     }
 
     [Fact]
@@ -452,6 +482,24 @@ public sealed class ReleaseUiStructureTests
     }
 
     [Fact]
+    public void DecorativeThemePrimaryButtonsMeetNormalTextContrast()
+    {
+        foreach (var name in new[]
+                 {
+                     "IndustrialMatte", "Paisley", "ArtNouveau", "MidCenturyModern"
+                 })
+        {
+            var theme = File.ReadAllText(Path.Combine(Root, "Themes", $"{name}.xaml"));
+            var contrast = ContrastRatio(
+                Color(theme, "AccentButtonBrush"),
+                Color(theme, "OnAccentButtonBrush"));
+
+            Assert.True(contrast >= 4.5,
+                $"{name} primary button contrast is {contrast:F2}:1; expected at least 4.5:1.");
+        }
+    }
+
+    [Fact]
     public void TheNoteTemplateButtonReplacedTheLocalAiTrigger()
     {
         var note = File.ReadAllText(Path.Combine(Root, "Views", "NoteEntryView.xaml"));
@@ -519,5 +567,34 @@ public sealed class ReleaseUiStructureTests
         var g = Convert.ToInt32(value[2..4], 16) / 255.0;
         var b = Convert.ToInt32(value[4..6], 16) / 255.0;
         return (0.299 * r) + (0.587 * g) + (0.114 * b);
+    }
+
+    private static double ContrastRatio(string first, string second)
+    {
+        static double RelativeLuminance(string hex)
+        {
+            var value = hex.TrimStart('#');
+            if (value.Length == 8)
+                value = value[2..];
+
+            static double Linear(int channel)
+            {
+                var component = channel / 255.0;
+                return component <= 0.04045
+                    ? component / 12.92
+                    : Math.Pow((component + 0.055) / 1.055, 2.4);
+            }
+
+            var red = Linear(Convert.ToInt32(value[..2], 16));
+            var green = Linear(Convert.ToInt32(value.Substring(2, 2), 16));
+            var blue = Linear(Convert.ToInt32(value.Substring(4, 2), 16));
+            return (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+        }
+
+        var firstLuminance = RelativeLuminance(first);
+        var secondLuminance = RelativeLuminance(second);
+        var lighter = Math.Max(firstLuminance, secondLuminance);
+        var darker = Math.Min(firstLuminance, secondLuminance);
+        return (lighter + 0.05) / (darker + 0.05);
     }
 }

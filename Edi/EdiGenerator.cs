@@ -307,16 +307,18 @@ namespace Sati.Helpers
 
         private static List<EdiSnapshotRow> ReadAndValidateRows(BillingPeriod period)
         {
-            var rows = period.Lines
+            var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+                period.Year,
+                period.Month,
+                period.Lines.Select(ToReadinessFacts));
+            if (!readiness.IsReady)
+                throw new InvalidOperationException(readiness.ExplainFailure());
+
+            return period.Lines
                 .Select(line => new EdiSnapshotRow(
                     line,
                     ProfessionalClaimSnapshotCodec.Deserialize(line.ClaimSnapshotJson)))
                 .ToList();
-            if (rows.Count == 0)
-                throw new InvalidOperationException("The billing period has no claim lines.");
-
-            Validate(rows[0].Snapshot, rows);
-            return rows;
         }
 
         // Builds a segment string: SEGID*elem1*elem2*...*elemN~
@@ -325,52 +327,18 @@ namespace Sati.Helpers
             return id + ElemSep + string.Join(ElemSep, elements) + SegTerm;
         }
 
-        private static void Validate(
-            ProfessionalClaimSnapshot envelope,
-            IEnumerable<EdiSnapshotRow> rows)
-        {
-            if (!BillingRules.IsSafeX12Element(envelope.BillingProviderName, 60) ||
-                !BillingRules.IsValidNpi(envelope.BillingProviderNpi) ||
-                !BillingRules.IsSafeX12Element(envelope.BillingProviderTaxId, 50) ||
-                !BillingRules.IsSafeX12Element(envelope.BillingProviderStreet, 55) ||
-                !BillingRules.IsSafeX12Element(envelope.BillingProviderCity, 30) ||
-                !BillingRules.IsSafeX12Element(envelope.BillingProviderState, 2) ||
-                !BillingRules.IsSafeX12Element(envelope.BillingProviderZip, 15) ||
-                !BillingRules.IsSafeX12Element(envelope.SubmitterId, 15) ||
-                !BillingRules.IsSafeX12Element(envelope.PayerName, 60) ||
-                !BillingRules.IsSafeX12Element(envelope.PayerId, 80) ||
-                !BillingRules.IsSafeX12Element(envelope.SubmitterContactName, 60) ||
-                string.IsNullOrWhiteSpace(envelope.SubmitterContactPhone) ||
-                envelope.SubmitterContactPhone.Length is < 10 or > 15 ||
-                envelope.SubmitterContactPhone.Any(character => !char.IsDigit(character)))
-                throw new InvalidOperationException("The agency billing and EDI configuration is incomplete or invalid.");
-
-            foreach (var row in rows)
-            {
-                var line = row.Line;
-                var snapshot = row.Snapshot;
-                if (snapshot.AgencyId != envelope.AgencyId ||
-                    snapshot.SubmitterId != envelope.SubmitterId ||
-                    snapshot.PayerId != envelope.PayerId ||
-                    snapshot.BillingProviderNpi != envelope.BillingProviderNpi)
-                    throw new InvalidOperationException("The billing period mixes incompatible provider or payer snapshots.");
-                if (!BillingRules.IsSafeX12Element(snapshot.SubscriberFirstName, 35) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberLastName, 60) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberMemberId, 80) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberStreet, 55) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberCity, 30) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberState, 2) ||
-                    !BillingRules.IsSafeX12Element(snapshot.SubscriberZip, 15) ||
-                    snapshot.SubscriberGenderCode is not ("M" or "F" or "U"))
-                    throw new InvalidOperationException($"Claim line {line.Id} has an invalid subscriber snapshot.");
-                if (!BillingRules.IsValidProcedureCode(line.ProcedureCode) ||
-                    !BillingRules.IsValidModifier(line.ProcedureModifier) ||
-                    !BillingRules.IsValidDiagnosisCode(line.DiagnosisCode) ||
-                    line.PlaceOfService is < 1 or > 99 ||
-                    line.Units is null or <= 0 || line.ChargeAmount <= 0)
-                    throw new InvalidOperationException($"Claim line {line.Id} is incomplete or invalid for EDI generation.");
-            }
-        }
+        private static ProfessionalClaimLineFacts ToReadinessFacts(ClaimLine line) => new(
+            line.Id,
+            line.DateOfService,
+            line.ProcedureCode,
+            line.ProcedureModifier,
+            line.Units,
+            line.ChargeAmount,
+            line.ClientMaineCareId,
+            line.RenderingProviderNpi,
+            line.DiagnosisCode,
+            line.PlaceOfService,
+            line.ClaimSnapshotJson);
 
         private sealed record EdiSnapshotRow(
             ClaimLine Line,

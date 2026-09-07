@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '1.3.0',
+    [string]$Version = '1.3.1',
 
     [Parameter(Mandatory)]
     [string]$LocalDbMsiPath
@@ -86,18 +86,16 @@ try {
     Copy-Item -Path (Join-Path $publishRoot '*') -Destination $stageRoot -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-SatiLocal.ps1') -Destination $stageRoot
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-SatiLocal.ps1') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'InstallerProgress.ps1') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Run-PowerShellHidden.vbs') -Destination $stageRoot
     Copy-Item -LiteralPath $resolvedLocalDbMsi -Destination (Join-Path $stageRoot 'SqlLocalDB.msi')
 
     $payloadFiles = @(Get-ChildItem -LiteralPath $publishRoot -File |
         Sort-Object Name |
         Select-Object -ExpandProperty Name)
-    $payloadFiles += 'Uninstall-SatiLocal.ps1'
+    $payloadFiles += @('Uninstall-SatiLocal.ps1', 'Run-PowerShellHidden.vbs')
     Set-Content -LiteralPath (Join-Path $stageRoot 'payload-manifest.txt') -Value $payloadFiles -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $stageRoot 'installer-version.txt') -Value $Version -Encoding ASCII
-    Set-Content -LiteralPath (Join-Path $stageRoot 'Install-SatiLocal.cmd') -Encoding ASCII -Value @(
-        '@echo off',
-        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-SatiLocal.ps1"',
-        'exit /b %errorlevel%')
 
     $stageFiles = @(Get-ChildItem -LiteralPath $stageRoot -File | Sort-Object Name)
     $stagedLocalDbMsi = Join-Path $stageRoot 'SqlLocalDB.msi'

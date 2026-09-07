@@ -3261,3 +3261,58 @@ The simulator remains absent in effect on Production and cannot accept a product
 is workflow scaffolding, not transport, X12 certification, payer acceptance, or evidence of a real
 payment. Regenerating a merely similar file inside the submission endpoint was rejected because it
 would not prove that the acknowledged content was the content the user generated and chose to send.
+
+## 2026-09-06 — Billing-period selection is a draft work queue with exact-row readiness
+
+The primary Billing Period selector contains only claim-bearing draft periods. Submitting and
+locking a period removes it from that selector because no further action can be taken on it there;
+the immutable period remains available in the 837 generation range and Submission Home for its
+later exchange and response workflow. Hiding locked periods everywhere was rejected because it
+would make the next billing stage inaccessible.
+
+The area beside the selector previews every exact frozen claim row and its readiness errors. A
+single `Sati.Contracts.V1.ProfessionalClaimReadiness` rule owns those checks for both desktop-local
+and API flows. It runs immediately after a row is constructed and again for loading, locking, and
+837P generation. Candidate-note validation remains an earlier gate, but it cannot prove that the
+subsequently constructed financial snapshot is valid. The exact-row gate closes that gap and also
+makes malformed legacy or synthetic rows visible before the biller presses Submit & Lock.
+
+**Rejected:** treating UI visibility as the gate; duplicating preview and generator rules; silently
+dropping invalid rows; and leaving submitted periods in the draft selector merely to support later
+837 generation.
+
+## 2026-09-06 — Installer implementation consoles stay hidden behind one progress surface
+
+PowerShell remains an internal installer implementation detail for now, but no installation or
+registered uninstall entry launches it through a visible console. The Demo self-extractor calls a
+small path-restricted Windows Script Host bridge with window style zero. The Local bootstrap uses a
+console-free child process with both `CreateNoWindow` and hidden-window arguments. Both install
+scripts display the same modeless Sati-branded indeterminate progress window from an STA runspace,
+which remains responsive while file, shortcut, and prerequisite work continues.
+
+The progress surface cannot cancel midway because a partial LocalDB/application installation is a
+worse outcome than waiting. Test-mode installer acceptance suppresses presentation but exercises
+the same payload and exit-code path. A genuine Windows elevation prompt is not hidden: when the
+Microsoft-signed LocalDB prerequisite is absent, Windows must still ask the user before the elevated
+MSI runs.
+
+**Rejected:** accepting the black window as unavoidable; hiding all feedback during a potentially
+long LocalDB install; creating a second full self-contained graphical runtime inside the Demo
+package; and suppressing the Windows security-consent prompt.
+
+## 2026-09-06 — Decorative themes pattern the shell, not the work
+
+Ironworks Matte, Paisley, Art Nouveau, and Mid-Century Modern are complete theme dictionaries, not
+background images or partial color overlays. Their motifs are tiled WPF vector drawings on
+`WindowBackgroundBrush` and `NavBackgroundBrush`, so they scale cleanly, add negligible package
+weight, and do not require image attribution or network access.
+
+The content surfaces beneath notes, forms, grids, dialogs, and buttons remain solid or gently
+graded. This keeps clinical and billing work readable and prevents decorative lines from being
+mistaken for field boundaries. Every palette still supplies the full interchangeable theme
+contract, including separate primary-button tokens and local-AI colors. Runtime rendering covers
+all four themes, and primary-button foreground/background pairs must meet at least 4.5:1 contrast.
+
+**Rejected:** wallpaper behind form content; raster textures that blur under scaling and enlarge
+the installer; making the motif carry status meaning; and adding a decorative dictionary that
+inherits missing colors from whichever theme happened to be loaded before it.

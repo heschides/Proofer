@@ -241,7 +241,7 @@ public sealed class TenantAuthorizationTests
 
         Assert.NotNull(release);
         Assert.Equal("Sati.Api", release["product"]);
-        Assert.Equal("1.3.0", release["releaseVersion"]);
+        Assert.Equal("1.3.1", release["releaseVersion"]);
     }
 
     [Fact]
@@ -843,6 +843,8 @@ public sealed class TenantAuthorizationTests
         Assert.Equal("HI", line.ProcedureModifier);
         Assert.Equal(4m, line.Units);
         Assert.Equal(100m, line.ChargeAmount);
+        Assert.Equal("Person One", line.ClientName);
+        Assert.Empty(line.ReadinessErrors);
         Assert.Single(auditEvents, candidate => candidate.ResourceId == "502");
     }
 

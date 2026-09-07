@@ -628,7 +628,9 @@ public sealed record ClaimLineDto(
     string DiagnosisCode,
     int PlaceOfService,
     bool IsComplianceException,
-    string? ComplianceExceptionReason);
+    string? ComplianceExceptionReason,
+    string ClientName,
+    IReadOnlyList<string> ReadinessErrors);
 
 public sealed record BillingConfigurationDto(
     string ProcedureCode,

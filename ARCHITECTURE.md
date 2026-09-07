@@ -126,7 +126,14 @@ Every theme dictionary now supplies `AccentButtonBrush`, `AccentButtonHoverBrush
 `AccentButtonPressedBrush`, and `OnAccentButtonBrush` alongside the accent tokens. Only
 `PrimaryButton` binds the button set; selection highlights and accent type still bind
 `AccentBrush`. A theme dictionary is swapped in whole, so a theme missing a key loses the fill
-rather than inheriting one — a structure test asserts all fifteen supply all four.
+rather than inheriting one — a structure test asserts all nineteen supply all four.
+
+Decorative themes use tiled vector `DrawingBrush` resources only for the outer window and
+navigation chrome. Content surfaces remain solid or gently graded so patterns cannot sit behind
+case notes, form fields, tables, or status text. Industrial Matte, Paisley, Art Nouveau, and
+Mid-Century Modern therefore add visual character without changing layout, data, or control
+semantics. Runtime render tests load every decorative dictionary, and button contrast is held to at
+least 4.5:1.
 
 
 ## Easy Eyes presentation mode
@@ -689,6 +696,14 @@ The local JSON-lines diagnostic entry records exception type, HRESULT, target, a
 exception messages because they may contain Person names or workflow context. The Demo artifact and
 preflight procedures are reproducible through `scripts/Publish-Demo.ps1`,
 `scripts/Test-DemoReadiness.ps1`, and `DEMO_RUNBOOK.md`.
+
+Both desktop installers keep PowerShell as an internal, per-user installation implementation but
+never expose its console. Demo enters through a path-validated Windows Script Host bridge; the
+combined Local bootstrap starts PowerShell with `CreateNoWindow` and hidden-window flags. The two
+scripts display one shared accessible Sati progress surface while work continues. That surface is
+presentation only: errors and exit codes still travel through the existing installer boundary, and
+the Windows elevation prompt remains authoritative when the signed Microsoft LocalDB prerequisite
+is absent.
 
 ---
 
@@ -1562,6 +1577,10 @@ children from carrying one billing user's data into another account.
 `BillingQueueViewModel`: sequential promotion (intentional — don't parallelize);
 `IsComplianceOverride` reads correctly (contrast supervisor queue's hardcoded false); profiling
 `Debug.WriteLine`s. `BillingSubmissionsViewModel`: billing-permission-gated agency scope;
+its primary selector is a claim-bearing draft work queue, and a side-by-side grid previews every
+exact frozen claim row with its shared readiness result. After Submit & Lock, a period leaves that
+selector but remains in the submitted range and Submission Home. The UI's disabled button is only
+guidance; the local service and API independently enforce the same shared rule.
 **`IsTestMode = true` by default
 — must be explicitly false for real submission**; inclusive billing-month range generation produces
 one retry-safe file per locked period; `Process.Start("explorer.exe", ...)` is Windows-only. Its
@@ -1578,6 +1597,13 @@ filters.
 **`EdiGenerator`** — pure static translation. Caller (`EdiService`) loads
 `BillingPeriod → Lines → immutable ProfessionalClaimSnapshot`. Legacy or malformed claim lines
 without that snapshot fail closed instead of silently reading today's Person/Agency values.
+
+`Sati.Contracts.V1.ProfessionalClaimReadiness` is the single owner for validating the exact frozen
+row that the generator consumes. Both persistence paths evaluate it immediately after constructing
+a claim line; period projections use the same result for the preview grid; submit and generation
+evaluate it again. This is deliberately later than candidate-note compliance validation because
+construction itself can introduce an invalid financial row, and legacy or synthetic rows may
+predate the current candidate gates.
 
 The generation timestamp is supplied by the caller so the persisted response, control numbers,
 and filename describe one atomic attempt. Billing-period submission uses `Status` as an EF

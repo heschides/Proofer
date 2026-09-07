@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '1.3.0'
+    [string]$Version = '1.3.1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -71,15 +71,13 @@ try {
     Copy-Item -Path (Join-Path $publishRoot '*') -Destination $stageRoot -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-SatiDemo.ps1') -Destination $stageRoot
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-SatiDemo.ps1') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'InstallerProgress.ps1') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Run-PowerShellHidden.vbs') -Destination $stageRoot
 
     $payloadFiles = @(Get-ChildItem -LiteralPath $publishRoot -File | Sort-Object Name | Select-Object -ExpandProperty Name)
-    $payloadFiles += 'Uninstall-SatiDemo.ps1'
+    $payloadFiles += @('Uninstall-SatiDemo.ps1', 'Run-PowerShellHidden.vbs')
     Set-Content -LiteralPath (Join-Path $stageRoot 'payload-manifest.txt') -Value $payloadFiles -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $stageRoot 'installer-version.txt') -Value $Version -Encoding ASCII
-    Set-Content -LiteralPath (Join-Path $stageRoot 'Install-SatiDemo.cmd') -Encoding ASCII -Value @(
-        '@echo off',
-        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-SatiDemo.ps1"',
-        'exit /b %errorlevel%')
 
     $stageFiles = @(Get-ChildItem -LiteralPath $stageRoot -File | Sort-Object Name)
     $stringLines = [System.Collections.Generic.List[string]]::new()
@@ -108,10 +106,10 @@ DisplayLicense=
 FinishMessage=%FinishMessage%
 TargetName=%TargetName%
 FriendlyName=%FriendlyName%
-AppLaunched=Install-SatiDemo.cmd
+AppLaunched=wscript.exe //B Run-PowerShellHidden.vbs Install-SatiDemo.ps1
 PostInstallCmd=<None>
-AdminQuietInstCmd=Install-SatiDemo.cmd
-UserQuietInstCmd=Install-SatiDemo.cmd
+AdminQuietInstCmd=wscript.exe //B Run-PowerShellHidden.vbs Install-SatiDemo.ps1
+UserQuietInstCmd=wscript.exe //B Run-PowerShellHidden.vbs Install-SatiDemo.ps1
 SourceFiles=SourceFiles
 [Strings]
 InstallPrompt=Install Sati Demo $Version for this Windows account?

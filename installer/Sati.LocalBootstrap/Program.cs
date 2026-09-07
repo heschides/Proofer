@@ -32,8 +32,14 @@ internal static class Program
             {
                 FileName = powershell,
                 UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
                 WorkingDirectory = root,
-                ArgumentList = { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script }
+                ArgumentList =
+                {
+                    "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                    "-ExecutionPolicy", "Bypass", "-File", script
+                }
             }) ?? throw new InvalidOperationException("The Sati installation process could not be started.");
             process.WaitForExit();
             return process.ExitCode;

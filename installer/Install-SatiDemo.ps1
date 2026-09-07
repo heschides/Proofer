@@ -1,6 +1,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+$installerProgress = $null
 
 function Show-InstallerMessage {
     param(
@@ -19,6 +20,12 @@ function Show-InstallerMessage {
 
 try {
     $sourceRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
+    $progressScript = Join-Path $sourceRoot 'InstallerProgress.ps1'
+    if (-not (Test-Path -LiteralPath $progressScript -PathType Leaf)) {
+        throw 'The installer is missing its progress-window support.'
+    }
+    . $progressScript
+
     $manifestPath = Join-Path $sourceRoot 'payload-manifest.txt'
     $versionPath = Join-Path $sourceRoot 'installer-version.txt'
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
@@ -31,6 +38,12 @@ try {
     }
 
     $isTest = $env:SATI_DEMO_INSTALLER_TEST -eq '1'
+    if (-not $isTest) {
+        $installerProgress = Start-SatiInstallerProgress `
+            -Title 'Sati Demo Setup' `
+            -Heading 'Installing Sati Demo' `
+            -Detail 'Checking the installation package...'
+    }
     if ($isTest) {
         if ([string]::IsNullOrWhiteSpace($env:SATI_DEMO_INSTALL_ROOT)) {
             throw 'SATI_DEMO_INSTALL_ROOT is required in installer test mode.'
@@ -62,6 +75,9 @@ try {
         exit 2
     }
 
+    Update-SatiInstallerProgress $installerProgress `
+        -Heading 'Installing Sati Demo' `
+        -Detail 'Copying the application to your Windows account...'
     New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
     $payloadFiles = @(Get-Content -LiteralPath $manifestPath | Where-Object {
         -not [string]::IsNullOrWhiteSpace($_)
@@ -94,6 +110,9 @@ try {
     }
 
     if (-not $isTest) {
+        Update-SatiInstallerProgress $installerProgress `
+            -Heading 'Almost ready' `
+            -Detail 'Creating shortcuts and finishing the installation...'
         $shell = New-Object -ComObject WScript.Shell
         $startMenuFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'SatiLogica'
         New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
@@ -134,8 +153,9 @@ try {
         }
 
         $uninstaller = Join-Path $installRoot 'Uninstall-SatiDemo.ps1'
-        $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $uninstallCommand = "`"$windowsPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`""
+        $hiddenLauncher = Join-Path $installRoot 'Run-PowerShellHidden.vbs'
+        $windowsScriptHost = Join-Path $env:SystemRoot 'System32\wscript.exe'
+        $uninstallCommand = "`"$windowsScriptHost`" //B `"$hiddenLauncher`" Uninstall-SatiDemo.ps1"
         $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SatiDemo'
         New-Item -Path $uninstallKey -Force | Out-Null
         New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'Sati Demo' -PropertyType String -Force | Out-Null
@@ -152,10 +172,16 @@ try {
             Start-Process -FilePath $iconRefresh -ArgumentList '-show' -WindowStyle Hidden -Wait
         }
 
+        Stop-SatiInstallerProgress $installerProgress
+        $installerProgress = $null
         Start-Process -FilePath $appExe -WorkingDirectory $installRoot
     }
 }
 catch {
+    if ($null -ne $installerProgress) {
+        Stop-SatiInstallerProgress $installerProgress
+        $installerProgress = $null
+    }
     $messageParameters = @{
         Message = "Sati Demo could not be installed.`n`n$($_.Exception.Message)"
         Title = 'Sati Demo installation failed'
@@ -163,4 +189,9 @@ catch {
     }
     Show-InstallerMessage @messageParameters
     exit 1
+}
+finally {
+    if ($null -ne $installerProgress) {
+        Stop-SatiInstallerProgress $installerProgress
+    }
 }

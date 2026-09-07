@@ -331,7 +331,9 @@ internal static class CloudContractMapper
         DiagnosisCode = dto.DiagnosisCode,
         PlaceOfService = dto.PlaceOfService,
         IsComplianceException = dto.IsComplianceException,
-        ComplianceExceptionReason = dto.ComplianceExceptionReason
+        ComplianceExceptionReason = dto.ComplianceExceptionReason,
+        ClientName = dto.ClientName,
+        ReadinessErrors = dto.ReadinessErrors
     };
 
     public static BillingConfiguration ToBillingConfiguration(BillingConfigurationDto dto) => new(

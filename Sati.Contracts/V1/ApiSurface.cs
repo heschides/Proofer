@@ -38,7 +38,7 @@ public static class ApiSurface
         "person-representative-payee-v1",
         "future-note-reminder-v1",
         "billing-compliance-settings-v1",
-        "billing-exchange-history-v2",
+        "billing-exchange-history-v3",
         "claim-response-ingestion-v1",
         "schema-drift-report-v1",
         "admin-test-consumer-deletion-v1",

@@ -4935,9 +4935,11 @@ internal static partial class ApiEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = errors.ToArray() });
 
             var serviceDate = row.Note.EventDate!.Value.Date;
-            var period = await db.BillingPeriods.SingleOrDefaultAsync(candidate =>
-                candidate.UserId == row.Person.UserId && candidate.Month == serviceDate.Month &&
-                candidate.Year == serviceDate.Year, cancellationToken);
+            var period = await db.BillingPeriods
+                .Include(candidate => candidate.Lines)
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.UserId == row.Person.UserId && candidate.Month == serviceDate.Month &&
+                    candidate.Year == serviceDate.Year, cancellationToken);
             if (period is null)
             {
                 period = new ServerBillingPeriod
@@ -4978,6 +4980,17 @@ internal static partial class ApiEndpoints
                     : null
             };
             period.Lines.Add(line);
+            var exactClaimReadiness = ProfessionalClaimReadiness.EvaluatePeriod(
+                period.Year,
+                period.Month,
+                period.Lines.Select(ContractMapper.ToReadinessFacts));
+            if (!exactClaimReadiness.IsReady)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["claimLine"] = [exactClaimReadiness.ExplainFailure()]
+                });
+            }
             auditTrail.Record(actor, AuditActions.BillingClaimLineCreated, "Note", request.NoteId);
             try
             {

@@ -160,19 +160,38 @@ internal static class ContractMapper
 
     public static BillingPeriodDto ToBillingPeriod(
         ServerBillingPeriod period,
-        string? caseManagerName = null) => new(
-        period.Id,
-        period.UserId,
-        string.IsNullOrWhiteSpace(caseManagerName)
-            ? $"Case manager #{period.UserId}"
-            : caseManagerName,
-        period.Month,
-        period.Year,
-        NameAt(["Draft", "Submitted", "Accepted", "Rejected"], period.Status, "Draft"),
-        period.SubmittedAt,
-        period.Lines.Select(ToClaimLine).ToList());
+        string? caseManagerName = null)
+    {
+        var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+            period.Year, period.Month, period.Lines.Select(ToReadinessFacts));
+        var lines = period.Lines.Zip(
+            readiness.Lines,
+            (line, lineReadiness) => ToClaimLine(line, lineReadiness)).ToList();
+        return new(
+            period.Id,
+            period.UserId,
+            string.IsNullOrWhiteSpace(caseManagerName)
+                ? $"Case manager #{period.UserId}"
+                : caseManagerName,
+            period.Month,
+            period.Year,
+            NameAt(["Draft", "Submitted", "Accepted", "Rejected"], period.Status, "Draft"),
+            period.SubmittedAt,
+            lines);
+    }
 
-    public static ClaimLineDto ToClaimLine(ServerClaimLine line) => new(
+    public static ClaimLineDto ToClaimLine(ServerClaimLine line)
+    {
+        var readiness = ProfessionalClaimReadiness.EvaluatePeriod(
+            line.DateOfService.Year,
+            line.DateOfService.Month,
+            [ToReadinessFacts(line)]).Lines[0];
+        return ToClaimLine(line, readiness);
+    }
+
+    private static ClaimLineDto ToClaimLine(
+        ServerClaimLine line,
+        ProfessionalClaimLineReadiness readiness) => new(
         line.Id,
         line.NoteId,
         line.BillingPeriodId,
@@ -186,7 +205,22 @@ internal static class ContractMapper
         line.DiagnosisCode,
         line.PlaceOfService,
         line.IsComplianceException,
-        line.ComplianceExceptionReason);
+        line.ComplianceExceptionReason,
+        readiness.ClientName,
+        readiness.Errors);
+
+    internal static ProfessionalClaimLineFacts ToReadinessFacts(ServerClaimLine line) => new(
+        line.Id,
+        line.DateOfService,
+        line.ProcedureCode,
+        line.ProcedureModifier,
+        line.Units,
+        line.ChargeAmount,
+        line.ClientMaineCareId,
+        line.RenderingProviderNpi,
+        line.DiagnosisCode,
+        line.PlaceOfService,
+        line.ClaimSnapshotJson);
 
     public static BillingConfigurationDto ToBillingConfiguration(ServerAgency agency) => new(
         agency.BillingProcedureCode ?? string.Empty,

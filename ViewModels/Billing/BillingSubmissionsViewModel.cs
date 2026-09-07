@@ -34,6 +34,8 @@ namespace Sati.ViewModels.Billing
         }
 
         public ObservableCollection<BillingPeriod> BillingPeriods { get; } = [];
+        public ObservableCollection<BillingPeriod> DraftBillingPeriods { get; } = [];
+        public ObservableCollection<ClaimLine> SelectedPeriodLines { get; } = [];
         public ObservableCollection<BillingPeriod> GenerationPeriods { get; } = [];
         public ObservableCollection<BillingSubmissionHistoryDto> SubmissionHistory { get; } = [];
         public ObservableCollection<BillingSubmissionBatchRow> SubmissionBatches { get; } = [];
@@ -79,15 +81,30 @@ namespace Sati.ViewModels.Billing
         public bool HasLoaded { get; private set; }
 
         public bool HasSelectedPeriod => SelectedPeriod is not null;
+        public bool HasDraftPeriods => DraftBillingPeriods.Count > 0;
+        public bool HasSelectedPeriodLines => SelectedPeriodLines.Count > 0;
+        public int SelectedPeriodIssueCount => SelectedPeriodLines.Count(line => !line.IsReadyForSubmission);
+        public int SelectedPeriodReadyCount => SelectedPeriodLines.Count - SelectedPeriodIssueCount;
+        public string SelectedPeriodLineSummary => SelectedPeriod is null
+            ? "Choose a draft period to inspect its claim lines."
+            : $"{SelectedPeriodLines.Count} claim {(SelectedPeriodLines.Count == 1 ? "line" : "lines")} · " +
+              $"{SelectedPeriodReadyCount} ready · {SelectedPeriodIssueCount} need correction";
+        public string DraftPeriodSummary => DraftBillingPeriods.Count == 0
+            ? "No draft periods are waiting to be submitted. Submitted periods appear in the 837 range and Submission Home below."
+            : $"{DraftBillingPeriods.Count} draft {(DraftBillingPeriods.Count == 1 ? "period is" : "periods are")} waiting. Submitted periods leave this list and move to the 837 workflow below.";
         public bool HasGeneratedFile => !string.IsNullOrWhiteSpace(LastGeneratedPath);
         public bool CanSubmitPeriod => !IsGenerating && SelectedPeriod is
             { Status: BillingStatus.Draft, Lines.Count: > 0 } period &&
+            period.Lines.All(line => line.IsReadyForSubmission) &&
             !HasInvalidClaimAmounts(period);
         public string SubmitAvailabilityMessage => SelectedPeriod switch
         {
             null => "Choose a draft billing period to submit and lock.",
             { Status: BillingStatus.Draft, Lines.Count: 0 } =>
                 "This draft has no claims and cannot be submitted.",
+            { Status: BillingStatus.Draft } period when period.Lines.Any(line => !line.IsReadyForSubmission) =>
+                $"{period.Lines.Count(line => !line.IsReadyForSubmission)} claim " +
+                $"{(period.Lines.Count(line => !line.IsReadyForSubmission) == 1 ? "line needs" : "lines need")} correction before this period can be submitted.",
             { Status: BillingStatus.Draft } period when HasInvalidClaimAmounts(period) =>
                 "This draft contains a claim with zero units or a $0 charge. Correct and rebuild the affected claim before submitting.",
             { Status: BillingStatus.Draft } period =>
@@ -127,7 +144,17 @@ namespace Sati.ViewModels.Billing
 
         partial void OnSelectedPeriodChanged(BillingPeriod? value)
         {
+            SelectedPeriodLines.Clear();
+            if (value is not null)
+            {
+                foreach (var line in value.Lines.OrderBy(line => line.DateOfService).ThenBy(line => line.Id))
+                    SelectedPeriodLines.Add(line);
+            }
             OnPropertyChanged(nameof(HasSelectedPeriod));
+            OnPropertyChanged(nameof(HasSelectedPeriodLines));
+            OnPropertyChanged(nameof(SelectedPeriodIssueCount));
+            OnPropertyChanged(nameof(SelectedPeriodReadyCount));
+            OnPropertyChanged(nameof(SelectedPeriodLineSummary));
             OnPropertyChanged(nameof(CanSubmitPeriod));
             OnPropertyChanged(nameof(CanGenerateEdi));
             OnPropertyChanged(nameof(SubmitAvailabilityMessage));
@@ -176,17 +203,22 @@ namespace Sati.ViewModels.Billing
                     return;
 
                 BillingPeriods.Clear();
+                DraftBillingPeriods.Clear();
                 GenerationPeriods.Clear();
                 SubmissionHistory.Clear();
                 _generatedTestPeriodIds.Clear();
 
                 foreach (var period in periods)
+                {
                     BillingPeriods.Add(period);
+                    if (period.Status == BillingStatus.Draft && period.Lines.Count > 0)
+                        DraftBillingPeriods.Add(period);
+                }
 
-                SelectedPeriod = BillingPeriods.SingleOrDefault(period => period.Id == previouslySelectedId)
-                    ?? BillingPeriods.FirstOrDefault(period =>
-                        period.Status == BillingStatus.Draft && period.Lines.Count > 0)
-                    ?? BillingPeriods.FirstOrDefault();
+                SelectedPeriod = DraftBillingPeriods.SingleOrDefault(period => period.Id == previouslySelectedId)
+                    ?? DraftBillingPeriods.FirstOrDefault();
+                OnPropertyChanged(nameof(HasDraftPeriods));
+                OnPropertyChanged(nameof(DraftPeriodSummary));
 
                 foreach (var item in history)
                     SubmissionHistory.Add(item);
@@ -233,8 +265,7 @@ namespace Sati.ViewModels.Billing
                 await _billingService.SubmitBillingPeriodAsync(CurrentActor(), selectedId);
                 HasLoaded = false;
                 await LoadAsync();
-                SelectedPeriod = BillingPeriods.SingleOrDefault(period => period.Id == selectedId);
-                StatusMessage = "Billing period submitted and locked. It is ready for 837P generation.";
+                StatusMessage = "Billing period submitted and locked. It left the draft list and is ready in the 837P generation range.";
             }
             catch (Exception ex)
             {
@@ -432,6 +463,8 @@ namespace Sati.ViewModels.Billing
             _accountLoads.Invalidate();
             SelectedPeriod = null;
             BillingPeriods.Clear();
+            DraftBillingPeriods.Clear();
+            SelectedPeriodLines.Clear();
             GenerationPeriods.Clear();
             SubmissionHistory.Clear();
             SubmissionBatches.Clear();
@@ -449,6 +482,12 @@ namespace Sati.ViewModels.Billing
             SelectedSubmissionStatus = "All statuses";
             SelectedMockClearinghouseScenario = MockClearinghouseScenarioOption.All[0];
             HasLoaded = false;
+            OnPropertyChanged(nameof(HasDraftPeriods));
+            OnPropertyChanged(nameof(HasSelectedPeriodLines));
+            OnPropertyChanged(nameof(SelectedPeriodIssueCount));
+            OnPropertyChanged(nameof(SelectedPeriodReadyCount));
+            OnPropertyChanged(nameof(SelectedPeriodLineSummary));
+            OnPropertyChanged(nameof(DraftPeriodSummary));
             NotifyMockClearinghouseStateChanged();
         }
 
