@@ -8,6 +8,12 @@ $requestId = [Guid]::Empty
 $actorUserId = 0
 $stage = 'ValidateRequest'
 $body = $Request.Body
+if ($body -is [System.Text.Json.JsonDocument]) {
+    $body = $body.RootElement.GetRawText()
+}
+elseif ($body -is [System.Text.Json.JsonElement]) {
+    $body = $body.GetRawText()
+}
 if ($body -is [System.IO.Stream]) {
     $reader = [System.IO.StreamReader]::new($body, [Text.Encoding]::UTF8, $true, 1024, $true)
     try {
