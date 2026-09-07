@@ -8,6 +8,9 @@ $requestId = [Guid]::Empty
 $actorUserId = 0
 $stage = 'ValidateRequest'
 $body = $Request.Body
+if ($null -eq $body) {
+    $body = $Request.RawBody
+}
 if ($body -is [System.Text.Json.JsonDocument]) {
     $body = $body.RootElement.GetRawText()
 }
