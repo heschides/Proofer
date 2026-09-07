@@ -95,11 +95,21 @@ internal sealed class ValidatedActorFilter(IDbContextFactory<ApiDbContext> facto
         // A WebSocket keeps the request alive. Finish and dispose authentication's
         // database context before entering that long-lived endpoint.
         await using (var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted))
+        {
             user = await db.Users.AsNoTracking().SingleOrDefaultAsync(candidate =>
-                candidate.Id == claimedActor.UserId &&
-                candidate.AgencyId == claimedActor.AgencyId &&
-                candidate.Role == claimedActor.Role,
+                    candidate.Id == claimedActor.UserId &&
+                    candidate.AgencyId == claimedActor.AgencyId &&
+                    candidate.Role == claimedActor.Role,
                 context.HttpContext.RequestAborted);
+            var claimedInstance = context.HttpContext.User.FindFirst(TokenIssuer.DatabaseInstanceClaim)?.Value;
+            var currentInstance = await db.DatabaseIdentities.AsNoTracking()
+                .Where(item => item.Id == 1 && item.EnvironmentName == "Demo")
+                .Select(item => item.InstanceId)
+                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+            if (!Guid.TryParse(claimedInstance, out var tokenInstance) ||
+                currentInstance == Guid.Empty || tokenInstance != currentInstance)
+                return Results.Unauthorized();
+        }
         if (user is null || !UserPermissionRules.IsSupported(user.Permissions))
             return Results.Unauthorized();
 

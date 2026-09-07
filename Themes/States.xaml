@@ -26,10 +26,12 @@
 
     <!-- Additional fixed semantic states used by dashboards and matrix views. -->
     <SolidColorBrush x:Key="SuccessStrongBrush" Color="#3A6B35" />
+    <SolidColorBrush x:Key="OnSuccessStrongBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="SuccessDarkBrush" Color="#2A4A10" />
     <SolidColorBrush x:Key="SuccessBorderBrush" Color="#8AAE6A" />
     <SolidColorBrush x:Key="SuccessSoftBrush" Color="#A8C48A" />
     <SolidColorBrush x:Key="DangerStrongBrush" Color="#7A3B3B" />
+    <SolidColorBrush x:Key="OnDangerStrongBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="DangerDarkBrush" Color="#5E2D2D" />
     <SolidColorBrush x:Key="DangerSoftBrush" Color="#EDD4D4" />
     <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#3A2A5A" />

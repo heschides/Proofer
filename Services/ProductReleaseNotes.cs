@@ -6,11 +6,32 @@ public sealed record ReleaseNoteSection(
 
 public static class ProductReleaseNotes
 {
-    public const string ReleaseName = "Claims in the right lane";
+    public const string ReleaseName = "A clean slate, clearly seen";
     public const string ReleaseDate = "September 6, 2026";
 
     public static IReadOnlyList<ReleaseNoteSection> Sections { get; } =
     [
+        new(
+            "Demo administrators can restore the approved baseline",
+            [
+                "A Demo-only Admin action restores the complete approved superhero and television-themed dataset, including users, clients, notes, billing records, and demonstration passwords.",
+                "The reset rolls showcase dates forward after restoration and refuses to run if the database structure no longer matches the reviewed baseline.",
+                "Demo changes are paused during restoration, and every existing Demo session is signed out so an old screen cannot continue against replaced data.",
+                "The reset is not available in Local Production. It does not read, copy, or change Production data."
+            ]),
+        new(
+            "Dark themes keep controls and identity readable",
+            [
+                "Menus, selected navigation, workflow buttons, dialogs, and status labels now use explicit foreground and background pairs instead of borrowing the window background as a text color.",
+                "The Hello badge uses a readable raised surface with an accent outline, including on the darkest themes.",
+                "Strong success and warning actions have dedicated contrasting text colors in both light and dark palettes."
+            ]),
+        new(
+            "Decorative patterns step back from working content",
+            [
+                "Paisley, Art Nouveau, and Mid-Century Modern softly blur their pattern behind navigable content so labels and field boundaries remain clear.",
+                "Navigation decoration remains crisp, and Sati never blurs the controls, case notes, forms, or tables themselves."
+            ]),
         new(
             "Submitted claims now have a visible staging lane",
             [

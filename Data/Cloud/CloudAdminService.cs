@@ -10,6 +10,18 @@ public sealed class CloudAdminService(CloudApiClient api) : IAdminService
     public Task<AdminOperationsDto> GetOperationsAsync(CancellationToken cancellationToken = default) =>
         api.GetAsync<AdminOperationsDto>("/api/v1/admin/operations", cancellationToken);
 
+    public async Task<DemoResetResultDto> RequestFullDemoResetAsync(
+        string confirmation,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await api.PostAsync<DemoResetRequest, DemoResetResultDto>(
+            "/api/v1/admin/demo/reset",
+            new DemoResetRequest(confirmation),
+            cancellationToken);
+        api.InvalidateCurrentSession();
+        return result;
+    }
+
     public Task<AdminIncidentDashboardDto> GetIncidentsAsync(
         int days = 30,
         int take = 250,

@@ -248,6 +248,52 @@ internal static partial class ApiEndpoints
 
     private static void MapAdmin(RouteGroupBuilder api)
     {
+        api.MapPost("/admin/demo/reset", async Task<IResult> (
+            DemoResetRequest request,
+            ClaimsPrincipal principal,
+            IOptions<SatiApiOptions> sati,
+            DemoResetCoordinator reset,
+            CancellationToken cancellationToken) =>
+        {
+            var actor = Actor.From(principal);
+            if (!actor.HasAdminPermissions)
+                return Results.Forbid();
+            var isValidatedDemo =
+                string.Equals(sati.Value.ExpectedDatabaseName, "SatiDemo", StringComparison.Ordinal) &&
+                string.Equals(sati.Value.ExpectedEnvironment, "Demo", StringComparison.Ordinal);
+            var isIsolatedTestHost =
+                string.Equals(sati.Value.ExpectedDatabaseName, "SatiApiTests", StringComparison.Ordinal) &&
+                string.Equals(sati.Value.ExpectedEnvironment, "Testing", StringComparison.Ordinal);
+            if (!isValidatedDemo && !isIsolatedTestHost)
+                return Results.NotFound();
+            if (!string.Equals(request.Confirmation?.Trim(), "RESET DEMO", StringComparison.Ordinal))
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["confirmation"] = ["Enter RESET DEMO exactly to restore the canonical Demo baseline."]
+                });
+
+            try
+            {
+                return Results.Ok(await reset.RequestAsync(actor.UserId, cancellationToken));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem(
+                    "The Demo reset service did not report successful completion. An administrator must review the reset operation before retrying.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return Results.Problem(
+                    "The Demo reset service did not finish within the protected reset window. An administrator must review the reset operation before retrying.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        });
+
         api.MapGet("/admin/overview", async Task<IResult> (
             ClaimsPrincipal principal,
             ApiDbContext db,
@@ -1190,7 +1236,11 @@ internal static partial class ApiEndpoints
                 user.Id, user.AgencyId, user.Role, user.DisplayName, user.Permissions);
             auditTrail.Record(actor, AuditActions.AuthenticationSucceeded, "User", user.Id);
             await db.SaveChangesAsync(cancellationToken);
-            var issued = tokenIssuer.Issue(user);
+            var instanceId = await db.DatabaseIdentities.AsNoTracking()
+                .Where(item => item.Id == 1 && item.EnvironmentName == "Demo")
+                .Select(item => item.InstanceId)
+                .SingleAsync(cancellationToken);
+            var issued = tokenIssuer.Issue(user, instanceId);
             logger.LogInformation("Sati authentication succeeded for user {UserId} in agency {AgencyId}.", user.Id, user.AgencyId);
             return TypedResults.Ok(new LoginResponse(issued.Token, issued.ExpiresAtUtc, ContractMapper.ToProfile(user)));
         })
@@ -1226,7 +1276,11 @@ internal static partial class ApiEndpoints
             if (user is null)
                 return TypedResults.Unauthorized();
 
-            var issued = tokenIssuer.Issue(user, authenticatedAt);
+            var instanceId = await db.DatabaseIdentities.AsNoTracking()
+                .Where(item => item.Id == 1 && item.EnvironmentName == "Demo")
+                .Select(item => item.InstanceId)
+                .SingleAsync(cancellationToken);
+            var issued = tokenIssuer.Issue(user, instanceId, authenticatedAt);
             return TypedResults.Ok(new SessionRenewalResponse(issued.Token, issued.ExpiresAtUtc));
         });
 

@@ -92,11 +92,25 @@ role. It rolls dates forward, completes ordinary synthetic profiles, preserves s
 exceptions and the superhero/TV humor, repairs synthetic claim prerequisites, and fails unless its
 post-commit validation passes. A live run and an immediate repeat run both succeeded.
 
-This deliberately does not claim the stronger baseline-restoration workflow described above. It
-does not stop concurrent mutations, remove every user-created Demo row, or reset stored Demo
-passwords. Full baseline restoration and a notification destination for failure alerts remain
-tracked in `AGENDA.md`; until then, describe the deployed feature as the daily Demo caseload refresh,
-not a complete nightly reset.
+**Full-reset source implemented 2026-09-06; deployment pending.** The approved current synthetic
+database becomes a protected, explicitly replaceable baseline rather than a second seed that tries
+to recreate every relationship. An owner-executed procedure restores all baseline tables; the
+existing versioned seed then rolls dates and validates profile and billing readiness. The Function
+holds an exclusive application lock for both phases, while every Demo API mutation takes the
+matching shared lock. Restoration rotates the database instance identifier carried by access
+tokens, invalidating every old session instead of hoping that each client clears stale state.
+
+The Admin command is deliberately Demo-only, requires a typed confirmation, and crosses the normal
+WPF -> API -> separately authenticated Function boundary. The Function key remains an API setting,
+not a query-string secret in source or a desktop setting. The reset identity cannot directly read
+the protected baseline; the procedure runs as its owner. Schema drift refuses the reset and requires
+a newly reviewed baseline capture after migration.
+
+**Rejected:** implementing full reset as a chain of client API deletions; giving the desktop SQL
+credentials; allowing mutations during restoration and date repair; leaving pre-reset tokens valid;
+and silently adapting an old baseline to a new schema. The hosted system must still be called the
+daily caseload refresh until controlled baseline capture, deployment, live acceptance, and an
+approved failure-notification destination are complete.
 
 ### Automated tests are a platform prerequisite
 
@@ -3312,6 +3326,11 @@ graded. This keeps clinical and billing work readable and prevents decorative li
 mistaken for field boundaries. Every palette still supplies the full interchangeable theme
 contract, including separate primary-button tokens and local-AI colors. Runtime rendering covers
 all four themes, and primary-button foreground/background pairs must meet at least 4.5:1 contrast.
+
+Paisley, Art Nouveau, and Mid-Century Modern blur only the pattern brush used behind navigable
+content; their navigation motif remains crisp and controls are never blurred. Menus and shell
+identity text use explicit theme-owned surface/foreground pairs, and the greeting badge uses a
+contrasting surface plus accent outline, so dark palettes cannot inherit unreadable system colors.
 
 **Rejected:** wallpaper behind form content; raster textures that blur under scaling and enlarge
 the installer; making the motif carry status meaning; and adding a decorative dictionary that

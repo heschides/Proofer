@@ -49,6 +49,9 @@ if (satiOptions.EdiReplayRetentionDays is < 30 or > 365)
 
 builder.Services.Configure<ApiAuthenticationOptions>(builder.Configuration.GetSection(ApiAuthenticationOptions.SectionName));
 builder.Services.Configure<SatiApiOptions>(builder.Configuration.GetSection(SatiApiOptions.SectionName));
+builder.Services.Configure<DemoResetOptions>(builder.Configuration.GetSection(DemoResetOptions.SectionName));
+builder.Services.AddHttpClient<DemoResetCoordinator>(client =>
+    client.Timeout = TimeSpan.FromMinutes(15));
 builder.Services.Configure<ChatOptions>(builder.Configuration.GetSection("Chat"));
 builder.Services.AddSingleton<ChatFeature>();
 builder.Services.AddSingleton<ChatNotifications>();
@@ -211,6 +214,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
+app.UseMiddleware<DemoMutationLeaseMiddleware>();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 
 var releaseVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";

@@ -273,7 +273,13 @@ public sealed class CloudApiClient
             using var request = CreateRequest(method, path, body, authenticated);
             try
             {
-                return await _httpClient.SendAsync(request, cancellationToken);
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (authenticated && response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    response.Dispose();
+                    throw MarkSessionEnded();
+                }
+                return response;
             }
             catch (Exception ex) when (
                 !cancellationToken.IsCancellationRequested &&
@@ -337,6 +343,8 @@ public sealed class CloudApiClient
             SessionEnded?.Invoke(this, EventArgs.Empty);
         return new CloudSessionEndedException();
     }
+
+    internal void InvalidateCurrentSession() => MarkSessionEnded();
 
     private bool NeedsSessionRenewal() =>
         AccessTokenExpiresAtUtc is DateTimeOffset expiresAt &&

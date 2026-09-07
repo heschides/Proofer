@@ -161,6 +161,28 @@ public sealed class CloudApiRouteTests
         Assert.Equal(today, form.OpenedDate);
     }
 
+    [Fact]
+    public async Task SuccessfulFullDemoResetEndsTheInitiatingDesktopSession()
+    {
+        var requestId = Guid.NewGuid();
+        var recorder = new UriRecorder(JsonBody($$"""
+            {"requestId":"{{requestId}}","completedAtUtc":"2026-09-06T12:00:00Z","status":"Reset completed"}
+            """));
+        var api = ClientFor(recorder);
+        var service = new CloudAdminService(api);
+        var endedNotifications = 0;
+        api.SessionEnded += (_, _) => endedNotifications++;
+
+        var result = await service.RequestFullDemoResetAsync("RESET DEMO");
+
+        Assert.Equal(requestId, result.RequestId);
+        Assert.Equal("/api/v1/admin/demo/reset", recorder.LastUri?.AbsolutePath);
+        Assert.Equal(HttpMethod.Post, recorder.LastMethod);
+        Assert.Contains("RESET DEMO", recorder.LastBody);
+        Assert.True(api.HasSessionEnded);
+        Assert.Equal(1, endedNotifications);
+    }
+
     private static AgencyReleaseRequest ValidReleaseRequest() => new(
         true,
         "Community support",

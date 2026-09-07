@@ -1,5 +1,56 @@
 # Sati — Refactor Agenda
 
+## Release 1.3.3 — 2026-09-06
+
+"A clean slate, clearly seen." This release makes the complete synthetic Demo recoverable on
+demand, closes the remaining dark-theme contrast gaps, and softens decorative patterns behind
+working content.
+
+- [x] Fix remaining theme-owned text pairs in menus, selected states, action labels, and the shell
+      greeting so dark palettes do not render dark-on-dark text.
+- [x] Blur the Paisley, Art Nouveau, and Mid-Century Modern pattern only behind navigable content;
+      keep navigation chrome crisp and controls/content surfaces unblurred.
+- [x] Add a Demo-only Admin command with an explicit `RESET DEMO` typed confirmation. Route it
+      through the Administration-authorized API and a separately authenticated reset Function;
+      Local Production has no reset implementation and the API route is absent outside Demo.
+- [x] Add controlled capture of the approved current superhero/TV database as a protected baseline,
+      a schema-drift-refusing owner-executed restore procedure, full-table restoration, rolling-date
+      validation, mutation exclusion, and database-instance token invalidation.
+- [x] Add API authorization/session invalidation tests, WPF structure/contrast tests, and reset
+      asset safety checks. Debug build completed with zero errors and nine known warnings; 2,098
+      tests passed across all five projects, with the one explicitly optional local-AI evaluation
+      skipped, and all four changed PowerShell entry points passed parser validation.
+- [ ] During a separately authorized release, capture the reviewed cloud baseline, publish the
+      Function and API, store its endpoint and Function key only in API settings, and run a live
+      destructive acceptance test. A workstation capture requires the user-managed exact-IP SQL
+      firewall rule; DATT itself never authorizes that security change.
+- [ ] Configure an approved external destination for reset-failure alerts and prove one test alert.
+      Application Insights logging alone does not close this operational requirement.
+
+**No EF migration.** The baseline schema and reset procedure are controlled Demo-only operational
+objects, deliberately outside the application migration chain. Nothing in this work applies to or
+reads Local Production.
+
+- [x] Preflight: `master` equals `origin/master`; version 1.3.3 and its API/installer artifact names
+      are unused. The current synthetic Demo was separately approved as the canonical baseline.
+      The user-created exact-IP SQL rule matches this workstation at `72.95.106.10`; the release
+      workflow will not alter it and the user must remove it immediately after baseline capture.
+- [x] Release validation: full Release build succeeded with zero errors and nine known warnings;
+      all five test projects passed (2,098 passed, one documented optional local-AI test skipped);
+      all nine release/reset PowerShell entry points parsed cleanly; and the dependency audit found
+      no vulnerable direct or transitive NuGet packages. Source commit and push remain pending.
+- [ ] Publish the locking API with the reset route unconfigured; capture the protected baseline;
+      publish the Function; store its endpoint and key only in protected API settings; verify the
+      restarted API and run one live full-reset acceptance test.
+- [ ] Build, accept, and publish the Demo and Local installers without overwriting prior artifacts.
+- [ ] Record and push final evidence; verify a clean tree equal to `origin/master`.
+
+**Branches.** No branch is eligible for merge or deletion. `video-conferencing-design` contains
+the unrelated ACS design work identified by the user; `team-chat-design`, `second-machine-setup`,
+and `origin/claude/local-vs-github-workflow-dlcqpb` retain unique work; the fully merged
+`claude/cool-jang-f6b3c4` remains checked out by another worktree, whose untracked `AGENTS.md` is
+untouched.
+
 ## Completed 2026-09-06 — billing-safe Demo diagnoses
 
 - [x] Give every synthetic Demo client a deterministic, valid fictional diagnosis from a varied
@@ -3463,8 +3514,9 @@ Address these pressure points when the affected code is next changed:
 - [x] Restrict Azure SQL so tester devices do not connect directly.
 - [x] Deploy and live-test a daily canonical caseload refresh with rolling dates, a separate managed
       identity, six deliberate teaching exceptions, profile/claim validation, and repeat-run safety.
-- [ ] Extend the refresh into a full baseline reset that pauses mutations, removes arbitrary Demo
-      changes, resets demonstration logins, and sends failures to an approved notification target.
+- [x] Implement the source for a full baseline reset that pauses mutations, removes arbitrary Demo
+      changes, restores demonstration logins, and invalidates all pre-reset sessions.
+- [ ] Deploy and live-test that full reset and send failures to an approved notification target.
 - [ ] Complete an API inventory and migrate all workflows included in the colleague Demo.
 - [ ] Run security, tenant-boundary, concurrency, reset, and clean-install acceptance tests.
 

@@ -19,7 +19,7 @@ generation use serializable transactions so they cannot cross in flight. Once ex
 exists, correction requires the immutable financial-record amendment path rather than status
 rewind.
 
-## Daily Demo caseload refresh
+## Canonical Demo reset
 
 `Sati.DemoRefresh` is a timer-triggered Azure Function that runs at 3:15 AM Eastern. It obtains an
 Azure SQL token from its system-assigned managed identity, never a stored database credential. The
@@ -35,9 +35,28 @@ then validates the Demo identity marker, caseload presence, deliberate-exception
 profile completeness, and claim readiness on a new connection. The cloud run and an immediate
 idempotency run passed on 2026-09-06.
 
-This is a daily canonical caseload refresh, not yet the stronger full-baseline reset. It does not
-pause API mutations, remove every user-created Demo row, or reset demonstration passwords. That
-broader reset and its notification alert remain separate operational work.
+The source now extends that refresh into a full reset, but this stronger path is not live until its
+first controlled baseline capture, Function/API configuration, deployment, and acceptance test.
+`scripts/Initialize-DemoFullReset.ps1` copies the explicitly approved current `dbo` contents into a
+protected `demo_baseline` schema and creates one owner-executed reset procedure. It refuses any
+database except the identity-checked `SatiDemo`, requires an explicit replacement switch, fails if
+the live and baseline table sets drift, and denies the API and reset callers direct baseline access.
+The Function identity retains the existing narrow data rights needed by the rolling-date seed and
+receives only EXECUTE for the otherwise destructive restoration.
+
+Both the Admin-triggered and scheduled paths hold an exclusive `SatiDemo.FullReset` application
+lock from restoration through rolling-date validation. Demo API mutations take the matching shared
+lock and return a temporary-unavailable response rather than crossing a reset. The Admin control is
+visible only in the Demo desktop, requires the exact typed phrase `RESET DEMO`, and calls the
+Administration-authorized API route. The API, in turn, calls the Function over HTTPS with a
+server-held Function key; neither SQL authority nor that key reaches WPF. Production configuration
+makes the route absent. Completion rotates `SatiDatabaseIdentity.InstanceId`, which is embedded in
+each access token and checked on every authorized request, so all sessions from the replaced
+database instance fail immediately and must sign in again.
+
+Failure still needs an approved external notification destination before the stronger reset can be
+described as operationally complete. Until deployment and a live destructive acceptance exercise,
+the currently hosted behavior remains the previously verified daily caseload refresh.
 
 ## Electronic signatures (synthetic-data build)
 
@@ -145,12 +164,15 @@ Every theme dictionary now supplies `AccentButtonBrush`, `AccentButtonHoverBrush
 `AccentBrush`. A theme dictionary is swapped in whole, so a theme missing a key loses the fill
 rather than inheriting one — a structure test asserts all nineteen supply all four.
 
-Decorative themes use tiled vector `DrawingBrush` resources only for the outer window and
-navigation chrome. Content surfaces remain solid or gently graded so patterns cannot sit behind
-case notes, form fields, tables, or status text. Industrial Matte, Paisley, Art Nouveau, and
-Mid-Century Modern therefore add visual character without changing layout, data, or control
-semantics. Runtime render tests load every decorative dictionary, and button contrast is held to at
-least 4.5:1.
+Decorative themes use tiled vector resources only for the outer window and navigation chrome.
+Paisley, Art Nouveau, and Mid-Century Modern render the outer content pattern through a small
+GPU-backed blur while leaving the navigation pattern and every control untouched; content surfaces
+remain solid or gently graded so artwork cannot compete with case notes, form fields, tables, or
+status text. Industrial Matte keeps its low-contrast crisp texture. Runtime render tests load every
+decorative dictionary, assert the blur is confined to the brush rather than the navigable visual
+tree, and hold primary-button contrast to at least 4.5:1. Context menus and shell identity chrome
+use explicit themed foreground/background pairs instead of Windows system menu colours or the
+window background as a text colour.
 
 
 ## Easy Eyes presentation mode

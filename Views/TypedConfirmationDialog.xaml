@@ -22,9 +22,9 @@
             <Setter Property="Margin"
                     Value="0,0,8,0" />
             <Setter Property="Background"
-                    Value="{DynamicResource TextSecondaryBrush}" />
+                    Value="{DynamicResource SurfaceAltBrush}" />
             <Setter Property="Foreground"
-                    Value="{DynamicResource WindowBackgroundBrush}" />
+                    Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="FontSize"
                     Value="13" />
             <Setter Property="FontWeight"

@@ -172,6 +172,26 @@ public sealed class CloudConnectivityTests
         Assert.Equal(["expiring-token", "fresh-token"], handler.AuthorizationTokens);
     }
 
+    [Fact]
+    public async Task UnauthorizedOrdinaryRequestEndsTheWholeSessionImmediately()
+    {
+        var handler = new SequenceHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        using var http = NewHttpClient(handler);
+        var api = new CloudApiClient(http, (_, _) => Task.CompletedTask);
+        api.SetAccessToken("replaced-database-token", DateTimeOffset.UtcNow.AddMinutes(30));
+        var endedNotifications = 0;
+        api.SessionEnded += (_, _) => endedNotifications++;
+
+        await Assert.ThrowsAsync<CloudSessionEndedException>(
+            () => api.GetAsync<TestResponse>("/probe"));
+        await Assert.ThrowsAsync<CloudSessionEndedException>(
+            () => api.GetAsync<TestResponse>("/other"));
+
+        Assert.Equal(1, handler.Calls);
+        Assert.Equal(1, endedNotifications);
+        Assert.True(api.HasSessionEnded);
+    }
+
     /// <summary>
     /// The switch-user directory must not present an ended session as an empty
     /// account list; the dialog has no other way to explain why it is blank.
@@ -237,7 +257,7 @@ public sealed class CloudConnectivityTests
             () => service.SaveAsync(scratchpad));
 
         Assert.Equal(1, handler.Calls);
-        Assert.IsType<CloudApiException>(error.InnerException);
+        Assert.IsType<CloudSessionEndedException>(error.InnerException);
         Assert.DoesNotContain(scratchpad.Content, error.Message, StringComparison.Ordinal);
         Assert.Equal(4, scratchpad.Revision);
     }

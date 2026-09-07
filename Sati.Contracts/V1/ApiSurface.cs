@@ -62,6 +62,9 @@ public static class ApiSurface
         "annual-packet-and-receipt-v1",
         "team-chat-v1",
         "signature-evidence-v1",
+        // A reset rotates the Demo database instance identifier embedded in access tokens,
+        // making every session issued against the replaced baseline unusable.
+        "demo-full-reset-v1",
         // Prevent same-month periods for different case managers from rendering identically.
         "billing-period-case-manager-name-v1"
     ];
@@ -157,6 +160,7 @@ public static class ApiSurface
         "GET /health/version",
         "POST /api/v1/admin/audit-export.csv",
         "POST /api/v1/admin/consumers/{personId:int}/delete-in-window",
+        "POST /api/v1/admin/demo/reset",
         "POST /api/v1/admin/demo/seed-ssns",
         "POST /api/v1/admin/legal-holds",
         "POST /api/v1/admin/legal-holds/{legalHoldId:int}/release",

@@ -503,6 +503,9 @@ public sealed record AdminAuditExportRequest(
     DateTime ToUtc,
     string Reason);
 
+public sealed record DemoResetRequest(string Confirmation);
+public sealed record DemoResetResultDto(Guid RequestId, DateTime CompletedAtUtc, string Status);
+
 public sealed record AdminPersonListItemDto(
     int PersonId,
     string DisplayName,

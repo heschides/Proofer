@@ -22,8 +22,8 @@
     <SolidColorBrush x:Key="CompliantBrush" Color="#A8DDAE"/><SolidColorBrush x:Key="CompliantFillBrush" Color="#294536"/>
     <SolidColorBrush x:Key="WarningBrush" Color="#F2D080"/><SolidColorBrush x:Key="WarningFillBrush" Color="#4B3E22"/>
     <SolidColorBrush x:Key="InfoBrush" Color="#9FD1F3"/><SolidColorBrush x:Key="InfoFillBrush" Color="#234458"/>
-    <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A7D9AE"/><SolidColorBrush x:Key="SuccessDarkBrush" Color="#B9E4BF"/><SolidColorBrush x:Key="SuccessBorderBrush" Color="#658F6C"/><SolidColorBrush x:Key="SuccessSoftBrush" Color="#2E4A37"/>
-    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA"/><SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0"/><SolidColorBrush x:Key="DangerSoftBrush" Color="#4D3035"/>
+    <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A7D9AE"/><SolidColorBrush x:Key="OnSuccessStrongBrush" Color="#132613"/><SolidColorBrush x:Key="SuccessDarkBrush" Color="#B9E4BF"/><SolidColorBrush x:Key="SuccessBorderBrush" Color="#658F6C"/><SolidColorBrush x:Key="SuccessSoftBrush" Color="#2E4A37"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA"/><SolidColorBrush x:Key="OnDangerStrongBrush" Color="#321515"/><SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0"/><SolidColorBrush x:Key="DangerSoftBrush" Color="#4D3035"/>
     <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#D7C5EE"/><SolidColorBrush x:Key="WorkflowPurpleFillBrush" Color="#403650"/><SolidColorBrush x:Key="WorkflowPurpleBorderBrush" Color="#79698D"/>
     <SolidColorBrush x:Key="OpenedFormBrush" Color="#F1B66F"/><SolidColorBrush x:Key="OpenedFormFillBrush" Color="#493722"/>
     <SolidColorBrush x:Key="MatrixGoodBrush" Color="#2C4B38"/><SolidColorBrush x:Key="MatrixWatchBrush" Color="#514623"/><SolidColorBrush x:Key="MatrixConcernBrush" Color="#563D2A"/><SolidColorBrush x:Key="MatrixUrgentBrush" Color="#553136"/><SolidColorBrush x:Key="MatrixEmptyBrush" Color="#2D454E"/>

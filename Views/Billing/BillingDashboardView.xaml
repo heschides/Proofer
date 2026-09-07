@@ -53,7 +53,7 @@
                                     <DataTrigger Binding="{Binding IsOverviewActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                                Value="{DynamicResource OnAccentBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -93,7 +93,7 @@
                                     <DataTrigger Binding="{Binding IsQueueActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                                Value="{DynamicResource OnAccentBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -133,7 +133,7 @@
                                     <DataTrigger Binding="{Binding IsSubmissionsActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                                Value="{DynamicResource OnAccentBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -173,7 +173,7 @@
                                     <DataTrigger Binding="{Binding IsRemittancesActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                                Value="{DynamicResource OnAccentBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -213,7 +213,7 @@
                                     <DataTrigger Binding="{Binding IsAlertsActive}"
                                                  Value="True">
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource WindowBackgroundBrush}" />
+                                                Value="{DynamicResource OnAccentBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

@@ -28,6 +28,8 @@ public partial class AdminDashboardView : UserControl
         viewModel.TestConsumerDeletionConfirmationRequested += ConfirmTestConsumerDeletion;
         viewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
         viewModel.ConsumerDeletionConfirmationRequested += ConfirmConsumerDeletionInWindow;
+        viewModel.DemoResetConfirmationRequested -= ConfirmDemoReset;
+        viewModel.DemoResetConfirmationRequested += ConfirmDemoReset;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -38,6 +40,7 @@ public partial class AdminDashboardView : UserControl
             oldViewModel.CsvReady -= SaveCsv;
             oldViewModel.TestConsumerDeletionConfirmationRequested -= ConfirmTestConsumerDeletion;
             oldViewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
+            oldViewModel.DemoResetConfirmationRequested -= ConfirmDemoReset;
         }
         if (e.NewValue is AdminDashboardViewModel newViewModel)
         {
@@ -45,6 +48,7 @@ public partial class AdminDashboardView : UserControl
             newViewModel.CsvReady += SaveCsv;
             newViewModel.TestConsumerDeletionConfirmationRequested += ConfirmTestConsumerDeletion;
             newViewModel.ConsumerDeletionConfirmationRequested += ConfirmConsumerDeletionInWindow;
+            newViewModel.DemoResetConfirmationRequested += ConfirmDemoReset;
         }
     }
 
@@ -56,7 +60,22 @@ public partial class AdminDashboardView : UserControl
             viewModel.CsvReady -= SaveCsv;
             viewModel.TestConsumerDeletionConfirmationRequested -= ConfirmTestConsumerDeletion;
             viewModel.ConsumerDeletionConfirmationRequested -= ConfirmConsumerDeletionInWindow;
+            viewModel.DemoResetConfirmationRequested -= ConfirmDemoReset;
         }
+    }
+
+    private void ConfirmDemoReset(object? sender, AdminDemoResetConfirmationEventArgs e)
+    {
+        var dialog = new TypedConfirmationDialog(
+            "Restore the full Demo baseline?",
+            "This removes every change made in Demo, restores the approved superhero/TV users, passwords, clients, notes, and billing data, then rolls the showcase dates forward. Everyone using Demo will be signed out.",
+            "Type RESET DEMO to confirm.",
+            "RESET DEMO",
+            "Reset Demo")
+        {
+            Owner = Window.GetWindow(this)
+        };
+        e.Confirmed = dialog.ShowDialog() == true;
     }
 
     private void ConfirmTestConsumerDeletion(

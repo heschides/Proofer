@@ -34,8 +34,8 @@
         </Style>
 
         <!-- One block per review item. Fill encodes stage; the letter names the
-             category. Foreground flips light on the two dark fills so the label
-             stays legible without a second converter. -->
+             category. The two fixed fill colors use their own fixed contrasting
+             text rather than inheriting a theme foreground. -->
         <DataTemplate x:Key="CellBlockTemplate">
             <Border Height="22"
                     Margin="1"
@@ -56,12 +56,12 @@
                                 <DataTrigger Binding="{Binding Stage}"
                                              Value="Received">
                                     <Setter Property="Foreground"
-                                            Value="{DynamicResource WindowBackgroundBrush}" />
+                                            Value="#1B2730" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Stage}"
                                              Value="Logged">
                                     <Setter Property="Foreground"
-                                            Value="{DynamicResource WindowBackgroundBrush}" />
+                                            Value="White" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

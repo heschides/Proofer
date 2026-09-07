@@ -85,6 +85,19 @@ A DATT release is complete only when all applicable conditions are true:
    Discovering either of these at the API publication step wastes a full release pass. Raise both
    in the preflight report, alongside the other findings, before any version bump or commit.
 
+   A release containing the full Demo reset has an additional controlled database operation even
+   though it adds no EF migration: the first reviewed baseline capture (or an intentional baseline
+   replacement after schema/data changes). DATT does not authorize that data transformation. Stop
+   in preflight unless the user has separately approved capturing the current `SatiDemo` contents,
+   and ask the user to add and later remove the temporary exact-IP firewall rule. Run only
+   `scripts/Initialize-DemoFullReset.ps1 -ReplaceBaseline` against the identity-validated Demo
+   database. The rollout order is load-bearing: first publish the matching API with reset settings
+   absent, so its shared mutation lock is live while the reset route remains closed; then capture
+   the baseline, publish the Function, obtain its host key without printing or committing it, and
+   store `DemoReset__FunctionEndpoint` and `DemoReset__FunctionKey` only in the Demo API's protected
+   application settings. Verify the restarted API afterward. Never place the key in a URL, client
+   configuration, release evidence, or logs.
+
    A schema change reaches two kinds of place, never one. `SatiDemo` is a single Azure database
    migrated deliberately. Local `SatiProduction` is a separate database on *every* machine, migrated
    by the desktop at its next launch. They are therefore never applied together, and treating the

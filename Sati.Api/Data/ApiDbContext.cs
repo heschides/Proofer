@@ -7,6 +7,7 @@ namespace Sati.Api.Data;
 
 internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(options)
 {
+    public DbSet<ServerDatabaseIdentity> DatabaseIdentities => Set<ServerDatabaseIdentity>();
     public DbSet<ServerUser> Users => Set<ServerUser>();
     public DbSet<ServerPerson> People => Set<ServerPerson>();
     public DbSet<ServerForm> Forms => Set<ServerForm>();
@@ -59,6 +60,12 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ServerDatabaseIdentity>(entity =>
+        {
+            entity.ToTable("SatiDatabaseIdentity");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EnvironmentName).HasMaxLength(20);
+        });
         SignaturePersistenceModel.Configure(modelBuilder);
         SignaturePersistenceModel.ConfigureClinicalRelationships<ServerDocumentArtifact, ServerAgency, ServerUser, ServerPerson, ServerPersonContact>(modelBuilder);
         ChatPersistenceModel.Configure<ServerChatRoom, ServerChatRoomMember, ServerChatMessage, ServerChatChange,
@@ -613,6 +620,14 @@ internal sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbC
             throw new InvalidOperationException("Audit, form-attestation, document-template, Person history, and billing exchange records are append-only.");
         }
     }
+}
+
+internal sealed class ServerDatabaseIdentity
+{
+    public int Id { get; set; }
+    public string EnvironmentName { get; set; } = string.Empty;
+    public Guid InstanceId { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 }
 
 internal sealed class ServerUser

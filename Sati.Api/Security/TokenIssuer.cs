@@ -10,10 +10,12 @@ namespace Sati.Api.Security;
 internal sealed class TokenIssuer(IOptions<Api.Infrastructure.ApiAuthenticationOptions> options)
 {
     internal const string AuthenticatedAtClaim = "sati_auth_time";
+    internal const string DatabaseInstanceClaim = "sati_demo_instance";
     private readonly Api.Infrastructure.ApiAuthenticationOptions _options = options.Value;
 
     public (string Token, DateTimeOffset ExpiresAtUtc) Issue(
         ServerUser user,
+        Guid databaseInstanceId,
         DateTimeOffset? authenticatedAtUtc = null)
     {
         var issuedAt = DateTimeOffset.UtcNow;
@@ -29,6 +31,7 @@ internal sealed class TokenIssuer(IOptions<Api.Infrastructure.ApiAuthenticationO
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new Claim(JwtRegisteredClaimNames.Iat, issuedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new Claim(AuthenticatedAtClaim, authenticatedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new Claim(DatabaseInstanceClaim, databaseInstanceId.ToString("D")),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.DisplayName),
             new Claim(ClaimTypes.Role, user.Role),

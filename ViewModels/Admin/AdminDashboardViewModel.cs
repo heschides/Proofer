@@ -11,7 +11,8 @@ namespace Sati.ViewModels.Admin;
 public partial class AdminDashboardViewModel(
     IAdminService adminService,
     ISessionService sessionService,
-    IPersonService? personService = null) : ObservableObject
+    IPersonService? personService = null,
+    DataEnvironmentInfo? environmentInfo = null) : ObservableObject
 {
     private CancellationTokenSource? _historyCancellation;
     private readonly LatestRequestTracker _accountLoads = new();
@@ -49,6 +50,7 @@ public partial class AdminDashboardViewModel(
     public bool HasNotice => !string.IsNullOrWhiteSpace(NoticeMessage);
     public bool HasSelectedPerson => SelectedPerson is not null;
     public bool HasHistory => PersonHistory.Count > 0;
+    public bool IsDemoEnvironment => environmentInfo?.Environment == SatiDataEnvironment.Demo;
     public string LastRefreshedLabel => LastRefreshedAt is null
         ? "Not loaded"
         : $"Updated {LastRefreshedAt:MMM d, h:mm tt}";
@@ -93,6 +95,35 @@ public partial class AdminDashboardViewModel(
     public event EventHandler<AdminCsvReadyEventArgs>? CsvReady;
     public event EventHandler<AdminTestConsumerDeletionConfirmationEventArgs>? TestConsumerDeletionConfirmationRequested;
     public event EventHandler<AdminConsumerDeletionConfirmationEventArgs>? ConsumerDeletionConfirmationRequested;
+    public event EventHandler<AdminDemoResetConfirmationEventArgs>? DemoResetConfirmationRequested;
+
+    private bool CanResetDemo() => IsDemoEnvironment && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanResetDemo))]
+    private async Task ResetDemoAsync()
+    {
+        var confirmation = new AdminDemoResetConfirmationEventArgs();
+        DemoResetConfirmationRequested?.Invoke(this, confirmation);
+        if (!confirmation.Confirmed)
+            return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        NoticeMessage = string.Empty;
+        try
+        {
+            var accepted = await adminService.RequestFullDemoResetAsync("RESET DEMO");
+            NoticeMessage = $"Full Demo reset {accepted.RequestId:N} completed. Close and reopen the Demo, then sign in again.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The Demo reset did not complete. {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     public async Task InitializeAsync()
     {
@@ -196,6 +227,7 @@ public partial class AdminDashboardViewModel(
 
     partial void OnIsBusyChanged(bool value)
     {
+        ResetDemoCommand.NotifyCanExecuteChanged();
         ExportPersonAuditPdfCommand.NotifyCanExecuteChanged();
         ExportAuditCsvCommand.NotifyCanExecuteChanged();
         UpdateIncidentStatusCommand.NotifyCanExecuteChanged();
@@ -633,5 +665,10 @@ public sealed class AdminConsumerDeletionConfirmationEventArgs(
     public string Message { get; } = message;
     public string Prompt { get; } = prompt;
     public string RequiredConfirmationText { get; } = requiredConfirmationText;
+    public bool Confirmed { get; set; }
+}
+
+public sealed class AdminDemoResetConfirmationEventArgs : EventArgs
+{
     public bool Confirmed { get; set; }
 }

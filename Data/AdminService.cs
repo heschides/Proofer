@@ -14,6 +14,12 @@ public sealed class AdminService(
     PersonAuditPdfExporter pdfExporter,
     ILegalHoldRegistry legalHoldRegistry) : IAdminService
 {
+    public Task<DemoResetResultDto> RequestFullDemoResetAsync(
+        string confirmation,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException(
+            "The full reset is available only in the hosted Demo environment.");
+
     public async Task<AdminOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default)
     {
         var actor = CurrentAdmin();

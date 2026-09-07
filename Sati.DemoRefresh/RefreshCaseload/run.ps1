@@ -25,11 +25,42 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     throw 'Managed identity did not return an Azure SQL access token.'
 }
 
-$seed = Join-Path $PSScriptRoot 'Seed-DemoShowcaseData.ps1'
-if (-not (Test-Path -LiteralPath $seed -PathType Leaf)) {
-    throw "The versioned Demo seed is missing at '$seed'."
-}
+$connection = [System.Data.SqlClient.SqlConnection]::new(
+    "Server=$server;Database=SatiDemo;Encrypt=true;TrustServerCertificate=false;Connect Timeout=30;")
+$connection.AccessToken = $token
+$connection.Open()
+try {
+    $lock = $connection.CreateCommand()
+    $lock.CommandTimeout = 70
+    $lock.CommandText = @'
+DECLARE @result int;
+EXEC @result=sys.sp_getapplock @Resource=N'SatiDemo.FullReset',
+    @LockMode=N'Exclusive', @LockOwner=N'Session', @LockTimeout=60000;
+SELECT @result;
+'@
+    if ([int]$lock.ExecuteScalar() -lt 0) { throw 'The Demo is busy; scheduled reset did not begin.' }
 
-Write-Host "Starting canonical Demo caseload refresh for $([DateTime]::Today.ToString('yyyy-MM-dd'))."
-& $seed -SqlServer $server -Database 'SatiDemo' -AccessToken $token -AsOfDate ([DateTime]::Today)
-Write-Host 'Canonical Demo caseload refresh completed and passed validation.'
+    $command = $connection.CreateCommand()
+    $command.CommandTimeout = 900
+    $command.CommandText = 'EXEC dbo.SatiResetToCanonicalBaseline @RequestId, @ActorUserId;'
+    [void]$command.Parameters.AddWithValue('@RequestId', [Guid]::NewGuid())
+    [void]$command.Parameters.AddWithValue('@ActorUserId', 0)
+    [void]$command.ExecuteNonQuery()
+
+    $seed = Join-Path $PSScriptRoot 'Seed-DemoShowcaseData.ps1'
+    if (-not (Test-Path -LiteralPath $seed -PathType Leaf)) {
+        throw "The versioned Demo seed is missing at '$seed'."
+    }
+
+    Write-Host "Starting rolling-date refresh after full baseline restoration for $([DateTime]::Today.ToString('yyyy-MM-dd'))."
+    & $seed -SqlServer $server -Database 'SatiDemo' -AccessToken $token -AsOfDate ([DateTime]::Today)
+    Write-Host 'Canonical Demo caseload refresh completed and passed validation.'
+}
+finally {
+    if ($connection.State -eq [System.Data.ConnectionState]::Open) {
+        $release = $connection.CreateCommand()
+        $release.CommandText = "EXEC sys.sp_releaseapplock @Resource=N'SatiDemo.FullReset', @LockOwner=N'Session';"
+        [void]$release.ExecuteNonQuery()
+    }
+    $connection.Dispose()
+}

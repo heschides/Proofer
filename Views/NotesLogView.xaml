@@ -475,8 +475,8 @@
                                 FontSize="12"
                                 Cursor="Hand"
                                 BorderThickness="0"
-                                Background="{DynamicResource TextSecondaryBrush}"
-                                Foreground="{DynamicResource WindowBackgroundBrush}"
+                                Background="{DynamicResource SurfaceAltBrush}"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
                                 Margin="0,0,6,0"
                                 Command="{Binding CancelComplianceDialogCommand}">
                             <Button.Template>
@@ -496,7 +496,7 @@
                                 Cursor="Hand"
                                 BorderThickness="0"
                                 Background="{DynamicResource AccentBrush}"
-                                Foreground="{DynamicResource WindowBackgroundBrush}"
+                                Foreground="{DynamicResource OnAccentBrush}"
                                 Margin="0,0,6,0"
                                 Command="{Binding HoldForComplianceCommand}">
                             <Button.Template>
@@ -516,7 +516,7 @@
                                 Cursor="Hand"
                                 BorderThickness="0"
                                 Background="{DynamicResource DangerStrongBrush}"
-                                Foreground="{DynamicResource WindowBackgroundBrush}"
+                                Foreground="{DynamicResource OnDangerStrongBrush}"
                                 Command="{Binding SendToSupervisorCommand}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">

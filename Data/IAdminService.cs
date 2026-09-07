@@ -6,6 +6,10 @@ public interface IAdminService
 {
     Task<AdminOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default);
     Task<AdminOperationsDto> GetOperationsAsync(CancellationToken cancellationToken = default);
+    Task<DemoResetResultDto> RequestFullDemoResetAsync(
+        string confirmation,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("The full Demo reset is not available through this service.");
     Task<AdminIncidentDashboardDto> GetIncidentsAsync(
         int days = 30,
         int take = 250,

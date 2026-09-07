@@ -41,7 +41,7 @@
             <Setter Property="Background"
                     Value="{DynamicResource SuccessStrongBrush}" />
             <Setter Property="Foreground"
-                    Value="{DynamicResource WindowBackgroundBrush}" />
+                    Value="{DynamicResource OnSuccessStrongBrush}" />
             <Setter Property="BorderThickness"
                     Value="0" />
             <Setter Property="Padding"
@@ -76,7 +76,7 @@
             <Setter Property="Background"
                     Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground"
-                    Value="{DynamicResource WindowBackgroundBrush}" />
+                    Value="{DynamicResource OnAccentBrush}" />
             <Setter Property="BorderThickness"
                     Value="0" />
             <Setter Property="Padding"
@@ -113,7 +113,7 @@
             <Setter Property="Background"
                     Value="{DynamicResource DangerStrongBrush}" />
             <Setter Property="Foreground"
-                    Value="{DynamicResource WindowBackgroundBrush}" />
+                    Value="{DynamicResource OnDangerStrongBrush}" />
             <Setter Property="BorderThickness"
                     Value="0" />
             <Setter Property="Padding"

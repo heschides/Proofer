@@ -74,10 +74,12 @@
     <SolidColorBrush x:Key="InfoBrush" Color="#9BCDF5" />
     <SolidColorBrush x:Key="InfoFillBrush" Color="#29445C" />
     <SolidColorBrush x:Key="SuccessStrongBrush" Color="#A6D69C" />
+    <SolidColorBrush x:Key="OnSuccessStrongBrush" Color="#132613" />
     <SolidColorBrush x:Key="SuccessDarkBrush" Color="#B7E0AE" />
     <SolidColorBrush x:Key="SuccessBorderBrush" Color="#688F6C" />
     <SolidColorBrush x:Key="SuccessSoftBrush" Color="#344F43" />
     <SolidColorBrush x:Key="DangerStrongBrush" Color="#F0AAAA" />
+    <SolidColorBrush x:Key="OnDangerStrongBrush" Color="#321515" />
     <SolidColorBrush x:Key="DangerDarkBrush" Color="#FFC0C0" />
     <SolidColorBrush x:Key="DangerSoftBrush" Color="#51343F" />
     <SolidColorBrush x:Key="WorkflowPurpleBrush" Color="#D8C2F0" />

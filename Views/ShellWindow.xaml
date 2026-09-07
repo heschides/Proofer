@@ -269,13 +269,14 @@
                         </Border>
 
                         <!-- Settings -->
-                    <Button Grid.Column="0"
-                            AutomationProperties.Name="Open settings"
+                        <Button Grid.Column="0"
+                                AutomationProperties.Name="Open settings"
                                 Style="{StaticResource SmallButton}"
                                 ToolTip="Settings"
                                 Width="28"
                                 Command="{Binding OpenSettingsWindowCommand}"
                                 Background="Transparent"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
                                 Padding="0">
                             <TextBlock FontFamily="Segoe MDL2 Assets"
                                        Text="&#xE713;"
@@ -289,13 +290,15 @@
                                 CornerRadius="4"
                                 Padding="8,4"
                                 VerticalAlignment="Center"
-                                Background="{Binding AvatarBrush}">
+                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                BorderThickness="1.5">
                             <Border.InputBindings>
                                 <MouseBinding MouseAction="LeftClick"
                                               Command="{Binding RequestSwitchUserCommand}" />
                             </Border.InputBindings>
                             <TextBlock FontSize="12"
-                                       Foreground="{DynamicResource WindowBackgroundBrush}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">

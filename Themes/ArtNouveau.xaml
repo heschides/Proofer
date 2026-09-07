@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- ART NOUVEAU: parchment, deep botanical green, and flowing gilded stems. -->
-    <DrawingBrush x:Key="WindowBackgroundBrush" TileMode="Tile"
+    <DrawingBrush x:Key="NavigableContentPatternSourceBrush" TileMode="Tile"
                   Viewport="0,0,128,128" ViewportUnits="Absolute"
                   Viewbox="0,0,128,128" ViewboxUnits="Absolute">
         <DrawingBrush.Drawing>
@@ -17,6 +17,18 @@
             </DrawingGroup>
         </DrawingBrush.Drawing>
     </DrawingBrush>
+    <VisualBrush x:Key="WindowBackgroundBrush" TileMode="Tile"
+                 Viewport="0,0,128,128" ViewportUnits="Absolute"
+                 Viewbox="0,0,128,128" ViewboxUnits="Absolute">
+        <VisualBrush.Visual>
+            <Border Width="128" Height="128"
+                    Background="{StaticResource NavigableContentPatternSourceBrush}">
+                <Border.Effect>
+                    <BlurEffect Radius="2.5" RenderingBias="Performance" />
+                </Border.Effect>
+            </Border>
+        </VisualBrush.Visual>
+    </VisualBrush>
     <DrawingBrush x:Key="NavBackgroundBrush" TileMode="Tile"
                   Viewport="0,0,96,64" ViewportUnits="Absolute"
                   Viewbox="0,0,96,64" ViewboxUnits="Absolute">

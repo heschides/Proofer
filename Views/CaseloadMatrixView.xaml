@@ -107,7 +107,7 @@
                     <TextBlock Text="READ ONLY"
                                FontSize="11"
                                FontWeight="Medium"
-                               Foreground="{DynamicResource WindowBackgroundBrush}"  />
+                               Foreground="{DynamicResource OnAccentBrush}"  />
                 </Border>
             </Grid>
         </Border>

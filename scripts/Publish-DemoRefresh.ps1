@@ -25,6 +25,7 @@ try {
     New-Item -ItemType Directory -Path $staging | Out-Null
     Copy-Item -Path (Join-Path $source '*') -Destination $staging -Recurse
     Copy-Item -LiteralPath $seed -Destination (Join-Path $staging 'RefreshCaseload\Seed-DemoShowcaseData.ps1')
+    Copy-Item -LiteralPath $seed -Destination (Join-Path $staging 'ResetDemo\Seed-DemoShowcaseData.ps1')
     Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zip -CompressionLevel Optimal
 
     $storageExists = [int](Invoke-AzureCli @('storage','account','list','-g',$ResourceGroup,'--query',"[?name=='$StorageAccount'] | length(@)",'-o','tsv'))

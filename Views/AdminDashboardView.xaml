@@ -49,12 +49,23 @@
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
             </StackPanel>
-            <Button Grid.Column="1"
-                    Content="Refresh"
-                    Command="{Binding RefreshCommand}"
-                    Style="{StaticResource SmallButton}"
-                    MinWidth="82"
-                    AutomationProperties.Name="Refresh Admin dashboard" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Restore Demo baseline"
+                        Command="{Binding ResetDemoCommand}"
+                        Style="{StaticResource SmallButton}"
+                        Background="{DynamicResource DangerSoftBrush}"
+                        BorderBrush="{DynamicResource DangerStrongBrush}"
+                        BorderThickness="1"
+                        Margin="0,0,8,0"
+                        Visibility="{Binding IsDemoEnvironment, Converter={StaticResource BoolToVisibilityConverter}}"
+                        AutomationProperties.Name="Restore the full Demo baseline"
+                        AutomationProperties.HelpText="Removes all Demo changes, restores the approved synthetic baseline, and rolls showcase dates forward." />
+                <Button Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Style="{StaticResource SmallButton}"
+                        MinWidth="82"
+                        AutomationProperties.Name="Refresh Admin dashboard" />
+            </StackPanel>
         </Grid>
 
         <StackPanel Grid.Row="1">
@@ -588,9 +599,9 @@
                                             BorderThickness="1" CornerRadius="4"
                                             Margin="0,0,0,9" Padding="9">
                                         <StackPanel>
-                                            <Border Background="{DynamicResource TextPrimaryBrush}"
+                                            <Border Background="{DynamicResource AccentBrush}"
                                                     CornerRadius="3" Padding="7,4" Margin="0,0,0,5">
-                                                <TextBlock Foreground="{DynamicResource WindowBackgroundBrush}"
+                                                <TextBlock Foreground="{DynamicResource OnAccentBrush}"
                                                            FontSize="11" FontWeight="SemiBold">
                                                     <Run Text="Version " />
                                       <Run Text="{Binding Version, Mode=OneWay}" />

@@ -304,7 +304,6 @@ public sealed class ReleaseUiStructureTests
             var document = XDocument.Load(Path.Combine(Root, "Themes", $"{name}.xaml"));
             XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
             var windowBrush = Assert.Single(document.Descendants(), element =>
-                element.Name.LocalName == "DrawingBrush" &&
                 element.Attribute(x + "Key")?.Value == "WindowBackgroundBrush");
             var navBrush = Assert.Single(document.Descendants(), element =>
                 element.Name.LocalName == "DrawingBrush" &&
@@ -315,6 +314,64 @@ public sealed class ReleaseUiStructureTests
             Assert.Equal("Tile", windowBrush.Attribute("TileMode")?.Value);
             Assert.Equal("Tile", navBrush.Attribute("TileMode")?.Value);
             Assert.NotEqual("DrawingBrush", surface.Name.LocalName);
+        }
+    }
+
+    [Fact]
+    public void ContentPatternsAreBlurredWithoutBlurringNavigationOrControls()
+    {
+        foreach (var name in new[] { "Paisley", "ArtNouveau", "MidCenturyModern" })
+        {
+            var document = XDocument.Load(Path.Combine(Root, "Themes", $"{name}.xaml"));
+            XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+            var windowBrush = Assert.Single(document.Descendants(), element =>
+                element.Name.LocalName == "VisualBrush" &&
+                element.Attribute(x + "Key")?.Value == "WindowBackgroundBrush");
+            Assert.Contains(windowBrush.Descendants(), element =>
+                element.Name.LocalName == "BlurEffect" &&
+                double.Parse(element.Attribute("Radius")!.Value,
+                    System.Globalization.CultureInfo.InvariantCulture) > 0);
+
+            var navBrush = Assert.Single(document.Descendants(), element =>
+                element.Name.LocalName == "DrawingBrush" &&
+                element.Attribute(x + "Key")?.Value == "NavBackgroundBrush");
+            Assert.DoesNotContain(navBrush.Descendants(), element =>
+                element.Name.LocalName == "BlurEffect");
+        }
+    }
+
+    [Fact]
+    public void MenusAndShellIdentityUseThemeOwnedContrastingText()
+    {
+        var app = File.ReadAllText(Path.Combine(Root, "App.xaml"));
+        Assert.Contains("<Style TargetType=\"ContextMenu\">", app);
+        Assert.Contains("<Style TargetType=\"MenuItem\">", app);
+        Assert.Contains("<Setter Property=\"Foreground\" Value=\"{DynamicResource TextPrimaryBrush}\" />", app);
+
+        var shell = File.ReadAllText(Path.Combine(Root, "Views", "ShellWindow.xaml"));
+        Assert.Contains("AutomationProperties.Name=\"Open settings\"", shell);
+        Assert.Contains("Foreground=\"{DynamicResource TextPrimaryBrush}\"", shell);
+        Assert.DoesNotContain("Foreground=\"{DynamicResource WindowBackgroundBrush}\"", shell);
+        Assert.Contains("BorderBrush=\"{DynamicResource AccentBrush}\"", shell);
+
+        foreach (var view in Directory.GetFiles(Path.Combine(Root, "Views"), "*.xaml",
+                     SearchOption.AllDirectories))
+        {
+            Assert.DoesNotContain(
+                "Foreground=\"{DynamicResource WindowBackgroundBrush}\"",
+                File.ReadAllText(view));
+        }
+    }
+
+    [Fact]
+    public void StrongStatusFillsHaveExplicitContrastingForegrounds()
+    {
+        foreach (var name in new[] { "States", "MidnightOpal", "HarborNight", "IndustrialMatte", "IridescentJewel" })
+        {
+            var theme = File.ReadAllText(Path.Combine(Root, "Themes", $"{name}.xaml"));
+            Assert.True(ContrastRatio(Color(theme, "SuccessStrongBrush"), Color(theme, "OnSuccessStrongBrush")) >= 4.5);
+            Assert.True(ContrastRatio(Color(theme, "DangerStrongBrush"), Color(theme, "OnDangerStrongBrush")) >= 4.5);
         }
     }
 
@@ -403,6 +460,24 @@ public sealed class ReleaseUiStructureTests
         Assert.Contains("new ConfirmationDialog", codeBehind);
         Assert.Contains("isDestructive: true", codeBehind);
         Assert.Contains("\"Delete\"", codeBehind);
+    }
+
+    [Fact]
+    public void FullDemoResetIsDemoOnlyAccessibleAndRequiresTypedConfirmation()
+    {
+        var view = File.ReadAllText(Path.Combine(Root, "Views", "AdminDashboardView.xaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "Views", "AdminDashboardView.xaml.cs"));
+        var viewModel = File.ReadAllText(Path.Combine(
+            Root, "ViewModels", "Admin", "AdminDashboardViewModel.cs"));
+
+        Assert.Contains("Restore Demo baseline", view);
+        Assert.Contains("AutomationProperties.Name=\"Restore the full Demo baseline\"", view);
+        Assert.Contains("Visibility=\"{Binding IsDemoEnvironment", view);
+        Assert.Contains("ResetDemoCommand", view);
+        Assert.Contains("new TypedConfirmationDialog", codeBehind);
+        Assert.Contains("\"RESET DEMO\"", codeBehind);
+        Assert.Contains("RequestFullDemoResetAsync(\"RESET DEMO\")", viewModel);
+        Assert.Contains("environmentInfo?.Environment == SatiDataEnvironment.Demo", viewModel);
     }
 
     [Fact]

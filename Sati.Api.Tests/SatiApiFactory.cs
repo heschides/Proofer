@@ -479,6 +479,39 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
+    public async Task<Guid> RotateDemoInstanceAsync()
+    {
+        await EnsureSeededAsync();
+        await _tokenLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var identity = await db.DatabaseIdentities.SingleAsync(item => item.Id == 1);
+            var previous = identity.InstanceId;
+            identity.InstanceId = Guid.NewGuid();
+            await db.SaveChangesAsync();
+            _tokens.Clear();
+            return previous;
+        }
+        finally { _tokenLock.Release(); }
+    }
+
+    public async Task RestoreDemoInstanceAsync(Guid instanceId)
+    {
+        await _tokenLock.WaitAsync();
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+            var identity = await db.DatabaseIdentities.SingleAsync(item => item.Id == 1);
+            identity.InstanceId = instanceId;
+            await db.SaveChangesAsync();
+            _tokens.Clear();
+        }
+        finally { _tokenLock.Release(); }
+    }
+
     private async Task EnsureSeededAsync()
     {
         await _seedLock.WaitAsync();
@@ -499,6 +532,14 @@ public sealed class SatiApiFactory : WebApplicationFactory<Program>
                 FROM DocumentArtifacts
                 """);
             var verifier = scope.ServiceProvider.GetRequiredService<PasswordVerifier>();
+
+            db.DatabaseIdentities.Add(new ServerDatabaseIdentity
+            {
+                Id = 1,
+                EnvironmentName = "Demo",
+                InstanceId = new Guid("11111111-2222-3333-4444-555555555555"),
+                CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
 
             db.Agencies.AddRange(
                 new ServerAgency
