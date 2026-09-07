@@ -1509,10 +1509,14 @@ public sealed class StabilizationTests
         Assert.Contains("[DateTime]$AsOfDate", seed);
         Assert.Contains("DEMO TEACHING CASE", seed);
         Assert.Contains("IncompleteOrdinaryClients", seed);
+        Assert.Contains("InvalidClientDiagnoses", seed);
         Assert.Contains("UnreadyClaims", seed);
         Assert.Contains("ClaimSnapshotJson", seed);
         Assert.Contains("DiagnosisCode = COALESCE", seed);
         Assert.Contains("'F89'", seed);
+        Assert.Contains("'F84.0'", seed);
+        Assert.DoesNotContain("DemoRank = 2 THEN NULL", seed);
+        Assert.DoesNotContain("missing diagnosis", seed, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SubscriberMemberId", seed);
         Assert.Contains("claim.ClientMaineCareId<>JSON_VALUE", seed);
         Assert.Contains("IDENTITY_ENDPOINT", function);

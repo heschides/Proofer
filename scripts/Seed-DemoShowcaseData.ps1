@@ -127,6 +127,12 @@ function Get-ServiceSummary($Person) {
 
 function Get-DiagnosisLabel([string]$Code) {
     switch ($Code) {
+        "F70" { return "mild intellectual disability (F70)" }
+        "F71" { return "moderate intellectual disability (F71)" }
+        "F72" { return "severe intellectual disability (F72)" }
+        "F79" { return "unspecified intellectual disability (F79)" }
+        "F84.0" { return "autism spectrum disorder (F84.0)" }
+        "F89" { return "unspecified disorder of psychological development (F89)" }
         "F32.1" { return "major depressive disorder, single episode, moderate (F32.1)" }
         "F33.0" { return "major depressive disorder, recurrent, mild (F33.0)" }
         "F41.1" { return "generalized anxiety disorder (F41.1)" }
@@ -409,7 +415,8 @@ try {
     $optionalSql = if ($optionalAssignments.Count) { ",`n    " + ($optionalAssignments -join ",`n    ") } else { '' }
 
     # Almost every consumer is a complete, usable working record. Six stable records are
-    # deliberately incomplete teaching cases so demonstrations can show Sati's warnings.
+    # teaching cases, most deliberately incomplete so demonstrations can show Sati's warnings.
+    # A diagnosis is never one of those omissions because it is a hard billing gate.
     # Ranking by Id keeps the same fictional people in those roles after every reset.
     Invoke-SeedNonQuery @"
 ;WITH ranked AS
@@ -433,7 +440,14 @@ SET FirstName = COALESCE(NULLIF(LTRIM(RTRIM(FirstName)),''), CONCAT('Hero ', Id)
     Waiver = CASE WHEN Waiver IS NULL OR Waiver = 0 THEN 1 + (Id % 2) ELSE Waiver END,
     MaineCareId = CASE WHEN DemoRank = 1 THEN NULL
                        ELSE COALESCE(NULLIF(MaineCareId,''), CONCAT('DEMO',RIGHT(CONCAT('00000000',Id),8))) END,
-    DiagnosisCode = CASE WHEN DemoRank = 2 THEN NULL ELSE COALESCE(NULLIF(DiagnosisCode,''),'F89') END,
+    DiagnosisCode = CASE Id % 6
+        WHEN 0 THEN 'F70'
+        WHEN 1 THEN 'F71'
+        WHEN 2 THEN 'F72'
+        WHEN 3 THEN 'F79'
+        WHEN 4 THEN 'F84.0'
+        ELSE 'F89'
+    END,
     PlaceOfService = COALESCE(PlaceOfService,11),
     EvergreenId = COALESCE(NULLIF(EvergreenId,''),CONCAT('EIS-',RIGHT(CONCAT('000000',Id),6))),
     PhoneNumber = COALESCE(NULLIF(PhoneNumber,''),CONCAT('207-555-',RIGHT(CONCAT('0000',1000 + (Id % 9000)),4))),
@@ -448,7 +462,7 @@ SET FirstName = COALESCE(NULLIF(LTRIM(RTRIM(FirstName)),''), CONCAT('Hero ', Id)
     DayProgramCount = CASE WHEN HasCommunitySupportDayProgram = 1 AND DayProgramCount < 1 THEN 1 ELSE DayProgramCount END,
     Bio = CASE DemoRank
         WHEN 1 THEN '[DEMO TEACHING CASE — missing MaineCare ID] A capable neighborhood hero whose eligibility paperwork vanished into a filing cabinet labeled Definitely Not A Secret Lair.'
-        WHEN 2 THEN '[DEMO TEACHING CASE — missing diagnosis] A sitcom regular with excellent attendance, three catchphrases, and one diagnosis field still awaiting verified documentation.'
+        WHEN 2 THEN '[DEMO TEACHING CASE — diagnosis verification due] A sitcom regular with excellent attendance, three catchphrases, and a valid fictional billing code that still needs ordinary source-document verification.'
         WHEN 3 THEN '[DEMO TEACHING CASE — incomplete billing address] Mail reliably reaches the Hall of Justice, but the structured claim address has not survived the latest continuity reboot.'
         WHEN 4 THEN '[DEMO TEACHING CASE — missing healthcare provider] This client can name every actor who played a television doctor but still needs an actual primary-care provider recorded.'
         WHEN 5 THEN '[DEMO TEACHING CASE — missing effective date] Services are discussed enthusiastically, though nobody wrote down when this season officially began.'
@@ -929,6 +943,10 @@ SELECT
               OR NULLIF(p.BillingStreet,'') IS NULL OR NULLIF(p.BillingCity,'') IS NULL
               OR NULLIF(p.BillingState,'') IS NULL OR NULLIF(p.BillingZip,'') IS NULL
               OR NULLIF(p.PrimaryCareProvider,'') IS NULL OR NULLIF(p.HealthcareSystemName,'') IS NULL)) AS IncompleteOrdinaryClients,
+    (SELECT COUNT(*) FROM dbo.People p JOIN dbo.Users u ON u.Id=p.UserId
+       WHERE u.AgencyId=2
+         AND (NULLIF(LTRIM(RTRIM(p.DiagnosisCode)),'') IS NULL
+              OR p.DiagnosisCode NOT IN ('F70','F71','F72','F79','F84.0','F89'))) AS InvalidClientDiagnoses,
     (SELECT COUNT(*) FROM dbo.ClaimLines claim JOIN dbo.BillingPeriods period ON period.Id=claim.BillingPeriodId
        JOIN dbo.Users u ON u.Id=period.UserId WHERE u.AgencyId=2
        AND (claim.Units IS NULL OR claim.Units<=0 OR claim.ChargeAmount<=0
@@ -954,6 +972,9 @@ if ([int]$row.TeachingCases -ne [Math]::Min(6, [int]$row.CaseloadClients)) {
 }
 if ([int]$row.IncompleteOrdinaryClients -ne 0) {
     throw "Demo refresh left $($row.IncompleteOrdinaryClients) ordinary clients incomplete."
+}
+if ([int]$row.InvalidClientDiagnoses -ne 0) {
+    throw "Demo refresh left $($row.InvalidClientDiagnoses) clients without a valid fictional billing diagnosis."
 }
 if ([int]$row.UnreadyClaims -ne 0) {
     throw "Demo refresh left $($row.UnreadyClaims) claims unready for 837P generation."

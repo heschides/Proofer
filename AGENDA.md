@@ -1,5 +1,16 @@
 # Sati — Refactor Agenda
 
+## Unreleased follow-up — billing-safe Demo diagnoses
+
+- [x] Give every synthetic Demo client a deterministic, valid fictional diagnosis from a varied
+      ICD-10 teaching set. Diagnosis is a hard billing gate and is no longer permitted as an
+      intentionally missing teaching exception.
+- [x] Keep the second teaching profile as a diagnosis-verification lesson without clearing its
+      billable code, and validate every refreshed Demo client after commit so a missing or
+      unexpected diagnosis makes the refresh fail visibly.
+
+**No schema change.** This updates synthetic Demo seed values and validation only.
+
 ## Release 1.3.2 — 2026-09-06
 
 "Claims in the right lane." This release makes Submit & Lock visibly move work from the draft

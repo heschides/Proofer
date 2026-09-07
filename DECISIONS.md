@@ -3329,3 +3329,13 @@ A pre-exchange period may be returned to Draft, with an audit event, when it was
 or exposes a legacy defect. The transition is rejected after any generation/submission event and
 is serialized against 837 generation. Rewinding a period after external-history evidence exists
 was rejected because it would make an immutable financial lifecycle appear not to have happened.
+
+## 2026-09-06 — Demo teaching exceptions cannot remove hard billing identifiers
+
+The rolling Demo caseload keeps a small set of intentionally incomplete records so staff can see
+how Sati explains missing information. A diagnosis is not a suitable exception: it is required to
+build a professional claim, so clearing it makes an otherwise useful fictional caseload fail at a
+hard billing gate. Every synthetic Demo client now receives one deterministic fictional diagnosis
+from a varied valid set. The former missing-diagnosis profile instead teaches that a present code
+still needs ordinary source-document verification. Post-refresh validation checks every client,
+including teaching cases, and refuses to complete if any diagnosis is absent or outside that set.
